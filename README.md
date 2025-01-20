@@ -99,10 +99,63 @@ The build process will automatically include version information and build time 
 ### Create a Torrent
 
 ```bash
-mkbrr create <path> [flags]
+mkbrr create [path] [flags]
 ```
 
+mkbrr supports both single file/directory and batch mode torrent creation.
+
+#### Single Mode
+
+Create a torrent from a single file or directory:
+
+```bash
+mkbrr create path/to/file -t udp://tracker.example.com:1337
+```
+
+#### Batch Mode
+
+Create multiple torrents using a YAML configuration file:
+
+```bash
+mkbrr create -b batch.yaml
+```
+
+Example batch.yaml:
+
+```yaml
+version: 1
+jobs:
+  - output: ubuntu.torrent
+    path: /path/to/ubuntu.iso
+    name: "Ubuntu 22.04 LTS"
+    trackers:
+      - udp://tracker.opentrackr.org:1337/announce
+    webseeds:
+      - https://releases.ubuntu.com/22.04/ubuntu-22.04.3-desktop-amd64.iso
+    piece_length: 20  # 1MB pieces (2^20)
+    comment: "Ubuntu 22.04.3 LTS Desktop AMD64"
+    private: false
+
+  - output: release.torrent
+    path: /path/to/release
+    name: "My Release"
+    trackers:
+      - udp://tracker.example.com:1337/announce
+    piece_length: 18  # 256KB pieces (2^18)
+    private: true
+    source: "GROUP"
+```
+
+Batch mode will process all jobs in parallel (up to 4 concurrent jobs) and provide a summary of results.
+
 #### Create Flags
+
+General flags:
+
+- `-b, --batch <file>`: Use batch configuration file (YAML)
+- `-v, --verbose`: Be verbose
+
+Single mode flags:
 
 - `-t, --tracker <url>`: Tracker URL
 - `-w, --web-seed <url>`: Add web seed URLs (can be specified multiple times)
@@ -113,7 +166,29 @@ mkbrr create <path> [flags]
 - `-n, --name <name>`: Set torrent name (default: basename of target)
 - `-s, --source <text>`: Add source string
 - `-d, --no-date`: Don't write creation date
-- `-v, --verbose`: Be verbose
+
+Note: When using batch mode (-b), torrent settings are specified in the YAML configuration file instead of command line flags.
+
+#### Batch Configuration Format
+
+The batch configuration file uses YAML format with the following structure:
+
+```yaml
+version: 1  # Required, must be 1
+jobs:       # List of torrent creation jobs
+  - output: string        # Required: Output path for .torrent file
+    path: string         # Required: Path to source file/directory
+    name: string        # Optional: Torrent name (default: basename of path)
+    trackers:          # Optional: List of tracker URLs
+      - string
+    webseeds:         # Optional: List of webseed URLs
+      - string
+    private: bool     # Optional: Make torrent private (default: false)
+    piece_length: int # Optional: Piece length exponent (14-24)
+    comment: string   # Optional: Torrent comment
+    source: string    # Optional: Source tag
+    no_date: bool     # Optional: Don't write creation date (default: false)
+```
 
 ### Inspect a Torrent
 

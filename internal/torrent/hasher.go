@@ -63,13 +63,13 @@ func (h *pieceHasher) optimizeForWorkload() (int, int) {
 		}
 	case avgFileSize < 1<<20:
 		readSize = 256 << 10
-		numWorkers = int(min(int64(8), int64(runtime.NumCPU())))
+		numWorkers = int(minInt64(8, int64(runtime.NumCPU())))
 	case avgFileSize < 10<<20:
 		readSize = 1 << 20
-		numWorkers = int(min(int64(4), int64(runtime.NumCPU())))
+		numWorkers = int(minInt64(4, int64(runtime.NumCPU())))
 	default:
 		readSize = 4 << 20
-		numWorkers = int(min(int64(2), int64(runtime.NumCPU())))
+		numWorkers = int(minInt64(2, int64(runtime.NumCPU())))
 	}
 
 	// ensure we don't create more workers than pieces to process

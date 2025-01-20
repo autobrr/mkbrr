@@ -4,10 +4,11 @@ go 1.23.4
 
 require (
 	github.com/anacrolix/torrent v1.58.0
-	github.com/dustin/go-humanize v1.0.1
+	github.com/dustin/go-humanize v1.0.0
 	github.com/fatih/color v1.18.0
 	github.com/schollz/progressbar/v3 v3.18.0
 	github.com/spf13/cobra v1.8.1
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (

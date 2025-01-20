@@ -37,7 +37,8 @@ func runInspect(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("error parsing info: %w", err)
 	}
 
-	torrent.NewDisplay(torrent.NewFormatter(true)).ShowTorrentInfo(mi, &info)
+	t := &torrent.Torrent{MetaInfo: mi}
+	torrent.NewDisplay(torrent.NewFormatter(true)).ShowTorrentInfo(t, &info)
 
 	if info.IsDir() {
 		torrent.NewDisplay(torrent.NewFormatter(true)).ShowFileTree(&info)

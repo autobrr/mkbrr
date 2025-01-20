@@ -24,13 +24,26 @@ var (
 	noDate         bool
 	source         string
 	verbose        bool
+	batchFile      string
 )
-
 var createCmd = &cobra.Command{
-	Use:   "create <path>",
+	Use:   "create [path]",
 	Short: "Create a new torrent file",
-	Args:  cobra.ExactArgs(1),
-	RunE:  runCreate,
+	Long: `Create a new torrent file from a file or directory.
+Supports both single file/directory and batch mode using a YAML config file.`,
+	Args: func(cmd *cobra.Command, args []string) error {
+		if len(args) > 1 {
+			return fmt.Errorf("accepts at most one arg")
+		}
+		if len(args) == 0 && batchFile == "" {
+			return fmt.Errorf("requires a path argument or --batch flag")
+		}
+		if len(args) == 1 && batchFile != "" {
+			return fmt.Errorf("cannot specify both path argument and --batch flag")
+		}
+		return nil
+	},
+	RunE: runCreate,
 }
 
 func init() {
@@ -41,6 +54,7 @@ func init() {
 	createCmd.Flags().BoolP("help", "h", false, "help for create")
 	createCmd.Flags().MarkHidden("help")
 
+	createCmd.Flags().StringVarP(&batchFile, "batch", "b", "", "batch config file (YAML)")
 	createCmd.Flags().StringVarP(&trackerURL, "tracker", "t", "", "tracker URL")
 	createCmd.Flags().StringArrayVarP(&webSeeds, "web-seed", "w", nil, "add web seed URLs")
 	createCmd.Flags().BoolVarP(&isPrivate, "private", "p", false, "make torrent private")
@@ -79,6 +93,21 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		defer pprof.StopCPUProfile()
 	}
 
+	start := time.Now()
+
+	// Batch mode
+	if batchFile != "" {
+		results, err := torrent.ProcessBatch(batchFile, verbose, version)
+		if err != nil {
+			return fmt.Errorf("batch processing failed: %w", err)
+		}
+
+		display := torrent.NewDisplay(torrent.NewFormatter(verbose))
+		display.ShowBatchResults(results, time.Since(start))
+		return nil
+	}
+
+	// Single file mode
 	if _, err := os.Stat(args[0]); err != nil {
 		return fmt.Errorf("invalid path %q: %w", args[0], err)
 	}
@@ -122,7 +151,6 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		Version:        version,
 	}
 
-	start := time.Now()
 	mi, err := torrent.CreateTorrent(opts)
 	if err != nil {
 		return err

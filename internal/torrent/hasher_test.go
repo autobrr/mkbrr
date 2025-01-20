@@ -10,19 +10,14 @@ import (
 	"runtime"
 	"sync"
 	"testing"
-
-	"github.com/schollz/progressbar/v3"
 )
 
-// mockDisplay implements Display interface for testing
+// mockDisplay implements Displayer interface for testing
 type mockDisplay struct{}
 
-func (m *mockDisplay) ShowProgress(total int) *progressbar.ProgressBar { return nil }
-func (m *mockDisplay) UpdateProgress(count int)                        {}
-func (m *mockDisplay) FinishProgress()                                 {}
-func (m *mockDisplay) ShowMessage(message string)                      {}
-func (m *mockDisplay) ShowWarning(message string)                      {}
-func (m *mockDisplay) ShowError(message string)                        {}
+func (m *mockDisplay) ShowProgress(total int)   {}
+func (m *mockDisplay) UpdateProgress(count int) {}
+func (m *mockDisplay) FinishProgress()          {}
 
 // TestPieceHasher_Concurrent tests the hasher with various real-world scenarios.
 // Test cases are designed to cover common torrent types and sizes:

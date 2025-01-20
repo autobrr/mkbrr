@@ -1,0 +1,28 @@
+version: 1
+jobs:
+  # Single file torrent
+  - output: ubuntu.torrent
+    path: /path/to/ubuntu.iso
+    name: "Ubuntu 22.04 LTS"
+    trackers:
+      - udp://tracker.opentrackr.org:1337/announce
+      - udp://tracker.openbittorrent.com:6969/announce
+    webseeds:
+      - https://releases.ubuntu.com/22.04/ubuntu-22.04.3-desktop-amd64.iso
+    piece_length: 20 # 1MB pieces (2^20)
+    comment: "Ubuntu 22.04.3 LTS Desktop AMD64"
+    private: false
+
+  # Directory torrent
+  - output: release.torrent
+    path: /path/to/release
+    name: "My Release"
+    trackers:
+      - udp://tracker.example.com:1337/announce
+    webseeds:
+      - https://cdn.example.com/release/
+    piece_length: 18 # 256KB pieces (2^18)
+    private: true
+    source: "GROUP"
+    comment: "My awesome release"
+    no_date: false
