@@ -24,6 +24,14 @@ func (m *mockDisplay) ShowMessage(message string)                      {}
 func (m *mockDisplay) ShowWarning(message string)                      {}
 func (m *mockDisplay) ShowError(message string)                        {}
 
+// TestPieceHasher_Concurrent tests the hasher with various real-world scenarios.
+// Test cases are designed to cover common torrent types and sizes:
+//   - Piece sizes: 64KB for small files (standard minimum)
+//     4MB for large files
+//   - Worker counts: 1 (sequential baseline)
+//     2 (minimal concurrency)
+//     4 (typical desktop CPU)
+//     8 (high-end desktop/server)
 func TestPieceHasher_Concurrent(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -43,36 +51,15 @@ func TestPieceHasher_Concurrent(t *testing.T) {
 			name:      "1080p episode",
 			numFiles:  1,
 			fileSize:  4 << 30, // 4GB
-			pieceLen:  1 << 22, // 4MB pieces
+			pieceLen:  1 << 22, // 4MB
 			numPieces: 1024,
 		},
 		{
-			name:      "4k movie webdl",
-			numFiles:  1,
-			fileSize:  15 << 30, // 15GB
-			pieceLen:  1 << 22,  // 4MB pieces
-			numPieces: 3840,
-		},
-		{
-			name:      "4k movie remux",
-			numFiles:  1,
-			fileSize:  64 << 30, // 64GB
-			pieceLen:  1 << 22,  // 4MB pieces
-			numPieces: 16384,
-		},
-		{
-			name:      "1080p season pack",
-			numFiles:  10,      // 10 episodes
-			fileSize:  4 << 30, // 4GB per episode (~40GB total)
-			pieceLen:  1 << 22, // 4MB pieces
-			numPieces: 10240,
-		},
-		{
-			name:      "game distribution",
-			numFiles:  100,
-			fileSize:  1 << 28, // 256MB per file (~25GB total)
-			pieceLen:  1 << 22, // 4MB pieces
-			numPieces: 6400,
+			name:      "multi-file album",
+			numFiles:  12,       // typical album length
+			fileSize:  40 << 20, // 40MB per track
+			pieceLen:  1 << 16,  // 64KB pieces
+			numPieces: 7680,     // ~480MB total
 		},
 	}
 
@@ -272,46 +259,40 @@ func TestPieceHasher_EdgeCases(t *testing.T) {
 	}
 }
 
+// TestPieceHasher_RaceConditions tests concurrent access using a FLAC album scenario.
+// FLAC albums are ideal for race testing because:
+// - Multiple small-to-medium files (12 tracks, 40MB each)
+// - Small piece size (64KB) creates more concurrent operations
 func TestPieceHasher_RaceConditions(t *testing.T) {
+	// Use the multi-file album test case from TestPieceHasher_Concurrent
+	// but run multiple hashers concurrently to stress test race conditions
+	numFiles := 12
+	fileSize := int64(40 << 20) // 40MB per track
+	pieceLen := int64(1 << 16)  // 64KB pieces
+	numPieces := 7680           // ~480MB total
 
-	tests := []struct {
-		name     string
-		numFiles int
-		fileSize int64
-		pieceLen int64
-	}{
-		{
-			name:     "flac album",
-			numFiles: 12,       // typical album length
-			fileSize: 40 << 20, // 40MB per track
-			pieceLen: 1 << 16,  // 64KB pieces
-		},
+	tempDir, err := os.MkdirTemp("", "hasher_race_test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
 	}
+	defer os.RemoveAll(tempDir)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tempDir, err := os.MkdirTemp("", "hasher_race_test")
-			if err != nil {
-				t.Fatalf("failed to create temp dir: %v", err)
+	files, expectedHashes := createTestFilesFast(t, numFiles, fileSize, pieceLen)
+
+	var wg sync.WaitGroup
+	for i := 0; i < 4; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			hasher := NewPieceHasher(files, pieceLen, numPieces, &mockDisplay{})
+			if err := hasher.hashPieces(4); err != nil {
+				t.Errorf("hashPieces failed: %v", err)
+				return
 			}
-			defer os.RemoveAll(tempDir)
-
-			files, expectedHashes := createTestFilesFast(t, tt.numFiles, tt.fileSize, tt.pieceLen)
-
-			var wg sync.WaitGroup
-			for i := 0; i < 4; i++ {
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					hasher := NewPieceHasher(files, tt.pieceLen, len(expectedHashes), &mockDisplay{})
-					if err := hasher.hashPieces(4); err != nil {
-						t.Errorf("hashPieces failed: %v", err)
-					}
-				}()
-			}
-			wg.Wait()
-		})
+			verifyHashes(t, hasher.pieces, expectedHashes)
+		}()
 	}
+	wg.Wait()
 }
 
 func TestPieceHasher_NoFiles(t *testing.T) {

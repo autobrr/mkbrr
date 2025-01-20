@@ -11,6 +11,12 @@ VERSION=$(shell git describe --tags 2>/dev/null || echo "dev")
 BUILD_TIME=$(shell date +%FT%T%z)
 LDFLAGS=-ldflags "-X main.version=${VERSION} -X main.buildTime=${BUILD_TIME}"
 
+# race detector settings
+GORACE=log_path=./race_report.log \
+       history_size=2 \
+       halt_on_error=1 \
+       atexit_sleep_ms=2000
+
 # make all builds and installs
 .PHONY: all
 all: clean build install
@@ -32,30 +38,52 @@ install:
 		$(GO) install ${LDFLAGS}; \
 	fi
 
-# run tests
+# run all tests (excluding large tests)
 .PHONY: test
 test:
 	@echo "Running tests..."
 	$(GO) test -v ./...
 
-# run tests with race detector (quick)
+# run quick tests with race detector (for CI and quick feedback)
 .PHONY: test-race-short
 test-race-short:
 	@echo "Running quick tests with race detector..."
-	$(GO) test -race -short ./internal/torrent -v 
+	GORACE="$(GORACE)" $(GO) test -race -short ./internal/torrent -v 
+	@if [ -f "./race_report.log" ]; then \
+		echo "Race conditions detected! Check race_report.log"; \
+		cat "./race_report.log"; \
+	fi
 
-# run tests with race detector
+# run all tests with race detector (excluding large tests)
 .PHONY: test-race
 test-race:
 	@echo "Running tests with race detector..."
-	$(GO) test -race ./internal/torrent -v
+	GORACE="$(GORACE)" $(GO) test -race ./internal/torrent -v
+	@if [ -f "./race_report.log" ]; then \
+		echo "Race conditions detected! Check race_report.log"; \
+		cat "./race_report.log"; \
+	fi
+
+# run large tests (resource intensive)
+.PHONY: test-large
+test-large:
+	@echo "Running large tests..."
+	GORACE="$(GORACE)" $(GO) test -v -tags=large_tests ./internal/torrent
+	@if [ -f "./race_report.log" ]; then \
+		echo "Race conditions detected! Check race_report.log"; \
+		cat "./race_report.log"; \
+	fi
 
 # run tests with coverage
 .PHONY: test-coverage
 test-coverage:
 	@echo "Running tests with coverage..."
-	$(GO) test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
+	GORACE="$(GORACE)" $(GO) test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
 	$(GO) tool cover -html=coverage.txt -o coverage.html
+	@if [ -f "./race_report.log" ]; then \
+		echo "Race conditions detected! Check race_report.log"; \
+		cat "./race_report.log"; \
+	fi
 
 # run golangci-lint
 .PHONY: lint
@@ -81,7 +109,10 @@ help:
 	@echo "  all            - Clean, build, and install the binary"
 	@echo "  build          - Build the binary"
 	@echo "  install        - Install the binary in GOPATH"
-	@echo "  test           - Run tests"
+	@echo "  test           - Run tests (excluding large tests)"
+	@echo "  test-race-short- Run quick tests with race detector"
+	@echo "  test-race      - Run all tests with race detector (excluding large tests)"
+	@echo "  test-large     - Run large tests (resource intensive)"
 	@echo "  test-coverage  - Run tests with coverage report"
 	@echo "  lint           - Run golangci-lint"
 	@echo "  clean          - Remove build artifacts"
