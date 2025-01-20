@@ -30,7 +30,6 @@ type pieceHasher struct {
 // Returns readSize (buffer size for reading) and numWorkers (concurrent goroutines)
 func (h *pieceHasher) optimizeForWorkload() (int, int) {
 	if len(h.files) == 0 {
-		// No files to process, so no workers needed
 		return 0, 0
 	}
 
@@ -85,7 +84,6 @@ func (h *pieceHasher) optimizeForWorkload() (int, int) {
 // The pieces are distributed evenly across the specified number of workers.
 // Returns an error if any worker encounters issues during hashing.
 func (h *pieceHasher) hashPieces(numWorkers int) error {
-	// Validate the number of workers
 	if numWorkers <= 0 && len(h.files) > 0 {
 		return errors.New("number of workers must be greater than zero when files are present")
 	}
@@ -99,7 +97,7 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 		return nil
 	}
 
-	// Initialize buffer pool
+	// initialize buffer pool
 	h.bufferPool = &sync.Pool{
 		New: func() interface{} {
 			return make([]byte, h.readSize)
@@ -110,10 +108,9 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 	piecesPerWorker := (h.numPieces + numWorkers - 1) / numWorkers
 	errorsCh := make(chan error, numWorkers)
 
-	// Create progress bar using display
 	h.display.ShowProgress(h.numPieces)
 
-	// Spawn worker goroutines
+	// spawn worker goroutines to process piece ranges in parallel
 	var wg sync.WaitGroup
 	for i := 0; i < numWorkers; i++ {
 		start := i * piecesPerWorker
@@ -131,7 +128,7 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 		}(start, end)
 	}
 
-	// Monitor and update progress bar
+	// monitor and update progress bar in separate goroutine
 	go func() {
 		for {
 			completed := atomic.LoadUint64(&completedPieces)
