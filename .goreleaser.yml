@@ -31,7 +31,7 @@ builds:
         goarch: arm
       - goos: freebsd
         goarch: arm64
-    main: ./cmd/mkbrr/main.go
+    main: ./main.go
     binary: mkbrr
     ldflags:
       - -s -w
