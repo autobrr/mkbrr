@@ -204,6 +204,7 @@ func TestPieceHasher_EdgeCases(t *testing.T) {
 		pieceLen  int64
 		numPieces int
 		wantErr   bool
+		skipOnWin bool
 	}{
 		{
 			name: "non-existent file",
@@ -238,9 +239,6 @@ func TestPieceHasher_EdgeCases(t *testing.T) {
 		{
 			name: "unreadable file",
 			setup: func() []fileEntry {
-				if runtime.GOOS == "windows" {
-					t.Skip("skipping unreadable file test on Windows")
-				}
 				path := filepath.Join(tempDir, "unreadable")
 				if err := os.WriteFile(path, []byte("test"), 0000); err != nil {
 					t.Fatalf("failed to create unreadable file: %v", err)
@@ -254,11 +252,15 @@ func TestPieceHasher_EdgeCases(t *testing.T) {
 			pieceLen:  64,
 			numPieces: 1,
 			wantErr:   true,
+			skipOnWin: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.skipOnWin && runtime.GOOS == "windows" {
+				t.Skip("skipping unreadable file test on Windows")
+			}
 			files := tt.setup()
 			hasher := NewPieceHasher(files, tt.pieceLen, tt.numPieces, &mockDisplay{})
 
