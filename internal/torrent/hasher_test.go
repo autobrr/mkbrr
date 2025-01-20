@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"testing"
 
@@ -237,6 +238,9 @@ func TestPieceHasher_EdgeCases(t *testing.T) {
 		{
 			name: "unreadable file",
 			setup: func() []fileEntry {
+				if runtime.GOOS == "windows" {
+					t.Skip("skipping unreadable file test on Windows")
+				}
 				path := filepath.Join(tempDir, "unreadable")
 				if err := os.WriteFile(path, []byte("test"), 0000); err != nil {
 					t.Fatalf("failed to create unreadable file: %v", err)
