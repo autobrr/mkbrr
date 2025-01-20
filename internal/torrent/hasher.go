@@ -2,6 +2,7 @@ package torrent
 
 import (
 	"crypto/sha1"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -16,7 +17,7 @@ type pieceHasher struct {
 	pieceLen   int64
 	numPieces  int
 	files      []fileEntry
-	display    *Display
+	display    Displayer
 	bufferPool *sync.Pool
 	readSize   int
 }
@@ -28,6 +29,11 @@ type pieceHasher struct {
 // - system CPU count
 // Returns readSize (buffer size for reading) and numWorkers (concurrent goroutines)
 func (h *pieceHasher) optimizeForWorkload() (int, int) {
+	if len(h.files) == 0 {
+		// No files to process, so no workers needed
+		return 0, 0
+	}
+
 	// calculate total and maximum file sizes for optimization decisions
 	var totalSize int64
 	maxFileSize := int64(0)
@@ -79,8 +85,21 @@ func (h *pieceHasher) optimizeForWorkload() (int, int) {
 // The pieces are distributed evenly across the specified number of workers.
 // Returns an error if any worker encounters issues during hashing.
 func (h *pieceHasher) hashPieces(numWorkers int) error {
-	// initialize buffer pool for reusing read buffers across goroutines
+	// Validate the number of workers
+	if numWorkers <= 0 && len(h.files) > 0 {
+		return errors.New("number of workers must be greater than zero when files are present")
+	}
+
 	h.readSize, numWorkers = h.optimizeForWorkload()
+
+	if numWorkers == 0 {
+		// No workers needed, possibly no pieces to hash
+		h.display.ShowProgress(0)
+		h.display.FinishProgress()
+		return nil
+	}
+
+	// Initialize buffer pool
 	h.bufferPool = &sync.Pool{
 		New: func() interface{} {
 			return make([]byte, h.readSize)
@@ -89,12 +108,12 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 
 	var completedPieces uint64
 	piecesPerWorker := (h.numPieces + numWorkers - 1) / numWorkers
-	errors := make(chan error, numWorkers)
+	errorsCh := make(chan error, numWorkers)
 
-	// create progress bar using display
+	// Create progress bar using display
 	h.display.ShowProgress(h.numPieces)
 
-	// spawn worker goroutines to process piece ranges in parallel
+	// Spawn worker goroutines
 	var wg sync.WaitGroup
 	for i := 0; i < numWorkers; i++ {
 		start := i * piecesPerWorker
@@ -107,12 +126,12 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 		go func(startPiece, endPiece int) {
 			defer wg.Done()
 			if err := h.hashPieceRange(startPiece, endPiece, &completedPieces); err != nil {
-				errors <- err
+				errorsCh <- err
 			}
 		}(start, end)
 	}
 
-	// monitor and update progress bar in separate goroutine
+	// Monitor and update progress bar
 	go func() {
 		for {
 			completed := atomic.LoadUint64(&completedPieces)
@@ -125,9 +144,9 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 	}()
 
 	wg.Wait()
-	close(errors)
+	close(errorsCh)
 
-	for err := range errors {
+	for err := range errorsCh {
 		if err != nil {
 			return err
 		}
@@ -253,12 +272,12 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 	return nil
 }
 
-func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display *Display) *pieceHasher {
+func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Displayer) *pieceHasher {
 	return &pieceHasher{
 		pieces:    make([][]byte, numPieces),
 		pieceLen:  pieceLen,
 		numPieces: numPieces,
 		files:     files,
-		display:   display, // initialize the display field
+		display:   display,
 	}
 }

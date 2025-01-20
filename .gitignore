@@ -1,3 +1,8 @@
 *.torrent
 /build
 .DS_Store
+
+race_report.log
+coverage.txt
+coverage.html
+test.sh

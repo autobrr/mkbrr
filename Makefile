@@ -38,6 +38,12 @@ test:
 	@echo "Running tests..."
 	$(GO) test -v ./...
 
+# run tests with race detector
+.PHONY: test-race
+test-race:
+	@echo "Running tests with race detector..."
+	$(GO) test -race ./internal/torrent -v
+
 # run tests with coverage
 .PHONY: test-coverage
 test-coverage:

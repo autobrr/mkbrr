@@ -13,6 +13,12 @@ import (
 	"github.com/schollz/progressbar/v3"
 )
 
+type Displayer interface {
+	ShowProgress(total int) *progressbar.ProgressBar
+	UpdateProgress(count int)
+	FinishProgress()
+}
+
 type Formatter struct {
 	verbose bool
 	colored bool
