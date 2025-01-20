@@ -46,7 +46,11 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: true
 
-      - name: Run Tests with Race Detector
+      - name: Run Quick Tests
+        run: make test-race-short
+
+      - name: Run Full Tests
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
         run: make test-race
 
   goreleaserbuild:

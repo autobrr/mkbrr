@@ -38,6 +38,12 @@ test:
 	@echo "Running tests..."
 	$(GO) test -v ./...
 
+# run tests with race detector (quick)
+.PHONY: test-race-short
+test-race-short:
+	@echo "Running quick tests with race detector..."
+	$(GO) test -race -short ./internal/torrent -v 
+
 # run tests with race detector
 .PHONY: test-race
 test-race:
@@ -79,4 +85,4 @@ help:
 	@echo "  test-coverage  - Run tests with coverage report"
 	@echo "  lint           - Run golangci-lint"
 	@echo "  clean          - Remove build artifacts"
-	@echo "  help           - Show this help" 
+	@echo "  help           - Show this help"

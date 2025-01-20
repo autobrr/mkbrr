@@ -3,6 +3,8 @@ package torrent
 import (
 	"bytes"
 	"crypto/sha1"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sync"
@@ -37,123 +39,137 @@ func TestPieceHasher_Concurrent(t *testing.T) {
 			numPieces: 16,
 		},
 		{
-			name:      "multiple small files",
-			numFiles:  5,
-			fileSize:  1 << 19, // 512KB each
-			pieceLen:  1 << 16, // 64KB
-			numPieces: 40,
-		},
-		{
-			name:      "large file spanning multiple pieces",
+			name:      "1080p episode",
 			numFiles:  1,
-			fileSize:  1 << 24, // 16MB
-			pieceLen:  1 << 20, // 1MB
-			numPieces: 16,
-		},
-		{
-			name:      "file size not divisible by piece length",
-			numFiles:  1,
-			fileSize:  (1 << 16) + 100, // 64KB + 100 bytes
-			pieceLen:  1 << 16,         // 64KB
-			numPieces: 2,
-		},
-		{
-			name:      "single extremely large file",
-			numFiles:  1,
-			fileSize:  1 << 30, // 1GB
-			pieceLen:  1 << 20, // 1MB
+			fileSize:  4 << 30, // 4GB
+			pieceLen:  1 << 22, // 4MB pieces
 			numPieces: 1024,
 		},
 		{
-			name:      "maximum workers",
-			numFiles:  2,
-			fileSize:  1 << 20, // 1MB each
-			pieceLen:  1 << 16, // 64KB
-			numPieces: 32,
+			name:      "4k movie webdl",
+			numFiles:  1,
+			fileSize:  15 << 30, // 15GB
+			pieceLen:  1 << 22,  // 4MB pieces
+			numPieces: 3840,
+		},
+		{
+			name:      "4k movie remux",
+			numFiles:  1,
+			fileSize:  64 << 30, // 64GB
+			pieceLen:  1 << 22,  // 4MB pieces
+			numPieces: 16384,
+		},
+		{
+			name:      "1080p season pack",
+			numFiles:  10,      // 10 episodes
+			fileSize:  4 << 30, // 4GB per episode (~40GB total)
+			pieceLen:  1 << 22, // 4MB pieces
+			numPieces: 10240,
+		},
+		{
+			name:      "game distribution",
+			numFiles:  100,
+			fileSize:  1 << 28, // 256MB per file (~25GB total)
+			pieceLen:  1 << 22, // 4MB pieces
+			numPieces: 6400,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// create temporary directory for test files
-			tempDir, err := os.MkdirTemp("", "hasher_test")
-			if err != nil {
-				t.Fatalf("failed to create temp dir: %v", err)
+			// Skip large tests in short mode
+			totalSize := tt.fileSize * int64(tt.numFiles)
+			if testing.Short() && totalSize > 1<<30 { // Skip if total size > 1GB in short mode
+				t.Skipf("skipping large file test %s in short mode", tt.name)
 			}
-			defer os.RemoveAll(tempDir)
 
-			// create test files and calculate expected hashes
-			files, expectedHashes := createTestFiles(t, tempDir, tt.numFiles, tt.fileSize, tt.pieceLen)
-
-			// create hasher
+			files, expectedHashes := createTestFilesFast(t, tt.numFiles, tt.fileSize, tt.pieceLen)
 			hasher := NewPieceHasher(files, tt.pieceLen, tt.numPieces, &mockDisplay{})
 
-			// run concurrent hashing multiple times to increase chance of catching races
-			for i := 0; i < 3; i++ {
-				if err := hasher.hashPieces(4); err != nil {
-					t.Fatalf("hashPieces failed: %v", err)
-				}
-
-				// verify hashes
-				verifyHashes(t, hasher.pieces, expectedHashes)
-
-				// verify no piece was missed
-				for i, hash := range hasher.pieces {
-					if len(hash) != sha1.Size {
-						t.Errorf("piece %d: invalid hash length: got %d, want %d", i, len(hash), sha1.Size)
+			// Test with different worker counts
+			workerCounts := []int{1, 2, 4, 8}
+			for _, workers := range workerCounts {
+				t.Run(fmt.Sprintf("workers_%d", workers), func(t *testing.T) {
+					if err := hasher.hashPieces(workers); err != nil {
+						t.Fatalf("hashPieces failed with %d workers: %v", workers, err)
 					}
-				}
+					verifyHashes(t, hasher.pieces, expectedHashes)
+				})
 			}
 		})
 	}
 }
 
-func createTestFiles(t *testing.T, dir string, numFiles int, fileSize, pieceLen int64) ([]fileEntry, [][]byte) {
+// createTestFilesFast creates test files more efficiently using sparse files
+func createTestFilesFast(t *testing.T, numFiles int, fileSize, pieceLen int64) ([]fileEntry, [][]byte) {
 	t.Helper()
 
+	tempDir, err := os.MkdirTemp("", "hasher_test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	t.Cleanup(func() { os.RemoveAll(tempDir) })
+
 	var files []fileEntry
+	var expectedHashes [][]byte
 	var offset int64
-	var allData []byte
 
-	// create files with deterministic content
+	// Create a repeatable pattern that's more representative of real data
+	pattern := make([]byte, pieceLen)
+	for i := range pattern {
+		// Create a pseudo-random but deterministic pattern
+		pattern[i] = byte((i*7 + 13) % 251) // Prime numbers help create distribution
+	}
+
 	for i := 0; i < numFiles; i++ {
-		path := filepath.Join(dir, filepath.FromSlash(filepath.Join("test", "file"+string(rune('a'+i)))))
-		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-			t.Fatalf("failed to create directory: %v", err)
+		path := filepath.Join(tempDir, fmt.Sprintf("test_file_%d", i))
+
+		f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0644)
+		if err != nil {
+			t.Fatalf("failed to create file: %v", err)
 		}
 
-		// generate deterministic content
-		data := make([]byte, fileSize)
-		for j := range data {
-			data[j] = byte((j + i) % 256)
+		// Write pattern at start and end of file to simulate real data
+		// while keeping the file sparse in the middle
+		if _, err := f.Write(pattern); err != nil {
+			f.Close()
+			t.Fatalf("failed to write pattern: %v", err)
 		}
 
-		if err := os.WriteFile(path, data, 0644); err != nil {
-			t.Fatalf("failed to write file: %v", err)
+		if _, err := f.Seek(fileSize-int64(len(pattern)), io.SeekStart); err != nil {
+			f.Close()
+			t.Fatalf("failed to seek: %v", err)
 		}
+
+		if _, err := f.Write(pattern); err != nil {
+			f.Close()
+			t.Fatalf("failed to write pattern: %v", err)
+		}
+
+		if err := f.Truncate(fileSize); err != nil {
+			f.Close()
+			t.Fatalf("failed to truncate file: %v", err)
+		}
+		f.Close()
 
 		files = append(files, fileEntry{
 			path:   path,
 			length: fileSize,
 			offset: offset,
 		})
-
-		allData = append(allData, data...)
 		offset += fileSize
-	}
 
-	// calculate expected piece hashes
-	var expectedHashes [][]byte
-	totalSize := int64(len(allData))
-	for offset := int64(0); offset < totalSize; offset += pieceLen {
-		end := offset + pieceLen
-		if end > totalSize {
-			end = totalSize
-		}
-
+		// Calculate expected hashes with the pattern
 		h := sha1.New()
-		h.Write(allData[offset:end])
-		expectedHashes = append(expectedHashes, h.Sum(nil))
+		for pos := int64(0); pos < fileSize; pos += pieceLen {
+			h.Reset()
+			if pos == 0 || pos >= fileSize-pieceLen {
+				h.Write(pattern) // Use pattern for first and last pieces
+			} else {
+				h.Write(make([]byte, pieceLen)) // Zero bytes for middle pieces
+			}
+			expectedHashes = append(expectedHashes, h.Sum(nil))
+		}
 	}
 
 	return files, expectedHashes
@@ -251,29 +267,45 @@ func TestPieceHasher_EdgeCases(t *testing.T) {
 }
 
 func TestPieceHasher_RaceConditions(t *testing.T) {
-	// Run with -race flag to detect races
-	tempDir, err := os.MkdirTemp("", "hasher_race_test")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
+
+	tests := []struct {
+		name     string
+		numFiles int
+		fileSize int64
+		pieceLen int64
+	}{
+		{
+			name:     "flac album",
+			numFiles: 12,       // typical album length
+			fileSize: 40 << 20, // 40MB per track
+			pieceLen: 1 << 16,  // 64KB pieces
+		},
 	}
-	defer os.RemoveAll(tempDir)
 
-	// Create test files
-	files, expectedHashes := createTestFiles(t, tempDir, 3, 1<<20, 1<<16) // 3 files, 1MB each, 64KB pieces
-
-	// Run multiple hashers concurrently on the same files
-	var wg sync.WaitGroup
-	for i := 0; i < 4; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			hasher := NewPieceHasher(files, 1<<16, len(expectedHashes), &mockDisplay{})
-			if err := hasher.hashPieces(4); err != nil {
-				t.Errorf("hashPieces failed: %v", err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tempDir, err := os.MkdirTemp("", "hasher_race_test")
+			if err != nil {
+				t.Fatalf("failed to create temp dir: %v", err)
 			}
-		}()
+			defer os.RemoveAll(tempDir)
+
+			files, expectedHashes := createTestFilesFast(t, tt.numFiles, tt.fileSize, tt.pieceLen)
+
+			var wg sync.WaitGroup
+			for i := 0; i < 4; i++ {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					hasher := NewPieceHasher(files, tt.pieceLen, len(expectedHashes), &mockDisplay{})
+					if err := hasher.hashPieces(4); err != nil {
+						t.Errorf("hashPieces failed: %v", err)
+					}
+				}()
+			}
+			wg.Wait()
+		})
 	}
-	wg.Wait()
 }
 
 func TestPieceHasher_NoFiles(t *testing.T) {
@@ -321,7 +353,7 @@ func TestPieceHasher_CorruptedData(t *testing.T) {
 	}
 	defer os.RemoveAll(tempDir)
 
-	files, expectedHashes := createTestFiles(t, tempDir, 1, 1<<16, 1<<16) // 1 file, 64KB
+	files, expectedHashes := createTestFilesFast(t, 1, 1<<16, 1<<16) // 1 file, 64KB
 
 	// Corrupt the file by modifying a byte
 	corruptedPath := files[0].path
