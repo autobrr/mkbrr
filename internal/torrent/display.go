@@ -144,10 +144,17 @@ func (d *Display) ShowFileTree(info *metainfo.Info) {
 }
 
 func (d *Display) ShowOutputPathWithTime(path string, duration time.Duration) {
-	fmt.Printf("\n%s %s (%s)\n",
-		success("Wrote"),
-		white(path),
-		cyan("took "+d.formatter.FormatDuration(duration)))
+	if duration < time.Second {
+		fmt.Printf("\n%s %s (%s)\n",
+			success("Wrote"),
+			white(path),
+			cyan(fmt.Sprintf("elapsed %dms", duration.Milliseconds())))
+	} else {
+		fmt.Printf("\n%s %s (%s)\n",
+			success("Wrote"),
+			white(path),
+			cyan(fmt.Sprintf("elapsed %.2fs", duration.Seconds())))
+	}
 }
 
 func (d *Display) ShowBatchResults(results []BatchResult, duration time.Duration) {
