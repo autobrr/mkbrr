@@ -71,7 +71,6 @@ func init() {
 	}
 
 	createCmd.Flags().StringVarP(&outputPath, "output", "o", "", "set output path (default: <n>.torrent)")
-	createCmd.Flags().StringVarP(&torrentName, "name", "n", "", "set torrent name (default: basename of target)")
 	createCmd.Flags().StringVarP(&source, "source", "s", "", "add source string")
 	createCmd.Flags().BoolVarP(&noDate, "no-date", "d", false, "don't write creation date")
 	createCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "be verbose")

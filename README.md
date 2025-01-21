@@ -96,23 +96,21 @@ version: 1
 jobs:
   - output: ubuntu.torrent
     path: /path/to/ubuntu.iso
-    name: "Ubuntu 22.04 LTS"
     trackers:
-      - udp://tracker.opentrackr.org:1337/announce
+      - https://tracker.openbittorrent.com/announce
     webseeds:
       - https://releases.ubuntu.com/22.04/ubuntu-22.04.3-desktop-amd64.iso
-    piece_length: 20  # 1MB pieces (2^20)
     comment: "Ubuntu 22.04.3 LTS Desktop AMD64"
     private: false
 
   - output: release.torrent
     path: /path/to/release
-    name: "My Release"
     trackers:
-      - udp://tracker.example.com:1337/announce
-    piece_length: 18  # 256KB pieces (2^18)
+      - https://tracker.openbittorrent.com/announce
     private: true
     source: "GROUP"
+    comment: "My awesome release"
+    no_date: false
 ```
 
 Batch mode will process all jobs in parallel (up to 4 concurrent jobs) and provide a summary of results.

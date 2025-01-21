@@ -19,7 +19,7 @@ type BatchConfig struct {
 type BatchJob struct {
 	Output      string   `yaml:"output"`
 	Path        string   `yaml:"path"`
-	Name        string   `yaml:"name"`
+	Name        string   `yaml:"-"`
 	Trackers    []string `yaml:"trackers"`
 	WebSeeds    []string `yaml:"webseeds"`
 	Private     bool     `yaml:"private"`

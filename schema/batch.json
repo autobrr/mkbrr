@@ -25,10 +25,6 @@
             "type": "string",
             "description": "Path to source file/directory"
           },
-          "name": {
-            "type": "string",
-            "description": "Torrent name (default: basename of path)"
-          },
           "trackers": {
             "type": "array",
             "description": "List of tracker URLs",

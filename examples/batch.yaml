@@ -2,28 +2,21 @@
 version: 1
 jobs:
   # Single file torrent
-  - output: ubuntu.torrent
-    path: /path/to/ubuntu.iso
-    name: "Ubuntu 22.04 LTS"
+  - output: random_movie.torrent
+    path: /Users/user/Downloads/Random.Movie.Title.2023.1080p.WEB-DL.mkv
     trackers:
-      - udp://tracker.opentrackr.org:1337/announce
-      - udp://tracker.openbittorrent.com:6969/announce
-    webseeds:
-      - https://releases.ubuntu.com/22.04/ubuntu-22.04.3-desktop-amd64.iso
-    piece_length: 20 # 1MB pieces (2^20)
-    comment: "Ubuntu 22.04.3 LTS Desktop AMD64"
+      - https://tracker.randomtracker.org/announce
+    #piece_length: 20
+    comment: "Random Movie Title - A thrilling adventure"
     private: false
 
   # Directory torrent
-  - output: release.torrent
-    path: /path/to/release
-    name: "My Release"
+  - output: random_release.torrent
+    path: '/Users/user/Downloads/Random Album - Best Hits (2025)'
     trackers:
-      - udp://tracker.example.com:1337/announce
-    webseeds:
-      - https://cdn.example.com/release/
-    piece_length: 18 # 256KB pieces (2^18)
+      - https://tracker.anothertracker.com/announce
+    #piece_length: 18
     private: true
-    source: "GROUP"
-    comment: "My awesome release"
+    source: "MUSIC"
+    comment: "Best Hits Compilation - 2025 Edition"
     no_date: false
