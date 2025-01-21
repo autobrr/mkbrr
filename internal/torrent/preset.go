@@ -10,6 +10,7 @@ import (
 // PresetConfig represents the YAML configuration for torrent creation presets
 type PresetConfig struct {
 	Version int                   `yaml:"version"`
+	Default *PresetOpts           `yaml:"default"`
 	Presets map[string]PresetOpts `yaml:"presets"`
 }
 
@@ -47,12 +48,46 @@ func LoadPresets(configPath string) (*PresetConfig, error) {
 	return &config, nil
 }
 
-// GetPreset returns a preset by name
+// GetPreset returns a preset by name, merged with default settings
 func (c *PresetConfig) GetPreset(name string) (*PresetOpts, error) {
 	preset, ok := c.Presets[name]
 	if !ok {
 		return nil, fmt.Errorf("preset %q not found", name)
 	}
+
+	// if we have defaults, merge them with the preset
+	if c.Default != nil {
+		merged := *c.Default // create a copy of defaults
+
+		// override defaults with preset-specific values
+		if len(preset.Trackers) > 0 {
+			merged.Trackers = preset.Trackers
+		}
+		if len(preset.WebSeeds) > 0 {
+			merged.WebSeeds = preset.WebSeeds
+		}
+		if preset.PieceLength != 0 {
+			merged.PieceLength = preset.PieceLength
+		}
+		if preset.Comment != "" {
+			merged.Comment = preset.Comment
+		}
+		if preset.Source != "" {
+			merged.Source = preset.Source
+		}
+
+		// explicit bool overrides
+		if preset.Private != merged.Private {
+			merged.Private = preset.Private
+		}
+		if preset.NoDate != merged.NoDate {
+			merged.NoDate = preset.NoDate
+		}
+
+		return &merged, nil
+	}
+
+	// if no defaults, just return the preset
 	return &preset, nil
 }
 

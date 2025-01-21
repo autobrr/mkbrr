@@ -61,7 +61,7 @@ func init() {
 	createCmd.Flags().StringVar(&presetFile, "preset-file", "", "preset config file (default: ~/.config/mkbrr/presets.yaml)")
 	createCmd.Flags().StringVarP(&trackerURL, "tracker", "t", "", "tracker URL")
 	createCmd.Flags().StringArrayVarP(&webSeeds, "web-seed", "w", nil, "add web seed URLs")
-	createCmd.Flags().BoolVarP(&isPrivate, "private", "p", false, "make torrent private")
+	createCmd.Flags().BoolVarP(&isPrivate, "private", "p", true, "make torrent private (default: true)")
 	createCmd.Flags().StringVarP(&comment, "comment", "c", "", "add comment")
 
 	// piece length flag allows setting a fixed piece size of 2^n bytes
@@ -74,7 +74,7 @@ func init() {
 		}
 	}
 
-	createCmd.Flags().StringVarP(&outputPath, "output", "o", "", "set output path (default: <n>.torrent)")
+	createCmd.Flags().StringVarP(&outputPath, "output", "o", "", "set output path (default: <name>.torrent)")
 	createCmd.Flags().StringVarP(&source, "source", "s", "", "add source string")
 	createCmd.Flags().BoolVarP(&noDate, "no-date", "d", false, "don't write creation date")
 	createCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "be verbose")

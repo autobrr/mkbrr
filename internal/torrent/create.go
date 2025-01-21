@@ -210,6 +210,11 @@ func Create(opts CreateTorrentOptions) (*TorrentInfo, error) {
 		opts.OutputPath = opts.OutputPath + ".torrent"
 	}
 
+	// ensure private by default unless explicitly set to false
+	if !opts.IsPrivate {
+		opts.IsPrivate = true
+	}
+
 	// create torrent
 	t, err := CreateTorrent(opts)
 	if err != nil {

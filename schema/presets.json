@@ -10,6 +10,50 @@
       "description": "Schema version",
       "enum": [1]
     },
+    "default": {
+      "type": "object",
+      "description": "Default settings that apply to all presets unless overridden",
+      "properties": {
+        "trackers": {
+          "type": "array",
+          "description": "List of tracker URLs",
+          "items": {
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "webseeds": {
+          "type": "array",
+          "description": "List of webseed URLs",
+          "items": {
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "private": {
+          "type": "boolean",
+          "description": "Whether the torrent is private"
+        },
+        "piece_length": {
+          "type": "integer",
+          "description": "Piece length as 2^n bytes (14-24)",
+          "minimum": 14,
+          "maximum": 24
+        },
+        "comment": {
+          "type": "string",
+          "description": "Torrent comment"
+        },
+        "source": {
+          "type": "string",
+          "description": "Source tag"
+        },
+        "no_date": {
+          "type": "boolean",
+          "description": "Don't write creation date"
+        }
+      }
+    },
     "presets": {
       "type": "object",
       "description": "Map of preset names to their configurations",
