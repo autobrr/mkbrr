@@ -18,6 +18,7 @@ type mockDisplay struct{}
 func (m *mockDisplay) ShowProgress(total int)   {}
 func (m *mockDisplay) UpdateProgress(count int) {}
 func (m *mockDisplay) FinishProgress()          {}
+func (m *mockDisplay) IsBatch() bool            { return true }
 
 // TestPieceHasher_Concurrent tests the hasher with various real-world scenarios.
 // Test cases are designed to cover common torrent types and sizes:

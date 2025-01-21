@@ -1,6 +1,7 @@
 package torrent
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -45,24 +46,28 @@ func TestProcessBatch(t *testing.T) {
 
 	// Create batch config file
 	configPath := filepath.Join(tmpDir, "batch.yaml")
-	configContent := []byte(`version: 1
+	configContent := []byte(fmt.Sprintf(`version: 1
 jobs:
-  - output: file1.torrent
-    path: file1.txt
+  - output: %s
+    path: %s
     name: "Test File 1"
     trackers:
       - udp://tracker.example.com:1337/announce
     private: true
     piece_length: 14
-  - output: dir1.torrent
-    path: dir1
+  - output: %s
+    path: %s
     name: "Test Directory"
     trackers:
       - udp://tracker.example.com:1337/announce
     webseeds:
       - https://example.com/files/
     comment: "Test batch torrent"
-`)
+`,
+		filepath.Join(tmpDir, "file1.torrent"),
+		filepath.Join(tmpDir, "file1.txt"),
+		filepath.Join(tmpDir, "dir1.torrent"),
+		filepath.Join(tmpDir, "dir1")))
 
 	if err := os.WriteFile(configPath, configContent, 0644); err != nil {
 		t.Fatalf("Failed to write config file: %v", err)

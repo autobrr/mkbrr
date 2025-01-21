@@ -11,45 +11,22 @@
 
 mkbrr is a command-line tool to create and inspect torrent files. Fast, single binary, no dependencies. Written in Go.
 
-## Performance
+## Table of Contents
 
-mkbrr is blazingly fast, matching, and sometimes outperforming other popular torrent creation tools. Here are some benchmarks:
-
-### 76GB Remux (Single File) [Ryzen 5 3600 / HDD]
-
-```bash
-# mktorrent
-time mktorrent -p
-Duration: 98.45s user 41.83s system 51% cpu 4:32.48 total
-
-# mkbrr
-time mkbrr create -p
-Duration: 74.16s user 36.52s system 56% cpu 3:17.26 total
-```
-
-### 3.6GB Episode (Single File) [Apple Silicon M3 / NVME]
-
-```bash
-# mktorrent
-time mktorrent -p
-Duration: 1.34s user 0.49s system 103% cpu 1.766 total
-
-# mkbrr
-time mkbrr create -p
-Duration: 1.27s user 0.67s system 122% cpu 1.587 total
-```
-
-### 350MB Music Album (15 Files) [Apple Silicon M3 / NVME]
-
-```bash
-# mktorrent
-time mktorrent -p
-Duration: 0.14s user 0.06s system 96% cpu 0.201 total
-
-# mkbrr
-time mkbrr create -p
-Duration: 0.13s user 0.05s system 94% cpu 0.189 total
-```
+- [Installation](#installation)
+  - [Prebuilt Binaries](#prebuilt-binaries)
+  - [Go Install](#go-install)
+  - [Build from Source](#build-from-source)
+- [Usage](#usage)
+  - [Create a Torrent](#create-a-torrent)
+    - [Single Mode](#single-mode)
+    - [Batch Mode](#batch-mode)
+    - [Create Flags](#create-flags)
+    - [Batch Configuration Format](#batch-configuration-format)
+  - [Inspect a Torrent](#inspect-a-torrent)
+  - [Version Information](#version-information)
+- [Performance](#performance)
+- [License](#license)
 
 ## Installation
 
@@ -84,12 +61,6 @@ make install
 
 # Or install system-wide (requires sudo)
 sudo make install    # installs to /usr/local/bin
-
-# Other available commands:
-make test         # Run tests
-make lint         # Run golangci-lint
-make clean        # Remove build artifacts
-make help         # Show all available commands
 ```
 
 The build process will automatically include version information and build time in the binary. The version is determined from git tags, defaulting to "dev" if no tags are found.
@@ -102,14 +73,12 @@ The build process will automatically include version information and build time 
 mkbrr create [path] [flags]
 ```
 
-mkbrr supports both single file/directory and batch mode torrent creation.
-
 #### Single Mode
 
 Create a torrent from a single file or directory:
 
 ```bash
-mkbrr create path/to/file -t udp://tracker.example.com:1337
+mkbrr create path/to/file -t https://please.passthe.tea
 ```
 
 #### Batch Mode
@@ -174,20 +143,21 @@ Note: When using batch mode (-b), torrent settings are specified in the YAML con
 The batch configuration file uses YAML format with the following structure:
 
 ```yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/autobrr/mkbrr/main/schema/batch.json
 version: 1  # Required, must be 1
 jobs:       # List of torrent creation jobs
-  - output: string        # Required: Output path for .torrent file
-    path: string         # Required: Path to source file/directory
+  - output: string      # Required: Output path for .torrent file
+    path: string        # Required: Path to source file/directory
     name: string        # Optional: Torrent name (default: basename of path)
-    trackers:          # Optional: List of tracker URLs
+    trackers:           # Optional: List of tracker URLs
       - string
-    webseeds:         # Optional: List of webseed URLs
+    webseeds:           # Optional: List of webseed URLs
       - string
-    private: bool     # Optional: Make torrent private (default: false)
-    piece_length: int # Optional: Piece length exponent (14-24)
-    comment: string   # Optional: Torrent comment
-    source: string    # Optional: Source tag
-    no_date: bool     # Optional: Don't write creation date (default: false)
+    private: bool       # Optional: Make torrent private (default: false)
+    piece_length: int   # Optional: Piece length exponent (14-24)
+    comment: string     # Optional: Torrent comment
+    source: string      # Optional: Source tag
+    no_date: bool       # Optional: Don't write creation date (default: false)
 ```
 
 ### Inspect a Torrent
@@ -214,6 +184,46 @@ mkbrr version
 ```
 
 Displays the version and build time of mkbrr.
+
+## Performance
+
+mkbrr is blazingly fast, matching, and sometimes outperforming other popular torrent creation tools. Here are some benchmarks:
+
+### 76GB Remux (Single File) [Ryzen 5 3600 / HDD]
+
+```bash
+# mktorrent
+time mktorrent -p
+Duration: 98.45s user 41.83s system 51% cpu 4:32.48 total
+
+# mkbrr
+time mkbrr create -p
+Duration: 74.16s user 36.52s system 56% cpu 3:17.26 total
+```
+
+### 3.6GB Episode (Single File) [Apple Silicon M3 / NVME]
+
+```bash
+# mktorrent
+time mktorrent -p
+Duration: 1.34s user 0.49s system 103% cpu 1.766 total
+
+# mkbrr
+time mkbrr create -p
+Duration: 1.27s user 0.67s system 122% cpu 1.587 total
+```
+
+### 350MB Music Album (15 Files) [Apple Silicon M3 / NVME]
+
+```bash
+# mktorrent
+time mktorrent -p
+Duration: 0.14s user 0.06s system 96% cpu 0.201 total
+
+# mkbrr
+time mkbrr create -p
+Duration: 0.13s user 0.05s system 94% cpu 0.189 total
+```
 
 ## License
 

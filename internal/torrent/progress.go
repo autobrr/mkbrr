@@ -5,4 +5,5 @@ type Displayer interface {
 	ShowProgress(total int)
 	UpdateProgress(completed int)
 	FinishProgress()
+	IsBatch() bool
 }

@@ -99,16 +99,16 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 	if opts.PieceLengthExp == nil {
 		pieceLength = calculatePieceLength(totalSize)
 	} else {
-		if opts.Verbose {
-			fmt.Printf("Using requested piece length: 2^%d bytes\n", *opts.PieceLengthExp)
-		}
+		//	if opts.Verbose {
+		//		fmt.Printf("Using requested piece length: 2^%d bytes\n", *opts.PieceLengthExp)
+		//	}
 
 		// enforce the piece length strictly
 		pieceLength = *opts.PieceLengthExp
 
 		// validate bounds - now allowing up to 2^24 (16 MiB)
 		if pieceLength < 14 || pieceLength > 24 {
-			return nil, fmt.Errorf("piece length exponent must be between 14 (16 KiB) and 24 (16 MiB), got: %d", pieceLength)
+			return nil, fmt.Errorf("piece length exponent must be between 14 (16 KiB) and 24 (16 MiB), got: %d\n", pieceLength)
 		}
 	}
 

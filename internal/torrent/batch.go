@@ -59,10 +59,11 @@ func (j *BatchJob) ToCreateOptions(verbose bool, version string) CreateTorrentOp
 
 // BatchResult represents the result of a single job in the batch
 type BatchResult struct {
-	Job     BatchJob
-	Success bool
-	Error   error
-	Info    *TorrentInfo
+	Job      BatchJob
+	Success  bool
+	Error    error
+	Info     *TorrentInfo
+	Trackers []string
 }
 
 // TorrentInfo contains summary information about the created torrent
@@ -71,6 +72,7 @@ type TorrentInfo struct {
 	Size     int64
 	InfoHash string
 	Files    int
+	Announce string
 }
 
 // ProcessBatch processes a batch configuration file and creates multiple torrents
@@ -150,7 +152,8 @@ func validateJob(job BatchJob) error {
 
 func processJob(job BatchJob, verbose bool, version string) BatchResult {
 	result := BatchResult{
-		Job: job,
+		Job:      job,
+		Trackers: job.Trackers,
 	}
 
 	// Ensure output has .torrent extension

@@ -3,6 +3,7 @@ package torrent
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/anacrolix/torrent/metainfo"
@@ -13,19 +14,19 @@ import (
 
 type Display struct {
 	formatter *Formatter
+	bar       *progressbar.ProgressBar
+	isBatch   bool
 }
 
 func NewDisplay(formatter *Formatter) *Display {
-	return &Display{formatter: formatter}
+	return &Display{
+		formatter: formatter,
+	}
 }
-
-var (
-	bar *progressbar.ProgressBar
-)
 
 func (d *Display) ShowProgress(total int) {
 	fmt.Println()
-	bar = progressbar.NewOptions(total,
+	d.bar = progressbar.NewOptions(total,
 		progressbar.OptionEnableColorCodes(true),
 		progressbar.OptionSetDescription("[cyan][bold]Hashing pieces...[reset]"),
 		progressbar.OptionSetTheme(progressbar.Theme{
@@ -39,16 +40,30 @@ func (d *Display) ShowProgress(total int) {
 }
 
 func (d *Display) UpdateProgress(completed int) {
-	if bar != nil {
-		bar.Set(completed)
+	if d.isBatch {
+		return
+	}
+	if d.bar != nil {
+		d.bar.Set(completed)
 	}
 }
 
 func (d *Display) FinishProgress() {
-	if bar != nil {
-		bar.Finish()
+	if d.isBatch {
+		return
+	}
+	if d.bar != nil {
+		d.bar.Finish()
 		fmt.Println()
 	}
+}
+
+func (d *Display) IsBatch() bool {
+	return d.isBatch
+}
+
+func (d *Display) SetBatch(isBatch bool) {
+	d.isBatch = isBatch
 }
 
 var (
@@ -168,6 +183,7 @@ func (d *Display) ShowBatchResults(results []BatchResult, duration time.Duration
 				fmt.Printf("  %-11s %s\n", label("Output:"), result.Info.Path)
 				fmt.Printf("  %-11s %s\n", label("Size:"), humanize.Bytes(uint64(result.Info.Size)))
 				fmt.Printf("  %-11s %s\n", label("Info hash:"), result.Info.InfoHash)
+				fmt.Printf("  %-11s %s\n", label("Trackers:"), strings.Join(result.Trackers, ", "))
 				if result.Info.Files > 0 {
 					fmt.Printf("  %-11s %d\n", label("Files:"), result.Info.Files)
 				}

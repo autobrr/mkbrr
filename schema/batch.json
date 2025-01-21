@@ -1,0 +1,76 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "mkbrr Batch Configuration",
+  "description": "Schema for mkbrr batch torrent creation configuration",
+  "type": "object",
+  "required": ["version", "jobs"],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "enum": [1],
+      "description": "Schema version, must be 1"
+    },
+    "jobs": {
+      "type": "array",
+      "description": "List of torrent creation jobs",
+      "items": {
+        "type": "object",
+        "required": ["output", "path"],
+        "properties": {
+          "output": {
+            "type": "string",
+            "description": "Output path for .torrent file"
+          },
+          "path": {
+            "type": "string",
+            "description": "Path to source file/directory"
+          },
+          "name": {
+            "type": "string",
+            "description": "Torrent name (default: basename of path)"
+          },
+          "trackers": {
+            "type": "array",
+            "description": "List of tracker URLs",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            }
+          },
+          "webseeds": {
+            "type": "array",
+            "description": "List of webseed URLs",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            }
+          },
+          "private": {
+            "type": "boolean",
+            "description": "Make torrent private",
+            "default": false
+          },
+          "piece_length": {
+            "type": "integer",
+            "description": "Piece length exponent (2^n bytes)",
+            "minimum": 14,
+            "maximum": 24
+          },
+          "comment": {
+            "type": "string",
+            "description": "Torrent comment"
+          },
+          "source": {
+            "type": "string",
+            "description": "Source tag"
+          },
+          "no_date": {
+            "type": "boolean",
+            "description": "Don't write creation date",
+            "default": false
+          }
+        }
+      }
+    }
+  }
+} 
