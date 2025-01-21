@@ -8,14 +8,14 @@ import (
 )
 
 func TestProcessBatch(t *testing.T) {
-	// Create a temporary directory for test files
+	// create a temporary directory for test files
 	tmpDir, err := os.MkdirTemp("", "mkbrr-batch-test")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 	defer os.RemoveAll(tmpDir)
 
-	// Create test files and directories
+	// create test files and directories
 	testFiles := []struct {
 		path    string
 		content string
@@ -44,7 +44,7 @@ func TestProcessBatch(t *testing.T) {
 		}
 	}
 
-	// Create batch config file
+	// create batch config file
 	configPath := filepath.Join(tmpDir, "batch.yaml")
 	configContent := []byte(fmt.Sprintf(`version: 1
 jobs:
@@ -73,13 +73,13 @@ jobs:
 		t.Fatalf("Failed to write config file: %v", err)
 	}
 
-	// Process batch
+	// process batch
 	results, err := ProcessBatch(configPath, true, "test-version")
 	if err != nil {
 		t.Fatalf("ProcessBatch failed: %v", err)
 	}
 
-	// Verify results
+	// verify results
 	if len(results) != 2 {
 		t.Errorf("Expected 2 results, got %d", len(results))
 	}
@@ -95,12 +95,12 @@ jobs:
 			continue
 		}
 
-		// Verify torrent files were created
+		// verify torrent files were created
 		if _, err := os.Stat(result.Info.Path); err != nil {
 			t.Errorf("Job %d torrent file not created: %v", i, err)
 		}
 
-		// Basic validation of torrent info
+		// basic validation of torrent info
 		if result.Info.InfoHash == "" {
 			t.Errorf("Job %d missing info hash", i)
 		}
@@ -109,7 +109,7 @@ jobs:
 			t.Errorf("Job %d has zero size", i)
 		}
 
-		// Check specific job details
+		// check specific job details
 		switch i {
 		case 0: // file1.txt
 			if result.Info.Files != 0 {

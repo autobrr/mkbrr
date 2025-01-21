@@ -147,14 +147,14 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 	}
 
 	if len(files) == 1 {
-		// Check if the input path is a directory
+		// check if the input path is a directory
 		pathInfo, err := os.Stat(path)
 		if err != nil {
 			return nil, fmt.Errorf("error checking path: %w", err)
 		}
 
 		if pathInfo.IsDir() {
-			// If it's a directory, use the folder structure even for single files
+			// if it's a directory, use the folder structure even for single files
 			info.Files = make([]metainfo.FileInfo, 1)
 			relPath, _ := filepath.Rel(baseDir, files[0].path)
 			pathComponents := strings.Split(relPath, string(filepath.Separator))
@@ -163,7 +163,7 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 				Length: files[0].length,
 			}
 		} else {
-			// If it's a single file directly, use the simple format
+			// if it's a single file directly, use the simple format
 			info.Length = files[0].length
 		}
 	} else {

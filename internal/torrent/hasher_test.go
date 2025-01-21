@@ -61,16 +61,16 @@ func TestPieceHasher_Concurrent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Skip large tests in short mode
+			// skip large tests in short mode
 			totalSize := tt.fileSize * int64(tt.numFiles)
-			if testing.Short() && totalSize > 1<<30 { // Skip if total size > 1GB in short mode
+			if testing.Short() && totalSize > 1<<30 { // skip if total size > 1GB in short mode
 				t.Skipf("skipping large file test %s in short mode", tt.name)
 			}
 
 			files, expectedHashes := createTestFilesFast(t, tt.numFiles, tt.fileSize, tt.pieceLen)
 			hasher := NewPieceHasher(files, tt.pieceLen, tt.numPieces, &mockDisplay{})
 
-			// Test with different worker counts
+			// test with different worker counts
 			workerCounts := []int{1, 2, 4, 8}
 			for _, workers := range workerCounts {
 				t.Run(fmt.Sprintf("workers_%d", workers), func(t *testing.T) {
@@ -98,11 +98,11 @@ func createTestFilesFast(t *testing.T, numFiles int, fileSize, pieceLen int64) (
 	var expectedHashes [][]byte
 	var offset int64
 
-	// Create a repeatable pattern that's more representative of real data
+	// create a repeatable pattern that's more representative of real data
 	pattern := make([]byte, pieceLen)
 	for i := range pattern {
-		// Create a pseudo-random but deterministic pattern
-		pattern[i] = byte((i*7 + 13) % 251) // Prime numbers help create distribution
+		// create a pseudo-random but deterministic pattern
+		pattern[i] = byte((i*7 + 13) % 251) // prime numbers help create distribution
 	}
 
 	for i := 0; i < numFiles; i++ {
@@ -113,7 +113,7 @@ func createTestFilesFast(t *testing.T, numFiles int, fileSize, pieceLen int64) (
 			t.Fatalf("failed to create file: %v", err)
 		}
 
-		// Write pattern at start and end of file to simulate real data
+		// write pattern at start and end of file to simulate real data
 		// while keeping the file sparse in the middle
 		if _, err := f.Write(pattern); err != nil {
 			f.Close()
@@ -143,14 +143,14 @@ func createTestFilesFast(t *testing.T, numFiles int, fileSize, pieceLen int64) (
 		})
 		offset += fileSize
 
-		// Calculate expected hashes with the pattern
+		// calculate expected hashes with the pattern
 		h := sha1.New()
 		for pos := int64(0); pos < fileSize; pos += pieceLen {
 			h.Reset()
 			if pos == 0 || pos >= fileSize-pieceLen {
-				h.Write(pattern) // Use pattern for first and last pieces
+				h.Write(pattern) // use pattern for first and last pieces
 			} else {
-				h.Write(make([]byte, pieceLen)) // Zero bytes for middle pieces
+				h.Write(make([]byte, pieceLen)) // zero bytes for middle pieces
 			}
 			expectedHashes = append(expectedHashes, h.Sum(nil))
 		}
@@ -257,10 +257,10 @@ func TestPieceHasher_EdgeCases(t *testing.T) {
 
 // TestPieceHasher_RaceConditions tests concurrent access using a FLAC album scenario.
 // FLAC albums are ideal for race testing because:
-// - Multiple small-to-medium files (12 tracks, 40MB each)
-// - Small piece size (64KB) creates more concurrent operations
+// - multiple small-to-medium files (12 tracks, 40MB each)
+// - small piece size (64KB) creates more concurrent operations
 func TestPieceHasher_RaceConditions(t *testing.T) {
-	// Use the multi-file album test case from TestPieceHasher_Concurrent
+	// use the multi-file album test case from TestPieceHasher_Concurrent
 	// but run multiple hashers concurrently to stress test race conditions
 	numFiles := 12
 	fileSize := int64(40 << 20) // 40MB per track
@@ -338,13 +338,13 @@ func TestPieceHasher_CorruptedData(t *testing.T) {
 
 	files, expectedHashes := createTestFilesFast(t, 1, 1<<16, 1<<16) // 1 file, 64KB
 
-	// Corrupt the file by modifying a byte
+	// corrupt the file by modifying a byte
 	corruptedPath := files[0].path
 	data, err := os.ReadFile(corruptedPath)
 	if err != nil {
 		t.Fatalf("failed to read file: %v", err)
 	}
-	data[0] ^= 0xFF // Flip bits of first byte
+	data[0] ^= 0xFF // flip bits of first byte
 	if err := os.WriteFile(corruptedPath, data, 0644); err != nil {
 		t.Fatalf("failed to write corrupted file: %v", err)
 	}

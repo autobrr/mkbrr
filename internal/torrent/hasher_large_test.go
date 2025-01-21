@@ -51,7 +51,7 @@ func TestPieceHasher_LargeFiles(t *testing.T) {
 			files, expectedHashes := createTestFilesFast(t, tt.numFiles, tt.fileSize, tt.pieceLen)
 			hasher := NewPieceHasher(files, tt.pieceLen, tt.numPieces, &mockDisplay{})
 
-			// Test with different worker counts
+			// test with different worker counts
 			workerCounts := []int{1, 2, 4, 8}
 			for _, workers := range workerCounts {
 				t.Run(fmt.Sprintf("workers_%d", workers), func(t *testing.T) {

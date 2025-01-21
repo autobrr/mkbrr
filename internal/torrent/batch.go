@@ -95,7 +95,7 @@ func ProcessBatch(configPath string, verbose bool, version string) ([]BatchResul
 		return nil, fmt.Errorf("no jobs defined in batch config")
 	}
 
-	// Validate all jobs before processing
+	// validate all jobs before processing
 	for _, job := range config.Jobs {
 		if err := validateJob(job); err != nil {
 			return nil, fmt.Errorf("invalid job configuration: %w", err)
@@ -105,11 +105,11 @@ func ProcessBatch(configPath string, verbose bool, version string) ([]BatchResul
 	results := make([]BatchResult, len(config.Jobs))
 	var wg sync.WaitGroup
 
-	// Process jobs in parallel with a worker pool
-	workers := minInt(len(config.Jobs), 4) // Limit concurrent jobs
+	// process jobs in parallel with a worker pool
+	workers := minInt(len(config.Jobs), 4) // limit concurrent jobs
 	jobs := make(chan int, len(config.Jobs))
 
-	// Start workers
+	// start workers
 	for i := 0; i < workers; i++ {
 		wg.Add(1)
 		go func() {
@@ -120,7 +120,7 @@ func ProcessBatch(configPath string, verbose bool, version string) ([]BatchResul
 		}()
 	}
 
-	// Send jobs to workers
+	// send jobs to workers
 	for i := range config.Jobs {
 		jobs <- i
 	}
@@ -156,23 +156,23 @@ func processJob(job BatchJob, verbose bool, version string) BatchResult {
 		Trackers: job.Trackers,
 	}
 
-	// Ensure output has .torrent extension
+	// ensure output has .torrent extension
 	output := job.Output
 	if filepath.Ext(output) != ".torrent" {
 		output += ".torrent"
 	}
 
-	// Convert job to CreateTorrentOptions
+	// convert job to CreateTorrentOptions
 	opts := job.ToCreateOptions(verbose, version)
 
-	// Create the torrent
+	// create the torrent
 	mi, err := CreateTorrent(opts)
 	if err != nil {
 		result.Error = fmt.Errorf("failed to create torrent: %w", err)
 		return result
 	}
 
-	// Write the torrent file
+	// write the torrent file
 	f, err := os.Create(output)
 	if err != nil {
 		result.Error = fmt.Errorf("failed to create output file: %w", err)
@@ -185,7 +185,7 @@ func processJob(job BatchJob, verbose bool, version string) BatchResult {
 		return result
 	}
 
-	// Collect torrent info
+	// collect torrent info
 	info := mi.GetInfo()
 	result.Success = true
 	result.Info = &TorrentInfo{

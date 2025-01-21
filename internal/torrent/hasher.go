@@ -27,7 +27,7 @@ type pieceHasher struct {
 // - single vs multiple files
 // - average file size
 // - system CPU count
-// Returns readSize (buffer size for reading) and numWorkers (concurrent goroutines)
+// returns readSize (buffer size for reading) and numWorkers (concurrent goroutines)
 func (h *pieceHasher) optimizeForWorkload() (int, int) {
 	if len(h.files) == 0 {
 		return 0, 0
@@ -91,7 +91,7 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 	h.readSize, numWorkers = h.optimizeForWorkload()
 
 	if numWorkers == 0 {
-		// No workers needed, possibly no pieces to hash
+		// no workers needed, possibly no pieces to hash
 		h.display.ShowProgress(0)
 		h.display.FinishProgress()
 		return nil
