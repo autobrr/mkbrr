@@ -126,8 +126,8 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		} else {
 			// check known locations in order
 			locations := []string{
+				presetFile,     // explicitly specified file
 				"presets.yaml", // current directory
-				filepath.Join(".", ".config", "mkbrr", "presets.yaml"), // ./.config/mkbrr/
 			}
 
 			// add user home directory locations

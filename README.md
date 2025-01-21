@@ -138,9 +138,8 @@ mkbrr create -P private --source "CUSTOM" path/to/file
 > The preset file is searched for in the following locations (in order):
 > 1. File specified by `--preset-file` flag
 > 2. `presets.yaml` in the current directory
-> 3. `./.config/mkbrr/presets.yaml` in the current directory
-> 4. `~/.config/mkbrr/presets.yaml` in the user's home directory
-> 5. `~/.mkbrr/presets.yaml` in the user's home directory
+> 3. `~/.config/mkbrr/presets.yaml` in the user's home directory
+> 4. `~/.mkbrr/presets.yaml` in the user's home directory
 
 Example presets.yaml:
 
