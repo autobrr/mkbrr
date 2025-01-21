@@ -167,7 +167,8 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *uint64) error {
 	// reuse buffer from pool to minimize allocations
 	buf := h.bufferPool.Get().([]byte)
-	defer h.bufferPool.Put(buf)
+	bufPtr := &buf
+	defer h.bufferPool.Put(bufPtr)
 
 	hasher := sha1.New()
 	// track open file handles to avoid reopening the same file
@@ -290,14 +291,6 @@ func minInt(a, b int) int {
 // minInt64 returns the smaller of two int64 values
 func minInt64(a, b int64) int64 {
 	if a < b {
-		return a
-	}
-	return b
-}
-
-// maxInt64 returns the larger of two int64 values
-func maxInt64(a, b int64) int64 {
-	if a > b {
 		return a
 	}
 	return b

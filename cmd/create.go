@@ -17,7 +17,6 @@ var (
 	comment        string
 	pieceLengthExp *uint // for 2^n piece length, nil means automatic
 	outputPath     string
-	torrentName    string
 	webSeeds       []string
 	noDate         bool
 	source         string
@@ -54,7 +53,10 @@ func init() {
 	// hide help flag
 	createCmd.Flags().SortFlags = false
 	createCmd.Flags().BoolP("help", "h", false, "help for create")
-	createCmd.Flags().MarkHidden("help")
+	if err := createCmd.Flags().MarkHidden("help"); err != nil {
+		// This is initialization code, so we should panic
+		panic(fmt.Errorf("failed to mark help flag as hidden: %w", err))
+	}
 
 	createCmd.Flags().StringVarP(&batchFile, "batch", "b", "", "batch config file (YAML)")
 	createCmd.Flags().StringVarP(&presetName, "preset", "P", "", "use preset from config")
@@ -102,7 +104,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	if batchFile != "" {
 		results, err := torrent.ProcessBatch(batchFile, verbose, version)
 		if err != nil {
-			return err
+			return fmt.Errorf("batch processing failed: %w", err)
 		}
 
 		display := torrent.NewDisplay(torrent.NewFormatter(verbose))

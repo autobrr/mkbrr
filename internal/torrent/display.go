@@ -2,6 +2,7 @@ package torrent
 
 import (
 	"fmt"
+	"log"
 	"path/filepath"
 	"strings"
 	"time"
@@ -44,7 +45,9 @@ func (d *Display) UpdateProgress(completed int) {
 		return
 	}
 	if d.bar != nil {
-		d.bar.Set(completed)
+		if err := d.bar.Set(completed); err != nil {
+			log.Printf("failed to update progress bar: %v", err)
+		}
 	}
 }
 
@@ -53,7 +56,9 @@ func (d *Display) FinishProgress() {
 		return
 	}
 	if d.bar != nil {
-		d.bar.Finish()
+		if err := d.bar.Finish(); err != nil {
+			log.Printf("failed to finish progress bar: %v", err)
+		}
 		fmt.Println()
 	}
 }
@@ -70,7 +75,6 @@ var (
 	cyan       = color.New(color.FgMagenta, color.Bold).SprintFunc()
 	label      = color.New(color.Bold, color.FgHiWhite).SprintFunc()
 	success    = color.New(color.FgHiGreen).SprintFunc()
-	warning    = color.New(color.FgYellow).SprintFunc()
 	errorColor = color.New(color.FgRed).SprintFunc()
 	highlight  = color.New(color.FgMagenta).SprintFunc()
 	white      = fmt.Sprint

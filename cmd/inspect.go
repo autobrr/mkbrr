@@ -8,10 +8,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	showMagnet bool
-)
-
 var inspectCmd = &cobra.Command{
 	Use:   "inspect <torrent-file>",
 	Short: "Inspect a torrent file",
@@ -23,7 +19,9 @@ func init() {
 	rootCmd.AddCommand(inspectCmd)
 	inspectCmd.Flags().SortFlags = false
 	inspectCmd.Flags().BoolP("help", "h", false, "help for inspect")
-	inspectCmd.Flags().MarkHidden("help")
+	if err := inspectCmd.Flags().MarkHidden("help"); err != nil {
+		fmt.Printf("failed to mark help flag as hidden: %v\n", err)
+	}
 }
 
 func runInspect(cmd *cobra.Command, args []string) error {
