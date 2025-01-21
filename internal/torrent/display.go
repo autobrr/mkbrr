@@ -80,7 +80,7 @@ func (d *Display) ShowTorrentInfo(t *Torrent, info *metainfo.Info) {
 	fmt.Printf("\n%s\n", cyan("Torrent info:"))
 	fmt.Printf("  %-13s %s\n", label("Name:"), info.Name)
 	fmt.Printf("  %-13s %s\n", label("Hash:"), t.HashInfoBytes())
-	fmt.Printf("  %-13s %s\n", label("Length:"), humanize.Bytes(uint64(info.TotalLength())))
+	fmt.Printf("  %-13s %s\n", label("Size:"), humanize.Bytes(uint64(info.TotalLength())))
 	fmt.Printf("  %-13s %s\n", label("Piece length:"), humanize.Bytes(uint64(info.PieceLength)))
 	fmt.Printf("  %-13s %d\n", label("Pieces:"), len(info.Pieces)/20)
 

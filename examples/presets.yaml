@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/autobrr/mkbrr/main/schema/presets.json
+version: 1
+presets:
+  # Default preset for private trackers
+  private:
+    private: true
+    piece_length: 20  # 1MB pieces
+    no_date: true
+    no_creator: true
+
+  # Empornium preset
+  emp:
+    private: true
+    piece_length: 20
+    no_date: true
+    source: "EMP"
+    trackers:
+      - "https://tracker.opentrackr.org/announce"
+
+  # Public tracker preset
+  public:
+    private: false
+    piece_length: 22  # 4MB pieces
+    trackers:
+      - "udp://tracker.opentrackr.org:1337/announce"
+      - "udp://open.tracker.cl:1337/announce"
+      - "udp://9.rarbg.com:2810/announce" 

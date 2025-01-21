@@ -19,6 +19,7 @@ type CreateTorrentOptions struct {
 	NoDate         bool
 	Verbose        bool
 	Version        string
+	OutputPath     string
 }
 
 // Torrent represents a torrent file with additional functionality
@@ -45,4 +46,14 @@ type fileReader struct {
 	file     *os.File
 	position int64
 	length   int64
+}
+
+// TorrentInfo contains summary information about the created torrent
+type TorrentInfo struct {
+	Path     string
+	Size     int64
+	InfoHash string
+	Files    int
+	Announce string
+	MetaInfo *metainfo.MetaInfo
 }

@@ -2,11 +2,9 @@ package cmd
 
 import (
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"runtime/pprof"
-	"strings"
 	"time"
 
 	"github.com/autobrr/mkbrr/internal/torrent"
@@ -25,12 +23,16 @@ var (
 	source         string
 	verbose        bool
 	batchFile      string
+	presetName     string
+	presetFile     string
 )
+
 var createCmd = &cobra.Command{
 	Use:   "create [path]",
 	Short: "Create a new torrent file",
 	Long: `Create a new torrent file from a file or directory.
-Supports both single file/directory and batch mode using a YAML config file.`,
+Supports both single file/directory and batch mode using a YAML config file.
+Supports presets for commonly used settings.`,
 	Args: func(cmd *cobra.Command, args []string) error {
 		if len(args) > 1 {
 			return fmt.Errorf("accepts at most one arg")
@@ -55,6 +57,8 @@ func init() {
 	createCmd.Flags().MarkHidden("help")
 
 	createCmd.Flags().StringVarP(&batchFile, "batch", "b", "", "batch config file (YAML)")
+	createCmd.Flags().StringVarP(&presetName, "preset", "P", "", "use preset from config")
+	createCmd.Flags().StringVar(&presetFile, "preset-file", "", "preset config file (default: ~/.config/mkbrr/presets.yaml)")
 	createCmd.Flags().StringVarP(&trackerURL, "tracker", "t", "", "tracker URL")
 	createCmd.Flags().StringArrayVarP(&webSeeds, "web-seed", "w", nil, "add web seed URLs")
 	createCmd.Flags().BoolVarP(&isPrivate, "private", "p", false, "make torrent private")
@@ -98,7 +102,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	if batchFile != "" {
 		results, err := torrent.ProcessBatch(batchFile, verbose, version)
 		if err != nil {
-			return fmt.Errorf("batch processing failed: %w", err)
+			return err
 		}
 
 		display := torrent.NewDisplay(torrent.NewFormatter(verbose))
@@ -106,75 +110,112 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// single file mode
-	if _, err := os.Stat(args[0]); err != nil {
-		return fmt.Errorf("invalid path %q: %w", args[0], err)
-	}
+	// get input path from args
+	inputPath := args[0]
 
-	if trackerURL != "" {
-		if _, err := url.Parse(trackerURL); err != nil {
-			return fmt.Errorf("invalid tracker URL %q: %w", trackerURL, err)
+	// load preset if specified
+	var opts torrent.CreateTorrentOptions
+	if presetName != "" {
+		// determine preset file path
+		var presetFilePath string
+		if presetFile != "" {
+			// if preset file is explicitly specified, use that
+			presetFilePath = presetFile
+		} else {
+			// check known locations in order
+			locations := []string{
+				"presets.yaml", // current directory
+				filepath.Join(".", ".config", "mkbrr", "presets.yaml"), // ./.config/mkbrr/
+			}
+
+			// add user home directory locations
+			if home, err := os.UserHomeDir(); err == nil {
+				locations = append(locations,
+					filepath.Join(home, ".config", "mkbrr", "presets.yaml"), // ~/.config/mkbrr/
+					filepath.Join(home, ".mkbrr", "presets.yaml"),           // ~/.mkbrr/
+				)
+			}
+
+			// find first existing preset file
+			for _, loc := range locations {
+				if _, err := os.Stat(loc); err == nil {
+					presetFilePath = loc
+					break
+				}
+			}
+
+			if presetFilePath == "" {
+				return fmt.Errorf("no preset file found in known locations, create one or specify with --preset-file")
+			}
+		}
+
+		// load presets
+		presets, err := torrent.LoadPresets(presetFilePath)
+		if err != nil {
+			return fmt.Errorf("failed to load presets from %s: %w", presetFilePath, err)
+		}
+
+		// get preset
+		preset, err := presets.GetPreset(presetName)
+		if err != nil {
+			return fmt.Errorf("failed to get preset: %w", err)
+		}
+
+		// convert preset to options
+		opts = preset.ToCreateOptions(inputPath, verbose, version)
+
+		// override preset options with command line flags if specified
+		if cmd.Flags().Changed("tracker") {
+			opts.TrackerURL = trackerURL
+		}
+		if cmd.Flags().Changed("web-seed") {
+			opts.WebSeeds = webSeeds
+		}
+		if cmd.Flags().Changed("private") {
+			opts.IsPrivate = isPrivate
+		}
+		if cmd.Flags().Changed("comment") {
+			opts.Comment = comment
+		}
+		if cmd.Flags().Changed("piece-length") {
+			opts.PieceLengthExp = pieceLengthExp
+		}
+		if cmd.Flags().Changed("source") {
+			opts.Source = source
+		}
+		if cmd.Flags().Changed("no-date") {
+			opts.NoDate = noDate
+		}
+	} else {
+		// use command line options
+		opts = torrent.CreateTorrentOptions{
+			Path:           inputPath,
+			TrackerURL:     trackerURL,
+			WebSeeds:       webSeeds,
+			IsPrivate:      isPrivate,
+			Comment:        comment,
+			PieceLengthExp: pieceLengthExp,
+			Source:         source,
+			NoDate:         noDate,
+			Verbose:        verbose,
+			Version:        version,
 		}
 	}
 
-	for _, seed := range webSeeds {
-		if _, err := url.Parse(seed); err != nil {
-			return fmt.Errorf("invalid web seed URL %q: %w", seed, err)
-		}
+	// set output path if specified
+	if outputPath != "" {
+		opts.OutputPath = outputPath
 	}
 
-	path := args[0]
-	name := torrentName
-	if name == "" {
-		name = filepath.Base(filepath.Clean(path))
-	}
-
-	out := outputPath
-	if out == "" {
-		out = name + ".torrent"
-	} else if !strings.HasSuffix(out, ".torrent") {
-		out = out + ".torrent"
-	}
-
-	opts := torrent.CreateTorrentOptions{
-		Path:           path,
-		Name:           name,
-		TrackerURL:     trackerURL,
-		WebSeeds:       webSeeds,
-		IsPrivate:      isPrivate,
-		Comment:        comment,
-		PieceLengthExp: pieceLengthExp,
-		Source:         source,
-		NoDate:         noDate,
-		Verbose:        verbose,
-		Version:        version,
-	}
-
-	mi, err := torrent.CreateTorrent(opts)
+	// create torrent
+	torrentInfo, err := torrent.Create(opts)
 	if err != nil {
 		return err
 	}
 
-	f, err := os.Create(out)
-	if err != nil {
-		return fmt.Errorf("error creating output file: %w", err)
-	}
-	defer f.Close()
-
-	if err := mi.Write(f); err != nil {
-		return fmt.Errorf("error writing torrent file: %w", err)
-	}
-
-	info := mi.GetInfo()
+	// display info
 	display := torrent.NewDisplay(torrent.NewFormatter(verbose))
-
-	display.ShowTorrentInfo(mi, info)
-
-	if verbose && len(info.Files) > 0 {
-		display.ShowFileTree(info)
-	}
-
-	display.ShowOutputPathWithTime(out, time.Since(start))
+	display.ShowOutputPathWithTime(torrentInfo.Path, time.Since(start))
 
 	return nil
 }

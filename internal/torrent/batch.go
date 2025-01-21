@@ -66,15 +66,6 @@ type BatchResult struct {
 	Trackers []string
 }
 
-// TorrentInfo contains summary information about the created torrent
-type TorrentInfo struct {
-	Path     string
-	Size     int64
-	InfoHash string
-	Files    int
-	Announce string
-}
-
 // ProcessBatch processes a batch configuration file and creates multiple torrents
 func ProcessBatch(configPath string, verbose bool, version string) ([]BatchResult, error) {
 	data, err := os.ReadFile(configPath)

@@ -190,3 +190,64 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 
 	return &Torrent{mi}, nil
 }
+
+// Create creates a new torrent file with the given options
+func Create(opts CreateTorrentOptions) (*TorrentInfo, error) {
+	// validate input path
+	if _, err := os.Stat(opts.Path); err != nil {
+		return nil, fmt.Errorf("invalid path %q: %w", opts.Path, err)
+	}
+
+	// set name if not provided
+	if opts.Name == "" {
+		opts.Name = filepath.Base(filepath.Clean(opts.Path))
+	}
+
+	// set output path if not provided
+	if opts.OutputPath == "" {
+		opts.OutputPath = opts.Name + ".torrent"
+	} else if !strings.HasSuffix(opts.OutputPath, ".torrent") {
+		opts.OutputPath = opts.OutputPath + ".torrent"
+	}
+
+	// create torrent
+	t, err := CreateTorrent(opts)
+	if err != nil {
+		return nil, err
+	}
+
+	// create output file
+	f, err := os.Create(opts.OutputPath)
+	if err != nil {
+		return nil, fmt.Errorf("error creating output file: %w", err)
+	}
+	defer f.Close()
+
+	// write torrent file
+	if err := t.Write(f); err != nil {
+		return nil, fmt.Errorf("error writing torrent file: %w", err)
+	}
+
+	// get info for display
+	info := t.GetInfo()
+
+	// create torrent info for return
+	torrentInfo := &TorrentInfo{
+		Path:     opts.OutputPath,
+		Size:     info.Length,
+		InfoHash: t.MetaInfo.HashInfoBytes().String(),
+		Files:    len(info.Files),
+		Announce: opts.TrackerURL,
+	}
+
+	// display info if verbose
+	if opts.Verbose {
+		display := NewDisplay(NewFormatter(opts.Verbose))
+		display.ShowTorrentInfo(t, info)
+		if len(info.Files) > 0 {
+			display.ShowFileTree(info)
+		}
+	}
+
+	return torrentInfo, nil
+}
