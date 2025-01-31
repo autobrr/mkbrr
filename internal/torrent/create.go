@@ -31,7 +31,7 @@ func max(x, y int64) int64 {
 }
 
 // calculatePieceLength calculates the optimal piece length based on total size
-func calculatePieceLength(totalSize int64) uint {
+func calculatePieceLength(totalSize int64, maxPieceLength *uint) uint {
 	// ensure minimum of 1 byte and calculate exponent
 	size := max(totalSize, 1)
 	exp := uint(math.Ceil(math.Log2(float64(size)))/2.0 + 4.0)
@@ -39,6 +39,10 @@ func calculatePieceLength(totalSize int64) uint {
 	// ensure bounds: 16 KiB (2^14) to 16 MiB (2^24)
 	exp = uint(min(max(int64(exp), 14), 24))
 
+	// if maxPieceLength is set, ensure we don't exceed it
+	if maxPieceLength != nil && exp > *maxPieceLength {
+		exp = *maxPieceLength
+	}
 	return exp
 }
 
@@ -97,7 +101,12 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 
 	var pieceLength uint
 	if opts.PieceLengthExp == nil {
-		pieceLength = calculatePieceLength(totalSize)
+		if opts.MaxPieceLength != nil {
+			if *opts.MaxPieceLength < 14 || *opts.MaxPieceLength > 24 {
+				return nil, fmt.Errorf("max piece length exponent must be between 14 (16 KiB) and 24 (16 MiB), got: %d", *opts.MaxPieceLength)
+			}
+		}
+		pieceLength = calculatePieceLength(totalSize, opts.MaxPieceLength)
 	} else {
 		//	if opts.Verbose {
 		//		fmt.Printf("Using requested piece length: 2^%d bytes\n", *opts.PieceLengthExp)

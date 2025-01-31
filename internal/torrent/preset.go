@@ -16,13 +16,14 @@ type PresetConfig struct {
 
 // PresetOpts represents the options for a single preset
 type PresetOpts struct {
-	Trackers    []string `yaml:"trackers"`
-	WebSeeds    []string `yaml:"webseeds"`
-	Private     bool     `yaml:"private"`
-	PieceLength uint     `yaml:"piece_length"`
-	Comment     string   `yaml:"comment"`
-	Source      string   `yaml:"source"`
-	NoDate      bool     `yaml:"no_date"`
+	Trackers       []string `yaml:"trackers"`
+	WebSeeds       []string `yaml:"webseeds"`
+	Private        bool     `yaml:"private"`
+	PieceLength    uint     `yaml:"piece_length"`
+	MaxPieceLength uint     `yaml:"max_piece_length"`
+	Comment        string   `yaml:"comment"`
+	Source         string   `yaml:"source"`
+	NoDate         bool     `yaml:"no_date"`
 }
 
 // LoadPresets loads presets from a config file
@@ -69,6 +70,9 @@ func (c *PresetConfig) GetPreset(name string) (*PresetOpts, error) {
 		if preset.PieceLength != 0 {
 			merged.PieceLength = preset.PieceLength
 		}
+		if preset.MaxPieceLength != 0 {
+			merged.MaxPieceLength = preset.MaxPieceLength
+		}
 		if preset.Comment != "" {
 			merged.Comment = preset.Comment
 		}
@@ -113,6 +117,11 @@ func (p *PresetOpts) ToCreateOptions(path string, verbose bool, version string) 
 	if p.PieceLength != 0 {
 		pieceLen := p.PieceLength
 		opts.PieceLengthExp = &pieceLen
+	}
+
+	if p.MaxPieceLength != 0 {
+		maxPieceLen := p.MaxPieceLength
+		opts.MaxPieceLength = &maxPieceLen
 	}
 
 	return opts

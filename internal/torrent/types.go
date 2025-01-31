@@ -15,6 +15,7 @@ type CreateTorrentOptions struct {
 	IsPrivate      bool
 	Comment        string
 	PieceLengthExp *uint
+	MaxPieceLength *uint
 	Source         string
 	NoDate         bool
 	Verbose        bool

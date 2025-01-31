@@ -98,6 +98,12 @@
           "no_date": {
             "type": "boolean",
             "description": "Don't write creation date"
+          },
+          "max_piece_length": {
+            "type": "integer",
+            "description": "Maximum piece length as 2^n bytes (14-24)",
+            "minimum": 14,
+            "maximum": 24
           }
         }
       }
