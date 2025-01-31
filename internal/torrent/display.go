@@ -84,8 +84,8 @@ func (d *Display) ShowTorrentInfo(t *Torrent, info *metainfo.Info) {
 	fmt.Printf("\n%s\n", cyan("Torrent info:"))
 	fmt.Printf("  %-13s %s\n", label("Name:"), info.Name)
 	fmt.Printf("  %-13s %s\n", label("Hash:"), t.HashInfoBytes())
-	fmt.Printf("  %-13s %s\n", label("Size:"), humanize.Bytes(uint64(info.TotalLength())))
-	fmt.Printf("  %-13s %s\n", label("Piece length:"), humanize.Bytes(uint64(info.PieceLength)))
+	fmt.Printf("  %-13s %s\n", label("Size:"), humanize.IBytes(uint64(info.TotalLength())))
+	fmt.Printf("  %-13s %s\n", label("Piece length:"), humanize.IBytes(uint64(info.PieceLength)))
 	fmt.Printf("  %-13s %d\n", label("Pieces:"), len(info.Pieces)/20)
 
 	if t.AnnounceList != nil {
@@ -143,7 +143,7 @@ func (d *Display) ShowFileTree(info *metainfo.Info) {
 		fmt.Printf("%s %s (%s)\n",
 			prefix,
 			success(filepath.Join(file.Path...)),
-			label(humanize.Bytes(uint64(file.Length))))
+			label(humanize.IBytes(uint64(file.Length))))
 	}
 }
 
@@ -182,7 +182,7 @@ func (d *Display) ShowBatchResults(results []BatchResult, duration time.Duration
 	fmt.Printf("  %-15s %d\n", label("Total jobs:"), len(results))
 	fmt.Printf("  %-15s %s\n", label("Successful:"), success(successful))
 	fmt.Printf("  %-15s %s\n", label("Failed:"), errorColor(failed))
-	fmt.Printf("  %-15s %s\n", label("Total size:"), humanize.Bytes(uint64(totalSize)))
+	fmt.Printf("  %-15s %s\n", label("Total size:"), humanize.IBytes(uint64(totalSize)))
 	fmt.Printf("  %-15s %s\n", label("Processing time:"), d.formatter.FormatDuration(duration))
 
 	if d.formatter.verbose {
@@ -192,7 +192,7 @@ func (d *Display) ShowBatchResults(results []BatchResult, duration time.Duration
 			if result.Success {
 				fmt.Printf("  %-11s %s\n", label("Status:"), success("Success"))
 				fmt.Printf("  %-11s %s\n", label("Output:"), result.Info.Path)
-				fmt.Printf("  %-11s %s\n", label("Size:"), humanize.Bytes(uint64(result.Info.Size)))
+				fmt.Printf("  %-11s %s\n", label("Size:"), humanize.IBytes(uint64(result.Info.Size)))
 				fmt.Printf("  %-11s %s\n", label("Info hash:"), result.Info.InfoHash)
 				fmt.Printf("  %-11s %s\n", label("Trackers:"), strings.Join(result.Trackers, ", "))
 				if result.Info.Files > 0 {
@@ -216,7 +216,7 @@ func NewFormatter(verbose bool) *Formatter {
 }
 
 func (f *Formatter) FormatBytes(bytes int64) string {
-	return humanize.Bytes(uint64(bytes))
+	return humanize.IBytes(uint64(bytes))
 }
 
 func (f *Formatter) FormatDuration(d time.Duration) string {
