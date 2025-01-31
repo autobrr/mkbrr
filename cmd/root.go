@@ -40,6 +40,7 @@ func SetVersion(v, bt string) {
 
 func Execute() error {
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
+	rootCmd.SilenceUsage = true
 
 	rootCmd.AddCommand(versionCmd)
 
