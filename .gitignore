@@ -6,3 +6,4 @@ race_report.log
 coverage.txt
 coverage.html
 test.sh
+.idea
