@@ -309,7 +309,7 @@ The inspect command displays detailed information about a torrent file, includin
 mkbrr modify [torrent files...] [flags]
 ```
 
-The modify command allows batch modification of existing torrent files using presets. Original files are preserved and new files are created with `-[preset]` or `-modified` suffix in the same directory as the input files (unless `--output-dir` is specified).
+The modify command allows batch modification of existing torrent metadata without requiring access to the source files. Original files are preserved and new files are created with `-[preset]` or `-modified` suffix in the same directory as the input files (unless `--output-dir` is specified).
 
 ```bash
 # Modify a single torrent using a preset (outputs to same directory)
@@ -333,15 +333,16 @@ mkbrr modify -P public --output-dir /path/to/output *.torrent
 - `-n, --dry-run`: show what would be modified without making changes
 - `-v, --verbose`: be verbose
 
-If you don't want to use presets, you can override individual settings with the following flags:
+If you don't want to use presets, you can modify individual metadata fields with these flags:
 
 - `-t, --tracker <url>`: tracker URL override
+- `-w, --web-seed <url>`: add web seed URLs (can be specified multiple times)
 - `-p, --private`: make torrent private (default: true)
 - `-c, --comment <text>`: add comment to the torrent
-- `-l, --piece-length <n>`: set piece length to 2^n bytes (14-24, automatic if not specified)
-- `-m, --max-piece-length <n>`: limit maximum piece length to 2^n bytes (14-24)
 - `-s, --source <text>`: specify source string
 - `-d, --no-date`: don't update creation date
+
+Note: Changes that would require access to the source files (like modifying piece length) are not supported. If you need to change these parameters, please create a new torrent instead.
 
 ### Version Information
 

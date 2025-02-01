@@ -10,19 +10,17 @@ import (
 )
 
 var (
-	modifyPresetName        string
-	modifyPresetFile        string
-	modifyOutputDir         string
-	modifyDryRun            bool
-	modifyNoDate            bool
-	modifyVerbose           bool
-	modifyTracker           string
-	modifyWebSeeds          []string
-	modifyPrivate           bool = true // default to true like create
-	modifyComment           string
-	modifyPieceLengthExp    uint // 0 means not set
-	modifyMaxPieceLengthExp uint // 0 means not set
-	modifySource            string
+	modifyPresetName string
+	modifyPresetFile string
+	modifyOutputDir  string
+	modifyDryRun     bool
+	modifyNoDate     bool
+	modifyVerbose    bool
+	modifyTracker    string
+	modifyWebSeeds   []string
+	modifyPrivate    bool = true // default to true like create
+	modifyComment    string
+	modifySource     string
 )
 
 var modifyCmd = &cobra.Command{
@@ -55,8 +53,6 @@ func init() {
 	modifyCmd.Flags().StringArrayVarP(&modifyWebSeeds, "web-seed", "w", nil, "add web seed URLs")
 	modifyCmd.Flags().BoolVarP(&modifyPrivate, "private", "p", true, "make torrent private (default: true)")
 	modifyCmd.Flags().StringVarP(&modifyComment, "comment", "c", "", "add comment")
-	modifyCmd.Flags().UintVarP(&modifyPieceLengthExp, "piece-length", "l", 0, "set piece length to 2^n bytes (14-24, automatic if not specified)")
-	modifyCmd.Flags().UintVarP(&modifyMaxPieceLengthExp, "max-piece-length", "m", 0, "limit maximum piece length to 2^n bytes (14-24, unlimited if not specified)")
 	modifyCmd.Flags().StringVarP(&modifySource, "source", "s", "", "add source string")
 }
 
@@ -78,13 +74,6 @@ func runModify(cmd *cobra.Command, args []string) error {
 		WebSeeds:   modifyWebSeeds,
 		Comment:    modifyComment,
 		Source:     modifySource,
-	}
-	// only set pointer values if flags were provided (piece lengths)
-	if modifyPieceLengthExp != 0 {
-		opts.PieceLengthExp = &modifyPieceLengthExp
-	}
-	if modifyMaxPieceLengthExp != 0 {
-		opts.MaxPieceLength = &modifyMaxPieceLengthExp
 	}
 	// always pass the private flag as pointer
 	opts.IsPrivate = &modifyPrivate
