@@ -79,7 +79,7 @@ nfpms:
   - package_name: mkbrr
     maintainer: autobrr
     description: |-
-      mkbrr is a tool for archiving PTP torrents.
+      mkbrr is a tool for creating, inspecting and modifying .torrent files.
     formats:
       - apk
       - deb
