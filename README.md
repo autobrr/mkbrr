@@ -26,6 +26,7 @@ mkbrr is a command-line tool to create and inspect torrent files. Fast, single b
     - [Batch Configuration Format](#batch-configuration-format)
     - [Preset Configuration Format](#preset-configuration-format)
   - [Inspect a Torrent](#inspect-a-torrent)
+  - [Modify a Torrent](#modify-a-torrent)
   - [Version Information](#version-information)
   - [Update](#update)
 - [Performance](#performance)
@@ -301,6 +302,36 @@ The inspect command displays detailed information about a torrent file, includin
 - Creation information
 - Magnet link
 - File list (for multi-file torrents)
+
+### Modify a Torrent
+
+```bash
+mkbrr modify [torrent files...] [flags]
+```
+
+The modify command allows batch modification of existing torrent files using presets. Original files are preserved and new files are created with `-[preset]` or `-modified` suffix.
+
+```bash
+# Modify a single torrent using a preset
+mkbrr modify -P public original.torrent
+
+# Modify multiple torrents using a preset
+mkbrr modify -P private file1.torrent file2.torrent
+
+# Modify all torrent files in current directory
+mkbrr modify -P public *.torrent
+```
+
+#### Modify Flags
+
+- `-P, --preset <name>`: Use preset from config
+- `--preset-file <file>`: Preset config file (default: ~/.config/mkbrr/presets.yaml)
+- `--output-dir <dir>`: Output directory for modified files
+- `-n, --dry-run`: Show what would be modified without making changes
+- `-d, --no-date`: Don't update creation date
+- `-v, --verbose`: Be verbose
+
+The modify command uses the same preset configuration format as the create command. See [Preset Configuration Format](#preset-configuration-format) for details.
 
 ### Version Information
 
