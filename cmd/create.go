@@ -7,6 +7,7 @@ import (
 	"runtime/pprof"
 	"time"
 
+	"github.com/autobrr/mkbrr/internal/preset"
 	"github.com/autobrr/mkbrr/internal/torrent"
 	"github.com/spf13/cobra"
 )
@@ -156,20 +157,46 @@ func runCreate(cmd *cobra.Command, args []string) error {
 			}
 		}
 
-		// load presets
-		presets, err := torrent.LoadPresets(presetFilePath)
+		// find preset file
+		presetPath, err := preset.FindPresetFile(presetFilePath)
 		if err != nil {
-			return fmt.Errorf("failed to load presets from %s: %w", presetFilePath, err)
+			return fmt.Errorf("could not find preset file: %w", err)
+		}
+
+		// load presets
+		presets, err := preset.Load(presetPath)
+		if err != nil {
+			return fmt.Errorf("could not load presets: %w", err)
 		}
 
 		// get preset
-		preset, err := presets.GetPreset(presetName)
+		presetOpts, err := presets.GetPreset(presetName)
 		if err != nil {
-			return fmt.Errorf("failed to get preset: %w", err)
+			return fmt.Errorf("could not get preset: %w", err)
 		}
 
 		// convert preset to options
-		opts = preset.ToCreateOptions(inputPath, verbose, version)
+		opts = torrent.CreateTorrentOptions{
+			Path:       inputPath,
+			TrackerURL: presetOpts.Trackers[0],
+			WebSeeds:   presetOpts.WebSeeds,
+			IsPrivate:  presetOpts.Private,
+			Comment:    presetOpts.Comment,
+			Source:     presetOpts.Source,
+			NoDate:     presetOpts.NoDate,
+			Verbose:    verbose,
+			Version:    version,
+		}
+
+		if presetOpts.PieceLength != 0 {
+			pieceLen := presetOpts.PieceLength
+			opts.PieceLengthExp = &pieceLen
+		}
+
+		if presetOpts.MaxPieceLength != 0 {
+			maxPieceLen := presetOpts.MaxPieceLength
+			opts.MaxPieceLength = &maxPieceLen
+		}
 
 		// override preset options with command line flags if specified
 		if cmd.Flags().Changed("tracker") {

@@ -191,8 +191,8 @@ Single mode flags:
 - `-w, --web-seed <url>`: Add web seed URLs (can be specified multiple times)
 - `-p, --private`: Make torrent private (default: true)
 - `-c, --comment <text>`: Add comment
-- `-l, --piece-length <n>`: Set piece length to 2^n bytes (14-24, automatic if not specified)
-- `-m, --max-piece-length <n>`: Limit maximum piece length to 2^n bytes (14-24, unlimited if not specified)
+- `-l, --piece-length <n>`: set piece length to 2^n bytes (14-24, automatic if not specified). note: if this flag is set, it will always override any value specified with `-m, --max-piece-length`.
+- `-m, --max-piece-length <n>`: limit maximum piece length to 2^n bytes (14-24)
 - `-o, --output <path>`: Set output path (default: <name>.torrent)
 - `-s, --source <text>`: Add source string
 - `-d, --no-date`: Don't write creation date
@@ -309,10 +309,10 @@ The inspect command displays detailed information about a torrent file, includin
 mkbrr modify [torrent files...] [flags]
 ```
 
-The modify command allows batch modification of existing torrent files using presets. Original files are preserved and new files are created with `-[preset]` or `-modified` suffix.
+The modify command allows batch modification of existing torrent files using presets. Original files are preserved and new files are created with `-[preset]` or `-modified` suffix in the same directory as the input files (unless `--output-dir` is specified).
 
 ```bash
-# Modify a single torrent using a preset
+# Modify a single torrent using a preset (outputs to same directory)
 mkbrr modify -P public original.torrent
 
 # Modify multiple torrents using a preset
@@ -320,18 +320,28 @@ mkbrr modify -P private file1.torrent file2.torrent
 
 # Modify all torrent files in current directory
 mkbrr modify -P public *.torrent
+
+# Specify a different output directory
+mkbrr modify -P public --output-dir /path/to/output *.torrent
 ```
 
 #### Modify Flags
 
-- `-P, --preset <name>`: Use preset from config
-- `--preset-file <file>`: Preset config file (default: ~/.config/mkbrr/presets.yaml)
-- `--output-dir <dir>`: Output directory for modified files
-- `-n, --dry-run`: Show what would be modified without making changes
-- `-d, --no-date`: Don't update creation date
-- `-v, --verbose`: Be verbose
+- `-P, --preset <name>`: use preset from config (if you prefer presets, you can use this just like with create)
+- `--preset-file <file>`: preset config file (default: ~/.config/mkbrr/presets.yaml)
+- `--output-dir <dir>`: output directory for modified files (default: same directory as input files)
+- `-n, --dry-run`: show what would be modified without making changes
+- `-v, --verbose`: be verbose
 
-The modify command uses the same preset configuration format as the create command. See [Preset Configuration Format](#preset-configuration-format) for details.
+If you don't want to use presets, you can override individual settings with the following flags:
+
+- `-t, --tracker <url>`: tracker URL override
+- `-p, --private`: make torrent private (default: true)
+- `-c, --comment <text>`: add comment to the torrent
+- `-l, --piece-length <n>`: set piece length to 2^n bytes (14-24, automatic if not specified)
+- `-m, --max-piece-length <n>`: limit maximum piece length to 2^n bytes (14-24)
+- `-s, --source <text>`: specify source string
+- `-d, --no-date`: don't update creation date
 
 ### Version Information
 
