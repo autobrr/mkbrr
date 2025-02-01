@@ -106,6 +106,7 @@ jobs:
     private: false
     # piece_length is automatically optimized based on file size:
     # piece_length: 22  # manual override if needed (2^n: 14-24)
+    # max_piece_length: 23  # limits the automatically calculated maximum piece length
 
   - output: release.torrent
     path: /path/to/release
@@ -159,6 +160,7 @@ presets:
       - "https://please.passthe.tea/announce"
     # piece_length is automatically optimized based on file size
     # piece_length: 20  # manual override if needed (2^n: 14-24)
+    # max_piece_length: 23  # limits the automatically calculated maximum piece length
 
   # Public tracker preset
   public:
@@ -169,6 +171,7 @@ presets:
       - "udp://9.rarbg.com:2810/announce"
     # piece_length is automatically optimized based on file size
     # piece_length: 22  # manual override if needed (2^n: 14-24)
+    # max_piece_length: 23  # limits the automatically calculated maximum piece length
 ```
 
 #### Create Flags
@@ -187,6 +190,7 @@ Single mode flags:
 - `-p, --private`: Make torrent private (default: true)
 - `-c, --comment <text>`: Add comment
 - `-l, --piece-length <n>`: Set piece length to 2^n bytes (14-24, automatic if not specified)
+- `-m, --max-piece-length <n>`: Limit maximum piece length to 2^n bytes (14-24, unlimited if not specified)
 - `-o, --output <path>`: Set output path (default: <name>.torrent)
 - `-s, --source <text>`: Add source string
 - `-d, --no-date`: Don't write creation date
@@ -202,17 +206,18 @@ The batch configuration file uses YAML format with the following structure:
 # yaml-language-server: $schema=https://raw.githubusercontent.com/autobrr/mkbrr/main/schema/batch.json
 version: 1  # Required, must be 1
 jobs:       # List of torrent creation jobs
-  - output: string      # Required: Output path for .torrent file
-    path: string        # Required: Path to source file/directory
-    trackers:           # Optional: List of tracker URLs
+  - output: string         # Required: Output path for .torrent file
+    path: string           # Required: Path to source file/directory
+    trackers:              # Optional: List of tracker URLs
       - string
-    webseeds:           # Optional: List of webseed URLs
+    webseeds:              # Optional: List of webseed URLs
       - string
-    private: bool       # Optional: Make torrent private (default: true)
-    piece_length: int   # Optional: Piece length exponent (14-24)
-    comment: string     # Optional: Torrent comment
-    source: string      # Optional: Source tag
-    no_date: bool       # Optional: Don't write creation date (default: false)
+    private: bool          # Optional: Make torrent private (default: true)
+    piece_length: int      # Optional: Piece length exponent (14-24)
+    max_piece_length: int  # Optional: Limits the automatically calculated maximum piece length
+    comment: string        # Optional: Torrent comment
+    source: string         # Optional: Source tag
+    no_date: bool          # Optional: Don't write creation date (default: false)
 ```
 
 #### Preset Configuration Format
@@ -233,15 +238,16 @@ default:
 
 presets:      # Map of preset names to their configurations
   preset-name:
-    trackers:           # Optional: List of tracker URLs (overrides default)
+    trackers:              # Optional: List of tracker URLs (overrides default)
       - string
-    webseeds:           # Optional: List of webseed URLs (overrides default)
+    webseeds:              # Optional: List of webseed URLs (overrides default)
       - string
-    private: bool       # Optional: Make torrent private (overrides default)
-    piece_length: int   # Optional: Piece length exponent (14-24)
-    comment: string     # Optional: Torrent comment (overrides default)
-    source: string      # Optional: Source tag (overrides default)
-    no_date: bool       # Optional: Don't write creation date (overrides default)
+    private: bool          # Optional: Make torrent private (overrides default)
+    piece_length: int      # Optional: Piece length exponent (14-24)
+    max_piece_length: int  # Optional: Limits the automatically calculated maximum piece length
+    comment: string        # Optional: Torrent comment (overrides default)
+    source: string         # Optional: Source tag (overrides default)
+    no_date: bool          # Optional: Don't write creation date (overrides default)
 ```
 
 Any settings specified in a preset will override the corresponding default settings. This allows you to set common values in the `default` section and only specify differences in individual presets.
@@ -264,6 +270,7 @@ presets:
       - "https://please.passthe.tea/announce"
     # piece_length is automatically optimized based on file size
     # piece_length: 20  # manual override if needed (2^n: 14-24)
+    # max_piece_length: 23  # limits the automatically calculated maximum piece length
 
   # Public tracker preset
   public:
@@ -274,6 +281,7 @@ presets:
       - "udp://9.rarbg.com:2810/announce"
     # piece_length is automatically optimized based on file size
     # piece_length: 22  # manual override if needed (2^n: 14-24)
+    # max_piece_length: 23  # limits the automatically calculated maximum piece length
 ```
 
 ### Inspect a Torrent
