@@ -133,9 +133,10 @@ func (h *pieceHasher) hashFiles() error {
 	
 			defer f.Close()
 			r := bufio.NewReaderSize(f, int(h.pieceLen) * workers)
-			read := 0
+			read := int64(0)
+			fileSize := int64(h.files[i].length)
 			for {
-				toRead := int(min(h.pieceLen - lastRead, f.files[i].length - read))
+				toRead := int(min(h.pieceLen - lastRead, fileSize - read))
 				if _, err := io.CopyN(*hasher, r, toRead); err != nil {
 					if err == io.EOF {
 						break
@@ -145,6 +146,7 @@ func (h *pieceHasher) hashFiles() error {
 				}
 
 				lastRead += toRead
+				read += toRead
 				if lastRead == h.pieceLen || i == len(h.files)-1 && piece == len(h.pieces)-1 {
 					wg.Add(1)
 					go func(p int, h *hash.Hash) {
