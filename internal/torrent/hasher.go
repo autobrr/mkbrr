@@ -5,6 +5,7 @@ import (
 	"crypto/sha1"
 	"errors"
 	"fmt"
+	"hash"
 	"io"
 	"os"
 	"runtime"
