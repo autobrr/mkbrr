@@ -120,18 +120,19 @@ func (h *pieceHasher) hashPiece(piece int, hasher *hash.Hash) {
 func (h *pieceHasher) hashFiles() error {
 	hasher := h.bufferPool.Get().(*hash.Hash)
 
+	workers := h.optimizeForWorkload()
 	piece := 0
 	lastRead := 0
 	var wg sync.WaitGroup
 	for i := 0; i < len(f.files); i++ {
 		if err := func () error {
-			f, err := os.OpenFile(f.files[i].Path, os.O_RDONLY, 0)
+			of, err := os.OpenFile(f.files[i].Path, os.O_RDONLY, 0)
 			if err != nil {
 				return err
 			}
 	
-			defer f.Close()
-			r := bufio.NewReaderSize(f, h.PiecesLen * workers)
+			defer of.Close()
+			r := bufio.NewReaderSize(of, h.piecesLen * workers)
 			read := 0
 			for {
 				toRead := min(h.PieceLen - lastRead, f.files[i].length - read)
