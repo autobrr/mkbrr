@@ -29,7 +29,7 @@ type pieceHasher struct {
 // - system CPU count
 func (h *pieceHasher) optimizeForWorkload() (int) {
 	if len(h.files) == 0 {
-		return 0, 0
+		return 0
 	}
 
 	// calculate total and maximum file sizes for optimization decisions
