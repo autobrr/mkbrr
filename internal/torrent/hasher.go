@@ -115,7 +115,7 @@ func (h *pieceHasher) hashPiece(piece int, hasher *hash.Hash) {
 }
 
 func (h *pieceHasher) hashFiles() error {
-	hasher := h.bufferPool.Get().(*hash.Hash)
+	hasher := h.bufferPool.Get().(*sha1.digest)
 
 	workers := h.optimizeForWorkload()
 	piece := 0
