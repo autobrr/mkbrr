@@ -106,7 +106,7 @@ func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Di
 		pieceLen:  pieceLen,
 		files:     files,
 		display:   display,
-		ch:        make(chan *[]byte, 64) // should be numWorkers*3 at minimum to get good velocity.
+		ch:        make(chan *[]byte, 64), // should be numWorkers*3 at minimum to get good velocity.
 	}
 }
 
@@ -153,7 +153,7 @@ func (h *pieceHasher) hashFiles() error {
 					lastRead = 0
 					hasher = h.bufferPool.Get().(*hash.Hasher)
 			}
-		}(); err != nil {
+		}; err != nil {
 				return err
 		}
 	}
