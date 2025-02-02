@@ -60,7 +60,7 @@ func (h *pieceHasher) optimizeForWorkload() (int) {
 	case avgFileSize < 10<<20:
 		numWorkers = int(min(int64(4), int64(runtime.NumCPU())))
 	default:
-		numWorkers = int(min(int64(2), int64(runtime.NumCPU())))
+		vnumWorkers = int(min(int64(2), int64(runtime.NumCPU())))
 	}
 
 	// ensure we don't create more workers than pieces to process
@@ -108,14 +108,14 @@ func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Di
 	}
 }
 
-func (h *pieceHasher) hashPiece(piece int, hasher *hash.Hash) {
-	defer h.bufferPool.Put(hasher)
-	defer (*hasher).Reset()
-	h.pieces[piece] = (*hasher).Sum(nil)
+func (h *pieceHasher) hashPiece(piece int, ha hash.Hash) {
+	defer h.bufferPool.Put(ha)
+	defer ha.Reset()
+	h.pieces[piece] = ha.Sum(nil)
 }
 
 func (h *pieceHasher) hashFiles() error {
-	hasher := h.bufferPool.Get().(*sha1.digest)
+	hasher := h.bufferPool.Get().(hash.Hash)
 
 	workers := h.optimizeForWorkload()
 	piece := 0
@@ -146,13 +146,13 @@ func (h *pieceHasher) hashFiles() error {
 				read += toRead
 				if lastRead == h.pieceLen || i == len(h.files)-1 && piece == len(h.pieces)-1 {
 					wg.Add(1)
-					go func(p int, ha *hash.Hash) {
+					go func(p int, ha hash.Hash) {
 						h.hashPiece(p, ha)
 						wg.Done()
 					}(piece, hasher)
 					piece++
 					lastRead = 0
-					hasher = h.bufferPool.Get().(*hash.Hash)
+					hasher = h.bufferPool.Get().(hash.Hash)
 				}
 			}
 
