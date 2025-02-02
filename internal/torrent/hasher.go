@@ -1,6 +1,7 @@
 package torrent
 
 import (
+	"bufio"
 	"crypto/sha1"
 	"errors"
 	"fmt"
@@ -63,13 +64,13 @@ func (h *pieceHasher) optimizeForWorkload() (int, int) {
 		}
 	case avgFileSize < 1<<20:
 		readSize = 256 << 10
-		numWorkers = int(minInt64(8, int64(runtime.NumCPU())))
+		numWorkers = min(8, runtime.NumCPU())
 	case avgFileSize < 10<<20:
 		readSize = 1 << 20
-		numWorkers = int(minInt64(4, int64(runtime.NumCPU())))
+		numWorkers = min(4, runtime.NumCPU())
 	default:
 		readSize = 4 << 20
-		numWorkers = int(minInt64(2, int64(runtime.NumCPU())))
+		numWorkers = min(2, runtime.NumCPU())
 	}
 
 	// ensure we don't create more workers than pieces to process
@@ -227,6 +228,7 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 				}
 				reader = &fileReader{
 					file:     f,
+					reader:   bufio.NewReaderSize(f, h.pieceLen * 3)
 					position: 0,
 					length:   file.length,
 				}
@@ -235,7 +237,7 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 
 			// ensure correct file position before reading
 			if reader.position != readStart {
-				if _, err := reader.file.Seek(readStart, 0); err != nil {
+				if _, err := reader.file.Seek(readStart, io.SeekStart); err != nil {
 					return fmt.Errorf("failed to seek in file %s: %w", file.path, err)
 				}
 				reader.position = readStart
@@ -249,7 +251,7 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 					n = len(buf)
 				}
 
-				read, err := io.ReadFull(reader.file, buf[:n])
+				read, err := io.ReadFull(reader.reader, buf[:n])
 				if err != nil && err != io.ErrUnexpectedEOF {
 					return fmt.Errorf("failed to read file %s: %w", file.path, err)
 				}
@@ -281,15 +283,7 @@ func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Di
 }
 
 // minInt returns the smaller of two integers
-func minInt(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-// minInt64 returns the smaller of two int64 values
-func minInt64(a, b int64) int64 {
+func min[K comparable](a, b K) K {
 	if a < b {
 		return a
 	}
