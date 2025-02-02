@@ -60,7 +60,7 @@ func (h *pieceHasher) optimizeForWorkload() (int) {
 	case avgFileSize < 10<<20:
 		numWorkers = int(min(int64(4), int64(runtime.NumCPU())))
 	default:
-		vnumWorkers = int(min(int64(2), int64(runtime.NumCPU())))
+		numWorkers = int(min(int64(2), int64(runtime.NumCPU())))
 	}
 
 	// ensure we don't create more workers than pieces to process
@@ -134,7 +134,7 @@ func (h *pieceHasher) hashFiles() error {
 			fileSize := int64(h.files[i].length)
 			for {
 				toRead := min(h.pieceLen - lastRead, fileSize - read)
-				if _, err := io.CopyN(*hasher, r, toRead); err != nil {
+				if _, err := io.CopyN(hasher, r, toRead); err != nil {
 					if err == io.EOF {
 						break
 					}
