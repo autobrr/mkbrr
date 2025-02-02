@@ -122,7 +122,7 @@ func (h *pieceHasher) hashFiles() error {
 
 	workers := h.optimizeForWorkload()
 	piece := 0
-	lastRead := 0
+	lastRead := int64(0)
 	var wg sync.WaitGroup
 	for i := 0; i < len(h.files); i++ {
 		if err := func () error {
@@ -132,7 +132,7 @@ func (h *pieceHasher) hashFiles() error {
 			}
 	
 			defer f.Close()
-			r := bufio.NewReaderSize(f, h.pieceLen * workers)
+			r := bufio.NewReaderSize(f, int(h.pieceLen) * workers)
 			read := 0
 			for {
 				toRead := int(min(h.pieceLen - lastRead, f.files[i].length - read))
@@ -145,7 +145,7 @@ func (h *pieceHasher) hashFiles() error {
 				}
 
 				lastRead += toRead
-				if lastRead == h.PieceLen || i == len(f.files)-1 && piece == len(h.pieces)-1 {
+				if lastRead == h.pieceLen || i == len(h.files)-1 && piece == len(h.pieces)-1 {
 					wg.Add(1)
 					go func(p int, h *hash.Hash) {
 						h.hashPiece(p, h)
@@ -156,6 +156,8 @@ func (h *pieceHasher) hashFiles() error {
 					hasher = h.bufferPool.Get().(*hash.Hash)
 				}
 			}
+
+			return nil
 		}(); err != nil {
 			return err
 		}
