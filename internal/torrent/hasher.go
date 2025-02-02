@@ -134,6 +134,10 @@ func (h *pieceHasher) hashFiles() error {
 			fileSize := int64(h.files[i].length)
 			for {
 				toRead := min(h.pieceLen - lastRead, fileSize - read)
+				if toRead == 0 {
+					break
+				}
+
 				if _, err := io.CopyN(hasher, r, toRead); err != nil {
 					if err == io.EOF {
 						break
