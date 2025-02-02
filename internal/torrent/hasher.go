@@ -281,11 +281,3 @@ func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Di
 		display:   display,
 	}
 }
-
-// minInt returns the smaller of two integers
-func min[K comparable](a, b K) K {
-	if a < b {
-		return a
-	}
-	return b
-}
