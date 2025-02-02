@@ -124,19 +124,19 @@ func (h *pieceHasher) hashFiles() error {
 	piece := 0
 	lastRead := 0
 	var wg sync.WaitGroup
-	for i := 0; i < len(f.files); i++ {
+	for i := 0; i < len(h.files); i++ {
 		if err := func () error {
-			of, err := os.OpenFile(f.files[i].Path, os.O_RDONLY, 0)
+			f, err := os.OpenFile(h.files[i].Path, os.O_RDONLY, 0)
 			if err != nil {
 				return err
 			}
 	
-			defer of.Close()
-			r := bufio.NewReaderSize(of, h.piecesLen * workers)
+			defer f.Close()
+			r := bufio.NewReaderSize(f, h.piecesLen * workers)
 			read := 0
 			for {
 				toRead := min(h.PieceLen - lastRead, f.files[i].length - read)
-				if err := io.CopyN(*hasher, r, toRead); err != nil {
+				if _, err := io.CopyN(*hasher, r, toRead); err != nil {
 					if err == io.EOF {
 						break
 					}
