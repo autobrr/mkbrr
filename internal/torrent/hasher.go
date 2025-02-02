@@ -152,9 +152,10 @@ func (h *pieceHasher) hashFiles() error {
 					piece++
 					lastRead = 0
 					hasher = h.bufferPool.Get().(*hash.Hasher)
+				}
 			}
-		}; err != nil {
-				return err
+		}(); err != nil {
+			return err
 		}
 	}
 	wg.Wait()
