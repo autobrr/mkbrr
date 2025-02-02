@@ -136,7 +136,7 @@ func (h *pieceHasher) hashFiles() error {
 			read := int64(0)
 			fileSize := int64(h.files[i].length)
 			for {
-				toRead := int(min(h.pieceLen - lastRead, fileSize - read))
+				toRead := min(h.pieceLen - lastRead, fileSize - read)
 				if _, err := io.CopyN(*hasher, r, toRead); err != nil {
 					if err == io.EOF {
 						break
@@ -149,8 +149,8 @@ func (h *pieceHasher) hashFiles() error {
 				read += toRead
 				if lastRead == h.pieceLen || i == len(h.files)-1 && piece == len(h.pieces)-1 {
 					wg.Add(1)
-					go func(p int, h *hash.Hash) {
-						h.hashPiece(p, h)
+					go func(p int, ha *hash.Hash) {
+						h.hashPiece(p, ha)
 						wg.Done()
 					}(piece, hasher)
 					piece++
