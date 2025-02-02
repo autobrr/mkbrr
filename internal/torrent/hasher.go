@@ -126,16 +126,16 @@ func (h *pieceHasher) hashFiles() error {
 	var wg sync.WaitGroup
 	for i := 0; i < len(h.files); i++ {
 		if err := func () error {
-			f, err := os.OpenFile(h.files[i].Path, os.O_RDONLY, 0)
+			f, err := os.OpenFile(h.files[i].path, os.O_RDONLY, 0)
 			if err != nil {
 				return err
 			}
 	
 			defer f.Close()
-			r := bufio.NewReaderSize(f, h.piecesLen * workers)
+			r := bufio.NewReaderSize(f, h.pieceLen * workers)
 			read := 0
 			for {
-				toRead := min(h.PieceLen - lastRead, f.files[i].length - read)
+				toRead := int(min(h.pieceLen - lastRead, f.files[i].length - read))
 				if _, err := io.CopyN(*hasher, r, toRead); err != nil {
 					if err == io.EOF {
 						break
