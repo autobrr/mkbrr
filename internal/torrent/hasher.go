@@ -228,7 +228,7 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 				}
 				reader = &fileReader{
 					file:     f,
-					reader:   bufio.NewReaderSize(f, h.pieceLen * 3),
+					reader:   bufio.NewReaderSize(f, int(h.pieceLen * 3)),
 					position: 0,
 					length:   file.length,
 				}
