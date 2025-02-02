@@ -4,14 +4,11 @@ import (
 	"bufio"
 	"crypto/sha1"
 	"errors"
-	"fmt"
 	"hash"
 	"io"
 	"os"
 	"runtime"
 	"sync"
-	"sync/atomic"
-	"time"
 )
 
 type pieceHasher struct {
