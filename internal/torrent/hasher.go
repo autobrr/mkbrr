@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"crypto/sha1"
 	"errors"
+	"fmt"
 	"hash"
 	"io"
 	"os"
@@ -165,6 +166,11 @@ func (h *pieceHasher) hashFiles() error {
 			return err
 		}
 	}
+
+	if piece != len(h.pieces) {
+		return fmt.Errorf("unable to create anticipated pieces %d/%d", piece, len(h.pieces))
+	}
+
 	wg.Wait()
 	return nil
 }
