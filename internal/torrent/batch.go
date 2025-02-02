@@ -97,7 +97,7 @@ func ProcessBatch(configPath string, verbose bool, version string) ([]BatchResul
 	var wg sync.WaitGroup
 
 	// process jobs in parallel with a worker pool
-	workers := min(len(config.Jobs), 4) // limit concurrent jobs
+	workers := int(min(len(config.Jobs), 4)) // limit concurrent jobs
 	jobs := make(chan int, len(config.Jobs))
 
 	// start workers
