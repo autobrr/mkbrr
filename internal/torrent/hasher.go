@@ -113,8 +113,8 @@ func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Di
 
 func (h *pieceHasher) hashPiece(piece int, hasher *hash.Hash) {
 	defer h.bufferPool.Put(hasher)
-	defer hasher.Reset()
-	h.pieces[piece] = hasher.Sum(b)
+	defer (*hasher).Reset()
+	h.pieces[piece] = (*hasher).Sum(b)
 }
 
 func (h *pieceHasher) hashFiles() error {
@@ -135,7 +135,7 @@ func (h *pieceHasher) hashFiles() error {
 			read := 0
 			for {
 				toRead := min(h.PieceLen - lastRead, f.files[i].length - read)
-				if err := io.CopyN(hasher, r, toRead); err != nil {
+				if err := io.CopyN(*hasher, r, toRead); err != nil {
 					if err == io.EOF {
 						break
 					}
