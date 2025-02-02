@@ -152,7 +152,7 @@ func (h *pieceHasher) hashFiles() error {
 					}(piece, hasher)
 					piece++
 					lastRead = 0
-					hasher = h.bufferPool.Get().(*hash.Hasher)
+					hasher = h.bufferPool.Get().(*hash.Hash)
 				}
 			}
 		}(); err != nil {
