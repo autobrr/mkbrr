@@ -170,8 +170,11 @@ func (h *pieceHasher) hashFiles() error {
 
 				lastRead += toRead
 				read += toRead
-				if lastRead != h.pieceLen || i == len(h.files)-1 && piece != len(h.pieces)-1 {
-					continue
+				if lastRead != h.pieceLen {
+					if i == len(h.files)-1 && piece == len(h.pieces)-1 {
+					} else {
+						continue
+					}
 				}
 
 				wg.Add(1)
