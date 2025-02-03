@@ -119,8 +119,8 @@ func (h *pieceHasher) hashFiles() error {
 	hasher := h.bufferPool.Get().(hash.Hash)
 
 	type work struct {
-		id int64,
-		h hash.Hash,
+		id int64
+		h hash.Hash
 	}
 
 	workers := h.optimizeForWorkload()
