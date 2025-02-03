@@ -101,7 +101,7 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 	h.bufferPool = &sync.Pool{
 		New: func() interface{} {
 			var b bytes.Buffer
-			b.Grow(h.pieceLen)
+			b.Grow(int(h.pieceLen))
 			return b
 		},
 	}
@@ -126,7 +126,7 @@ func (h *pieceHasher) hashPiece(w workHashUnit) {
 	defer h.hasherPool.Put(hasher)
 	defer hasher.Reset()
 
-	io.Copy(hasher, w.b)
+	io.Copy(hasher, &w.b)
 	h.pieces[w.id] = hasher.Sum(nil)
 }
 
@@ -184,7 +184,7 @@ func (h *pieceHasher) hashFiles() error {
 					break
 				}
 				
-				if _, err := io.CopyN(b, r, toRead); err != nil {
+				if _, err := io.CopyN(&b, r, toRead); err != nil {
 					if err == io.EOF {
 						break
 					}
