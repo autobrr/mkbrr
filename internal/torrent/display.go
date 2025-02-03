@@ -80,6 +80,14 @@ var (
 	white      = fmt.Sprint
 )
 
+func (d *Display) ShowMessage(msg string) {
+	fmt.Println(msg)
+}
+
+func (d *Display) ShowError(msg string) {
+	fmt.Println(errorColor(msg))
+}
+
 func (d *Display) ShowTorrentInfo(t *Torrent, info *metainfo.Info) {
 	fmt.Printf("\n%s\n", cyan("Torrent info:"))
 	fmt.Printf("  %-13s %s\n", label("Name:"), info.Name)
@@ -219,9 +227,9 @@ func (f *Formatter) FormatBytes(bytes int64) string {
 	return humanize.IBytes(uint64(bytes))
 }
 
-func (f *Formatter) FormatDuration(d time.Duration) string {
-	if d < time.Second {
-		return fmt.Sprintf("%dms", d.Milliseconds())
+func (f *Formatter) FormatDuration(dur time.Duration) string {
+	if dur < time.Second {
+		return fmt.Sprintf("%dms", dur.Milliseconds())
 	}
-	return humanize.RelTime(time.Now().Add(-d), time.Now(), "", "")
+	return humanize.RelTime(time.Now().Add(-dur), time.Now(), "", "")
 }
