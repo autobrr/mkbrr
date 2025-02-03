@@ -2,6 +2,7 @@ package torrent
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/sha1"
 	"errors"
 	"fmt"
@@ -126,7 +127,7 @@ func (h *pieceHasher) hashPiece(w workHashUnit) {
 	defer hasher.Reset()
 
 	io.Copy(hasher, w.b)
-	h.pieces[w.id] = w.h.Sum(nil)
+	h.pieces[w.id] = hasher.Sum(nil)
 }
 
 type workHashUnit struct {
