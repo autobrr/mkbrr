@@ -149,7 +149,8 @@ func (h *pieceHasher) hashFiles() error {
 
 	piece := 0
 	lastRead := int64(0)
-	
+
+	h.wg.Add(len(h.pieces))
 	for i := 0; i < len(h.files); i++ {
 		if err := func () error {
 			f, err := os.OpenFile(h.files[i].path, os.O_RDONLY, 0)
@@ -182,7 +183,6 @@ func (h *pieceHasher) hashFiles() error {
 					continue
 				}
 
-				h.wg.Add(1)
 				h.ch <- workHashUnit{id: piece, h: hasher}
 				piece++
 				lastRead = 0
@@ -190,7 +190,6 @@ func (h *pieceHasher) hashFiles() error {
 			}
 
 			if i == len(h.files)-1 && piece == len(h.pieces)-1 {
-				h.wg.Add(1)
 				h.ch <- workHashUnit{id: piece, h: hasher}
 				piece++
 			}
