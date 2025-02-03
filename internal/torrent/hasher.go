@@ -119,9 +119,9 @@ type workHashUnit struct {
 	h hash.Hash
 }
 
-func (h *pieceHasher) runPieceWorkers() {
+func (h *pieceHasher) runPieceWorkers() int {
 	workers := h.optimizeForWorkload()
-	h.ch = make(chan work, workers*4) // depth of 4 per worker
+	h.ch = make(chan workHashUnit, workers*4) // depth of 4 per worker
 
 	for i := 0; i < workers; i++ {
 		go func () {
@@ -138,11 +138,13 @@ func (h *pieceHasher) runPieceWorkers() {
 			}
 		}()
 	}
+
+	return workers
 }
 
 func (h *pieceHasher) hashFiles() error {
 	hasher := h.bufferPool.Get().(hash.Hash)
-	h.runPieceWorkers()
+	workers := h.runPieceWorkers()
 	defer close(h.ch)
 
 	piece := 0
@@ -156,7 +158,7 @@ func (h *pieceHasher) hashFiles() error {
 			}
 	
 			defer f.Close()
-			r := bufio.NewReaderSize(f, int(max(h.pieceLen * int64(workers), int64(4 << 20))))
+			r := bufio.NewReaderSize(f, int(max(h.pieceLen * int64(4), int64(4 << 20))))
 			read := int64(0)
 			fileSize := int64(h.files[i].length)
 			for {
