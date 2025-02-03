@@ -151,7 +151,7 @@ func (h *pieceHasher) hashFiles() error {
 			}
 	
 			defer f.Close()
-			r := bufio.NewReaderSize(f, int(max(h.pieceLen * int64(workers), int64(4 << 20)))
+			r := bufio.NewReaderSize(f, int(max(h.pieceLen * int64(workers), int64(4 << 20))))
 			read := int64(0)
 			fileSize := int64(h.files[i].length)
 			for {
