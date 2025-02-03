@@ -17,6 +17,7 @@ type pieceHasher struct {
 	pieceLen   int64
 	files      []fileEntry
 	display    Displayer
+	hasherPool *sync.Pool
 	bufferPool *sync.Pool
 
 	ch         chan workHashUnit
@@ -90,9 +91,17 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 	}
 
 	// initialize buffer pool
-	h.bufferPool = &sync.Pool{
+	h.hasherPool = &sync.Pool{
 		New: func() interface{} {
 			return sha1.New()
+		},
+	}
+
+	h.bufferPool = &sync.Pool{
+		New: func() interface{} {
+			var b bytes.Buffer
+			b.Grow(h.pieceLen)
+			return b
 		},
 	}
 
@@ -109,14 +118,20 @@ func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Di
 }
 
 func (h *pieceHasher) hashPiece(w workHashUnit) {
-	defer h.bufferPool.Put(w.h)
-	defer w.h.Reset()
+	defer h.bufferPool.Put(w.b)
+	defer w.b.Reset()
+
+	hasher := h.hasherPool.Get().(hash.Hash)
+	defer h.hasherPool.Put(hasher)
+	defer hasher.Reset()
+
+	io.Copy(hasher, w.b)
 	h.pieces[w.id] = w.h.Sum(nil)
 }
 
 type workHashUnit struct {
 	id int
-	h hash.Hash
+	b bytes.Buffer
 }
 
 func (h *pieceHasher) runPieceWorkers() int {
@@ -143,7 +158,7 @@ func (h *pieceHasher) runPieceWorkers() int {
 }
 
 func (h *pieceHasher) hashFiles() error {
-	hasher := h.bufferPool.Get().(hash.Hash)
+	b := h.bufferPool.Get().(bytes.Buffer)
 	workers := h.runPieceWorkers()
 	defer close(h.ch)
 
@@ -167,8 +182,8 @@ func (h *pieceHasher) hashFiles() error {
 				if toRead == 0 {
 					break
 				}
-
-				if _, err := io.CopyN(hasher, r, toRead); err != nil {
+				
+				if _, err := io.CopyN(b, r, toRead); err != nil {
 					if err == io.EOF {
 						break
 					}
@@ -183,14 +198,14 @@ func (h *pieceHasher) hashFiles() error {
 					continue
 				}
 
-				h.ch <- workHashUnit{id: piece, h: hasher}
+				h.ch <- workHashUnit{id: piece, b: b}
 				piece++
 				lastRead = 0
-				hasher = h.bufferPool.Get().(hash.Hash)
+				b = h.bufferPool.Get().(bytes.Buffer)
 			}
 
 			if i == len(h.files)-1 && piece == len(h.pieces)-1 {
-				h.ch <- workHashUnit{id: piece, h: hasher}
+				h.ch <- workHashUnit{id: piece, b: b}
 				piece++
 			}
 
