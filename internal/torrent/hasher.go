@@ -21,8 +21,8 @@ type pieceHasher struct {
 	hasherPool *sync.Pool
 	bufferPool *sync.Pool
 
-	ch         chan workHashUnit
-	wg         sync.WaitGroup
+	ch chan workHashUnit
+	wg sync.WaitGroup
 }
 
 // optimizeForWorkload determines optimal read buffer size and number of worker goroutines
@@ -30,7 +30,7 @@ type pieceHasher struct {
 // - single vs multiple files
 // - average file size
 // - system CPU count
-func (h *pieceHasher) optimizeForWorkload() (int) {
+func (h *pieceHasher) optimizeForWorkload() int {
 	if len(h.files) == 0 {
 		return 0
 	}
@@ -100,9 +100,9 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 
 	h.bufferPool = &sync.Pool{
 		New: func() interface{} {
-			var b bytes.Buffer
+			b := bytes.Buffer{}
 			b.Grow(int(h.pieceLen))
-			return b
+			return &b
 		},
 	}
 
@@ -111,46 +111,46 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 
 func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Displayer) *pieceHasher {
 	return &pieceHasher{
-		pieces:    make([][]byte, numPieces),
-		pieceLen:  pieceLen,
-		files:     files,
-		display:   display,
+		pieces:   make([][]byte, numPieces),
+		pieceLen: pieceLen,
+		files:    files,
+		display:  display,
 	}
 }
 
 func (h *pieceHasher) hashPiece(w workHashUnit) {
-	defer h.bufferPool.Put(w.b)
-	defer w.b.Reset()
+	defer func() {
+		w.b.Reset()
+		h.bufferPool.Put(w.b)
+	}()
 
 	hasher := h.hasherPool.Get().(hash.Hash)
-	defer h.hasherPool.Put(hasher)
-	defer hasher.Reset()
+	defer func() {
+		hasher.Reset()
+		h.hasherPool.Put(hasher)
+	}()
 
-	io.Copy(hasher, &w.b)
+	io.Copy(hasher, w.b)
 	h.pieces[w.id] = hasher.Sum(nil)
 }
 
 type workHashUnit struct {
 	id int
-	b bytes.Buffer
+	b  *bytes.Buffer
 }
 
 func (h *pieceHasher) runPieceWorkers() int {
 	workers := h.optimizeForWorkload()
-	h.ch = make(chan workHashUnit, workers*4) // depth of 4 per worker
+
+	// create channel before starting goroutines
+	ch := make(chan workHashUnit, workers*4)
+	h.ch = ch // atomic assignment
 
 	for i := 0; i < workers; i++ {
-		go func () {
-			for {
-				select {
-				case w, ok := <-h.ch:
-					if !ok {
-						return
-					}
-	
-					h.hashPiece(w)
-					h.wg.Done()
-				}
+		go func() {
+			for w := range ch { // use local ch instead of h.ch
+				h.hashPiece(w)
+				h.wg.Done()
 			}
 		}()
 	}
@@ -159,7 +159,7 @@ func (h *pieceHasher) runPieceWorkers() int {
 }
 
 func (h *pieceHasher) hashFiles() error {
-	b := h.bufferPool.Get().(bytes.Buffer)
+	b := h.bufferPool.Get().(*bytes.Buffer)
 	workers := h.runPieceWorkers()
 	defer close(h.ch)
 
@@ -168,23 +168,23 @@ func (h *pieceHasher) hashFiles() error {
 
 	h.wg.Add(len(h.pieces))
 	for i := 0; i < len(h.files); i++ {
-		if err := func () error {
+		if err := func() error {
 			f, err := os.OpenFile(h.files[i].path, os.O_RDONLY, 0)
 			if err != nil {
 				return err
 			}
-	
+
 			defer f.Close()
-			r := bufio.NewReaderSize(f, int(max(h.pieceLen * int64(workers), int64(4 << 20))))
+			r := bufio.NewReaderSize(f, int(max(h.pieceLen*int64(workers), int64(4<<20))))
 			read := int64(0)
 			fileSize := int64(h.files[i].length)
 			for {
-				toRead := min(h.pieceLen - lastRead, fileSize - read)
+				toRead := min(h.pieceLen-lastRead, fileSize-read)
 				if toRead == 0 {
 					break
 				}
-				
-				if _, err := io.CopyN(&b, r, toRead); err != nil {
+
+				if _, err := io.CopyN(b, r, toRead); err != nil {
 					if err == io.EOF {
 						break
 					}
@@ -202,7 +202,7 @@ func (h *pieceHasher) hashFiles() error {
 				h.ch <- workHashUnit{id: piece, b: b}
 				piece++
 				lastRead = 0
-				b = h.bufferPool.Get().(bytes.Buffer)
+				b = h.bufferPool.Get().(*bytes.Buffer)
 			}
 
 			if i == len(h.files)-1 && piece == len(h.pieces)-1 {
@@ -223,4 +223,3 @@ func (h *pieceHasher) hashFiles() error {
 	h.wg.Wait()
 	return nil
 }
-	
