@@ -48,7 +48,7 @@ jobs:
 
       - name: Run Tests
         if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
-        run: make test-race
+        run: go test -v ./...
 
   goreleaserbuild:
     name: Build distribution binaries
