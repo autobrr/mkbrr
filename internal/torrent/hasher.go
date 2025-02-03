@@ -18,7 +18,6 @@ type pieceHasher struct {
 	files      []fileEntry
 	display    Displayer
 	bufferPool *sync.Pool
-	ch         chan *[]byte
 }
 
 // optimizeForWorkload determines optimal read buffer size and number of worker goroutines
@@ -65,9 +64,7 @@ func (h *pieceHasher) optimizeForWorkload() (int) {
 	}
 
 	// ensure we don't create more workers than pieces to process
-	if numWorkers > len(h.pieces) {
-		numWorkers = len(h.pieces)
-	}
+	numWorkers = int(min(int64(numWorkers), int64(len(h.pieces))))
 	return numWorkers
 }
 
@@ -105,7 +102,6 @@ func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Di
 		pieceLen:  pieceLen,
 		files:     files,
 		display:   display,
-		ch:        make(chan *[]byte, 64), // should be numWorkers*3 at minimum to get good velocity.
 	}
 }
 
@@ -124,10 +120,10 @@ func (h *pieceHasher) hashFiles() error {
 	}
 
 	workers := h.optimizeForWorkload()
-	var wg sync.WaitGroup
 	ch := make(chan work, workers*4) // depth of 4 per worker
 	defer close(ch)
 
+	var wg sync.WaitGroup
 	for i := 0; i < workers; i++ {
 		go func () {
 			for {
@@ -155,7 +151,7 @@ func (h *pieceHasher) hashFiles() error {
 			}
 	
 			defer f.Close()
-			r := bufio.NewReaderSize(f, int(h.pieceLen) * workers)
+			r := bufio.NewReaderSize(f, int(max(h.pieceLen * int64(workers), int64(4 << 20)))
 			read := int64(0)
 			fileSize := int64(h.files[i].length)
 			for {
@@ -174,13 +170,15 @@ func (h *pieceHasher) hashFiles() error {
 
 				lastRead += toRead
 				read += toRead
-				if lastRead == h.pieceLen || i == len(h.files)-1 && piece == len(h.pieces)-1 {
-					wg.Add(1)
-					ch <- work{id: piece, h: hasher}
-					piece++
-					lastRead = 0
-					hasher = h.bufferPool.Get().(hash.Hash)
+				if lastRead != h.pieceLen || i == len(h.files)-1 && piece != len(h.pieces)-1 {
+					continue
 				}
+
+				wg.Add(1)
+				ch <- work{id: piece, h: hasher}
+				piece++
+				lastRead = 0
+				hasher = h.bufferPool.Get().(hash.Hash)
 			}
 
 			return nil
