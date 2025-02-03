@@ -118,10 +118,34 @@ func (h *pieceHasher) hashPiece(piece int, ha hash.Hash) {
 func (h *pieceHasher) hashFiles() error {
 	hasher := h.bufferPool.Get().(hash.Hash)
 
+	struct work {
+		id int64,
+		h hash.Hash,
+	}
+
 	workers := h.optimizeForWorkload()
+	var wg sync.WaitGroup
+	ch := make(chan work, workers)
+
+	for i := 0; i < workers; i++ {
+		go func () {
+			for {
+				switch {
+					case w, ok := <-ch
+						if !ok {
+							return
+						}
+	
+						h.hashPiece(w.id, w.h)
+						wg.Done()
+				}
+			}
+		}()
+	}
+
 	piece := 0
 	lastRead := int64(0)
-	var wg sync.WaitGroup
+	
 	for i := 0; i < len(h.files); i++ {
 		if err := func () error {
 			f, err := os.OpenFile(h.files[i].path, os.O_RDONLY, 0)
@@ -151,10 +175,7 @@ func (h *pieceHasher) hashFiles() error {
 				read += toRead
 				if lastRead == h.pieceLen || i == len(h.files)-1 && piece == len(h.pieces)-1 {
 					wg.Add(1)
-					go func(p int, ha hash.Hash) {
-						h.hashPiece(p, ha)
-						wg.Done()
-					}(piece, hasher)
+					ch <- work{id: piece, h: hasher}
 					piece++
 					lastRead = 0
 					hasher = h.bufferPool.Get().(hash.Hash)
