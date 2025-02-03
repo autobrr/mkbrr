@@ -119,7 +119,7 @@ func (h *pieceHasher) hashFiles() error {
 	hasher := h.bufferPool.Get().(hash.Hash)
 
 	type work struct {
-		id int64
+		id int
 		h hash.Hash
 	}
 
