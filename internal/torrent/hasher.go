@@ -18,6 +18,9 @@ type pieceHasher struct {
 	files      []fileEntry
 	display    Displayer
 	bufferPool *sync.Pool
+
+	ch         chan workPieceUnit
+	wg         sync.WaitGroup
 }
 
 // optimizeForWorkload determines optimal read buffer size and number of worker goroutines
@@ -105,25 +108,21 @@ func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Di
 	}
 }
 
-func (h *pieceHasher) hashPiece(piece int, ha hash.Hash) {
-	defer h.bufferPool.Put(ha)
+func (h *pieceHasher) hashPiece(w workPieceUnit) {
+	defer h.bufferPool.Put(w.ha)
 	defer ha.Reset()
-	h.pieces[piece] = ha.Sum(nil)
+	h.pieces[w.piece] = w.ha.Sum(nil)
 }
 
-func (h *pieceHasher) hashFiles() error {
-	hasher := h.bufferPool.Get().(hash.Hash)
+type workPieceUnit struct {
+	id int
+	h hash.Hash
+}
 
-	type work struct {
-		id int
-		h hash.Hash
-	}
-
+func (h *pieceHasher) runPieceWorkers() {
 	workers := h.optimizeForWorkload()
-	ch := make(chan work, workers*4) // depth of 4 per worker
-	defer close(ch)
+	h.ch = make(chan work, workers*4) // depth of 4 per worker
 
-	var wg sync.WaitGroup
 	for i := 0; i < workers; i++ {
 		go func () {
 			for {
@@ -133,12 +132,18 @@ func (h *pieceHasher) hashFiles() error {
 						return
 					}
 	
-					h.hashPiece(w.id, w.h)
-					wg.Done()
+					h.hashPiece(w)
+					h.wg.Done()
 				}
 			}
 		}()
 	}
+}
+
+func (h *pieceHasher) hashFiles() error {
+	hasher := h.bufferPool.Get().(hash.Hash)
+	h.runPieceWorkers()
+	defer close(h.ch)
 
 	piece := 0
 	lastRead := int64(0)
@@ -157,11 +162,6 @@ func (h *pieceHasher) hashFiles() error {
 			for {
 				toRead := min(h.pieceLen - lastRead, fileSize - read)
 				if toRead == 0 {
-					if i == len(h.files)-1 && piece == len(h.pieces)-1 {
-						wg.Add(1)
-						ch <- work{id: piece, h: hasher}
-						piece++
-					}
 					break
 				}
 
@@ -187,6 +187,12 @@ func (h *pieceHasher) hashFiles() error {
 				hasher = h.bufferPool.Get().(hash.Hash)
 			}
 
+			if i == len(h.files)-1 && piece == len(h.pieces)-1 {
+				wg.Add(1)
+				h.ch <- workPieceUnit{id: piece, h: hasher}
+				piece++
+			}
+
 			return nil
 		}(); err != nil {
 			return err
@@ -197,7 +203,7 @@ func (h *pieceHasher) hashFiles() error {
 		return fmt.Errorf("unable to create anticipated pieces %d/%d", piece, len(h.pieces))
 	}
 
-	wg.Wait()
+	h.wg.Wait()
 	return nil
 }
 	
