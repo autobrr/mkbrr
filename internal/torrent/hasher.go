@@ -111,7 +111,7 @@ func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Di
 func (h *pieceHasher) hashPiece(w workHashUnit) {
 	defer h.bufferPool.Put(w.h)
 	defer w.h.Reset()
-	h.pieces[w.piece] = w.h.Sum(nil)
+	h.pieces[w.id] = w.h.Sum(nil)
 }
 
 type workHashUnit struct {
@@ -158,7 +158,7 @@ func (h *pieceHasher) hashFiles() error {
 			}
 	
 			defer f.Close()
-			r := bufio.NewReaderSize(f, int(max(h.pieceLen * int64(4), int64(4 << 20))))
+			r := bufio.NewReaderSize(f, int(max(h.pieceLen * int64(workers), int64(4 << 20))))
 			read := int64(0)
 			fileSize := int64(h.files[i].length)
 			for {
@@ -182,15 +182,15 @@ func (h *pieceHasher) hashFiles() error {
 					continue
 				}
 
-				wg.Add(1)
-				ch <- work{id: piece, h: hasher}
+				h.wg.Add(1)
+				h.ch <- workHashUnit{id: piece, h: hasher}
 				piece++
 				lastRead = 0
 				hasher = h.bufferPool.Get().(hash.Hash)
 			}
 
 			if i == len(h.files)-1 && piece == len(h.pieces)-1 {
-				wg.Add(1)
+				h.wg.Add(1)
 				h.ch <- workHashUnit{id: piece, h: hasher}
 				piece++
 			}
