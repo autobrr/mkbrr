@@ -19,7 +19,7 @@ type pieceHasher struct {
 	display    Displayer
 	bufferPool *sync.Pool
 
-	ch         chan workPieceUnit
+	ch         chan workHashUnit
 	wg         sync.WaitGroup
 }
 
@@ -108,13 +108,13 @@ func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Di
 	}
 }
 
-func (h *pieceHasher) hashPiece(w workPieceUnit) {
+func (h *pieceHasher) hashPiece(w workHashUnit) {
 	defer h.bufferPool.Put(w.h)
 	defer w.h.Reset()
 	h.pieces[w.piece] = w.h.Sum(nil)
 }
 
-type workPieceUnit struct {
+type workHashUnit struct {
 	id int
 	h hash.Hash
 }
@@ -189,7 +189,7 @@ func (h *pieceHasher) hashFiles() error {
 
 			if i == len(h.files)-1 && piece == len(h.pieces)-1 {
 				wg.Add(1)
-				h.ch <- workPieceUnit{id: piece, h: hasher}
+				h.ch <- workHashUnit{id: piece, h: hasher}
 				piece++
 			}
 
