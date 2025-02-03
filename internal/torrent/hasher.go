@@ -125,7 +125,7 @@ func (h *pieceHasher) hashFiles() error {
 
 	workers := h.optimizeForWorkload()
 	var wg sync.WaitGroup
-	ch := make(chan work, workers)
+	ch := make(chan work, workers*4) // depth of 4 per worker
 	defer close(ch)
 
 	for i := 0; i < workers; i++ {
