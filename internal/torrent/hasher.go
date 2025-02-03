@@ -131,14 +131,14 @@ func (h *pieceHasher) hashFiles() error {
 	for i := 0; i < workers; i++ {
 		go func () {
 			for {
-				switch {
-					case w, ok := <-ch:
-						if !ok {
-							return
-						}
+				select {
+				case w, ok := <-ch:
+					if !ok {
+						return
+					}
 	
-						h.hashPiece(w.id, w.h)
-						wg.Done()
+					h.hashPiece(w.id, w.h)
+					wg.Done()
 				}
 			}
 		}()
