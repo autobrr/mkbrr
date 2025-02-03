@@ -132,7 +132,7 @@ func (h *pieceHasher) hashFiles() error {
 		go func () {
 			for {
 				switch {
-					case w, ok := <-ch
+					case w, ok := <-ch:
 						if !ok {
 							return
 						}
