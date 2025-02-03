@@ -109,9 +109,9 @@ func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Di
 }
 
 func (h *pieceHasher) hashPiece(w workPieceUnit) {
-	defer h.bufferPool.Put(w.ha)
-	defer ha.Reset()
-	h.pieces[w.piece] = w.ha.Sum(nil)
+	defer h.bufferPool.Put(w.h)
+	defer w.h.Reset()
+	h.pieces[w.piece] = w.h.Sum(nil)
 }
 
 type workPieceUnit struct {
@@ -127,7 +127,7 @@ func (h *pieceHasher) runPieceWorkers() {
 		go func () {
 			for {
 				select {
-				case w, ok := <-ch:
+				case w, ok := <-h.ch:
 					if !ok {
 						return
 					}
