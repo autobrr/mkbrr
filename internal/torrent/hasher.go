@@ -126,6 +126,7 @@ func (h *pieceHasher) hashFiles() error {
 	workers := h.optimizeForWorkload()
 	var wg sync.WaitGroup
 	ch := make(chan work, workers)
+	defer close(ch)
 
 	for i := 0; i < workers; i++ {
 		go func () {
