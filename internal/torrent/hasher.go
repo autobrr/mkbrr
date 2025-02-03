@@ -143,16 +143,14 @@ func (h *pieceHasher) runPieceWorkers() int {
 	workers := h.optimizeForWorkload()
 
 	// create channel before starting goroutines
-	ch := make(chan workHashUnit, workers*4)
-	h.ch = ch // atomic assignment
-
+	h.ch := make(chan workHashUnit, workers*4)
 	for i := 0; i < workers; i++ {
-		go func() {
+		go func(ch <-chan workHashUnit) {
 			for w := range ch { // use local ch instead of h.ch
 				h.hashPiece(w)
 				h.wg.Done()
 			}
-		}()
+		}(h.ch)
 	}
 
 	return workers
