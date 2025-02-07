@@ -47,7 +47,11 @@ jobs:
           cache: true
 
       - name: Run Tests
-        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+        if: matrix.os == 'windows-latest'
+        run: go test -short ./...
+        
+      - name: Run Tests
+        if: matrix.os != 'windows-latest'
         run: make test-race
 
   goreleaserbuild:

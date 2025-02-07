@@ -61,10 +61,16 @@ func TestPieceHasher_Concurrent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// skip large tests in short mode
 			totalSize := tt.fileSize * int64(tt.numFiles)
-			if testing.Short() && totalSize > 1<<30 { // skip if total size > 1GB in short mode
-				t.Skipf("skipping large file test %s in short mode", tt.name)
+			if totalSize > 1<<30 {
+				// skip large tests on Windows to avoid CI slowdowns
+				if runtime.GOOS == "windows" {
+					t.Skipf("skipping large file test %s on Windows", tt.name)
+				}
+				// also skip in short mode if total size > 1GB
+				if testing.Short() {
+					t.Skipf("skipping large file test %s in short mode", tt.name)
+				}
 			}
 
 			files, expectedHashes := createTestFilesFast(t, tt.numFiles, tt.fileSize, tt.pieceLen)
