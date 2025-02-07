@@ -191,8 +191,8 @@ Single mode flags:
 - `-w, --web-seed <url>`: Add web seed URLs (can be specified multiple times)
 - `-p, --private`: Make torrent private (default: true)
 - `-c, --comment <text>`: Add comment
-- `-l, --piece-length <n>`: set piece length to 2^n bytes (14-24, automatic if not specified). note: if this flag is set, it will always override any value specified with `-m, --max-piece-length`.
-- `-m, --max-piece-length <n>`: limit maximum piece length to 2^n bytes (14-24)
+- `-l, --piece-length <n>`: Set piece length to 2^n bytes (14-24, automatic if not specified). Note: if this flag is set, it will always override any value specified with `-m, --max-piece-length`.
+- `-m, --max-piece-length <n>`: Limit maximum piece length to 2^n bytes (14-24)
 - `-o, --output <path>`: Set output path (default: <name>.torrent)
 - `-s, --source <text>`: Add source string
 - `-d, --no-date`: Don't write creation date
