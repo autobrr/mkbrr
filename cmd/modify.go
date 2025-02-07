@@ -45,15 +45,14 @@ func init() {
 	modifyCmd.Flags().StringVarP(&modifyPresetName, "preset", "P", "", "use preset from config")
 	modifyCmd.Flags().StringVar(&modifyPresetFile, "preset-file", "", "preset config file (default: ~/.config/mkbrr/presets.yaml)")
 	modifyCmd.Flags().StringVar(&modifyOutputDir, "output-dir", "", "output directory for modified files")
-	modifyCmd.Flags().BoolVarP(&modifyDryRun, "dry-run", "n", false, "show what would be modified without making changes")
 	modifyCmd.Flags().BoolVarP(&modifyNoDate, "no-date", "d", false, "don't update creation date")
-	modifyCmd.Flags().BoolVarP(&modifyVerbose, "verbose", "v", false, "be verbose")
-
 	modifyCmd.Flags().StringVarP(&modifyTracker, "tracker", "t", "", "tracker URL")
 	modifyCmd.Flags().StringArrayVarP(&modifyWebSeeds, "web-seed", "w", nil, "add web seed URLs")
 	modifyCmd.Flags().BoolVarP(&modifyPrivate, "private", "p", true, "make torrent private (default: true)")
 	modifyCmd.Flags().StringVarP(&modifyComment, "comment", "c", "", "add comment")
 	modifyCmd.Flags().StringVarP(&modifySource, "source", "s", "", "add source string")
+	modifyCmd.Flags().BoolVarP(&modifyVerbose, "verbose", "v", false, "be verbose")
+	modifyCmd.Flags().BoolVarP(&modifyDryRun, "dry-run", "n", false, "show what would be modified without making changes")
 }
 
 func runModify(cmd *cobra.Command, args []string) error {
