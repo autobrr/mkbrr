@@ -26,7 +26,7 @@ all: clean build install
 build:
 	@echo "Building ${BINARY_NAME}..."
 	@mkdir -p ${BUILD_DIR}
-	$(GO) build ${LDFLAGS} -o ${BUILD_DIR}/${BINARY_NAME}
+	CGO_ENABLED=0 $(GO) build ${LDFLAGS} -o ${BUILD_DIR}/${BINARY_NAME}
 
 # install binary in system path
 .PHONY: install

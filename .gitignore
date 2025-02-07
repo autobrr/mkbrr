@@ -7,3 +7,5 @@ coverage.txt
 coverage.html
 test.sh
 .idea
+*.png
+*.pprof
