@@ -1,4 +1,4 @@
-package modify
+package torrent
 
 import (
 	"fmt"

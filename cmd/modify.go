@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/autobrr/mkbrr/internal/modify"
 	"github.com/autobrr/mkbrr/internal/torrent"
 	"github.com/spf13/cobra"
 )
@@ -62,7 +61,7 @@ func runModify(cmd *cobra.Command, args []string) error {
 	display.ShowMessage(fmt.Sprintf("Modifying %d torrent files...", len(args)))
 
 	// build opts, including our override flags defined above
-	opts := modify.Options{
+	opts := torrent.Options{
 		PresetName: modifyPresetName,
 		PresetFile: modifyPresetFile,
 		OutputDir:  modifyOutputDir,
@@ -77,7 +76,7 @@ func runModify(cmd *cobra.Command, args []string) error {
 	// always pass the private flag as pointer
 	opts.IsPrivate = &modifyPrivate
 
-	results, err := modify.ProcessTorrents(args, opts)
+	results, err := torrent.ProcessTorrents(args, opts)
 	if err != nil {
 		return fmt.Errorf("could not process torrent files: %w", err)
 	}
