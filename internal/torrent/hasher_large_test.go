@@ -5,6 +5,7 @@ package torrent
 
 import (
 	"fmt"
+	"runtime"
 	"testing"
 )
 
@@ -12,6 +13,10 @@ import (
 // These tests are skipped by default and in CI due to their resource requirements.
 // Run with: go test -v -tags=large_tests
 func TestPieceHasher_LargeFiles(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("skipping large file tests on Windows")
+	}
+
 	if testing.Short() {
 		t.Skip("skipping large file tests")
 	}
