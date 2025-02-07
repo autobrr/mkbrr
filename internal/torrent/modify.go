@@ -36,6 +36,15 @@ type Result struct {
 	Error       error
 }
 
+// LoadFromFile loads a torrent file and returns a Torrent
+func LoadFromFile(path string) (*Torrent, error) {
+	mi, err := metainfo.LoadFromFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("could not load torrent: %w", err)
+	}
+	return &Torrent{MetaInfo: mi}, nil
+}
+
 // ModifyTorrent modifies a single torrent file according to the given options
 func ModifyTorrent(path string, opts Options) (*Result, error) {
 	result := &Result{

@@ -46,15 +46,6 @@ func calculatePieceLength(totalSize int64, maxPieceLength *uint) uint {
 	return exp
 }
 
-// LoadFromFile loads a torrent file and returns a Torrent
-func LoadFromFile(path string) (*Torrent, error) {
-	mi, err := metainfo.LoadFromFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("could not load torrent: %w", err)
-	}
-	return &Torrent{MetaInfo: mi}, nil
-}
-
 func (t *Torrent) GetInfo() *metainfo.Info {
 	info := &metainfo.Info{}
 	_ = bencode.Unmarshal(t.InfoBytes, info)
