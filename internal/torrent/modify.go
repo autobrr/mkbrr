@@ -17,6 +17,7 @@ type Options struct {
 	PresetFile     string
 	OutputDir      string
 	NoDate         bool
+	NoCreator      bool
 	DryRun         bool
 	Verbose        bool
 	TrackerURL     string
@@ -26,6 +27,7 @@ type Options struct {
 	PieceLengthExp *uint
 	MaxPieceLength *uint
 	Source         string
+	Version        string
 }
 
 // Result represents the result of modifying a torrent
@@ -78,17 +80,18 @@ func ModifyTorrent(path string, opts Options) (*Result, error) {
 			result.Error = fmt.Errorf("could not get preset: %w", err)
 			return result, result.Error
 		}
+
+		presetOpts.Version = opts.Version
 	}
 
 	// apply preset modifications if any
 	wasModified := false
 	if presetOpts != nil {
-		modified, err := presetOpts.ApplyToMetaInfo(mi)
+		wasModified, err = presetOpts.ApplyToMetaInfo(mi)
 		if err != nil {
 			result.Error = fmt.Errorf("could not apply preset: %w", err)
 			return result, result.Error
 		}
-		wasModified = wasModified || modified
 	}
 
 	// apply flag-based overrides:
@@ -140,15 +143,17 @@ func ModifyTorrent(path string, opts Options) (*Result, error) {
 		}
 	}
 
-	// piece-length and max-piece-length typically affect hashing and pieces;
-	// since modify doesn't regenerate piece hash, we could ignore them.
+	// handle creator
+	if presetOpts != nil && presetOpts.NoCreator != nil && *presetOpts.NoCreator || opts.NoCreator {
+		mi.CreatedBy = ""
+		wasModified = true
+	}
 
 	// update creation date based on preset and command line options
-	noDate := opts.NoDate
-	if presetOpts != nil {
-		noDate = presetOpts.NoDate
-	}
-	if !noDate {
+	if presetOpts != nil && presetOpts.NoDate != nil && *presetOpts.NoDate || opts.NoDate {
+		mi.CreationDate = 0
+		wasModified = true
+	} else {
 		mi.CreationDate = time.Now().Unix()
 		wasModified = true
 	}

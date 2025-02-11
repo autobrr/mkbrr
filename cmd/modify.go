@@ -14,6 +14,7 @@ var (
 	modifyOutputDir  string
 	modifyDryRun     bool
 	modifyNoDate     bool
+	modifyNoCreator  bool
 	modifyVerbose    bool
 	modifyTracker    string
 	modifyWebSeeds   []string
@@ -45,6 +46,7 @@ func init() {
 	modifyCmd.Flags().StringVar(&modifyPresetFile, "preset-file", "", "preset config file (default: ~/.config/mkbrr/presets.yaml)")
 	modifyCmd.Flags().StringVar(&modifyOutputDir, "output-dir", "", "output directory for modified files")
 	modifyCmd.Flags().BoolVarP(&modifyNoDate, "no-date", "d", false, "don't update creation date")
+	modifyCmd.Flags().BoolVarP(&modifyNoCreator, "no-creator", "", false, "don't write creator")
 	modifyCmd.Flags().StringVarP(&modifyTracker, "tracker", "t", "", "tracker URL")
 	modifyCmd.Flags().StringArrayVarP(&modifyWebSeeds, "web-seed", "w", nil, "add web seed URLs")
 	modifyCmd.Flags().BoolVarP(&modifyPrivate, "private", "p", true, "make torrent private (default: true)")
@@ -66,15 +68,19 @@ func runModify(cmd *cobra.Command, args []string) error {
 		PresetFile: modifyPresetFile,
 		OutputDir:  modifyOutputDir,
 		NoDate:     modifyNoDate,
+		NoCreator:  modifyNoCreator,
 		DryRun:     modifyDryRun,
 		Verbose:    modifyVerbose,
 		TrackerURL: modifyTracker,
 		WebSeeds:   modifyWebSeeds,
 		Comment:    modifyComment,
 		Source:     modifySource,
+		Version:    version,
 	}
-	// always pass the private flag as pointer
-	opts.IsPrivate = &modifyPrivate
+
+	if cmd.Flags().Changed("private") {
+		opts.IsPrivate = &modifyPrivate
+	}
 
 	results, err := torrent.ProcessTorrents(args, opts)
 	if err != nil {

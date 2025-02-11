@@ -39,6 +39,10 @@ Supports presets for commonly used settings.`,
 			return fmt.Errorf("accepts at most one arg")
 		}
 		if len(args) == 0 && batchFile == "" {
+			presetFlag := cmd.Flags().Lookup("preset")
+			if presetFlag != nil && presetFlag.Changed {
+				return fmt.Errorf("when using a preset (-P/--preset), you must provide a path to the content")
+			}
 			return fmt.Errorf("requires a path argument or --batch flag")
 		}
 		if len(args) == 1 && batchFile != "" {
@@ -180,10 +184,11 @@ func runCreate(cmd *cobra.Command, args []string) error {
 			Path:       inputPath,
 			TrackerURL: presetOpts.Trackers[0],
 			WebSeeds:   presetOpts.WebSeeds,
-			IsPrivate:  presetOpts.Private,
+			IsPrivate:  *presetOpts.Private,
 			Comment:    presetOpts.Comment,
 			Source:     presetOpts.Source,
-			NoDate:     presetOpts.NoDate,
+			NoDate:     presetOpts.NoDate != nil && *presetOpts.NoDate,
+			NoCreator:  presetOpts.NoCreator != nil && *presetOpts.NoCreator,
 			Verbose:    verbose,
 			Version:    version,
 		}
@@ -235,6 +240,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 			MaxPieceLength: maxPieceLengthExp,
 			Source:         source,
 			NoDate:         noDate,
+			NoCreator:      false,
 			Verbose:        verbose,
 			Version:        version,
 		}

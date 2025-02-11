@@ -190,6 +190,10 @@ Single mode flags:
 - `-t, --tracker <url>`: Tracker URL
 - `-w, --web-seed <url>`: Add web seed URLs (can be specified multiple times)
 - `-p, --private`: Make torrent private (default: true)
+
+  > [!NOTE]
+  > To create a public torrent, use `--private=false` or `-p=false`. Using just `-p` will set private to true.
+
 - `-c, --comment <text>`: Add comment
 - `-l, --piece-length <n>`: Set piece length to 2^n bytes (14-24, automatic if not specified). Note: if this flag is set, it will always override any value specified with `-m, --max-piece-length`.
 - `-m, --max-piece-length <n>`: Limit maximum piece length to 2^n bytes (14-24)
@@ -338,6 +342,8 @@ If you don't want to use presets, you can modify individual metadata fields with
 - `-t, --tracker <url>`: tracker URL override
 - `-w, --web-seed <url>`: add web seed URLs (can be specified multiple times)
 - `-p, --private`: make torrent private (default: true)
+  > [!NOTE]
+  > To create a public torrent, use `--private=false` or `-p=false`. Using just `-p` will set private to true.
 - `-c, --comment <text>`: add comment to the torrent
 - `-s, --source <text>`: specify source string
 - `-d, --no-date`: don't update creation date

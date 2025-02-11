@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/anacrolix/torrent/bencode"
 	"github.com/anacrolix/torrent/metainfo"
@@ -22,12 +23,14 @@ type Config struct {
 type Options struct {
 	Trackers       []string `yaml:"trackers"`
 	WebSeeds       []string `yaml:"webseeds"`
-	Private        bool     `yaml:"private"`
+	Private        *bool    `yaml:"private"`
 	PieceLength    uint     `yaml:"piece_length"`
 	MaxPieceLength uint     `yaml:"max_piece_length"`
 	Comment        string   `yaml:"comment"`
 	Source         string   `yaml:"source"`
-	NoDate         bool     `yaml:"no_date"`
+	NoDate         *bool    `yaml:"no_date"`
+	NoCreator      *bool    `yaml:"no_creator"`
+	Version        string   // used for creator string
 }
 
 // FindPresetFile searches for a preset file in known locations
@@ -86,43 +89,66 @@ func (c *Config) GetPreset(name string) (*Options, error) {
 		return nil, fmt.Errorf("preset %q not found", name)
 	}
 
-	// if we have defaults, merge them with the preset
-	if c.Default != nil {
-		merged := *c.Default // create a copy of defaults
+	// create a copy with hardcoded defaults
+	defaultPrivate := true
+	defaultNoDate := false
+	defaultNoCreator := false
 
-		// override defaults with preset-specific values
-		if len(preset.Trackers) > 0 {
-			merged.Trackers = preset.Trackers
-		}
-		if len(preset.WebSeeds) > 0 {
-			merged.WebSeeds = preset.WebSeeds
-		}
-		if preset.PieceLength != 0 {
-			merged.PieceLength = preset.PieceLength
-		}
-		if preset.MaxPieceLength != 0 {
-			merged.MaxPieceLength = preset.MaxPieceLength
-		}
-		if preset.Comment != "" {
-			merged.Comment = preset.Comment
-		}
-		if preset.Source != "" {
-			merged.Source = preset.Source
-		}
-
-		// explicit bool overrides
-		if preset.Private != merged.Private {
-			merged.Private = preset.Private
-		}
-		if preset.NoDate != merged.NoDate {
-			merged.NoDate = preset.NoDate
-		}
-
-		return &merged, nil
+	merged := Options{
+		Private:   &defaultPrivate,
+		NoDate:    &defaultNoDate,
+		NoCreator: &defaultNoCreator,
 	}
 
-	// if no defaults, just return the preset
-	return &preset, nil
+	// if we have defaults in config, use those instead
+	if c.Default != nil {
+		if c.Default.Private != nil {
+			merged.Private = c.Default.Private
+		}
+		if c.Default.NoDate != nil {
+			merged.NoDate = c.Default.NoDate
+		}
+		if c.Default.NoCreator != nil {
+			merged.NoCreator = c.Default.NoCreator
+		}
+		merged.Trackers = c.Default.Trackers
+		merged.WebSeeds = c.Default.WebSeeds
+		merged.Comment = c.Default.Comment
+		merged.Source = c.Default.Source
+		merged.PieceLength = c.Default.PieceLength
+		merged.MaxPieceLength = c.Default.MaxPieceLength
+	}
+
+	// override with preset values if they are set
+	if len(preset.Trackers) > 0 {
+		merged.Trackers = preset.Trackers
+	}
+	if len(preset.WebSeeds) > 0 {
+		merged.WebSeeds = preset.WebSeeds
+	}
+	if preset.Comment != "" {
+		merged.Comment = preset.Comment
+	}
+	if preset.Source != "" {
+		merged.Source = preset.Source
+	}
+	if preset.PieceLength != 0 {
+		merged.PieceLength = preset.PieceLength
+	}
+	if preset.MaxPieceLength != 0 {
+		merged.MaxPieceLength = preset.MaxPieceLength
+	}
+	if preset.Private != nil {
+		merged.Private = preset.Private
+	}
+	if preset.NoDate != nil {
+		merged.NoDate = preset.NoDate
+	}
+	if preset.NoCreator != nil {
+		merged.NoCreator = preset.NoCreator
+	}
+
+	return &merged, nil
 }
 
 // ApplyToMetaInfo applies preset options to a MetaInfo object
@@ -134,29 +160,56 @@ func (o *Options) ApplyToMetaInfo(mi *metainfo.MetaInfo) (bool, error) {
 		return false, fmt.Errorf("could not unmarshal info: %w", err)
 	}
 
-	// apply tracker URL
-	if len(o.Trackers) > 0 && (len(mi.AnnounceList) == 0 || mi.AnnounceList[0][0] != o.Trackers[0]) {
+	// Only modify values that are explicitly set in the preset
+	if len(o.Trackers) > 0 {
 		mi.Announce = o.Trackers[0]
-		mi.AnnounceList = [][]string{{o.Trackers[0]}}
+		mi.AnnounceList = [][]string{o.Trackers}
 		wasModified = true
 	}
 
-	// apply source tag
-	if o.Source != "" && info.Source != o.Source {
+	if len(o.WebSeeds) > 0 {
+		mi.UrlList = o.WebSeeds
+		wasModified = true
+	}
+
+	if o.Source != "" {
 		info.Source = o.Source
 		wasModified = true
-		// re-marshal the modified info
-		if infoBytes, err := bencode.Marshal(info); err == nil {
-			mi.InfoBytes = infoBytes
-		}
 	}
 
-	// apply private flag
-	isPrivate := info.Private != nil && *info.Private
-	if isPrivate != o.Private {
-		info.Private = &o.Private
+	if o.Comment != "" {
+		mi.Comment = o.Comment
 		wasModified = true
-		// re-marshal the modified info
+	}
+
+	if o.Private != nil {
+		if info.Private == nil {
+			info.Private = new(bool)
+		}
+		*info.Private = *o.Private
+		wasModified = true
+	}
+
+	if o.NoCreator != nil {
+		if *o.NoCreator {
+			mi.CreatedBy = ""
+		} else {
+			mi.CreatedBy = fmt.Sprintf("mkbrr/%s", o.Version)
+		}
+		wasModified = true
+	}
+
+	if o.NoDate != nil {
+		if *o.NoDate {
+			mi.CreationDate = 0
+		} else {
+			mi.CreationDate = time.Now().Unix()
+		}
+		wasModified = true
+	}
+
+	// re-marshal the modified info if needed
+	if wasModified {
 		if infoBytes, err := bencode.Marshal(info); err == nil {
 			mi.InfoBytes = infoBytes
 		}
