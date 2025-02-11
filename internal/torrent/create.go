@@ -61,9 +61,12 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 	}
 
 	mi := &metainfo.MetaInfo{
-		CreatedBy: fmt.Sprintf("mkbrr/%s", opts.Version),
-		Announce:  opts.TrackerURL,
-		Comment:   opts.Comment,
+		Announce: opts.TrackerURL,
+		Comment:  opts.Comment,
+	}
+
+	if !opts.NoCreator {
+		mi.CreatedBy = fmt.Sprintf("mkbrr/%s", opts.Version)
 	}
 
 	if !opts.NoDate {
@@ -217,11 +220,6 @@ func Create(opts CreateTorrentOptions) (*TorrentInfo, error) {
 		opts.OutputPath = opts.Name + ".torrent"
 	} else if !strings.HasSuffix(opts.OutputPath, ".torrent") {
 		opts.OutputPath = opts.OutputPath + ".torrent"
-	}
-
-	// ensure private by default unless explicitly set to false
-	if !opts.IsPrivate {
-		opts.IsPrivate = true
 	}
 
 	// create torrent

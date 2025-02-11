@@ -26,6 +26,7 @@ mkbrr is a command-line tool to create and inspect torrent files. Fast, single b
     - [Batch Configuration Format](#batch-configuration-format)
     - [Preset Configuration Format](#preset-configuration-format)
   - [Inspect a Torrent](#inspect-a-torrent)
+  - [Modify a Torrent](#modify-a-torrent)
   - [Version Information](#version-information)
   - [Update](#update)
 - [Performance](#performance)
@@ -189,9 +190,13 @@ Single mode flags:
 - `-t, --tracker <url>`: Tracker URL
 - `-w, --web-seed <url>`: Add web seed URLs (can be specified multiple times)
 - `-p, --private`: Make torrent private (default: true)
+
+  > [!NOTE]
+  > To create a public torrent, use `--private=false` or `-p=false`. Using just `-p` will set private to true.
+
 - `-c, --comment <text>`: Add comment
-- `-l, --piece-length <n>`: Set piece length to 2^n bytes (14-24, automatic if not specified)
-- `-m, --max-piece-length <n>`: Limit maximum piece length to 2^n bytes (14-24, unlimited if not specified)
+- `-l, --piece-length <n>`: Set piece length to 2^n bytes (14-24, automatic if not specified). Note: if this flag is set, it will always override any value specified with `-m, --max-piece-length`.
+- `-m, --max-piece-length <n>`: Limit maximum piece length to 2^n bytes (14-24)
 - `-o, --output <path>`: Set output path (default: <name>.torrent)
 - `-s, --source <text>`: Add source string
 - `-d, --no-date`: Don't write creation date
@@ -301,6 +306,49 @@ The inspect command displays detailed information about a torrent file, includin
 - Creation information
 - Magnet link
 - File list (for multi-file torrents)
+
+### Modify a Torrent
+
+```bash
+mkbrr modify [torrent files...] [flags]
+```
+
+The modify command allows batch modification of existing torrent metadata without requiring access to the source files. Original files are preserved and new files are created with `-[preset]` or `-modified` suffix in the same directory as the input files (unless `--output-dir` is specified).
+
+```bash
+# Modify a single torrent using a preset (outputs to same directory)
+mkbrr modify -P public original.torrent
+
+# Modify multiple torrents using a preset
+mkbrr modify -P private file1.torrent file2.torrent
+
+# Modify all torrent files in current directory
+mkbrr modify -P public *.torrent
+
+# Specify a different output directory
+mkbrr modify -P public --output-dir /path/to/output *.torrent
+```
+
+#### Modify Flags
+
+- `-P, --preset <name>`: use preset from config (if you prefer presets, you can use this just like with create)
+- `--preset-file <file>`: preset config file (default: ~/.config/mkbrr/presets.yaml)
+- `--output-dir <dir>`: output directory for modified files (default: same directory as input files)
+- `-n, --dry-run`: show what would be modified without making changes
+- `-v, --verbose`: be verbose
+
+If you don't want to use presets, you can modify individual metadata fields with these flags:
+
+- `-t, --tracker <url>`: tracker URL override
+- `-w, --web-seed <url>`: add web seed URLs (can be specified multiple times)
+- `-p, --private`: make torrent private (default: true)
+  > [!NOTE]
+  > To create a public torrent, use `--private=false` or `-p=false`. Using just `-p` will set private to true.
+- `-c, --comment <text>`: add comment to the torrent
+- `-s, --source <text>`: specify source string
+- `-d, --no-date`: don't update creation date
+
+Note: Changes that would require access to the source files (like modifying piece length) are not supported. If you need to change these parameters, please create a new torrent instead.
 
 ### Version Information
 

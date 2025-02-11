@@ -18,6 +18,7 @@ type CreateTorrentOptions struct {
 	MaxPieceLength *uint
 	Source         string
 	NoDate         bool
+	NoCreator      bool
 	Verbose        bool
 	Version        string
 	OutputPath     string
