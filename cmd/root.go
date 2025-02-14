@@ -50,6 +50,7 @@ func Execute() error {
 Available Commands:
   create      Create a new torrent file
   inspect     Inspect a torrent file
+  modify      Modify a torrent file
   version     Print version information{{if .HasAvailableLocalFlags}}
 
 Flags:
