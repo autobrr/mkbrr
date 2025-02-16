@@ -15,6 +15,7 @@ mkbrr is a command-line tool to create and inspect torrent files. Fast, single b
 
 - [Installation](#installation)
   - [Prebuilt Binaries](#prebuilt-binaries)
+  - [Homebrew](#homebrew)
   - [Go Install](#go-install)
   - [Build from Source](#build-from-source)
 - [Usage](#usage)
@@ -37,6 +38,13 @@ mkbrr is a command-line tool to create and inspect torrent files. Fast, single b
 ### Prebuilt Binaries
 
 Download the latest release from the [releases page](https://github.com/autobrr/mkbrr/releases).
+
+### Homebrew
+
+```bash
+brew tap autobrr/mkbrr
+brew install mkbrr
+```
 
 ### Go Install
 
