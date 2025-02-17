@@ -2,7 +2,6 @@ package torrent
 
 import (
 	"bufio"
-	"bytes"
 	"crypto/sha1"
 	"errors"
 	"fmt"
@@ -116,7 +115,7 @@ func (h *pieceHasher) runPieceWorkers() int {
 			r := bufio.NewReaderSize(nil, int(max(h.pieceLen*int64(workers), int64(4<<20))))
 			hasher := sha1.New()
 			for w := range ch { // use local ch instead of h.ch
-				h.Reset()
+				hasher.Reset()
 				r.Reset(w.b)
 				io.Copy(hasher, r)
 				h.pieces[w.id] = hasher.Sum(nil)
@@ -129,14 +128,13 @@ func (h *pieceHasher) runPieceWorkers() int {
 }
 
 func (h *pieceHasher) hashFiles() error {
-	b := h.bufferPool.Get().(*bytes.Buffer)
-	workers := h.runPieceWorkers()
+	h.runPieceWorkers()
 	defer close(h.ch)
 
 	piece := 0
 	lastRead := int64(0)
 
-	reader = make([]io.Reader, 0)
+	reader := make([]io.Reader, 0)
 	h.wg.Add(len(h.pieces))
 	for i := 0; i < len(h.files); i++ {
 		if err := func() error {
