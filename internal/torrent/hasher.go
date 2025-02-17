@@ -111,7 +111,7 @@ func (h *pieceHasher) runPieceWorkers() int {
 	h.ch = make(chan workHashUnit, workers*64)
 	for i := 0; i < workers; i++ {
 		go func(ch <-chan workHashUnit) {
-			r := bufio.NewReaderSize(nil, int(max(h.pieceLen*int64(workers), int64(4<<20))))
+			r := bufio.NewReaderSize(nil, h.pieceLen)
 			hasher := sha1.New()
 			for w := range ch { // use local ch instead of h.ch
 				hasher.Reset()
