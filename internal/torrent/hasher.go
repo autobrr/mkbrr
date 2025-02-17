@@ -163,11 +163,11 @@ func (h *pieceHasher) hashFiles() error {
 			piece++
 			lastRead = 0
 			reader = nil
+		}
 
-			if i == len(h.files)-1 && piece == len(h.pieces)-1 {
-				h.ch <- workHashUnit{id: piece, b: io.MultiReader(reader...)}
-				piece++
-			}
+		if len(reader) != 0 && i == len(h.files)-1 && piece == len(h.pieces)-1 {
+			h.ch <- workHashUnit{id: piece, b: io.MultiReader(reader...)}
+			piece++
 		}
 	}
 
