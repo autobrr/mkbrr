@@ -18,8 +18,6 @@ type pieceHasher struct {
 	pieceLen   int64
 	files      []fileEntry
 	display    Displayer
-	hasherPool *sync.Pool
-	bufferPool *sync.Pool
 
 	ch chan workHashUnit
 	wg sync.WaitGroup
@@ -91,21 +89,6 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 		return nil
 	}
 
-	// initialize buffer pool
-	h.hasherPool = &sync.Pool{
-		New: func() interface{} {
-			return 
-		},
-	}
-
-	h.bufferPool = &sync.Pool{
-		New: func() interface{} {
-			b := new(bytes.Buffer)
-			b.Grow(int(h.pieceLen))
-			return b
-		},
-	}
-
 	return h.hashFiles()
 }
 
@@ -135,7 +118,7 @@ func (h *pieceHasher) runPieceWorkers() int {
 			for w := range ch { // use local ch instead of h.ch
 				h.Reset()
 				r.Reset(w.b)
-				io.Copy(r, h)
+				io.Copy(h, r)
 				h.pieces[w.id] = h.Sum(nil)
 				h.wg.Done()
 			}
