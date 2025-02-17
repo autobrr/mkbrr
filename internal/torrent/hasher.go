@@ -136,44 +136,38 @@ func (h *pieceHasher) hashFiles() error {
 	reader := make([]io.Reader, 0)
 	h.wg.Add(len(h.pieces))
 	for i := 0; i < len(h.files); i++ {
-		if err := func() error {
-			f, err := os.OpenFile(h.files[i].path, os.O_RDONLY, 0)
-			if err != nil {
-				return err
+		f, err := os.OpenFile(h.files[i].path, os.O_RDONLY, 0)
+		if err != nil {
+			return err
+		}
+
+		defer f.Close()
+		
+		read := int64(0)
+		fileSize := int64(h.files[i].length)
+		for {
+			toRead := min(h.pieceLen-lastRead, fileSize-read)
+			if toRead == 0 {
+				break
 			}
 
-			defer f.Close()
-			
-			read := int64(0)
-			fileSize := int64(h.files[i].length)
-			for {
-				toRead := min(h.pieceLen-lastRead, fileSize-read)
-				if toRead == 0 {
-					break
-				}
+			reader = append(reader, io.NewSectionReader(f, read, toRead))
+			lastRead += toRead
+			read += toRead
 
-				reader = append(reader, io.NewSectionReader(f, read, toRead))
-				lastRead += toRead
-				read += toRead
-
-				if lastRead != h.pieceLen {
-					continue
-				}
-
-				h.ch <- workHashUnit{id: piece, b: io.MultiReader(reader...)}
-				piece++
-				lastRead = 0
-				reader = nil
+			if lastRead != h.pieceLen {
+				continue
 			}
+
+			h.ch <- workHashUnit{id: piece, b: io.MultiReader(reader...)}
+			piece++
+			lastRead = 0
+			reader = nil
 
 			if i == len(h.files)-1 && piece == len(h.pieces)-1 {
 				h.ch <- workHashUnit{id: piece, b: io.MultiReader(reader...)}
 				piece++
 			}
-
-			return nil
-		}(); err != nil {
-			return err
 		}
 	}
 
