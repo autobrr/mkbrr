@@ -94,7 +94,7 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 	// initialize buffer pool
 	h.hasherPool = &sync.Pool{
 		New: func() interface{} {
-			return sha1.New()
+			return 
 		},
 	}
 
@@ -118,25 +118,9 @@ func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Di
 	}
 }
 
-func (h *pieceHasher) hashPiece(w workHashUnit) {
-	defer func() {
-		w.b.Reset()
-		h.bufferPool.Put(w.b)
-	}()
-
-	hasher := h.hasherPool.Get().(hash.Hash)
-	defer func() {
-		hasher.Reset()
-		h.hasherPool.Put(hasher)
-	}()
-
-	w.b.WriteTo(hasher)
-	h.pieces[w.id] = hasher.Sum(nil)
-}
-
 type workHashUnit struct {
 	id int
-	b  *bytes.Buffer
+	b  io.Reader
 }
 
 func (h *pieceHasher) runPieceWorkers() int {
@@ -146,8 +130,13 @@ func (h *pieceHasher) runPieceWorkers() int {
 	h.ch = make(chan workHashUnit, workers*64)
 	for i := 0; i < workers; i++ {
 		go func(ch <-chan workHashUnit) {
+			r := bufio.NewReaderSize(io.Reader{}, int(max(h.pieceLen*int64(workers), int64(4<<20))))
+			h := sha1.New()
 			for w := range ch { // use local ch instead of h.ch
-				h.hashPiece(w)
+				h.Reset()
+				r.Reset(w.b)
+				io.Copy(r, h)
+				h.pieces[w.id] = h.Sum(nil)
 				h.wg.Done()
 			}
 		}(h.ch)
@@ -164,6 +153,7 @@ func (h *pieceHasher) hashFiles() error {
 	piece := 0
 	lastRead := int64(0)
 
+	reader = make([]io.Reader, 0)
 	h.wg.Add(len(h.pieces))
 	for i := 0; i < len(h.files); i++ {
 		if err := func() error {
@@ -173,7 +163,7 @@ func (h *pieceHasher) hashFiles() error {
 			}
 
 			defer f.Close()
-			r := bufio.NewReaderSize(f, int(max(h.pieceLen*int64(workers), int64(4<<20))))
+			
 			read := int64(0)
 			fileSize := int64(h.files[i].length)
 			for {
@@ -182,14 +172,7 @@ func (h *pieceHasher) hashFiles() error {
 					break
 				}
 
-				if _, err := b.ReadFrom(io.LimitReader(r, toRead)); err != nil {
-					if err == io.EOF {
-						break
-					}
-
-					return err
-				}
-
+				reader = append(reader, io.NewSectionReader(f, read, toRead))
 				lastRead += toRead
 				read += toRead
 
@@ -197,14 +180,14 @@ func (h *pieceHasher) hashFiles() error {
 					continue
 				}
 
-				h.ch <- workHashUnit{id: piece, b: b}
+				h.ch <- workHashUnit{id: piece, b: io.MultiReader(reader...)}
 				piece++
 				lastRead = 0
-				b = h.bufferPool.Get().(*bytes.Buffer)
+				reader = nil
 			}
 
 			if i == len(h.files)-1 && piece == len(h.pieces)-1 {
-				h.ch <- workHashUnit{id: piece, b: b}
+				h.ch <- workHashUnit{id: piece, b: b: io.MultiReader(reader...)}
 				piece++
 			}
 
