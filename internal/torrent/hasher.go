@@ -187,7 +187,7 @@ func (h *pieceHasher) hashFiles() error {
 			}
 
 			if i == len(h.files)-1 && piece == len(h.pieces)-1 {
-				h.ch <- workHashUnit{id: piece, b: b: io.MultiReader(reader...)}
+				h.ch <- workHashUnit{id: piece, b: io.MultiReader(reader...)}
 				piece++
 			}
 
