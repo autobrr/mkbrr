@@ -31,6 +31,7 @@ var versionCmd = &cobra.Command{
 		fmt.Printf("Version: %s\n", version)
 		fmt.Printf("Build Time: %s\n", buildTime)
 	},
+	DisableFlagsInUseLine: true,
 }
 
 func SetVersion(v, bt string) {
@@ -38,20 +39,25 @@ func SetVersion(v, bt string) {
 	buildTime = bt
 }
 
+func init() {
+	versionCmd.SetUsageTemplate(`Usage:
+  {{.CommandPath}}
+
+Prints the version and build time information for mkbrr.
+`)
+}
+
 func Execute() error {
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
-	rootCmd.SilenceUsage = true
+	rootCmd.SilenceUsage = false
 
 	rootCmd.AddCommand(versionCmd)
 
 	rootCmd.SetUsageTemplate(`Usage:
   {{.CommandPath}} [command]
 
-Available Commands:
-  create      Create a new torrent file
-  inspect     Inspect a torrent file
-  modify      Modify a torrent file
-  version     Print version information{{if .HasAvailableLocalFlags}}
+Available Commands:{{range .Commands}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
+  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
 
 Flags:
 {{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}
