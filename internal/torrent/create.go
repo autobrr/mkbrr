@@ -32,8 +32,8 @@ func max(x, y int64) int64 {
 
 // calculatePieceLength calculates the optimal piece length based on total size and target pieces
 func calculatePieceLength(totalSize int64, maxPieceLength *uint, piecesTarget *uint) uint {
-	// ensure bounds: 16 KiB (2^14) to 16 MiB (2^24)
-	minExp := uint(14)
+	// ensure bounds: 64 KiB (2^16) to 16 MiB (2^24)
+	minExp := uint(16)
 	maxExp := uint(24)
 
 	// validate maxPieceLength - if it's below minimum, use minimum
@@ -52,7 +52,8 @@ func calculatePieceLength(totalSize int64, maxPieceLength *uint, piecesTarget *u
 	if piecesTarget != nil && *piecesTarget > 0 {
 		// calculate piece length that would give us the target number of pieces
 		targetPieceLength := float64(totalSize) / float64(*piecesTarget)
-		exp := uint(math.Ceil(math.Log2(targetPieceLength)))
+		// round to nearest power of 2 instead of always rounding up
+		exp := uint(math.Round(math.Log2(targetPieceLength)))
 
 		// ensure we stay within bounds
 		if exp < minExp {
@@ -69,17 +70,29 @@ func calculatePieceLength(totalSize int64, maxPieceLength *uint, piecesTarget *u
 	// ensure minimum of 1 byte for calculation
 	size := max(totalSize, 1)
 
-	// calculate base exponent using a simpler formula that better matches expected values
+	// piece length selection based on PTP's magnificent piece size optimization chart
+	// thresholds are chosen at transition points between optimal (green) zones
+	// see: https://ptp/upload.php?action=piecesize
 	var exp uint
 	switch {
-	case size <= 1<<20: // <= 1 MiB
-		exp = 14 // 16 KiB pieces
-	case size <= 1<<30: // <= 1 GiB
-		exp = 20 // 1 MiB pieces
-	case size <= 16<<30: // <= 16 GiB
-		exp = 22 // 4 MiB pieces
-	default:
-		exp = 24 // 16 MiB pieces
+	case size <= 58<<20: // 0 to 58 MiB: 64 KiB pieces  (2^16)
+		exp = 16
+	case size <= 122<<20: // 59 to 122 MiB: 128 KiB pieces (2^17)
+		exp = 17
+	case size <= 213<<20: // 123 to 213 MiB: 256 KiB pieces (2^18)
+		exp = 18
+	case size <= 444<<20: // 214 to 444 MiB: 512 KiB pieces (2^19)
+		exp = 19
+	case size <= 922<<20: // 445 to 922 MiB: 1 MiB pieces (2^20)
+		exp = 20
+	case size <= 3977<<20: // 923 MiB to 3.88 GiB: 2 MiB pieces (2^21)
+		exp = 21
+	case size <= 6861<<20: // 3.89 to 6.70 GiB: 4 MiB pieces (2^22)
+		exp = 22
+	case size <= 14234<<20: // 6.71 to 13.90 GiB: 8 MiB pieces (2^23)
+		exp = 23
+	default: // above 13.90 GiB: 16 MiB pieces (2^24)
+		exp = 24
 	}
 
 	// ensure we stay within bounds

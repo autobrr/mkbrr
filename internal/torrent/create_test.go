@@ -16,12 +16,12 @@ func Test_calculatePieceLength(t *testing.T) {
 		{
 			name:      "small file should use minimum piece length",
 			totalSize: 1 << 10, // 1 KiB
-			want:      14,      // 16 KiB pieces
+			want:      16,      // 64 KiB pieces
 		},
 		{
-			name:      "1GB file should use 1MB pieces",
+			name:      "1GB file should use 2MB pieces",
 			totalSize: 1 << 30, // 1 GiB
-			want:      20,      // 1 MiB pieces
+			want:      21,      // 2 MiB pieces
 		},
 		{
 			name:      "large file should use large pieces",
@@ -31,7 +31,7 @@ func Test_calculatePieceLength(t *testing.T) {
 		{
 			name:      "zero size should use minimum piece length",
 			totalSize: 0,
-			want:      14, // 16 KiB pieces
+			want:      16, // 64 KiB pieces
 		},
 		{
 			name:           "max piece length should be respected",
@@ -43,7 +43,7 @@ func Test_calculatePieceLength(t *testing.T) {
 			name:           "max piece length below minimum should use minimum",
 			totalSize:      1 << 40,
 			maxPieceLength: uint_ptr(10),
-			want:           14, // 16 KiB pieces
+			want:           16, // 64 KiB pieces (minimum)
 		},
 		{
 			name:           "max piece length above maximum should use maximum",
@@ -55,15 +55,15 @@ func Test_calculatePieceLength(t *testing.T) {
 			name:         "target 1000 pieces for 1GB file",
 			totalSize:    1 << 30, // 1 GiB
 			piecesTarget: uint_ptr(1000),
-			want:         21, // 2 MiB pieces, ~512 pieces
-			wantPieces:   uint_ptr(512),
+			want:         20, // 1 MiB pieces, ~1024 pieces
+			wantPieces:   uint_ptr(1024),
 		},
 		{
 			name:         "target 1000 pieces for 10GB file",
 			totalSize:    10 << 30, // 10 GiB
 			piecesTarget: uint_ptr(1000),
-			want:         24, // 16 MiB pieces, ~640 pieces
-			wantPieces:   uint_ptr(640),
+			want:         23, // 8 MiB pieces, ~1280 pieces
+			wantPieces:   uint_ptr(1280),
 		},
 		{
 			name:           "target pieces should respect max piece length",
@@ -77,14 +77,14 @@ func Test_calculatePieceLength(t *testing.T) {
 			name:         "target pieces should respect minimum piece length",
 			totalSize:    1 << 20, // 1 MiB
 			piecesTarget: uint_ptr(1000),
-			want:         14, // 16 KiB pieces, ~64 pieces
-			wantPieces:   uint_ptr(64),
+			want:         16, // 64 KiB pieces, ~16 pieces
+			wantPieces:   uint_ptr(16),
 		},
 		{
 			name:         "zero target pieces should use default calculation",
 			totalSize:    1 << 30, // 1 GiB
 			piecesTarget: uint_ptr(0),
-			want:         20, // 1 MiB pieces
+			want:         21, // 2 MiB pieces
 		},
 		{
 			name:       "78GiB file should use maximum piece length",
@@ -98,6 +98,46 @@ func Test_calculatePieceLength(t *testing.T) {
 			piecesTarget: uint_ptr(1000),
 			want:         24, // limited to 16 MiB pieces
 			wantPieces:   uint_ptr(5230),
+		},
+		{
+			name:      "58 MiB file should use 64 KiB pieces",
+			totalSize: 58 << 20,
+			want:      16,
+		},
+		{
+			name:      "122 MiB file should use 128 KiB pieces",
+			totalSize: 122 << 20,
+			want:      17,
+		},
+		{
+			name:      "213 MiB file should use 256 KiB pieces",
+			totalSize: 213 << 20,
+			want:      18,
+		},
+		{
+			name:      "444 MiB file should use 512 KiB pieces",
+			totalSize: 444 << 20,
+			want:      19,
+		},
+		{
+			name:      "922 MiB file should use 1 MiB pieces",
+			totalSize: 922 << 20,
+			want:      20,
+		},
+		{
+			name:      "3.88 GiB file should use 2 MiB pieces",
+			totalSize: 3977 << 20,
+			want:      21,
+		},
+		{
+			name:      "6.70 GiB file should use 4 MiB pieces",
+			totalSize: 6861 << 20,
+			want:      22,
+		},
+		{
+			name:      "13.90 GiB file should use 8 MiB pieces",
+			totalSize: 14234 << 20,
+			want:      23,
 		},
 	}
 
