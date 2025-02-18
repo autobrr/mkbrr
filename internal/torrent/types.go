@@ -1,7 +1,6 @@
 package torrent
 
 import (
-	"bufio"
 	"os"
 
 	"github.com/anacrolix/torrent/metainfo"
@@ -47,7 +46,6 @@ type fileEntry struct {
 // internal file reader for processing
 type fileReader struct {
 	file     *os.File
-	reader   *bufio.Reader
 	position int64
 	length   int64
 }

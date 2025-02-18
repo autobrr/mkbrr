@@ -110,20 +110,22 @@ func (h *pieceHasher) runPieceWorkers() int {
 	// create channel before starting goroutines
 	h.ch = make(chan workHashUnit, workers*64)
 	for i := 0; i < workers; i++ {
-		go func(ch <-chan workHashUnit) {
-			r := bufio.NewReaderSize(nil, int(h.pieceLen))
-			hasher := sha1.New()
-			for w := range ch { // use local ch instead of h.ch
-				hasher.Reset()
-				r.Reset(w.b)
-				io.Copy(hasher, r)
-				h.pieces[w.id] = hasher.Sum(nil)
-				h.wg.Done()
-			}
-		}(h.ch)
+		go h.worker(h.ch)
 	}
 
 	return workers
+}
+
+func (h *pieceHasher) worker(ch <-chan workHashUnit) {
+	r := bufio.NewReaderSize(nil, int(h.pieceLen))
+	hasher := sha1.New()
+	for w := range ch { // use local ch instead of h.ch
+		hasher.Reset()
+		r.Reset(w.b)
+		io.Copy(hasher, r)
+		h.pieces[w.id] = hasher.Sum(nil)
+		h.wg.Done()
+	}
 }
 
 func (h *pieceHasher) hashFiles() error {
