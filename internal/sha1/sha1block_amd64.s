@@ -1,5 +1,10 @@
 #include "textflag.h"
 
+// Constants for byte swapping
+DATA BSWAP<>+0(SB)/8, $0x0001020304050607
+DATA BSWAP<>+8(SB)/8, $0x08090a0b0c0d0e0f
+GLOBL BSWAP<>(SB), RODATA, $16
+
 // func blockSIMD(h *[5]uint32, p []byte)
 TEXT ·blockSIMD(SB), NOSPLIT, $0-32
 	MOVQ h+0(FP), AX
@@ -14,7 +19,13 @@ TEXT ·blockSIMD(SB), NOSPLIT, $0-32
 	MOVL (3*4)(AX), R11
 	MOVL (4*4)(AX), R12
 
+	// Load byte swap mask
+	MOVOU BSWAP<>(SB), X4
+
 loop:
+	CMPQ DX, $0
+	JE   done
+
 	// Save hash state
 	MOVL R8, BX
 	MOVL R9, CX
@@ -37,7 +48,6 @@ loop:
 	// 80 rounds of SHA1
 	MOVL $4, CX
 rounds:
-	// Intel SHA1 instructions
 	SHA1RNDS4 $0, X0, X4
 	SHA1NEXTE X1, X0
 	SHA1MSG1 X1, X2
@@ -71,8 +81,9 @@ rounds:
 	// Move to next block
 	ADDQ $64, SI
 	DECQ DX
-	JNZ loop
+	JMP loop
 
+done:
 	// Store hash state
 	MOVL R8, (0*4)(AX)
 	MOVL R9, (1*4)(AX)
