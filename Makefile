@@ -26,7 +26,7 @@ all: clean build install
 build:
 	@echo "Building ${BINARY_NAME}..."
 	@mkdir -p ${BUILD_DIR}
-	CGO_ENABLED=0 $(GO) build ${LDFLAGS} -o ${BUILD_DIR}/${BINARY_NAME}
+	CGO_ENABLED=1 $(GO) build ${LDFLAGS} -o ${BUILD_DIR}/${BINARY_NAME}
 
 # install binary in system path
 .PHONY: install
@@ -42,13 +42,13 @@ install: build
 .PHONY: test
 test:
 	@echo "Running tests..."
-	$(GO) test -v ./...
+	CGO_ENABLED=1 $(GO) test -v ./...
 
 # run quick tests with race detector (for CI and quick feedback)
 .PHONY: test-race-short
 test-race-short:
 	@echo "Running quick tests with race detector..."
-	GORACE="$(GORACE)" $(GO) test -race -short ./internal/torrent -v 
+	CGO_ENABLED=1 GORACE="$(GORACE)" $(GO) test -race -short ./internal/torrent -v 
 	@if [ -f "./race_report.log" ]; then \
 		echo "Race conditions detected! Check race_report.log"; \
 		cat "./race_report.log"; \
@@ -58,7 +58,7 @@ test-race-short:
 .PHONY: test-race
 test-race:
 	@echo "Running tests with race detector..."
-	GORACE="$(GORACE)" $(GO) test -race ./internal/torrent -v
+	CGO_ENABLED=1 GORACE="$(GORACE)" $(GO) test -race ./internal/torrent -v
 	@if [ -f "./race_report.log" ]; then \
 		echo "Race conditions detected! Check race_report.log"; \
 		cat "./race_report.log"; \
@@ -68,7 +68,7 @@ test-race:
 .PHONY: test-large
 test-large:
 	@echo "Running large tests..."
-	GORACE="$(GORACE)" $(GO) test -v -tags=large_tests ./internal/torrent
+	CGO_ENABLED=1 GORACE="$(GORACE)" $(GO) test -v -tags=large_tests ./internal/torrent
 	@if [ -f "./race_report.log" ]; then \
 		echo "Race conditions detected! Check race_report.log"; \
 		cat "./race_report.log"; \
@@ -78,7 +78,7 @@ test-large:
 .PHONY: test-coverage
 test-coverage:
 	@echo "Running tests with coverage..."
-	GORACE="$(GORACE)" $(GO) test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
+	CGO_ENABLED=1 GORACE="$(GORACE)" $(GO) test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
 	$(GO) tool cover -html=coverage.txt -o coverage.html
 	@if [ -f "./race_report.log" ]; then \
 		echo "Race conditions detected! Check race_report.log"; \

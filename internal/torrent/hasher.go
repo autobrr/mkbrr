@@ -1,7 +1,6 @@
 package torrent
 
 import (
-	"crypto/sha1"
 	"errors"
 	"fmt"
 	"io"
@@ -10,6 +9,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	hwsha1 "github.com/autobrr/mkbrr/internal/sha1"
 )
 
 type pieceHasher struct {
@@ -170,7 +171,7 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 	bufPtr := &buf
 	defer h.bufferPool.Put(bufPtr)
 
-	hasher := sha1.New()
+	hasher := hwsha1.New()
 	// track open file handles to avoid reopening the same file
 	readers := make(map[string]*fileReader)
 	defer func() {

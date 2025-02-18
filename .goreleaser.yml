@@ -7,7 +7,7 @@ before:
 builds:
   - id: mkbrr
     env:
-      - CGO_ENABLED=0
+      - CGO_ENABLED=1
       - BUILDER
     goos:
       - linux
@@ -37,6 +37,12 @@ builds:
       - -s -w
       - -X main.version={{.Version}}
       - -X main.buildTime={{.CommitDate}}
+    flags:
+      - -trimpath
+    tags:
+      - netgo
+      - osusergo
+      - static_build
 
 archives:
   - format_overrides:
