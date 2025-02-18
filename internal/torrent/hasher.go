@@ -2,13 +2,14 @@ package torrent
 
 import (
 	"bufio"
-	"crypto/sha1"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"runtime"
 	"sync"
+
+	hwsha1 "github.com/autobrr/mkbrr/internal/sha1"
 )
 
 type pieceHasher struct {
@@ -118,7 +119,7 @@ func (h *pieceHasher) runPieceWorkers() int {
 
 func (h *pieceHasher) worker(ch <-chan workHashUnit) {
 	r := bufio.NewReaderSize(nil, int(h.pieceLen))
-	hasher := sha1.New()
+	hasher := hwsha1.New()
 	for w := range ch { // use local ch instead of h.ch
 		hasher.Reset()
 		r.Reset(w.b)
