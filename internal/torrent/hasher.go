@@ -12,10 +12,10 @@ import (
 )
 
 type pieceHasher struct {
-	pieces     [][]byte
-	pieceLen   int64
-	files      []fileEntry
-	display    Displayer
+	pieces   [][]byte
+	pieceLen int64
+	files    []fileEntry
+	display  Displayer
 
 	ch chan workHashUnit
 	wg sync.WaitGroup
@@ -142,7 +142,7 @@ func (h *pieceHasher) hashFiles() error {
 		}
 
 		defer f.Close()
-		
+
 		read := int64(0)
 		fileSize := int64(h.files[i].length)
 		for {
@@ -157,9 +157,12 @@ func (h *pieceHasher) hashFiles() error {
 
 			if lastRead != h.pieceLen {
 				continue
+			} else if len(reader) == 1 {
+				h.ch <- workHashUnit{id: piece, b: reader[0]}
+			} else {
+				h.ch <- workHashUnit{id: piece, b: io.MultiReader(reader...)}
 			}
 
-			h.ch <- workHashUnit{id: piece, b: io.MultiReader(reader...)}
 			piece++
 			lastRead = 0
 			reader = nil
