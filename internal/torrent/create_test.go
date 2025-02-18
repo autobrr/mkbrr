@@ -86,6 +86,19 @@ func Test_calculatePieceLength(t *testing.T) {
 			piecesTarget: uint_ptr(0),
 			want:         20, // 1 MiB pieces
 		},
+		{
+			name:       "78GiB file should use maximum piece length",
+			totalSize:  78 << 30, // 78 GiB
+			want:       24,       // 16 MiB pieces
+			wantPieces: uint_ptr(5230),
+		},
+		{
+			name:         "78GiB file with target 1000 pieces",
+			totalSize:    78 << 30, // 78 GiB
+			piecesTarget: uint_ptr(1000),
+			want:         24, // limited to 16 MiB pieces
+			wantPieces:   uint_ptr(5230),
+		},
 	}
 
 	for _, tt := range tests {
