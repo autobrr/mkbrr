@@ -30,19 +30,63 @@ func max(x, y int64) int64 {
 	return y
 }
 
-// calculatePieceLength calculates the optimal piece length based on total size
-func calculatePieceLength(totalSize int64, maxPieceLength *uint) uint {
-	// ensure minimum of 1 byte and calculate exponent
-	size := max(totalSize, 1)
-	exp := uint(math.Ceil(math.Log2(float64(size)))/2.0 + 4.0)
-
+// calculatePieceLength calculates the optimal piece length based on total size and target pieces
+func calculatePieceLength(totalSize int64, maxPieceLength *uint, piecesTarget *uint) uint {
 	// ensure bounds: 16 KiB (2^14) to 16 MiB (2^24)
-	exp = uint(min(max(int64(exp), 14), 24))
+	minExp := uint(14)
+	maxExp := uint(24)
 
-	// if maxPieceLength is set, ensure we don't exceed it
-	if maxPieceLength != nil && exp > *maxPieceLength {
-		exp = *maxPieceLength
+	// validate maxPieceLength - if it's below minimum, use minimum
+	if maxPieceLength != nil {
+		if *maxPieceLength < minExp {
+			return minExp
+		}
+		if *maxPieceLength > maxExp {
+			// no need to do anything, keep maxExp as is
+		} else {
+			maxExp = *maxPieceLength
+		}
 	}
+
+	// if we have a target number of pieces and it's greater than 0, calculate piece length to achieve that
+	if piecesTarget != nil && *piecesTarget > 0 {
+		// calculate piece length that would give us the target number of pieces
+		targetPieceLength := float64(totalSize) / float64(*piecesTarget)
+		exp := uint(math.Ceil(math.Log2(targetPieceLength)))
+
+		// ensure we stay within bounds
+		if exp < minExp {
+			exp = minExp
+		}
+		if exp > maxExp {
+			exp = maxExp
+		}
+
+		return exp
+	}
+
+	// default calculation for automatic piece length
+	// ensure minimum of 1 byte for calculation
+	size := max(totalSize, 1)
+
+	// calculate base exponent using a simpler formula that better matches expected values
+	var exp uint
+	switch {
+	case size <= 1<<20: // <= 1 MiB
+		exp = 14 // 16 KiB pieces
+	case size <= 1<<30: // <= 1 GiB
+		exp = 20 // 1 MiB pieces
+	case size <= 16<<30: // <= 16 GiB
+		exp = 22 // 4 MiB pieces
+	default:
+		exp = 24 // 16 MiB pieces
+	}
+
+	// ensure we stay within bounds
+	if exp > maxExp {
+		exp = maxExp
+	}
+
 	return exp
 }
 
@@ -109,7 +153,7 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 				return nil, fmt.Errorf("max piece length exponent must be between 14 (16 KiB) and 24 (16 MiB), got: %d", *opts.MaxPieceLength)
 			}
 		}
-		pieceLength = calculatePieceLength(totalSize, opts.MaxPieceLength)
+		pieceLength = calculatePieceLength(totalSize, opts.MaxPieceLength, opts.PiecesTarget)
 	} else {
 		//	if opts.Verbose {
 		//		fmt.Printf("Using requested piece length: 2^%d bytes\n", *opts.PieceLengthExp)

@@ -18,6 +18,7 @@ var (
 	comment           string
 	pieceLengthExp    *uint // for 2^n piece length, nil means automatic
 	maxPieceLengthExp *uint // for maximum 2^n piece length, nil means no limit
+	piecesTarget      *uint // target number of pieces, nil means automatic
 	outputPath        string
 	webSeeds          []string
 	noDate            bool
@@ -76,15 +77,19 @@ func init() {
 
 	// piece length flag allows setting a fixed piece size of 2^n bytes
 	// if not specified, piece length is calculated automatically based on total size
-	var defaultPieceLength, defaultMaxPieceLength uint
+	var defaultPieceLength, defaultMaxPieceLength, defaultPiecesTarget uint
 	createCmd.Flags().UintVarP(&defaultPieceLength, "piece-length", "l", 0, "set piece length to 2^n bytes (14-24, automatic if not specified)")
 	createCmd.Flags().UintVarP(&defaultMaxPieceLength, "max-piece-length", "m", 0, "limit maximum piece length to 2^n bytes (14-24, unlimited if not specified)")
+	createCmd.Flags().UintVarP(&defaultPiecesTarget, "pieces-target", "n", 0, "target number of pieces (around 1000 is common)")
 	createCmd.PreRun = func(cmd *cobra.Command, args []string) {
 		if cmd.Flags().Changed("piece-length") {
 			pieceLengthExp = &defaultPieceLength
 		}
 		if cmd.Flags().Changed("max-piece-length") {
 			maxPieceLengthExp = &defaultMaxPieceLength
+		}
+		if cmd.Flags().Changed("pieces-target") {
+			piecesTarget = &defaultPiecesTarget
 		}
 	}
 
@@ -212,6 +217,11 @@ func runCreate(cmd *cobra.Command, args []string) error {
 			opts.MaxPieceLength = &maxPieceLen
 		}
 
+		if presetOpts.PiecesTarget != 0 {
+			piecesTarget := presetOpts.PiecesTarget
+			opts.PiecesTarget = &piecesTarget
+		}
+
 		// override preset options with command line flags if specified
 		if cmd.Flags().Changed("tracker") {
 			opts.TrackerURL = trackerURL
@@ -231,6 +241,9 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		if cmd.Flags().Changed("max-piece-length") {
 			opts.MaxPieceLength = maxPieceLengthExp
 		}
+		if cmd.Flags().Changed("pieces-target") {
+			opts.PiecesTarget = piecesTarget
+		}
 		if cmd.Flags().Changed("source") {
 			opts.Source = source
 		}
@@ -247,6 +260,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 			Comment:        comment,
 			PieceLengthExp: pieceLengthExp,
 			MaxPieceLength: maxPieceLengthExp,
+			PiecesTarget:   piecesTarget,
 			Source:         source,
 			NoDate:         noDate,
 			NoCreator:      false,
