@@ -1,4 +1,4 @@
-package torrent
+package trackers
 
 import (
 	"testing"
@@ -199,9 +199,18 @@ func Test_trackerConfigConsistency(t *testing.T) {
 		// Verify piece size ranges don't have gaps
 		if len(config.PieceSizeRanges) > 0 {
 			for i := 1; i < len(config.PieceSizeRanges); i++ {
-				if config.PieceSizeRanges[i].MaxSize != config.PieceSizeRanges[i-1].MaxSize*2 {
-					t.Errorf("tracker %v: gap between piece size ranges %d and %d",
-						config.URLs, i-1, i)
+				prev := config.PieceSizeRanges[i-1]
+				curr := config.PieceSizeRanges[i]
+
+				// skip check if current range is the "infinity" range
+				if curr.MaxSize == ^uint64(0) {
+					continue
+				}
+
+				// verify current range starts where previous range ends
+				if curr.MaxSize <= prev.MaxSize {
+					t.Errorf("tracker %v: piece size range %d (max size %d) must be greater than range %d (max size %d)",
+						config.URLs, i, curr.MaxSize, i-1, prev.MaxSize)
 				}
 			}
 		}

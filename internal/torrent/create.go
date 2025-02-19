@@ -12,15 +12,8 @@ import (
 
 	"github.com/anacrolix/torrent/bencode"
 	"github.com/anacrolix/torrent/metainfo"
+	"github.com/autobrr/mkbrr/internal/trackers"
 )
-
-// min returns the smaller of x or y
-func min(x, y int64) int64 {
-	if x < y {
-		return x
-	}
-	return y
-}
 
 // max returns the larger of x or y
 func max(x, y int64) int64 {
@@ -51,12 +44,12 @@ func calculatePieceLength(totalSize int64, maxPieceLength *uint, piecesTarget *u
 
 	// check if tracker has a maximum piece length constraint
 	if trackerURL != "" {
-		if trackerMaxExp, ok := GetTrackerMaxPieceLength(trackerURL); ok {
+		if trackerMaxExp, ok := trackers.GetTrackerMaxPieceLength(trackerURL); ok {
 			maxExp = trackerMaxExp
 		}
 
 		// check if tracker has specific piece size ranges
-		if exp, ok := GetTrackerPieceSizeExp(trackerURL, uint64(totalSize)); ok {
+		if exp, ok := trackers.GetTrackerPieceSizeExp(trackerURL, uint64(totalSize)); ok {
 			// ensure we stay within bounds
 			if exp < minExp {
 				exp = minExp
@@ -283,7 +276,7 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 		if opts.MaxPieceLength != nil {
 			// Get tracker's max piece length if available
 			maxExp := uint(24) // default max 16 MiB
-			if trackerMaxExp, ok := GetTrackerMaxPieceLength(opts.TrackerURL); ok {
+			if trackerMaxExp, ok := trackers.GetTrackerMaxPieceLength(opts.TrackerURL); ok {
 				maxExp = trackerMaxExp
 			}
 
@@ -298,7 +291,7 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 
 		// Get tracker's max piece length if available
 		maxExp := uint(24) // default max 16 MiB
-		if trackerMaxExp, ok := GetTrackerMaxPieceLength(opts.TrackerURL); ok {
+		if trackerMaxExp, ok := trackers.GetTrackerMaxPieceLength(opts.TrackerURL); ok {
 			maxExp = trackerMaxExp
 		}
 
@@ -308,7 +301,7 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 		}
 
 		// If we have a tracker with specific ranges, show that we're using them and check if piece length matches
-		if exp, ok := GetTrackerPieceSizeExp(opts.TrackerURL, uint64(totalSize)); ok {
+		if exp, ok := trackers.GetTrackerPieceSizeExp(opts.TrackerURL, uint64(totalSize)); ok {
 			if opts.Verbose {
 				display := NewDisplay(NewFormatter(opts.Verbose))
 				display.ShowMessage(fmt.Sprintf("using tracker-specific range for content size: %d MiB (recommended: %s pieces)",
@@ -322,7 +315,7 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 	}
 
 	// Check for tracker size limits and adjust piece length if needed
-	if maxSize, ok := GetTrackerMaxTorrentSize(opts.TrackerURL); ok {
+	if maxSize, ok := trackers.GetTrackerMaxTorrentSize(opts.TrackerURL); ok {
 		// Try creating the torrent with initial piece length
 		t, err := createWithPieceLength(pieceLength)
 		if err != nil {

@@ -1,4 +1,4 @@
-package torrent
+package trackers
 
 import "strings"
 
@@ -47,21 +47,36 @@ var trackerConfigs = []TrackerConfig{
 		},
 		MaxPieceLength: 26, // max 64 MiB pieces (2^26)
 		PieceSizeRanges: []PieceSizeRange{ // https://ggn/wiki.php?action=article&id=300
-			{MaxSize: 64 << 20, PieceExp: 15},     // 32 KiB for < 64 MB
-			{MaxSize: 128 << 20, PieceExp: 16},    // 64 KiB for 64-128 MB
-			{MaxSize: 256 << 20, PieceExp: 17},    // 128 KiB for 128-256 MB
-			{MaxSize: 512 << 20, PieceExp: 18},    // 256 KiB for 256-512 MB
-			{MaxSize: 1024 << 20, PieceExp: 19},   // 512 KiB for 512 MB-1 GB
-			{MaxSize: 2048 << 20, PieceExp: 20},   // 1 MiB for 1-2 GB
-			{MaxSize: 4096 << 20, PieceExp: 21},   // 2 MiB for 2-4 GB
-			{MaxSize: 8192 << 20, PieceExp: 22},   // 4 MiB for 4-8 GB
-			{MaxSize: 16384 << 20, PieceExp: 23},  // 8 MiB for 8-16 GB
-			{MaxSize: 32768 << 20, PieceExp: 24},  // 16 MiB for 16-32 GB
-			{MaxSize: 65536 << 20, PieceExp: 25},  // 32 MiB for 32-64 GB
-			{MaxSize: 131072 << 20, PieceExp: 26}, // 64 MiB for > 64 GB
+			{MaxSize: 64 << 20, PieceExp: 15},    // 32 KiB for < 64 MB
+			{MaxSize: 128 << 20, PieceExp: 16},   // 64 KiB for 64-128 MB
+			{MaxSize: 256 << 20, PieceExp: 17},   // 128 KiB for 128-256 MB
+			{MaxSize: 512 << 20, PieceExp: 18},   // 256 KiB for 256-512 MB
+			{MaxSize: 1024 << 20, PieceExp: 19},  // 512 KiB for 512 MB-1 GB
+			{MaxSize: 2048 << 20, PieceExp: 20},  // 1 MiB for 1-2 GB
+			{MaxSize: 4096 << 20, PieceExp: 21},  // 2 MiB for 2-4 GB
+			{MaxSize: 8192 << 20, PieceExp: 22},  // 4 MiB for 4-8 GB
+			{MaxSize: 16384 << 20, PieceExp: 23}, // 8 MiB for 8-16 GB
+			{MaxSize: 32768 << 20, PieceExp: 24}, // 16 MiB for 16-32 GB
+			{MaxSize: 65536 << 20, PieceExp: 25}, // 32 MiB for 32-64 GB
+			{MaxSize: ^uint64(0), PieceExp: 26},  // 64 MiB for > 64 GB
 		},
 		UseDefaultRanges: false,
 		MaxTorrentSize:   1 << 20, // 1 MB torrent file size limit
+	},
+	{
+		URLs: []string{
+			"norbits.net",
+		},
+		PieceSizeRanges: []PieceSizeRange{ // https://nb/ulguide.php
+			{MaxSize: 250 << 20, PieceExp: 18},   // 256 KiB for < 250 MB
+			{MaxSize: 1024 << 20, PieceExp: 20},  // 1 MiB for 250-1024 MB
+			{MaxSize: 5120 << 20, PieceExp: 21},  // 2 MiB for 1-5 GB
+			{MaxSize: 20480 << 20, PieceExp: 22}, // 4 MiB for 5-20 GB
+			{MaxSize: 40960 << 20, PieceExp: 23}, // 8 MiB for 20-40 GB
+			{MaxSize: ^uint64(0), PieceExp: 24},  // 16 MiB for > 40 GB
+		},
+		MaxPieceLength:   24, // max 16 MiB pieces (2^24)
+		UseDefaultRanges: false,
 	},
 }
 

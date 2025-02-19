@@ -10,6 +10,8 @@ import (
 	"runtime"
 	"sync"
 	"testing"
+
+	"github.com/autobrr/mkbrr/internal/trackers"
 )
 
 // mockDisplay implements Displayer interface for testing
@@ -477,7 +479,7 @@ func TestTorrentFileSize(t *testing.T) {
 						t.Fatalf("failed to stat torrent file: %v", err)
 					}
 
-					if maxSize, ok := GetTrackerMaxTorrentSize(tt.trackerURL); ok {
+					if maxSize, ok := trackers.GetTrackerMaxTorrentSize(tt.trackerURL); ok {
 						if uint64(info.Size()) > maxSize {
 							t.Errorf("torrent file size %d exceeds tracker limit %d", info.Size(), maxSize)
 						} else {
