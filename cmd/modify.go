@@ -26,11 +26,15 @@ var (
 var modifyCmd = &cobra.Command{
 	Use:   "modify [torrent files...]",
 	Short: "Modify existing torrent files using a preset",
-	Long: `Modify existing torrent files using a preset.
+	Long: `Modify existing torrent files using a preset or flags.
 This allows batch modification of torrent files with new tracker URLs, source tags, etc.
-Original files are preserved and new files are created with -[preset] or -modified suffix.`,
-	Args: cobra.MinimumNArgs(1),
-	RunE: runModify,
+Original files are preserved and new files are created with -[preset] or -modified suffix.
+
+Note: All unnecessary metadata will be stripped.`,
+	Args:                  cobra.MinimumNArgs(1),
+	RunE:                  runModify,
+	DisableFlagsInUseLine: true,
+	SilenceUsage:          true,
 }
 
 func init() {
@@ -54,6 +58,13 @@ func init() {
 	modifyCmd.Flags().StringVarP(&modifySource, "source", "s", "", "add source string")
 	modifyCmd.Flags().BoolVarP(&modifyVerbose, "verbose", "v", false, "be verbose")
 	modifyCmd.Flags().BoolVarP(&modifyDryRun, "dry-run", "n", false, "show what would be modified without making changes")
+
+	modifyCmd.SetUsageTemplate(`Usage:
+  {{.CommandPath}} [flags] [torrent files...]
+
+Flags:
+{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}
+`)
 }
 
 func runModify(cmd *cobra.Command, args []string) error {

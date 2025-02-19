@@ -9,13 +9,21 @@ import (
 )
 
 var updateCmd = &cobra.Command{
-	Use:   "update",
-	Short: "update mkbrr",
-	RunE:  runUpdate,
+	Use:                   "update",
+	Short:                 "Update mkbrr",
+	Long:                  `Update mkbrr to latest version.`,
+	RunE:                  runUpdate,
+	DisableFlagsInUseLine: true,
 }
 
 func init() {
 	rootCmd.AddCommand(updateCmd)
+	updateCmd.SetUsageTemplate(`Usage:
+  {{.CommandPath}}
+  
+Flags:
+{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}
+`)
 }
 
 func runUpdate(cmd *cobra.Command, args []string) error {

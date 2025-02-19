@@ -50,7 +50,10 @@ Supports presets for commonly used settings.`,
 		}
 		return nil
 	},
-	RunE: runCreate,
+	RunE:                       runCreate,
+	DisableFlagsInUseLine:      true,
+	SuggestionsMinimumDistance: 1,
+	SilenceUsage:               true,
 }
 
 func init() {
@@ -66,10 +69,10 @@ func init() {
 
 	createCmd.Flags().StringVarP(&batchFile, "batch", "b", "", "batch config file (YAML)")
 	createCmd.Flags().StringVarP(&presetName, "preset", "P", "", "use preset from config")
-	createCmd.Flags().StringVar(&presetFile, "preset-file", "", "preset config file (default: ~/.config/mkbrr/presets.yaml)")
+	createCmd.Flags().StringVar(&presetFile, "preset-file", "", "preset config file (default ~/.config/mkbrr/presets.yaml)")
 	createCmd.Flags().StringVarP(&trackerURL, "tracker", "t", "", "tracker URL")
 	createCmd.Flags().StringArrayVarP(&webSeeds, "web-seed", "w", nil, "add web seed URLs")
-	createCmd.Flags().BoolVarP(&isPrivate, "private", "p", true, "make torrent private (default: true)")
+	createCmd.Flags().BoolVarP(&isPrivate, "private", "p", true, "make torrent private")
 	createCmd.Flags().StringVarP(&comment, "comment", "c", "", "add comment")
 
 	// piece length flag allows setting a fixed piece size of 2^n bytes
@@ -91,7 +94,14 @@ func init() {
 	createCmd.Flags().BoolVarP(&noDate, "no-date", "d", false, "don't write creation date")
 	createCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "be verbose")
 
-	createCmd.Flags().String("cpuprofile", "", "write cpu profile to file")
+	createCmd.Flags().String("dev-cpuprofile", "", "write cpu profile to file (development flag)")
+
+	createCmd.SetUsageTemplate(`Usage:
+  {{.CommandPath}} /path/to/content [flags]
+
+Flags:
+{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}
+`)
 }
 
 func runCreate(cmd *cobra.Command, args []string) error {
