@@ -36,7 +36,7 @@ var trackerConfigs = []TrackerConfig{
 	{
 		URLs: []string{
 			"empornium.sx",
-			"morethantv.me",
+			"morethantv.me", // https://mtv/forum/thread/3237?postid=74725#post74725
 		},
 		MaxPieceLength:   23, // max 8 MiB pieces (2^23)
 		UseDefaultRanges: true,
