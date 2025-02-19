@@ -30,11 +30,34 @@ func max(x, y int64) int64 {
 	return y
 }
 
-// calculatePieceLength calculates the optimal piece length based on total size and target pieces
-func calculatePieceLength(totalSize int64, maxPieceLength *uint, piecesTarget *uint) uint {
+// calculatePieceLength calculates the optimal piece length based on total size and target pieces.
+// For piece count targets (whether from tracker or user), this is a best-effort approach:
+// - The actual piece count may differ due to power-of-2 piece length constraints
+// - We aim to get as close as possible while staying within min/max piece length bounds
+// - The min/max bounds (2^16 to 2^24) take precedence over the target piece count
+func calculatePieceLength(totalSize int64, maxPieceLength *uint, piecesTarget *uint, trackerURL string) uint {
 	// ensure bounds: 64 KiB (2^16) to 16 MiB (2^24)
 	minExp := uint(16)
 	maxExp := uint(24)
+
+	// check if tracker has a maximum piece length constraint
+	if trackerURL != "" {
+		if trackerMaxExp, ok := GetTrackerMaxPieceLength(trackerURL); ok {
+			maxExp = trackerMaxExp
+		}
+
+		// check if tracker has specific piece size ranges
+		if exp, ok := GetTrackerPieceSizeExp(trackerURL, uint64(totalSize)); ok {
+			// ensure we stay within bounds
+			if exp < minExp {
+				exp = minExp
+			}
+			if exp > maxExp {
+				exp = maxExp
+			}
+			return exp
+		}
+	}
 
 	// validate maxPieceLength - if it's below minimum, use minimum
 	if maxPieceLength != nil {
@@ -48,14 +71,15 @@ func calculatePieceLength(totalSize int64, maxPieceLength *uint, piecesTarget *u
 		}
 	}
 
-	// if we have a target number of pieces and it's greater than 0, calculate piece length to achieve that
+	// if user specified a target, use that instead of tracker's target
+	// note: this is a best-effort target - actual piece count may differ
 	if piecesTarget != nil && *piecesTarget > 0 {
 		// calculate piece length that would give us the target number of pieces
 		targetPieceLength := float64(totalSize) / float64(*piecesTarget)
 		// round to nearest power of 2 instead of always rounding up
 		exp := uint(math.Round(math.Log2(targetPieceLength)))
 
-		// ensure we stay within bounds
+		// ensure we stay within bounds - bounds take precedence over target
 		if exp < minExp {
 			exp = minExp
 		}
@@ -64,6 +88,27 @@ func calculatePieceLength(totalSize int64, maxPieceLength *uint, piecesTarget *u
 		}
 
 		return exp
+	}
+
+	// check if we have a tracker-specific target
+	// note: this is a best-effort target - actual piece count may differ
+	if trackerURL != "" {
+		if target, ok := GetTrackerPiecesTarget(trackerURL); ok {
+			// calculate piece length that would give us the target number of pieces
+			targetPieceLength := float64(totalSize) / float64(target)
+			// round to nearest power of 2 instead of always rounding up
+			exp := uint(math.Round(math.Log2(targetPieceLength)))
+
+			// ensure we stay within bounds - bounds take precedence over target
+			if exp < minExp {
+				exp = minExp
+			}
+			if exp > maxExp {
+				exp = maxExp
+			}
+
+			return exp
+		}
 	}
 
 	// default calculation for automatic piece length
@@ -166,7 +211,7 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 				return nil, fmt.Errorf("max piece length exponent must be between 14 (16 KiB) and 24 (16 MiB), got: %d", *opts.MaxPieceLength)
 			}
 		}
-		pieceLength = calculatePieceLength(totalSize, opts.MaxPieceLength, opts.PiecesTarget)
+		pieceLength = calculatePieceLength(totalSize, opts.MaxPieceLength, opts.PiecesTarget, opts.TrackerURL)
 	} else {
 		//	if opts.Verbose {
 		//		fmt.Printf("Using requested piece length: 2^%d bytes\n", *opts.PieceLengthExp)

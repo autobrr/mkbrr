@@ -10,6 +10,7 @@ func Test_calculatePieceLength(t *testing.T) {
 		totalSize      int64
 		maxPieceLength *uint
 		piecesTarget   *uint
+		trackerURL     string
 		want           uint
 		wantPieces     *uint // expected number of pieces (approximate)
 	}{
@@ -52,17 +53,17 @@ func Test_calculatePieceLength(t *testing.T) {
 			want:           24, // 16 MiB pieces
 		},
 		{
-			name:         "target 1000 pieces for 1GB file",
+			name:         "target 1000 pieces for 1GB file (best-effort)",
 			totalSize:    1 << 30, // 1 GiB
 			piecesTarget: uint_ptr(1000),
-			want:         20, // 1 MiB pieces, ~1024 pieces
+			want:         20, // 1 MiB pieces gives ~1024 pieces (closest power of 2)
 			wantPieces:   uint_ptr(1024),
 		},
 		{
-			name:         "target 1000 pieces for 10GB file",
+			name:         "target 1000 pieces for 10GB file (best-effort)",
 			totalSize:    10 << 30, // 10 GiB
 			piecesTarget: uint_ptr(1000),
-			want:         23, // 8 MiB pieces, ~1280 pieces
+			want:         23, // 8 MiB pieces gives ~1280 pieces (closest we can get within bounds)
 			wantPieces:   uint_ptr(1280),
 		},
 		{
@@ -139,11 +140,52 @@ func Test_calculatePieceLength(t *testing.T) {
 			totalSize: 14234 << 20,
 			want:      23,
 		},
+		{
+			name:       "emp should respect max piece length of 2^23",
+			totalSize:  100 << 30, // 100 GiB
+			trackerURL: "https://empornium.sx/announce?passkey=123",
+			want:       23, // limited to 8 MiB pieces
+		},
+		{
+			name:           "emp should use most restrictive limit between tracker and user",
+			totalSize:      100 << 30, // 100 GiB
+			trackerURL:     "https://empornium.sx/announce?passkey=123",
+			maxPieceLength: uint_ptr(22), // user wants 4 MiB pieces
+			want:           22,           // user's limit is more restrictive
+		},
+		{
+			name:           "emp should ignore user's higher max piece length",
+			totalSize:      100 << 30, // 100 GiB
+			trackerURL:     "https://empornium.sx/announce?passkey=123",
+			maxPieceLength: uint_ptr(24), // user wants 16 MiB pieces
+			want:           23,           // tracker's limit of 8 MiB pieces wins
+		},
+		{
+			name:       "ptp should aim for 1000 pieces (best-effort)",
+			totalSize:  10 << 30, // 10 GiB
+			trackerURL: "https://please.passthe.tea/announce?passkey=123",
+			want:       23, // 8 MiB pieces gives ~1280 pieces (closest we can get within bounds)
+			wantPieces: uint_ptr(1280),
+		},
+		{
+			name:         "user piece target should override ptp default (best-effort)",
+			totalSize:    10 << 30, // 10 GiB
+			trackerURL:   "https://please.passthe.tea/announce?passkey=123",
+			piecesTarget: uint_ptr(2000),
+			want:         22, // 4 MiB pieces gives ~2560 pieces (closest power of 2 within bounds)
+			wantPieces:   uint_ptr(2560),
+		},
+		{
+			name:       "unknown tracker should use default calculation",
+			totalSize:  10 << 30, // 10 GiB
+			trackerURL: "https://unknown.tracker.com/announce",
+			want:       23, // 8 MiB pieces
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := calculatePieceLength(tt.totalSize, tt.maxPieceLength, tt.piecesTarget)
+			got := calculatePieceLength(tt.totalSize, tt.maxPieceLength, tt.piecesTarget, tt.trackerURL)
 			if got != tt.want {
 				t.Errorf("calculatePieceLength() = %v, want %v", got, tt.want)
 			}
