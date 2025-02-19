@@ -98,7 +98,8 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 	// initialize buffer pool
 	h.bufferPool = &sync.Pool{
 		New: func() interface{} {
-			return make([]byte, h.readSize)
+			buf := make([]byte, h.readSize)
+			return buf
 		},
 	}
 
@@ -165,8 +166,7 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *uint64) error {
 	// reuse buffer from pool to minimize allocations
 	buf := h.bufferPool.Get().([]byte)
-	bufPtr := &buf
-	defer h.bufferPool.Put(bufPtr)
+	defer h.bufferPool.Put(buf)
 
 	hasher := hwsha1.New()
 	// track open file handles to avoid reopening the same file
@@ -269,12 +269,19 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 }
 
 func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Displayer) *pieceHasher {
+	bufferPool := &sync.Pool{
+		New: func() interface{} {
+			buf := make([]byte, pieceLen)
+			return buf
+		},
+	}
 	return &pieceHasher{
-		pieces:    make([][]byte, numPieces),
-		pieceLen:  pieceLen,
-		numPieces: numPieces,
-		files:     files,
-		display:   display,
+		pieces:     make([][]byte, numPieces),
+		pieceLen:   pieceLen,
+		numPieces:  numPieces,
+		files:      files,
+		display:    display,
+		bufferPool: bufferPool,
 	}
 }
 

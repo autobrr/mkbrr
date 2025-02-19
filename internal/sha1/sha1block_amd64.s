@@ -7,6 +7,10 @@ TEXT ·blockSIMD(SB), NOSPLIT, $0-32
 	MOVQ p_len+16(FP), DX
 	SHRQ $6, DX // length in blocks
 
+	// Initialize byte swap mask
+	PCMPEQD X4, X4
+	PSHUFD $0x1B, X4, X4
+
 	// Load initial hash values
 	MOVL (0*4)(AX), R8
 	MOVL (1*4)(AX), R9
