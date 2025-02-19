@@ -78,6 +78,25 @@ var trackerConfigs = []TrackerConfig{
 		MaxPieceLength:   24, // max 16 MiB pieces (2^24)
 		UseDefaultRanges: false,
 	},
+	{
+		URLs: []string{
+			"landof.tv",
+		},
+		PieceSizeRanges: []PieceSizeRange{ // https://btn/forums.php?action=viewthread&threadid=18301
+			{MaxSize: 32 << 20, PieceExp: 15},   // 32 KiB for <= 32 MiB
+			{MaxSize: 62 << 20, PieceExp: 16},   // 64 KiB for 32-62 MiB
+			{MaxSize: 125 << 20, PieceExp: 17},  // 128 KiB for 62-125 MiB
+			{MaxSize: 250 << 20, PieceExp: 18},  // 256 KiB for 125-250 MiB
+			{MaxSize: 500 << 20, PieceExp: 19},  // 512 KiB for 250-500 MiB
+			{MaxSize: 1000 << 20, PieceExp: 20}, // 1 MiB for 500-1000 MiB
+			{MaxSize: 1945 << 20, PieceExp: 21}, // 2 MiB for 1000 MiB-1.95 GiB
+			{MaxSize: 3906 << 20, PieceExp: 22}, // 4 MiB for 1.95-3.906 GiB
+			{MaxSize: 7810 << 20, PieceExp: 23}, // 8 MiB for 3.906-7.81 GiB
+			{MaxSize: ^uint64(0), PieceExp: 24}, // 16 MiB for > 7.81 GiB
+		},
+		MaxPieceLength:   24, // max 16 MiB pieces (2^24)
+		UseDefaultRanges: false,
+	},
 }
 
 // findTrackerConfig returns the config for a given tracker URL
