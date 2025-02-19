@@ -5,7 +5,6 @@ import "strings"
 // TrackerConfig holds tracker-specific configuration
 type TrackerConfig struct {
 	URLs             []string         // list of tracker URLs that share this config
-	PiecesTarget     uint             // target number of pieces (best-effort, will try to get as close as possible within power-of-2 constraints)
 	MaxPieceLength   uint             // maximum piece length exponent (2^n)
 	PieceSizeRanges  []PieceSizeRange // custom piece size ranges for specific content sizes
 	UseDefaultRanges bool             // whether to use default piece size ranges when content size is outside custom ranges
@@ -76,16 +75,6 @@ func findTrackerConfig(trackerURL string) *TrackerConfig {
 		}
 	}
 	return nil
-}
-
-// GetTrackerPiecesTarget returns the preferred piece count for a tracker if known.
-// Note: The returned target is a best-effort goal - the actual piece count may differ
-// due to power-of-2 piece length constraints and min/max piece length bounds.
-func GetTrackerPiecesTarget(trackerURL string) (uint, bool) {
-	if config := findTrackerConfig(trackerURL); config != nil {
-		return config.PiecesTarget, config.PiecesTarget > 0
-	}
-	return 0, false
 }
 
 // GetTrackerMaxPieceLength returns the maximum piece length exponent for a tracker if known.

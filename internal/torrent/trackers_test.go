@@ -172,40 +172,6 @@ func Test_GetTrackerMaxTorrentSize(t *testing.T) {
 	}
 }
 
-func Test_GetTrackerPiecesTarget(t *testing.T) {
-	tests := []struct {
-		name       string
-		trackerURL string
-		wantTarget uint
-		wantFound  bool
-	}{
-		{
-			name:       "no trackers currently have piece count targets",
-			trackerURL: "https://gazellegames.net/announce?passkey=123",
-			wantTarget: 0,
-			wantFound:  false,
-		},
-		{
-			name:       "unknown tracker should not have piece count target",
-			trackerURL: "https://unknown.tracker/announce",
-			wantTarget: 0,
-			wantFound:  false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			gotTarget, gotFound := GetTrackerPiecesTarget(tt.trackerURL)
-			if gotFound != tt.wantFound {
-				t.Errorf("GetTrackerPiecesTarget() found = %v, want %v", gotFound, tt.wantFound)
-			}
-			if gotTarget != tt.wantTarget {
-				t.Errorf("GetTrackerPiecesTarget() target = %v, want %v", gotTarget, tt.wantTarget)
-			}
-		})
-	}
-}
-
 func Test_trackerConfigConsistency(t *testing.T) {
 	for _, config := range trackerConfigs {
 		// Skip empty configs

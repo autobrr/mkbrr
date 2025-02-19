@@ -185,7 +185,7 @@ func Test_calculatePieceLength(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := calculatePieceLength(tt.totalSize, tt.maxPieceLength, tt.piecesTarget, tt.trackerURL)
+			got := calculatePieceLength(tt.totalSize, tt.maxPieceLength, tt.piecesTarget, tt.trackerURL, false)
 			if got != tt.want {
 				t.Errorf("calculatePieceLength() = %v, want %v", got, tt.want)
 			}

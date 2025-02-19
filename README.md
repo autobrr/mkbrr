@@ -205,7 +205,6 @@ Single mode flags:
 - `-c, --comment <text>`: Add comment
 - `-l, --piece-length <n>`: Set piece length to 2^n bytes (14-24, automatic if not specified). Note: if this flag is set, it will always override any value specified with `-m, --max-piece-length`.
 - `-m, --max-piece-length <n>`: Limit maximum piece length to 2^n bytes (14-24)
-- `-n, --pieces-target <n>`: Target number of pieces (around 1000 is common)
 - `-o, --output <path>`: Set output path (default: <name>.torrent)
 - `-s, --source <text>`: Add source string
 - `-d, --no-date`: Don't write creation date

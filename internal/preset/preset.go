@@ -26,7 +26,6 @@ type Options struct {
 	Private        *bool    `yaml:"private"`
 	PieceLength    uint     `yaml:"piece_length"`
 	MaxPieceLength uint     `yaml:"max_piece_length"`
-	PiecesTarget   uint     `yaml:"pieces_target"`
 	Comment        string   `yaml:"comment"`
 	Source         string   `yaml:"source"`
 	NoDate         *bool    `yaml:"no_date"`

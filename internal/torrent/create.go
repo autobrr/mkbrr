@@ -30,12 +30,21 @@ func max(x, y int64) int64 {
 	return y
 }
 
+// formatPieceSize returns a human readable piece size, using KiB for sizes < 1024 KiB and MiB for larger sizes
+func formatPieceSize(exp uint) string {
+	size := uint64(1) << (exp - 10) // convert to KiB
+	if size >= 1024 {
+		return fmt.Sprintf("%d MiB", size/1024)
+	}
+	return fmt.Sprintf("%d KiB", size)
+}
+
 // calculatePieceLength calculates the optimal piece length based on total size and target pieces.
 // For piece count targets (whether from tracker or user), this is a best-effort approach:
 // - The actual piece count may differ due to power-of-2 piece length constraints
 // - We aim to get as close as possible while staying within min/max piece length bounds
 // - The min/max bounds (2^16 to 2^24) take precedence over the target piece count
-func calculatePieceLength(totalSize int64, maxPieceLength *uint, piecesTarget *uint, trackerURL string) uint {
+func calculatePieceLength(totalSize int64, maxPieceLength *uint, piecesTarget *uint, trackerURL string, verbose bool) uint {
 	// ensure bounds: 64 KiB (2^16) to 16 MiB (2^24)
 	minExp := uint(16)
 	maxExp := uint(24)
@@ -54,6 +63,11 @@ func calculatePieceLength(totalSize int64, maxPieceLength *uint, piecesTarget *u
 			}
 			if exp > maxExp {
 				exp = maxExp
+			}
+			if verbose {
+				display := NewDisplay(NewFormatter(verbose))
+				display.ShowMessage(fmt.Sprintf("using tracker-specific range for content size: %d MiB (recommended: %s pieces)",
+					totalSize>>20, formatPieceSize(exp)))
 			}
 			return exp
 		}
@@ -88,27 +102,6 @@ func calculatePieceLength(totalSize int64, maxPieceLength *uint, piecesTarget *u
 		}
 
 		return exp
-	}
-
-	// check if we have a tracker-specific target
-	// note: this is a best-effort target - actual piece count may differ
-	if trackerURL != "" {
-		if target, ok := GetTrackerPiecesTarget(trackerURL); ok {
-			// calculate piece length that would give us the target number of pieces
-			targetPieceLength := float64(totalSize) / float64(target)
-			// round to nearest power of 2 instead of always rounding up
-			exp := uint(math.Round(math.Log2(targetPieceLength)))
-
-			// ensure we stay within bounds - bounds take precedence over target
-			if exp < minExp {
-				exp = minExp
-			}
-			if exp > maxExp {
-				exp = maxExp
-			}
-
-			return exp
-		}
 	}
 
 	// default calculation for automatic piece length
@@ -152,46 +145,6 @@ func (t *Torrent) GetInfo() *metainfo.Info {
 	info := &metainfo.Info{}
 	_ = bencode.Unmarshal(t.InfoBytes, info)
 	return info
-}
-
-// estimateTorrentFileSize estimates the size of the final .torrent file
-// This is an approximation that considers:
-// - 20 bytes per piece for SHA1 hashes
-// - Basic metadata overhead (few hundred bytes)
-// - File paths and other metadata
-func estimateTorrentFileSize(totalSize int64, pieceLength uint, numFiles int) int64 {
-	// Calculate number of pieces (rounded up)
-	numPieces := (totalSize + (1 << pieceLength) - 1) >> pieceLength
-
-	// Base size: ~512 bytes for basic metadata
-	baseSize := int64(512)
-
-	// Add piece hashes size (20 bytes each)
-	hashesSize := numPieces * 20
-
-	// Estimate path and file info overhead (~100 bytes per file)
-	filesOverhead := int64(numFiles * 100)
-
-	return baseSize + hashesSize + filesOverhead
-}
-
-// validatePieceLength checks if the piece length is appropriate for the content
-// and returns warnings about potential issues
-func validatePieceLength(totalSize int64, pieceLength uint, numFiles int, trackerURL string) []string {
-	var warnings []string
-
-	// Check for tracker-specific torrent file size limits
-	if maxSize, ok := GetTrackerMaxTorrentSize(trackerURL); ok {
-		estSize := estimateTorrentFileSize(totalSize, pieceLength, numFiles)
-		if uint64(estSize) > maxSize {
-			warnings = append(warnings, fmt.Sprintf("warning: estimated .torrent file size (%.1f MB) exceeds tracker's %.1f MB limit. Consider using larger piece sizes",
-				float64(estSize)/(1<<20), float64(maxSize)/(1<<20)))
-		}
-	}
-
-	// Add other validations here if needed
-
-	return warnings
 }
 
 func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
@@ -328,23 +281,42 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 	var pieceLength uint
 	if opts.PieceLengthExp == nil {
 		if opts.MaxPieceLength != nil {
-			if *opts.MaxPieceLength < 14 || *opts.MaxPieceLength > 24 {
-				return nil, fmt.Errorf("max piece length exponent must be between 14 (16 KiB) and 24 (16 MiB), got: %d", *opts.MaxPieceLength)
+			// Get tracker's max piece length if available
+			maxExp := uint(24) // default max 16 MiB
+			if trackerMaxExp, ok := GetTrackerMaxPieceLength(opts.TrackerURL); ok {
+				maxExp = trackerMaxExp
+			}
+
+			if *opts.MaxPieceLength < 14 || *opts.MaxPieceLength > maxExp {
+				return nil, fmt.Errorf("max piece length exponent must be between 14 (16 KiB) and %d (%d MiB), got: %d",
+					maxExp, 1<<(maxExp-20), *opts.MaxPieceLength)
 			}
 		}
-		pieceLength = calculatePieceLength(totalSize, opts.MaxPieceLength, opts.PiecesTarget, opts.TrackerURL)
+		pieceLength = calculatePieceLength(totalSize, opts.MaxPieceLength, nil, opts.TrackerURL, opts.Verbose)
 	} else {
 		pieceLength = *opts.PieceLengthExp
-		if pieceLength < 14 || pieceLength > 24 {
-			return nil, fmt.Errorf("piece length exponent must be between 14 (16 KiB) and 24 (16 MiB), got: %d", pieceLength)
+
+		// Get tracker's max piece length if available
+		maxExp := uint(24) // default max 16 MiB
+		if trackerMaxExp, ok := GetTrackerMaxPieceLength(opts.TrackerURL); ok {
+			maxExp = trackerMaxExp
 		}
 
-		// Check if tracker has a max piece length constraint
-		if trackerMaxExp, ok := GetTrackerMaxPieceLength(opts.TrackerURL); ok {
-			if pieceLength > trackerMaxExp {
-				return nil, fmt.Errorf("piece length %d (2^%d = %d MiB) exceeds tracker's maximum of %d (2^%d = %d MiB)",
-					pieceLength, pieceLength, 1<<(pieceLength-20),
-					trackerMaxExp, trackerMaxExp, 1<<(trackerMaxExp-20))
+		if pieceLength < 14 || pieceLength > maxExp {
+			return nil, fmt.Errorf("piece length exponent must be between 14 (16 KiB) and %d (%d MiB), got: %d",
+				maxExp, 1<<(maxExp-20), pieceLength)
+		}
+
+		// If we have a tracker with specific ranges, show that we're using them and check if piece length matches
+		if exp, ok := GetTrackerPieceSizeExp(opts.TrackerURL, uint64(totalSize)); ok {
+			if opts.Verbose {
+				display := NewDisplay(NewFormatter(opts.Verbose))
+				display.ShowMessage(fmt.Sprintf("using tracker-specific range for content size: %d MiB (recommended: %s pieces)",
+					totalSize>>20, formatPieceSize(exp)))
+				if pieceLength != exp {
+					display.ShowWarning(fmt.Sprintf("custom piece length %s differs from recommendation",
+						formatPieceSize(pieceLength)))
+				}
 			}
 		}
 	}
