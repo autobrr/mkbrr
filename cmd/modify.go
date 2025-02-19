@@ -34,6 +34,7 @@ Note: All unnecessary metadata will be stripped.`,
 	Args:                  cobra.MinimumNArgs(1),
 	RunE:                  runModify,
 	DisableFlagsInUseLine: true,
+	SilenceUsage:          true,
 }
 
 func init() {
