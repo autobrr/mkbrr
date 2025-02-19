@@ -7,16 +7,15 @@ TEXT ·blockSIMD(SB), NOSPLIT, $0-32
 	MOVQ p_len+16(FP), DX
 	SHRQ $6, DX // length in blocks
 
-	// Initialize byte swap mask
-	PCMPEQD X4, X4
-	PSHUFD $0x1B, X4, X4
-
 	// Load initial hash values
 	MOVL (0*4)(AX), R8
 	MOVL (1*4)(AX), R9
 	MOVL (2*4)(AX), R10
 	MOVL (3*4)(AX), R11
 	MOVL (4*4)(AX), R12
+
+	// Initialize X4 register with zero
+	PXOR X4, X4
 
 loop:
 	// Save hash state

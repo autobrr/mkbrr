@@ -35,7 +35,8 @@ func useHWHash() bool {
 	// Only use hardware acceleration on amd64 and arm64
 	switch runtime.GOARCH {
 	case "amd64":
-		return cpuid.CPU.Has(cpuid.SHA)
+		// Only use SHA-NI on Intel processors for now
+		return cpuid.CPU.Has(cpuid.SHA) && cpuid.CPU.VendorID == cpuid.Intel
 	case "arm64":
 		return cpuid.CPU.Has(cpuid.SHA1)
 	default:
