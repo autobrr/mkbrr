@@ -154,6 +154,46 @@ func (t *Torrent) GetInfo() *metainfo.Info {
 	return info
 }
 
+// estimateTorrentFileSize estimates the size of the final .torrent file
+// This is an approximation that considers:
+// - 20 bytes per piece for SHA1 hashes
+// - Basic metadata overhead (few hundred bytes)
+// - File paths and other metadata
+func estimateTorrentFileSize(totalSize int64, pieceLength uint, numFiles int) int64 {
+	// Calculate number of pieces (rounded up)
+	numPieces := (totalSize + (1 << pieceLength) - 1) >> pieceLength
+
+	// Base size: ~512 bytes for basic metadata
+	baseSize := int64(512)
+
+	// Add piece hashes size (20 bytes each)
+	hashesSize := numPieces * 20
+
+	// Estimate path and file info overhead (~100 bytes per file)
+	filesOverhead := int64(numFiles * 100)
+
+	return baseSize + hashesSize + filesOverhead
+}
+
+// validatePieceLength checks if the piece length is appropriate for the content
+// and returns warnings about potential issues
+func validatePieceLength(totalSize int64, pieceLength uint, numFiles int, trackerURL string) []string {
+	var warnings []string
+
+	// Check for tracker-specific torrent file size limits
+	if maxSize, ok := GetTrackerMaxTorrentSize(trackerURL); ok {
+		estSize := estimateTorrentFileSize(totalSize, pieceLength, numFiles)
+		if uint64(estSize) > maxSize {
+			warnings = append(warnings, fmt.Sprintf("warning: estimated .torrent file size (%.1f MB) exceeds tracker's %.1f MB limit. Consider using larger piece sizes",
+				float64(estSize)/(1<<20), float64(maxSize)/(1<<20)))
+		}
+	}
+
+	// Add other validations here if needed
+
+	return warnings
+}
+
 func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 	path := filepath.ToSlash(opts.Path)
 	name := opts.Name
@@ -204,6 +244,87 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 		return nil, fmt.Errorf("error walking path: %w", err)
 	}
 
+	// Sort files to ensure consistent order
+	sort.Slice(files, func(i, j int) bool {
+		return files[i].path < files[j].path
+	})
+
+	// Function to create torrent with given piece length
+	createWithPieceLength := func(pieceLength uint) (*Torrent, error) {
+		pieceLenInt := int64(1) << pieceLength
+		numPieces := (totalSize + pieceLenInt - 1) / pieceLenInt
+
+		display := NewDisplay(NewFormatter(opts.Verbose))
+		hasher := NewPieceHasher(files, pieceLenInt, int(numPieces), display)
+
+		numWorkers := runtime.NumCPU()
+		if numWorkers > 4 {
+			numWorkers = 4
+		}
+		if err := hasher.hashPieces(numWorkers); err != nil {
+			return nil, fmt.Errorf("error hashing pieces: %w", err)
+		}
+
+		info := &metainfo.Info{
+			Name:        name,
+			PieceLength: pieceLenInt,
+			Private:     &opts.IsPrivate,
+		}
+
+		if opts.Source != "" {
+			info.Source = opts.Source
+		}
+
+		info.Pieces = make([]byte, len(hasher.pieces)*20)
+		for i, piece := range hasher.pieces {
+			copy(info.Pieces[i*20:], piece)
+		}
+
+		if len(files) == 1 {
+			// check if the input path is a directory
+			pathInfo, err := os.Stat(path)
+			if err != nil {
+				return nil, fmt.Errorf("error checking path: %w", err)
+			}
+
+			if pathInfo.IsDir() {
+				// if it's a directory, use the folder structure even for single files
+				info.Files = make([]metainfo.FileInfo, 1)
+				relPath, _ := filepath.Rel(baseDir, files[0].path)
+				pathComponents := strings.Split(relPath, string(filepath.Separator))
+				info.Files[0] = metainfo.FileInfo{
+					Path:   pathComponents,
+					Length: files[0].length,
+				}
+			} else {
+				// if it's a single file directly, use the simple format
+				info.Length = files[0].length
+			}
+		} else {
+			info.Files = make([]metainfo.FileInfo, len(files))
+			for i, f := range files {
+				relPath, _ := filepath.Rel(baseDir, f.path)
+				pathComponents := strings.Split(relPath, string(filepath.Separator))
+				info.Files[i] = metainfo.FileInfo{
+					Path:   pathComponents,
+					Length: f.length,
+				}
+			}
+		}
+
+		infoBytes, err := bencode.Marshal(info)
+		if err != nil {
+			return nil, fmt.Errorf("error encoding info: %w", err)
+		}
+		mi.InfoBytes = infoBytes
+
+		if len(opts.WebSeeds) > 0 {
+			mi.UrlList = opts.WebSeeds
+		}
+
+		return &Torrent{mi}, nil
+	}
+
 	var pieceLength uint
 	if opts.PieceLengthExp == nil {
 		if opts.MaxPieceLength != nil {
@@ -213,96 +334,65 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 		}
 		pieceLength = calculatePieceLength(totalSize, opts.MaxPieceLength, opts.PiecesTarget, opts.TrackerURL)
 	} else {
-		//	if opts.Verbose {
-		//		fmt.Printf("Using requested piece length: 2^%d bytes\n", *opts.PieceLengthExp)
-		//	}
-
-		// enforce the piece length strictly
 		pieceLength = *opts.PieceLengthExp
-
-		// validate bounds - now allowing up to 2^24 (16 MiB)
 		if pieceLength < 14 || pieceLength > 24 {
 			return nil, fmt.Errorf("piece length exponent must be between 14 (16 KiB) and 24 (16 MiB), got: %d", pieceLength)
 		}
+
+		// Check if tracker has a max piece length constraint
+		if trackerMaxExp, ok := GetTrackerMaxPieceLength(opts.TrackerURL); ok {
+			if pieceLength > trackerMaxExp {
+				return nil, fmt.Errorf("piece length %d (2^%d = %d MiB) exceeds tracker's maximum of %d (2^%d = %d MiB)",
+					pieceLength, pieceLength, 1<<(pieceLength-20),
+					trackerMaxExp, trackerMaxExp, 1<<(trackerMaxExp-20))
+			}
+		}
 	}
 
-	pieceLenInt := int64(1) << pieceLength
-	numPieces := (totalSize + pieceLenInt - 1) / pieceLenInt
-
-	display := NewDisplay(NewFormatter(opts.Verbose))
-
-	hasher := NewPieceHasher(files, pieceLenInt, int(numPieces), display)
-
-	numWorkers := runtime.NumCPU()
-	if numWorkers > 4 {
-		numWorkers = 4
-	}
-	if err := hasher.hashPieces(numWorkers); err != nil {
-		return nil, fmt.Errorf("error hashing pieces: %w", err)
-	}
-
-	info := &metainfo.Info{
-		Name:        name,
-		PieceLength: pieceLenInt,
-		Private:     &opts.IsPrivate,
-	}
-
-	sort.Slice(files, func(i, j int) bool {
-		return files[i].path < files[j].path
-	})
-
-	if opts.Source != "" {
-		info.Source = opts.Source
-	}
-
-	info.Pieces = make([]byte, len(hasher.pieces)*20)
-	for i, piece := range hasher.pieces {
-		copy(info.Pieces[i*20:], piece)
-	}
-
-	if len(files) == 1 {
-		// check if the input path is a directory
-		pathInfo, err := os.Stat(path)
+	// Check for tracker size limits and adjust piece length if needed
+	if maxSize, ok := GetTrackerMaxTorrentSize(opts.TrackerURL); ok {
+		// Try creating the torrent with initial piece length
+		t, err := createWithPieceLength(pieceLength)
 		if err != nil {
-			return nil, fmt.Errorf("error checking path: %w", err)
+			return nil, err
 		}
 
-		if pathInfo.IsDir() {
-			// if it's a directory, use the folder structure even for single files
-			info.Files = make([]metainfo.FileInfo, 1)
-			relPath, _ := filepath.Rel(baseDir, files[0].path)
-			pathComponents := strings.Split(relPath, string(filepath.Separator))
-			info.Files[0] = metainfo.FileInfo{
-				Path:   pathComponents,
-				Length: files[0].length,
+		// Check if it exceeds size limit
+		torrentData, err := bencode.Marshal(t.MetaInfo)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling torrent data: %w", err)
+		}
+
+		// If it exceeds limit, try increasing piece length until it fits or we hit max
+		for uint64(len(torrentData)) > maxSize && pieceLength < 24 {
+			if opts.Verbose {
+				display := NewDisplay(NewFormatter(opts.Verbose))
+				display.ShowWarning(fmt.Sprintf("increasing piece length to reduce torrent size (current: %.1f KiB, limit: %.1f KiB)",
+					float64(len(torrentData))/(1<<10), float64(maxSize)/(1<<10)))
 			}
-		} else {
-			// if it's a single file directly, use the simple format
-			info.Length = files[0].length
-		}
-	} else {
-		info.Files = make([]metainfo.FileInfo, len(files))
-		for i, f := range files {
-			relPath, _ := filepath.Rel(baseDir, f.path)
-			pathComponents := strings.Split(relPath, string(filepath.Separator))
-			info.Files[i] = metainfo.FileInfo{
-				Path:   pathComponents,
-				Length: f.length,
+
+			pieceLength++
+			t, err = createWithPieceLength(pieceLength)
+			if err != nil {
+				return nil, err
+			}
+
+			torrentData, err = bencode.Marshal(t.MetaInfo)
+			if err != nil {
+				return nil, fmt.Errorf("error marshaling torrent data: %w", err)
 			}
 		}
+
+		if uint64(len(torrentData)) > maxSize {
+			return nil, fmt.Errorf("unable to create torrent under size limit (%.1f KiB) even with maximum piece length",
+				float64(maxSize)/(1<<10))
+		}
+
+		return t, nil
 	}
 
-	infoBytes, err := bencode.Marshal(info)
-	if err != nil {
-		return nil, fmt.Errorf("error encoding info: %w", err)
-	}
-	mi.InfoBytes = infoBytes
-
-	if len(opts.WebSeeds) > 0 {
-		mi.UrlList = opts.WebSeeds
-	}
-
-	return &Torrent{mi}, nil
+	// No size limit, just create with original piece length
+	return createWithPieceLength(pieceLength)
 }
 
 // Create creates a new torrent file with the given options

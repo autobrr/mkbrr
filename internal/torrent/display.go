@@ -72,11 +72,13 @@ func (d *Display) SetBatch(isBatch bool) {
 }
 
 var (
-	cyan       = color.New(color.FgMagenta, color.Bold).SprintFunc()
-	label      = color.New(color.Bold, color.FgHiWhite).SprintFunc()
-	success    = color.New(color.FgHiGreen).SprintFunc()
+	cyan       = color.New(color.FgCyan).SprintFunc()
+	green      = color.New(color.FgGreen).SprintFunc()
+	yellow     = color.New(color.FgYellow).SprintFunc()
+	success    = color.New(color.FgGreen).SprintFunc()
+	label      = color.New(color.FgCyan).SprintFunc()
+	highlight  = color.New(color.FgHiWhite).SprintFunc()
 	errorColor = color.New(color.FgRed).SprintFunc()
-	highlight  = color.New(color.FgMagenta).SprintFunc()
 	white      = fmt.Sprint
 )
 
@@ -232,4 +234,9 @@ func (f *Formatter) FormatDuration(dur time.Duration) string {
 		return fmt.Sprintf("%dms", dur.Milliseconds())
 	}
 	return humanize.RelTime(time.Now().Add(-dur), time.Now(), "", "")
+}
+
+// ShowWarning displays a warning message
+func (d *Display) ShowWarning(msg string) {
+	fmt.Printf("%s %s\n", yellow("warning:"), msg)
 }
