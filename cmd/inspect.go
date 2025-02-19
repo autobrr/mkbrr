@@ -25,6 +25,7 @@ var inspectCmd = &cobra.Command{
 	RunE:                       runInspect,
 	DisableFlagsInUseLine:      true,
 	SuggestionsMinimumDistance: 1,
+	SilenceUsage:               true,
 }
 
 func init() {

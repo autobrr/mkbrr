@@ -54,6 +54,7 @@ Supports presets for commonly used settings.`,
 	RunE:                       runCreate,
 	DisableFlagsInUseLine:      true,
 	SuggestionsMinimumDistance: 1,
+	SilenceUsage:               true,
 }
 
 func init() {
