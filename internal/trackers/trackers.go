@@ -97,6 +97,21 @@ var trackerConfigs = []TrackerConfig{
 		MaxPieceLength:   24, // max 16 MiB pieces (2^24)
 		UseDefaultRanges: false,
 	},
+	{
+		URLs: []string{
+			"beyond-hd.me",
+		},
+		PieceSizeRanges: []PieceSizeRange{ // their upload form
+			{MaxSize: 4096 << 20, PieceExp: 20},   // 1 MiB for <= 4 GiB
+			{MaxSize: 8192 << 20, PieceExp: 21},   // 2 MiB for 4-8 GiB
+			{MaxSize: 16384 << 20, PieceExp: 21},  // 2 MiB for 8-16 GiB
+			{MaxSize: 73728 << 20, PieceExp: 22},  // 4 MiB for 16-72 GiB
+			{MaxSize: 194560 << 20, PieceExp: 23}, // 8 MiB for 72-190 GiB
+			{MaxSize: ^uint64(0), PieceExp: 23},   // 8 MiB for > 190 GiB
+		},
+		MaxPieceLength:   23, // max 8 MiB pieces (2^23)
+		UseDefaultRanges: false,
+	},
 }
 
 // findTrackerConfig returns the config for a given tracker URL
