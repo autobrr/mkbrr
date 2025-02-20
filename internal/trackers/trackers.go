@@ -28,6 +28,7 @@ var trackerConfigs = []TrackerConfig{
 	{
 		URLs: []string{
 			"hdbits.org",
+			"beyond-hd.me",
 			"superbits.org",
 			"sptracker.cc",
 		},
