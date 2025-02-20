@@ -28,6 +28,8 @@ var trackerConfigs = []TrackerConfig{
 	{
 		URLs: []string{
 			"hdbits.org",
+			"superbits.org",
+			"sptracker.cc",
 		},
 		MaxPieceLength:   24, // max 16 MiB pieces (2^24)
 		UseDefaultRanges: true,
