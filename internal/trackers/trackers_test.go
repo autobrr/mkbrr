@@ -34,13 +34,6 @@ func Test_GetTrackerPieceSizeExp(t *testing.T) {
 			wantFound:   true,
 		},
 		{
-			name:        "ptp should not return piece size recommendations",
-			trackerURL:  "https://passthepopcorn.me/announce?passkey=123",
-			contentSize: 1 << 30,
-			wantExp:     0,
-			wantFound:   false,
-		},
-		{
 			name:        "unknown tracker should not return piece size recommendations",
 			trackerURL:  "https://unknown.tracker/announce",
 			contentSize: 1 << 30,

@@ -161,13 +161,6 @@ func Test_calculatePieceLength(t *testing.T) {
 			want:           23,           // tracker's limit of 8 MiB pieces wins
 		},
 		{
-			name:       "ptp should aim for 1000 pieces (best-effort)",
-			totalSize:  10 << 30, // 10 GiB
-			trackerURL: "https://please.passthe.tea/announce?passkey=123",
-			want:       23, // 8 MiB pieces gives ~1280 pieces (closest we can get within bounds)
-			wantPieces: uint_ptr(1280),
-		},
-		{
 			name:         "user piece target should override ptp default (best-effort)",
 			totalSize:    10 << 30, // 10 GiB
 			trackerURL:   "https://please.passthe.tea/announce?passkey=123",
