@@ -40,7 +40,7 @@ func formatPieceSize(exp uint) string {
 func calculatePieceLength(totalSize int64, maxPieceLength *uint, piecesTarget *uint, trackerURL string, verbose bool) uint {
 	// ensure bounds: 64 KiB (2^16) to 16 MiB (2^24)
 	minExp := uint(16)
-	maxExp := uint(24)
+	maxExp := uint(28)
 
 	// check if tracker has a maximum piece length constraint
 	if trackerURL != "" {
