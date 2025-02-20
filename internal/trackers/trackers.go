@@ -27,11 +27,28 @@ var trackerConfigs = []TrackerConfig{
 	},
 	{
 		URLs: []string{
-			"passthepopcorn.me",
 			"hdbits.org",
 		},
 		MaxPieceLength:   24, // max 16 MiB pieces (2^24)
 		UseDefaultRanges: true,
+	},
+	{
+		URLs: []string{
+			"passthepopcorn.me",
+		}, // https://ptp/upload.php?action=piecesize
+		MaxPieceLength: 24, // max 16 MiB pieces (2^24)
+		PieceSizeRanges: []PieceSizeRange{
+			{MaxSize: 58 << 20, PieceExp: 16},    // 64 KiB for <= 58 MiB
+			{MaxSize: 122 << 20, PieceExp: 17},   // 128 KiB for 58-122 MiB
+			{MaxSize: 213 << 20, PieceExp: 18},   // 256 KiB for 122-213 MiB
+			{MaxSize: 444 << 20, PieceExp: 19},   // 512 KiB for 213-444 MiB
+			{MaxSize: 922 << 20, PieceExp: 20},   // 1 MiB for 444-922 MiB
+			{MaxSize: 3977 << 20, PieceExp: 21},  // 2 MiB for 922 MiB-3.88 GiB
+			{MaxSize: 6861 << 20, PieceExp: 22},  // 4 MiB for 3.88-6.70 GiB
+			{MaxSize: 14234 << 20, PieceExp: 23}, // 8 MiB for 6.70-13.90 GiB
+			{MaxSize: ^uint64(0), PieceExp: 24},  // 16 MiB for > 13.90 GiB
+		},
+		UseDefaultRanges: false,
 	},
 	{
 		URLs: []string{

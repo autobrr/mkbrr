@@ -101,29 +101,36 @@ func calculatePieceLength(totalSize int64, maxPieceLength *uint, piecesTarget *u
 	// ensure minimum of 1 byte for calculation
 	size := max(totalSize, 1)
 
-	// piece length selection based on PTP's magnificent piece size optimization chart
-	// thresholds are chosen at transition points between optimal (green) zones
-	// see: https://ptp/upload.php?action=piecesize
 	var exp uint
 	switch {
-	case size <= 58<<20: // 0 to 58 MiB: 64 KiB pieces  (2^16)
+	case size <= 64<<20: // 0 to 64 MB: 32 KiB pieces (2^15)
+		exp = 15
+	case size <= 128<<20: // 64-128 MB: 64 KiB pieces (2^16)
 		exp = 16
-	case size <= 122<<20: // 59 to 122 MiB: 128 KiB pieces (2^17)
+	case size <= 256<<20: // 128-256 MB: 128 KiB pieces (2^17)
 		exp = 17
-	case size <= 213<<20: // 123 to 213 MiB: 256 KiB pieces (2^18)
+	case size <= 512<<20: // 256-512 MB: 256 KiB pieces (2^18)
 		exp = 18
-	case size <= 444<<20: // 214 to 444 MiB: 512 KiB pieces (2^19)
+	case size <= 1024<<20: // 512 MB-1 GB: 512 KiB pieces (2^19)
 		exp = 19
-	case size <= 922<<20: // 445 to 922 MiB: 1 MiB pieces (2^20)
+	case size <= 2048<<20: // 1-2 GB: 1 MiB pieces (2^20)
 		exp = 20
-	case size <= 3977<<20: // 923 MiB to 3.88 GiB: 2 MiB pieces (2^21)
+	case size <= 4096<<20: // 2-4 GB: 2 MiB pieces (2^21)
 		exp = 21
-	case size <= 6861<<20: // 3.89 to 6.70 GiB: 4 MiB pieces (2^22)
+	case size <= 8192<<20: // 4-8 GB: 4 MiB pieces (2^22)
 		exp = 22
-	case size <= 14234<<20: // 6.71 to 13.90 GiB: 8 MiB pieces (2^23)
+	case size <= 16384<<20: // 8-16 GB: 8 MiB pieces (2^23)
 		exp = 23
-	default: // above 13.90 GiB: 16 MiB pieces (2^24)
+	case size <= 32768<<20: // 16-32 GB: 16 MiB pieces (2^24)
 		exp = 24
+	case size <= 65536<<20: // 32-64 GB: 32 MiB pieces (2^25)
+		exp = 25
+	case size <= 131072<<20: // 64-128 GB: 64 MiB pieces (2^26)
+		exp = 26
+	case size <= 262144<<20: // 128-256 GB: 128 MiB pieces (2^27)
+		exp = 27
+	default: // above 256 GB: 256 MiB pieces (2^28)
+		exp = 28
 	}
 
 	// ensure we stay within bounds
@@ -275,7 +282,7 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 	if opts.PieceLengthExp == nil {
 		if opts.MaxPieceLength != nil {
 			// Get tracker's max piece length if available
-			maxExp := uint(24) // default max 16 MiB
+			maxExp := uint(28) // default max 256 MiB
 			if trackerMaxExp, ok := trackers.GetTrackerMaxPieceLength(opts.TrackerURL); ok {
 				maxExp = trackerMaxExp
 			}
@@ -290,14 +297,14 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 		pieceLength = *opts.PieceLengthExp
 
 		// Get tracker's max piece length if available
-		maxExp := uint(24) // default max 16 MiB
+		maxExp := uint(28) // default max 256 MiB
 		if trackerMaxExp, ok := trackers.GetTrackerMaxPieceLength(opts.TrackerURL); ok {
 			maxExp = trackerMaxExp
 		}
 
 		if pieceLength < 14 || pieceLength > maxExp {
-			return nil, fmt.Errorf("piece length exponent must be between 14 (16 KiB) and %d (%d MiB), got: %d",
-				maxExp, 1<<(maxExp-20), pieceLength)
+			return nil, fmt.Errorf("piece length exponent must be between 14 (16 KiB) and %d (%d MiB) for %s, got: %d",
+				maxExp, 1<<(maxExp-20), opts.TrackerURL, pieceLength)
 		}
 
 		// If we have a tracker with specific ranges, show that we're using them and check if piece length matches
