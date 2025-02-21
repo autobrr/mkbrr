@@ -34,9 +34,8 @@ func formatPieceSize(exp uint) string {
 // calculatePieceLength calculates the optimal piece length based on total size.
 // The min/max bounds (2^16 to 2^24) take precedence over other constraints
 func calculatePieceLength(totalSize int64, maxPieceLength *uint, trackerURL string, verbose bool) uint {
-	// ensure bounds: 64 KiB (2^16) to 32 MiB (2^25) for automatic calculation
 	minExp := uint(16)
-	maxExp := uint(25) // default max 32 MiB for automatic calculation
+	maxExp := uint(24) // default max 16 MiB for automatic calculation, can be overridden up to 2^27
 
 	// check if tracker has a maximum piece length constraint
 	if trackerURL != "" {
@@ -108,9 +107,9 @@ func calculatePieceLength(totalSize int64, maxPieceLength *uint, trackerURL stri
 		exp = 27
 	}
 
-	// if no manual piece length was specified, cap at 2^25
-	if maxPieceLength == nil && exp > 25 {
-		exp = 25
+	// if no manual piece length was specified, cap at 2^24
+	if maxPieceLength == nil && exp > 24 {
+		exp = 24
 	}
 
 	// ensure we stay within bounds

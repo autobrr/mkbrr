@@ -36,9 +36,9 @@
         },
         "piece_length": {
           "type": "integer",
-          "description": "Piece length as 2^n bytes (14-24)",
-          "minimum": 14,
-          "maximum": 24
+          "description": "Piece length as 2^n bytes (16-27)",
+          "minimum": 16,
+          "maximum": 27
         },
         "comment": {
           "type": "string",
@@ -83,9 +83,9 @@
           },
           "piece_length": {
             "type": "integer",
-            "description": "Piece length as 2^n bytes (14-24)",
-            "minimum": 14,
-            "maximum": 24
+            "description": "Piece length as 2^n bytes (16-27)",
+            "minimum": 16,
+            "maximum": 27
           },
           "comment": {
             "type": "string",
@@ -101,9 +101,9 @@
           },
           "max_piece_length": {
             "type": "integer",
-            "description": "Maximum piece length as 2^n bytes (14-24)",
-            "minimum": 14,
-            "maximum": 24
+            "description": "Maximum piece length as 2^n bytes (16-27)",
+            "minimum": 16,
+            "maximum": 27
           }
         }
       }

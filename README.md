@@ -204,7 +204,7 @@ Single mode flags:
 > To create a public torrent, use `--private=false` or `-p=false`. Using just `-p` will set private to true.
 
 - `-c, --comment <text>`: Add comment
-- `-l, --piece-length <n>`: Set piece length to 2^n bytes (16-27). Note: Automatic calculation is capped at 2^25 (32 MiB) unless using a tracker with specific requirements. Some trackers (like HDBits, BeyondHD, PTP) have their own piece size requirements which will be automatically enforced. If this flag is set, it will always override any value specified with `-m, --max-piece-length`.
+- `-l, --piece-length <n>`: Set piece length to 2^n bytes (16-27). Note: Automatic calculation is capped at 2^24 (16 MiB) unless using a tracker with specific requirements. Some trackers (like HDBits, BeyondHD, PTP) have their own piece size requirements which will be automatically enforced. If this flag is set, it will always override any value specified with `-m, --max-piece-length`.
 - `-m, --max-piece-length <n>`: Limit maximum piece length to 2^n bytes (16-27). Note: Some trackers enforce their own maximum piece lengths which will take precedence.
 - `-o, --output <path>`: Set output path (default: <name>.torrent)
 - `-s, --source <text>`: Add source string
@@ -364,8 +364,8 @@ Note: Changes that would require access to the source files (like modifying piec
 mkbrr includes built-in support for various private trackers and will automatically enforce their specific requirements:
 
 #### Piece Length Limits
-- HDBits, BeyondHD, SuperBits: Max 16 MiB pieces (2^24)
-- Empornium, MoreThanTV: Max 8 MiB pieces (2^23)
+- HDB, BHD, SuperBits: Max 16 MiB pieces (2^24)
+- Emp, MTV: Max 8 MiB pieces (2^23)
 - GazelleGames: Max 64 MiB pieces (2^26)
 
 #### Custom Piece Ranges

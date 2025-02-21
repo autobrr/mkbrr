@@ -78,8 +78,8 @@ func init() {
 	// piece length flag allows setting a fixed piece size of 2^n bytes
 	// if not specified, piece length is calculated automatically based on total size
 	var defaultPieceLength, defaultMaxPieceLength uint
-	createCmd.Flags().UintVarP(&defaultPieceLength, "piece-length", "l", 0, "set piece length to 2^n bytes (14-24, automatic if not specified)")
-	createCmd.Flags().UintVarP(&defaultMaxPieceLength, "max-piece-length", "m", 0, "limit maximum piece length to 2^n bytes (14-24, unlimited if not specified)")
+	createCmd.Flags().UintVarP(&defaultPieceLength, "piece-length", "l", 0, "set piece length to 2^n bytes (16-27, automatic if not specified)")
+	createCmd.Flags().UintVarP(&defaultMaxPieceLength, "max-piece-length", "m", 0, "limit maximum piece length to 2^n bytes (16-27, unlimited if not specified)")
 	createCmd.PreRun = func(cmd *cobra.Command, args []string) {
 		if cmd.Flags().Changed("piece-length") {
 			pieceLengthExp = &defaultPieceLength
