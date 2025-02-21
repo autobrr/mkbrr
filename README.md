@@ -115,7 +115,7 @@ jobs:
     comment: "Ubuntu 22.04.3 LTS Desktop AMD64"
     private: false
     # piece_length is automatically optimized based on file size:
-    # piece_length: 22  # manual override if needed (2^n: 14-24)
+    # piece_length: 22  # manual override if needed (2^n: 16-27)
     # max_piece_length: 23  # limits the automatically calculated maximum piece length
 
   - output: release.torrent
@@ -169,7 +169,7 @@ presets:
     trackers:
       - "https://please.passthe.tea/announce"
     # piece_length is automatically optimized based on file size
-    # piece_length: 20  # manual override if needed (2^n: 14-24)
+    # piece_length: 20  # manual override if needed (2^n: 16-27)
     # max_piece_length: 23  # limits the automatically calculated maximum piece length
 
   # Public tracker preset
@@ -180,7 +180,7 @@ presets:
       - "udp://open.tracker.cl:1337/announce"
       - "udp://9.rarbg.com:2810/announce"
     # piece_length is automatically optimized based on file size
-    # piece_length: 22  # manual override if needed (2^n: 14-24)
+    # piece_length: 22  # manual override if needed (2^n: 16-27)
     # max_piece_length: 23  # limits the automatically calculated maximum piece length
 ```
 
@@ -203,8 +203,8 @@ Single mode flags:
 > To create a public torrent, use `--private=false` or `-p=false`. Using just `-p` will set private to true.
 
 - `-c, --comment <text>`: Add comment
-- `-l, --piece-length <n>`: Set piece length to 2^n bytes (14-24, automatic if not specified). Note: if this flag is set, it will always override any value specified with `-m, --max-piece-length`.
-- `-m, --max-piece-length <n>`: Limit maximum piece length to 2^n bytes (14-24)
+- `-l, --piece-length <n>`: Set piece length to 2^n bytes (16-27). Note: Automatic calculation is capped at 2^25 (32 MiB) unless using a tracker with specific requirements. If this flag is set, it will always override any value specified with `-m, --max-piece-length`.
+- `-m, --max-piece-length <n>`: Limit maximum piece length to 2^n bytes (16-27)
 - `-o, --output <path>`: Set output path (default: <name>.torrent)
 - `-s, --source <text>`: Add source string
 - `-d, --no-date`: Don't write creation date
@@ -227,7 +227,7 @@ jobs:       # List of torrent creation jobs
     webseeds:              # Optional: List of webseed URLs
       - string
     private: bool          # Optional: Make torrent private (default: true)
-    piece_length: int      # Optional: Piece length exponent (14-24)
+    piece_length: int      # Optional: Piece length exponent (16-27)
     max_piece_length: int  # Optional: Limits the automatically calculated maximum piece length
     comment: string        # Optional: Torrent comment
     source: string         # Optional: Source tag
@@ -257,7 +257,7 @@ presets:      # Map of preset names to their configurations
     webseeds:              # Optional: List of webseed URLs (overrides default)
       - string
     private: bool          # Optional: Make torrent private (overrides default)
-    piece_length: int      # Optional: Piece length exponent (14-24)
+    piece_length: int      # Optional: Piece length exponent (16-27)
     max_piece_length: int  # Optional: Limits the automatically calculated maximum piece length
     comment: string        # Optional: Torrent comment (overrides default)
     source: string         # Optional: Source tag (overrides default)
@@ -283,7 +283,7 @@ presets:
     trackers:
       - "https://please.passthe.tea/announce"
     # piece_length is automatically optimized based on file size
-    # piece_length: 20  # manual override if needed (2^n: 14-24)
+    # piece_length: 20  # manual override if needed (2^n: 16-27)
     # max_piece_length: 23  # limits the automatically calculated maximum piece length
 
   # Public tracker preset
@@ -294,7 +294,7 @@ presets:
       - "udp://open.tracker.cl:1337/announce"
       - "udp://9.rarbg.com:2810/announce"
     # piece_length is automatically optimized based on file size
-    # piece_length: 22  # manual override if needed (2^n: 14-24)
+    # piece_length: 22  # manual override if needed (2^n: 16-27)
     # max_piece_length: 23  # limits the automatically calculated maximum piece length
 ```
 
