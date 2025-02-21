@@ -69,9 +69,9 @@ func Test_calculatePieceLength(t *testing.T) {
 			want:      24, // 16 MiB pieces
 		},
 		{
-			name:      "256.1GB file should use 128MiB pieces",
+			name:      "256.1GB file should use 32MiB pieces by default",
 			totalSize: 256100 << 20, // 256.1 GB
-			want:      27,           // 128 MiB pieces
+			want:      25,           // 32 MiB pieces
 		},
 		{
 			name:       "emp should respect max piece length of 2^23",
