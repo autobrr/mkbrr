@@ -54,7 +54,7 @@ jobs:
     trackers:
       - udp://tracker.example.com:1337/announce
     private: true
-    piece_length: 14
+    piece_length: 16
   - output: %s
     path: %s
     name: "Test Directory"

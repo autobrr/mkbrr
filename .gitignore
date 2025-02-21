@@ -9,3 +9,4 @@ test.sh
 .idea
 *.png
 *.pprof
+test_ant/*

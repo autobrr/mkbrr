@@ -10,6 +10,8 @@ import (
 	"runtime"
 	"sync"
 	"testing"
+
+	"github.com/autobrr/mkbrr/internal/trackers"
 )
 
 // mockDisplay implements Displayer interface for testing
@@ -362,5 +364,130 @@ func TestPieceHasher_CorruptedData(t *testing.T) {
 
 	if bytes.Equal(hasher.pieces[0], expectedHashes[0]) {
 		t.Errorf("expected hash mismatch due to corrupted data, but hashes matched")
+	}
+}
+
+// TestTorrentFileSize verifies that created torrent files respect tracker size limits
+func TestTorrentFileSize(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "torrent_size_test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	tests := []struct {
+		name       string
+		trackerURL string
+		fileSize   int64
+		numFiles   int
+		pieceLen   uint
+		wantError  bool
+	}{
+		{
+			name:       "small torrent for ant should be under 250 KiB",
+			trackerURL: "https://anthelion.me/announce",
+			fileSize:   100 << 20, // 100 MB (down from 1 GB)
+			numFiles:   1,
+			pieceLen:   22, // 4 MiB pieces to keep torrent small
+			wantError:  false,
+		},
+		{
+			name:       "large torrent for ant should adjust piece length",
+			trackerURL: "https://anthelion.me/announce",
+			fileSize:   1 << 30, // 1 GB (down from 10 GB)
+			numFiles:   20,      // 20 files (down from 100)
+			pieceLen:   16,      // start with 64 KiB pieces
+			wantError:  false,   // should succeed by adjusting piece length
+		},
+		{
+			name:       "small torrent for ggn should be under 1 MB",
+			trackerURL: "https://gazellegames.net/announce",
+			fileSize:   100 << 20, // 100 MB (down from 1 GB)
+			numFiles:   1,
+			pieceLen:   22, // 4 MiB pieces to keep torrent small
+			wantError:  false,
+		},
+		{
+			name:       "large torrent for ggn should adjust piece length",
+			trackerURL: "https://gazellegames.net/announce",
+			fileSize:   5 << 30, // 5 GB (down from 50 GB)
+			numFiles:   50,      // 50 files (down from 500)
+			pieceLen:   16,      // start with 64 KiB pieces
+			wantError:  false,   // should succeed by adjusting piece length
+		},
+		{
+			name:       "large torrent for ptp should be fine",
+			trackerURL: "https://passthepopcorn.me/announce",
+			fileSize:   1 << 30, // 1 GB (down from 10 GB)
+			numFiles:   20,      // 20 files (down from 100)
+			pieceLen:   16,      // even with small pieces, PTP has no limit
+			wantError:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create test files
+			testPath := filepath.Join(tempDir, tt.name)
+			if err := os.MkdirAll(testPath, 0755); err != nil {
+				t.Fatalf("failed to create test dir: %v", err)
+			}
+
+			// Create the test files (sparse)
+			for i := 0; i < tt.numFiles; i++ {
+				filePath := filepath.Join(testPath, fmt.Sprintf("file_%d", i))
+				f, err := os.Create(filePath)
+				if err != nil {
+					t.Fatalf("failed to create file: %v", err)
+				}
+				if err := f.Truncate(tt.fileSize / int64(tt.numFiles)); err != nil {
+					f.Close()
+					t.Fatalf("failed to truncate file: %v", err)
+				}
+				f.Close()
+			}
+
+			// Create torrent
+			opts := CreateTorrentOptions{
+				Path:           testPath,
+				TrackerURL:     tt.trackerURL,
+				PieceLengthExp: &tt.pieceLen,
+				IsPrivate:      true,
+				Verbose:        true,
+			}
+
+			torrentPath := filepath.Join(tempDir, tt.name+".torrent")
+			opts.OutputPath = torrentPath
+
+			_, err := Create(opts)
+			if tt.wantError {
+				if err == nil {
+					// Check actual file size if creation succeeded
+					info, err := os.Stat(torrentPath)
+					if err != nil {
+						t.Fatalf("failed to stat torrent file: %v", err)
+					}
+					t.Errorf("expected error for large torrent, got success. Torrent size: %d bytes", info.Size())
+				}
+			} else {
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				} else {
+					// Verify the torrent file size is under the tracker's limit
+					info, err := os.Stat(torrentPath)
+					if err != nil {
+						t.Fatalf("failed to stat torrent file: %v", err)
+					}
+
+					if maxSize, ok := trackers.GetTrackerMaxTorrentSize(tt.trackerURL); ok {
+						if uint64(info.Size()) > maxSize {
+							t.Errorf("torrent file size %d exceeds tracker limit %d", info.Size(), maxSize)
+						} else {
+							t.Logf("successfully created torrent under size limit: %d bytes (limit: %d)", info.Size(), maxSize)
+						}
+					}
+				}
+			}
+		})
 	}
 }
