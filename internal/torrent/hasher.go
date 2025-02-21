@@ -1,7 +1,6 @@
 package torrent
 
 import (
-	"crypto/sha1"
 	"errors"
 	"fmt"
 	"io"
@@ -10,6 +9,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	hwsha1 "github.com/autobrr/mkbrr/internal/sha1"
 )
 
 type pieceHasher struct {
@@ -54,22 +55,19 @@ func (h *pieceHasher) optimizeForWorkload() (int, int) {
 		if totalSize < 1<<20 {
 			readSize = 64 << 10
 			numWorkers = 1
-		} else if totalSize < 1<<30 {
-			readSize = 1 << 20
-			numWorkers = 2
 		} else {
 			readSize = 4 << 20
-			numWorkers = 4
+			numWorkers = runtime.NumCPU()
 		}
 	case avgFileSize < 1<<20:
 		readSize = 256 << 10
-		numWorkers = int(minInt64(8, int64(runtime.NumCPU())))
+		numWorkers = runtime.NumCPU() - 1
 	case avgFileSize < 10<<20:
 		readSize = 1 << 20
-		numWorkers = int(minInt64(4, int64(runtime.NumCPU())))
+		numWorkers = runtime.NumCPU() - 1
 	default:
 		readSize = 4 << 20
-		numWorkers = int(minInt64(2, int64(runtime.NumCPU())))
+		numWorkers = runtime.NumCPU() - 1
 	}
 
 	// ensure we don't create more workers than pieces to process
@@ -100,7 +98,8 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 	// initialize buffer pool
 	h.bufferPool = &sync.Pool{
 		New: func() interface{} {
-			return make([]byte, h.readSize)
+			buf := make([]byte, h.readSize)
+			return buf
 		},
 	}
 
@@ -167,10 +166,9 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *uint64) error {
 	// reuse buffer from pool to minimize allocations
 	buf := h.bufferPool.Get().([]byte)
-	bufPtr := &buf
-	defer h.bufferPool.Put(bufPtr)
+	defer h.bufferPool.Put(buf)
 
-	hasher := sha1.New()
+	hasher := hwsha1.New()
 	// track open file handles to avoid reopening the same file
 	readers := make(map[string]*fileReader)
 	defer func() {
@@ -271,12 +269,19 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 }
 
 func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Displayer) *pieceHasher {
+	bufferPool := &sync.Pool{
+		New: func() interface{} {
+			buf := make([]byte, pieceLen)
+			return buf
+		},
+	}
 	return &pieceHasher{
-		pieces:    make([][]byte, numPieces),
-		pieceLen:  pieceLen,
-		numPieces: numPieces,
-		files:     files,
-		display:   display,
+		pieces:     make([][]byte, numPieces),
+		pieceLen:   pieceLen,
+		numPieces:  numPieces,
+		files:      files,
+		display:    display,
+		bufferPool: bufferPool,
 	}
 }
 
