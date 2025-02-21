@@ -72,7 +72,7 @@ func (d *Display) SetBatch(isBatch bool) {
 }
 
 var (
-	cyan       = color.New(color.FgCyan).SprintFunc()
+	magenta    = color.New(color.FgMagenta).SprintFunc()
 	green      = color.New(color.FgGreen).SprintFunc()
 	yellow     = color.New(color.FgYellow).SprintFunc()
 	success    = color.New(color.FgGreen).SprintFunc()
@@ -91,7 +91,7 @@ func (d *Display) ShowError(msg string) {
 }
 
 func (d *Display) ShowTorrentInfo(t *Torrent, info *metainfo.Info) {
-	fmt.Printf("\n%s\n", cyan("Torrent info:"))
+	fmt.Printf("\n%s\n", magenta("Torrent info:"))
 	fmt.Printf("  %-13s %s\n", label("Name:"), info.Name)
 	fmt.Printf("  %-13s %s\n", label("Hash:"), t.HashInfoBytes())
 	fmt.Printf("  %-13s %s\n", label("Size:"), humanize.IBytes(uint64(info.TotalLength())))
@@ -143,7 +143,7 @@ func (d *Display) ShowTorrentInfo(t *Torrent, info *metainfo.Info) {
 }
 
 func (d *Display) ShowFileTree(info *metainfo.Info) {
-	fmt.Printf("\n%s\n", cyan("File tree:"))
+	fmt.Printf("\n%s\n", magenta("File tree:"))
 	fmt.Printf("%s %s\n", "└─", success(info.Name))
 	for i, file := range info.Files {
 		prefix := "  ├─"
@@ -162,17 +162,17 @@ func (d *Display) ShowOutputPathWithTime(path string, duration time.Duration) {
 		fmt.Printf("\n%s %s (%s)\n",
 			success("Wrote"),
 			white(path),
-			cyan(fmt.Sprintf("elapsed %dms", duration.Milliseconds())))
+			magenta(fmt.Sprintf("elapsed %dms", duration.Milliseconds())))
 	} else {
 		fmt.Printf("\n%s %s (%s)\n",
 			success("Wrote"),
 			white(path),
-			cyan(fmt.Sprintf("elapsed %.2fs", duration.Seconds())))
+			magenta(fmt.Sprintf("elapsed %.2fs", duration.Seconds())))
 	}
 }
 
 func (d *Display) ShowBatchResults(results []BatchResult, duration time.Duration) {
-	fmt.Printf("\n%s\n", cyan("Batch processing results:"))
+	fmt.Printf("\n%s\n", magenta("Batch processing results:"))
 
 	successful := 0
 	failed := 0
@@ -196,7 +196,7 @@ func (d *Display) ShowBatchResults(results []BatchResult, duration time.Duration
 	fmt.Printf("  %-15s %s\n", label("Processing time:"), d.formatter.FormatDuration(duration))
 
 	if d.formatter.verbose {
-		fmt.Printf("\n%s\n", cyan("Detailed results:"))
+		fmt.Printf("\n%s\n", magenta("Detailed results:"))
 		for i, result := range results {
 			fmt.Printf("\n%s %d:\n", label("Job"), i+1)
 			if result.Success {

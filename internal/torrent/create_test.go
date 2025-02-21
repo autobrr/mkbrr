@@ -109,8 +109,3 @@ func Test_calculatePieceLength(t *testing.T) {
 		})
 	}
 }
-
-// uint_ptr returns a pointer to the given uint
-func uint_ptr(v uint) *uint {
-	return &v
-}
