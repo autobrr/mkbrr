@@ -2,7 +2,6 @@ package torrent
 
 import (
 	"fmt"
-	"math"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -32,12 +31,9 @@ func formatPieceSize(exp uint) string {
 	return fmt.Sprintf("%d KiB", size)
 }
 
-// calculatePieceLength calculates the optimal piece length based on total size and target pieces.
-// For piece count targets (whether from tracker or user), this is a best-effort approach:
-// - The actual piece count may differ due to power-of-2 piece length constraints
-// - We aim to get as close as possible while staying within min/max piece length bounds
-// - The min/max bounds (2^16 to 2^24) take precedence over the target piece count
-func calculatePieceLength(totalSize int64, maxPieceLength *uint, piecesTarget *uint, trackerURL string, verbose bool) uint {
+// calculatePieceLength calculates the optimal piece length based on total size.
+// The min/max bounds (2^16 to 2^24) take precedence over other constraints
+func calculatePieceLength(totalSize int64, maxPieceLength *uint, trackerURL string, verbose bool) uint {
 	// ensure bounds: 64 KiB (2^16) to 16 MiB (2^24)
 	minExp := uint(16)
 	maxExp := uint(28)
@@ -76,25 +72,6 @@ func calculatePieceLength(totalSize int64, maxPieceLength *uint, piecesTarget *u
 		} else {
 			maxExp = *maxPieceLength
 		}
-	}
-
-	// if user specified a target, use that instead of tracker's target
-	// note: this is a best-effort target - actual piece count may differ
-	if piecesTarget != nil && *piecesTarget > 0 {
-		// calculate piece length that would give us the target number of pieces
-		targetPieceLength := float64(totalSize) / float64(*piecesTarget)
-		// round to nearest power of 2 instead of always rounding up
-		exp := uint(math.Round(math.Log2(targetPieceLength)))
-
-		// ensure we stay within bounds - bounds take precedence over target
-		if exp < minExp {
-			exp = minExp
-		}
-		if exp > maxExp {
-			exp = maxExp
-		}
-
-		return exp
 	}
 
 	// default calculation for automatic piece length
@@ -292,7 +269,7 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 					maxExp, 1<<(maxExp-20), *opts.MaxPieceLength)
 			}
 		}
-		pieceLength = calculatePieceLength(totalSize, opts.MaxPieceLength, nil, opts.TrackerURL, opts.Verbose)
+		pieceLength = calculatePieceLength(totalSize, opts.MaxPieceLength, opts.TrackerURL, opts.Verbose)
 	} else {
 		pieceLength = *opts.PieceLengthExp
 

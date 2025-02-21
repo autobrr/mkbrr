@@ -40,11 +40,6 @@
           "minimum": 14,
           "maximum": 24
         },
-        "pieces_target": {
-          "type": "integer",
-          "description": "Target number of pieces (around 1000 is common)",
-          "minimum": 1
-        },
         "comment": {
           "type": "string",
           "description": "Torrent comment"
@@ -91,11 +86,6 @@
             "description": "Piece length as 2^n bytes (14-24)",
             "minimum": 14,
             "maximum": 24
-          },
-          "pieces_target": {
-            "type": "integer",
-            "description": "Target number of pieces (around 1000 is common)",
-            "minimum": 1
           },
           "comment": {
             "type": "string",

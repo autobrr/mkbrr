@@ -18,7 +18,6 @@ var (
 	comment           string
 	pieceLengthExp    *uint // for 2^n piece length, nil means automatic
 	maxPieceLengthExp *uint // for maximum 2^n piece length, nil means no limit
-	piecesTarget      *uint // target number of pieces, nil means automatic
 	outputPath        string
 	webSeeds          []string
 	noDate            bool

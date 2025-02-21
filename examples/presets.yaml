@@ -21,7 +21,6 @@ default:
   # 1GB - 16GB files: 4MB pieces (2^22)
   # > 16GB files: 16MB pieces (2^24)
   # piece_length: 22                           # Manual override if needed (2^n: 14-24)
-  # pieces_target: 1000                        # Target number of pieces (around 1000 is common)
 
 presets:
   # PTP preset
@@ -30,7 +29,6 @@ presets:
     private: true
     trackers:
       - "https://please.passthe.tea/announce"
-    pieces_target: 1000  # target ~1000 pieces as recommended by many trackers
 
   # Public tracker preset with all options shown
   public:
@@ -51,4 +49,3 @@ presets:
     # 1GB - 16GB files: 4MB pieces (2^22)
     # > 16GB files: 16MB pieces (2^24)
     # piece_length: 22                           # Manual override if needed (2^n: 14-24)
-    # pieces_target: 1000                        # Target number of pieces (around 1000 is common)
