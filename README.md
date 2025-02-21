@@ -28,6 +28,7 @@ mkbrr is a command-line tool to create and inspect torrent files. Fast, single b
     - [Preset Configuration Format](#preset-configuration-format)
   - [Inspect a Torrent](#inspect-a-torrent)
   - [Modify a Torrent](#modify-a-torrent)
+  - [Tracker-Specific Requirements](#tracker-specific-requirements)
   - [Version Information](#version-information)
   - [Update](#update)
 - [Performance](#performance)
@@ -115,7 +116,7 @@ jobs:
     comment: "Ubuntu 22.04.3 LTS Desktop AMD64"
     private: false
     # piece_length is automatically optimized based on file size:
-    # piece_length: 22  # manual override if needed (2^n: 14-24)
+    # piece_length: 22  # manual override if needed (2^n: 16-27)
     # max_piece_length: 23  # limits the automatically calculated maximum piece length
 
   - output: release.torrent
@@ -169,7 +170,7 @@ presets:
     trackers:
       - "https://please.passthe.tea/announce"
     # piece_length is automatically optimized based on file size
-    # piece_length: 20  # manual override if needed (2^n: 14-24)
+    # piece_length: 20  # manual override if needed (2^n: 16-27)
     # max_piece_length: 23  # limits the automatically calculated maximum piece length
 
   # Public tracker preset
@@ -180,7 +181,7 @@ presets:
       - "udp://open.tracker.cl:1337/announce"
       - "udp://9.rarbg.com:2810/announce"
     # piece_length is automatically optimized based on file size
-    # piece_length: 22  # manual override if needed (2^n: 14-24)
+    # piece_length: 22  # manual override if needed (2^n: 16-27)
     # max_piece_length: 23  # limits the automatically calculated maximum piece length
 ```
 
@@ -199,12 +200,12 @@ Single mode flags:
 - `-w, --web-seed <url>`: Add web seed URLs (can be specified multiple times)
 - `-p, --private`: Make torrent private (default: true)
 
-  > [!NOTE]
-  > To create a public torrent, use `--private=false` or `-p=false`. Using just `-p` will set private to true.
+> [!NOTE]
+> To create a public torrent, use `--private=false` or `-p=false`. Using just `-p` will set private to true.
 
 - `-c, --comment <text>`: Add comment
-- `-l, --piece-length <n>`: Set piece length to 2^n bytes (14-24, automatic if not specified). Note: if this flag is set, it will always override any value specified with `-m, --max-piece-length`.
-- `-m, --max-piece-length <n>`: Limit maximum piece length to 2^n bytes (14-24)
+- `-l, --piece-length <n>`: Set piece length to 2^n bytes (16-27). Note: Automatic calculation is capped at 2^24 (16 MiB) unless using a tracker with specific requirements. Some trackers (like HDBits, BeyondHD, PTP) have their own piece size requirements which will be automatically enforced. If this flag is set, it will always override any value specified with `-m, --max-piece-length`.
+- `-m, --max-piece-length <n>`: Limit maximum piece length to 2^n bytes (16-27). Note: Some trackers enforce their own maximum piece lengths which will take precedence.
 - `-o, --output <path>`: Set output path (default: <name>.torrent)
 - `-s, --source <text>`: Add source string
 - `-d, --no-date`: Don't write creation date
@@ -227,8 +228,8 @@ jobs:       # List of torrent creation jobs
     webseeds:              # Optional: List of webseed URLs
       - string
     private: bool          # Optional: Make torrent private (default: true)
-    piece_length: int      # Optional: Piece length exponent (14-24)
-    max_piece_length: int  # Optional: Limits the automatically calculated maximum piece length
+    piece_length: int      # Optional: Piece length exponent (16-27). Note: Some trackers enforce specific piece size requirements
+    max_piece_length: int  # Optional: Limits the automatically calculated maximum piece length. Note: Some trackers enforce their own limits
     comment: string        # Optional: Torrent comment
     source: string         # Optional: Source tag
     no_date: bool          # Optional: Don't write creation date (default: false)
@@ -257,9 +258,9 @@ presets:      # Map of preset names to their configurations
     webseeds:              # Optional: List of webseed URLs (overrides default)
       - string
     private: bool          # Optional: Make torrent private (overrides default)
-    piece_length: int      # Optional: Piece length exponent (14-24)
-    max_piece_length: int  # Optional: Limits the automatically calculated maximum piece length
-    comment: string        # Optional: Torrent comment (overrides default)
+    piece_length: int      # Optional: Piece length exponent (16-27). Note: Some trackers enforce specific piece size requirements
+    max_piece_length: int  # Optional: Limits the automatically calculated maximum piece length. Note: Some trackers enforce their own limits
+    comment: string        # Optional: Torrent comment
     source: string         # Optional: Source tag (overrides default)
     no_date: bool          # Optional: Don't write creation date (overrides default)
 ```
@@ -283,7 +284,7 @@ presets:
     trackers:
       - "https://please.passthe.tea/announce"
     # piece_length is automatically optimized based on file size
-    # piece_length: 20  # manual override if needed (2^n: 14-24)
+    # piece_length: 20  # manual override if needed (2^n: 16-27)
     # max_piece_length: 23  # limits the automatically calculated maximum piece length
 
   # Public tracker preset
@@ -294,7 +295,7 @@ presets:
       - "udp://open.tracker.cl:1337/announce"
       - "udp://9.rarbg.com:2810/announce"
     # piece_length is automatically optimized based on file size
-    # piece_length: 22  # manual override if needed (2^n: 14-24)
+    # piece_length: 22  # manual override if needed (2^n: 16-27)
     # max_piece_length: 23  # limits the automatically calculated maximum piece length
 ```
 
@@ -357,6 +358,25 @@ If you don't want to use presets, you can modify individual metadata fields with
 - `-d, --no-date`: don't update creation date
 
 Note: Changes that would require access to the source files (like modifying piece length) are not supported. If you need to change these parameters, please create a new torrent instead.
+
+### Tracker-Specific Requirements
+
+mkbrr includes built-in support for various private trackers and will automatically enforce their specific requirements:
+
+#### Piece Length Limits
+- HDB, BHD, SuperBits: Max 16 MiB pieces (2^24)
+- Emp, MTV: Max 8 MiB pieces (2^23)
+- GazelleGames: Max 64 MiB pieces (2^26)
+
+#### Custom Piece Ranges
+Some trackers (like PTP, BTN, GGn, Norbits) have specific piece size ranges based on content size. These ranges are automatically applied when creating torrents for these trackers.
+
+#### Torrent Size Limits
+Some trackers enforce maximum .torrent file sizes:
+- Anthelion: 250 KiB
+- GazelleGames: 1 MB
+
+When creating torrents for these trackers, mkbrr will automatically adjust piece sizes if needed to stay within these limits.
 
 ### Version Information
 
