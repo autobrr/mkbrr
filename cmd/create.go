@@ -94,7 +94,7 @@ func init() {
 	createCmd.Flags().BoolVarP(&noDate, "no-date", "d", false, "don't write creation date")
 	createCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "be verbose")
 
-	createCmd.Flags().String("dev-cpuprofile", "", "write cpu profile to file (development flag)")
+	createCmd.Flags().String("cpuprofile", "", "write cpu profile to file (development flag)")
 
 	createCmd.SetUsageTemplate(`Usage:
   {{.CommandPath}} /path/to/content [flags]

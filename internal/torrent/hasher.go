@@ -46,30 +46,31 @@ func (h *pieceHasher) optimizeForWorkload() (int, int) {
 
 	var readSize, numWorkers int
 
-	// adjust buffer size and worker count based on file characteristics:
-	// - smaller buffers and fewer workers for small files
-	// - larger buffers and more workers for large files
+	// optimize buffer size and worker count based on file characteristics
 	switch {
 	case len(h.files) == 1:
 		if totalSize < 1<<20 {
-			readSize = 64 << 10
+			readSize = 64 << 10 // 64 KiB for very small files
 			numWorkers = 1
-		} else if totalSize < 1<<30 {
-			readSize = 1 << 20
-			numWorkers = 2
+		} else if totalSize < 1<<30 { // < 1 GiB
+			readSize = 4 << 20 // 4 MiB
+			numWorkers = runtime.NumCPU()
 		} else {
-			readSize = 4 << 20
-			numWorkers = 4
+			readSize = 8 << 20                // 8 MiB for large files
+			numWorkers = runtime.NumCPU() * 2 // over-subscription for better I/O utilization
 		}
-	case avgFileSize < 1<<20:
-		readSize = 256 << 10
-		numWorkers = int(minInt64(8, int64(runtime.NumCPU())))
-	case avgFileSize < 10<<20:
-		readSize = 1 << 20
-		numWorkers = int(minInt64(4, int64(runtime.NumCPU())))
-	default:
-		readSize = 4 << 20
-		numWorkers = int(minInt64(2, int64(runtime.NumCPU())))
+	case avgFileSize < 1<<20: // avg < 1 MiB
+		readSize = 256 << 10 // 256 KiB
+		numWorkers = runtime.NumCPU()
+	case avgFileSize < 10<<20: // avg < 10 MiB
+		readSize = 1 << 20 // 1 MiB
+		numWorkers = runtime.NumCPU()
+	case avgFileSize < 1<<30: // avg < 1 GiB
+		readSize = 4 << 20 // 4 MiB
+		numWorkers = runtime.NumCPU() * 2
+	default: // avg >= 1 GiB
+		readSize = 8 << 20 // 8 MiB
+		numWorkers = runtime.NumCPU() * 2
 	}
 
 	// ensure we don't create more workers than pieces to process
@@ -100,7 +101,8 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 	// initialize buffer pool
 	h.bufferPool = &sync.Pool{
 		New: func() interface{} {
-			return make([]byte, h.readSize)
+			buf := make([]byte, h.readSize)
+			return buf
 		},
 	}
 
@@ -167,8 +169,7 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *uint64) error {
 	// reuse buffer from pool to minimize allocations
 	buf := h.bufferPool.Get().([]byte)
-	bufPtr := &buf
-	defer h.bufferPool.Put(bufPtr)
+	defer h.bufferPool.Put(buf)
 
 	hasher := sha1.New()
 	// track open file handles to avoid reopening the same file
@@ -271,25 +272,24 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 }
 
 func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Displayer) *pieceHasher {
+	bufferPool := &sync.Pool{
+		New: func() interface{} {
+			buf := make([]byte, pieceLen)
+			return buf
+		},
+	}
 	return &pieceHasher{
-		pieces:    make([][]byte, numPieces),
-		pieceLen:  pieceLen,
-		numPieces: numPieces,
-		files:     files,
-		display:   display,
+		pieces:     make([][]byte, numPieces),
+		pieceLen:   pieceLen,
+		numPieces:  numPieces,
+		files:      files,
+		display:    display,
+		bufferPool: bufferPool,
 	}
 }
 
 // minInt returns the smaller of two integers
 func minInt(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-// minInt64 returns the smaller of two int64 values
-func minInt64(a, b int64) int64 {
 	if a < b {
 		return a
 	}

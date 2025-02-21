@@ -5,7 +5,6 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -131,11 +130,7 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 
 	hasher := NewPieceHasher(files, pieceLenInt, int(numPieces), display)
 
-	numWorkers := runtime.NumCPU()
-	if numWorkers > 4 {
-		numWorkers = 4
-	}
-	if err := hasher.hashPieces(numWorkers); err != nil {
+	if err := hasher.hashPieces(1); err != nil {
 		return nil, fmt.Errorf("error hashing pieces: %w", err)
 	}
 
