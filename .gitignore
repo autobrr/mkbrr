@@ -10,3 +10,5 @@ test.sh
 *.png
 *.pprof
 test_ant/*
+.pgo_profiles/
+.pgo_test_data/
