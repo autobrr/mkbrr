@@ -137,12 +137,25 @@ jobs:
           go build -o mkbrr
 
           # Run different workload scenarios
-          ./mkbrr create test_data/test1.bin -cpuprofile=cpu1.pprof
-          ./mkbrr create test_data/test2.bin -cpuprofile=cpu2.pprof
-          ./mkbrr create test_data -cpuprofile=cpu3.pprof
+          ./mkbrr create test_data/test1.bin --cpuprofile=cpu1.pprof
+          ./mkbrr create test_data/test2.bin --cpuprofile=cpu2.pprof
+          ./mkbrr create test_data --cpuprofile=cpu3.pprof
+
+          # Verify profiles exist
+          if [ ! -f cpu1.pprof ] || [ ! -f cpu2.pprof ] || [ ! -f cpu3.pprof ]; then
+            echo "Error: One or more profile files not generated"
+            ls -la *.pprof
+            exit 1
+          fi
 
           # Merge profiles
           go tool pprof -proto cpu1.pprof cpu2.pprof cpu3.pprof > cpu.pprof
+
+          # Verify final profile
+          if [ ! -s cpu.pprof ]; then
+            echo "Error: Final profile not generated or empty"
+            exit 1
+          fi
 
       - name: Upload pprof
         uses: actions/upload-artifact@v4
