@@ -149,7 +149,7 @@ jobs:
       fail-fast: true
       matrix:
         os: [ ubuntu-latest, macos-latest, windows-latest ]
-    name: Running PGO on ${{ matrix.os }}
+    name: Automatic PGO run ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     needs: [ test, testother ]
     env:
