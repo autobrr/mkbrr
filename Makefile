@@ -28,6 +28,40 @@ build:
 	@mkdir -p ${BUILD_DIR}
 	CGO_ENABLED=0 $(GO) build ${LDFLAGS} -o ${BUILD_DIR}/${BINARY_NAME}
 
+# build with PGO
+.PHONY: build-pgo
+build-pgo:
+	@echo "Building ${BINARY_NAME} with PGO..."
+	@if [ ! -f "cpu.pprof" ]; then \
+		echo "No PGO profile found. Run 'make profile' first."; \
+		exit 1; \
+	fi
+	@mkdir -p ${BUILD_DIR}
+	CGO_ENABLED=0 $(GO) build -pgo=cpu.pprof ${LDFLAGS} -o ${BUILD_DIR}/${BINARY_NAME}
+
+# generate PGO profile with various workloads
+.PHONY: profile
+profile:
+	@echo "Generating PGO profile..."
+	@mkdir -p test_data
+	@dd if=/dev/urandom of=test_data/test1.bin bs=1M count=100
+	@dd if=/dev/urandom of=test_data/test2.bin bs=1M count=100
+	@go build -o ${BUILD_DIR}/${BINARY_NAME}
+	@echo "Running profile workload 1: Large file..."
+	@${BUILD_DIR}/${BINARY_NAME} create test_data/test1.bin --cpuprofile=./cpu1.pprof
+	@echo "Running profile workload 2: Multiple files..."
+	@${BUILD_DIR}/${BINARY_NAME} create test_data --cpuprofile=./cpu2.pprof
+	@echo "Merging profiles..."
+	@if [ -f "cpu1.pprof" ] && [ -f "cpu2.pprof" ]; then \
+		go tool pprof -proto cpu1.pprof cpu2.pprof > cpu.pprof; \
+		rm cpu1.pprof cpu2.pprof; \
+		echo "Profile generated at cpu.pprof"; \
+	else \
+		echo "Error: Profile files not generated correctly"; \
+		exit 1; \
+	fi
+	@rm -rf test_data
+
 # install binary in system path
 .PHONY: install
 install: build

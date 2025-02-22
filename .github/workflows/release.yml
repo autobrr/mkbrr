@@ -31,8 +31,8 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    name: Test on ${{ matrix.os }}
+        os: [ ubuntu-latest ]
+    name: Test ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
@@ -46,18 +46,32 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: true
 
-      - name: Run Tests
-        if: matrix.os == 'windows-latest'
-        run: go test -short ./...
-        
-      - name: Run Tests
-        if: matrix.os != 'windows-latest'
+      - name: Run Tests with Race Detection
+        env:
+          CGO_ENABLED: 1
         run: make test-race
 
-  goreleaserbuild:
-    name: Build distribution binaries
-    runs-on: ubuntu-latest
-    needs: [test]
+      - name: Generate Test Summary
+        run: go run gotest.tools/gotestsum@latest --junitfile unit-tests.xml --format pkgname
+
+      - name: Test Summary
+        uses: test-summary/action@v2
+        with:
+          paths: "unit-tests.xml"
+        if: always()
+
+  testother:
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [ macos-latest, windows-latest ]
+    name: Test ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    env:
+      GOPATH: ${{ startsWith(matrix.os, 'windows') && 'D:\golang\go' || '' }}
+      GOCACHE: ${{ startsWith(matrix.os, 'windows') && 'D:\golang\cache' || '' }}
+      GOMODCACHE: ${{ startsWith(matrix.os, 'windows') && 'D:\golang\modcache' || '' }}
+      USERPROFILE: ${{ startsWith(matrix.os, 'windows') && 'D:\homedir' || '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -69,6 +83,107 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
+
+      - name: Run Tests (Unix)
+        if: matrix.os != 'windows-latest'
+        env:
+          CGO_ENABLED: 1
+        run: go test ./...
+
+      - name: Run Tests (Windows)
+        if: matrix.os == 'windows-latest'
+        env:
+          CGO_ENABLED: 0
+        run: go test -short ./...
+
+      - name: Generate Test Summary
+        if: matrix.os != 'windows-latest'
+        run: go run gotest.tools/gotestsum@latest --junitfile unit-tests.xml --format pkgname
+
+      - name: Test Summary
+        uses: test-summary/action@v2
+        with:
+          paths: "unit-tests.xml"
+        if: always() && matrix.os != 'windows-latest'
+
+  pgo:
+    name: Generate PGO Profile
+    runs-on: ubuntu-latest
+    needs: [ test, testother ]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      # Create test data for profiling
+      - name: Create test data
+        shell: bash
+        run: |
+          mkdir -p test_data
+          dd if=/dev/urandom of=test_data/test1.bin bs=1M count=100
+          dd if=/dev/urandom of=test_data/test2.bin bs=1M count=100
+          dd if=/dev/urandom of=test_data/test3.bin bs=1M count=500
+
+      - name: Generate Profile
+        run: |
+          # Build initial binary
+          go build -o mkbrr
+
+          # Run different workload scenarios
+          ./mkbrr create test_data/test1.bin --cpuprofile=cpu1.pprof
+          ./mkbrr create test_data/test2.bin --cpuprofile=cpu2.pprof
+          ./mkbrr create test_data --cpuprofile=cpu3.pprof
+
+          # Verify profiles exist
+          if [ ! -f cpu1.pprof ] || [ ! -f cpu2.pprof ] || [ ! -f cpu3.pprof ]; then
+            echo "Error: One or more profile files not generated"
+            ls -la *.pprof
+            exit 1
+          fi
+
+          # Merge profiles
+          go tool pprof -proto cpu1.pprof cpu2.pprof cpu3.pprof > cpu.pprof
+
+          # Verify final profile
+          if [ ! -s cpu.pprof ]; then
+            echo "Error: Final profile not generated or empty"
+            exit 1
+          fi
+
+      - name: Upload pprof
+        uses: actions/upload-artifact@v4
+        with:
+          name: pprof
+          path: cpu.pprof
+
+  goreleaserbuild:
+    name: Build distribution binaries
+    runs-on: ubuntu-latest
+    needs: [ pgo ]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Download pprof
+        uses: actions/download-artifact@v4
+        with:
+          name: pprof
+          path: .
 
       - name: Run GoReleaser build
         if: github.event_name == 'pull_request'
