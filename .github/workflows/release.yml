@@ -51,20 +51,8 @@ jobs:
           CGO_ENABLED: 1
         run: make test-race
 
-      - name: Create Profile environment
-        run: |
-          printf '#!/usr/bin/env bash\nset -eu\nfor pkg in $(go list "$@"); do\n\tgo test -json -cpuprofile="profile/$(echo $pkg | tr / -).pprof" "$pkg"\ndone' | tee -a profile.sh;
-          chmod +x profile.sh;
-          mkdir profile;
-
-      - name: Run Tests with Profiling
-        run: go run gotest.tools/gotestsum@latest --junitfile unit-tests.xml --format pkgname --raw-command ./profile.sh -- ./...
-
-      - name: Upload pprof
-        uses: actions/upload-artifact@v4
-        with:
-          name: pprof-test-${{ matrix.os }}
-          path: profile
+      - name: Generate Test Summary
+        run: go run gotest.tools/gotestsum@latest --junitfile unit-tests.xml --format pkgname
 
       - name: Test Summary
         uses: test-summary/action@v2
@@ -96,11 +84,11 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: true
 
-      - name: Run Tests with Race Detection (Unix)
+      - name: Run Tests (Unix)
         if: matrix.os != 'windows-latest'
         env:
           CGO_ENABLED: 1
-        run: make test-race
+        run: go test ./...
 
       - name: Run Tests (Windows)
         if: matrix.os == 'windows-latest'
@@ -108,35 +96,9 @@ jobs:
           CGO_ENABLED: 0
         run: go test -short ./...
 
-      - name: Create Profile Directory
-        run: mkdir -p profile
-
-      - name: Run Tests with Profiling (Unix)
-        if: matrix.os != 'windows-latest'
-        shell: bash
-        run: |
-          for pkg in $(go list ./...); do
-            go test -json -cpuprofile="profile/$(echo $pkg | tr / -).pprof" "$pkg"
-          done
-
-      - name: Run Tests with Profiling (Windows)
-        if: matrix.os == 'windows-latest'
-        shell: pwsh
-        run: |
-          foreach ($pkg in $(go list ./...)) {
-            $safeName = $pkg -replace '/', '-'
-            go test -short -json -cpuprofile="profile/$safeName.pprof" $pkg
-          }
-
       - name: Generate Test Summary
         if: matrix.os != 'windows-latest'
         run: go run gotest.tools/gotestsum@latest --junitfile unit-tests.xml --format pkgname
-
-      - name: Upload pprof
-        uses: actions/upload-artifact@v4
-        with:
-          name: pprof-test-${{ matrix.os }}
-          path: profile
 
       - name: Test Summary
         uses: test-summary/action@v2
@@ -145,19 +107,9 @@ jobs:
         if: always() && matrix.os != 'windows-latest'
 
   pgo:
-    strategy:
-      fail-fast: true
-      matrix:
-        os: [ ubuntu-latest, macos-latest, windows-latest ]
-    name: Running PGO on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
+    name: Generate PGO Profile
+    runs-on: ubuntu-latest
     needs: [ test, testother ]
-    env:
-      GOPATH: ${{ startsWith(matrix.os, 'windows') && 'D:\golang\go' || '' }}
-      GOCACHE: ${{ startsWith(matrix.os, 'windows') && 'D:\golang\cache' || '' }}
-      GOMODCACHE: ${{ startsWith(matrix.os, 'windows') && 'D:\golang\modcache' || '' }}
-      USERPROFILE: ${{ startsWith(matrix.os, 'windows') && 'D:\homedir' || '' }}
-      CGO_ENABLED: 0
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -175,43 +127,22 @@ jobs:
         shell: bash
         run: |
           mkdir -p test_data
-          dd if=/dev/urandom of=test_data/test1.bin bs=1M count=100 || true
-          dd if=/dev/urandom of=test_data/test2.bin bs=1M count=100 || true
+          dd if=/dev/urandom of=test_data/test1.bin bs=1M count=100
+          dd if=/dev/urandom of=test_data/test2.bin bs=1M count=100
+          dd if=/dev/urandom of=test_data/test3.bin bs=1M count=500
 
       - name: Generate Profile
         run: |
+          # Build initial binary
           go build -o mkbrr
-          ./mkbrr create test_data -cpuprofile=cpu-${{ matrix.os }}.pprof
 
-      - name: Upload pprof
-        uses: actions/upload-artifact@v4
-        with:
-          name: pprof-pgo-${{ matrix.os }}
-          path: cpu-${{ matrix.os }}.pprof
+          # Run different workload scenarios
+          ./mkbrr create test_data/test1.bin -cpuprofile=cpu1.pprof
+          ./mkbrr create test_data/test2.bin -cpuprofile=cpu2.pprof
+          ./mkbrr create test_data -cpuprofile=cpu3.pprof
 
-  goprofilecombine:
-    name: Combine pprof profiles
-    runs-on: ubuntu-latest
-    needs: [ pgo ]
-    steps:
-      - name: Download pprof profiles
-        uses: actions/download-artifact@v4
-        with:
-          pattern: pprof-*
-          merge-multiple: true
-          path: profile
-
-      - name: List contents
-        run: ls -la profile
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          cache: false
-
-      - name: Merge Profiles
-        run: go tool pprof -proto profile/*.pprof | tee -a cpu.pprof
+          # Merge profiles
+          go tool pprof -proto cpu1.pprof cpu2.pprof cpu3.pprof > cpu.pprof
 
       - name: Upload pprof
         uses: actions/upload-artifact@v4
@@ -222,7 +153,7 @@ jobs:
   goreleaserbuild:
     name: Build distribution binaries
     runs-on: ubuntu-latest
-    needs: [ goprofilecombine ]
+    needs: [ pgo ]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
