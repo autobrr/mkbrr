@@ -1,7 +1,6 @@
 package torrent
 
 import (
-	"crypto/sha1"
 	"errors"
 	"fmt"
 	"io"
@@ -171,7 +170,7 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 	buf := h.bufferPool.Get().([]byte)
 	defer h.bufferPool.Put(buf)
 
-	hasher := sha1.New()
+	hasher := newSHA1()
 	// track open file handles to avoid reopening the same file
 	readers := make(map[string]*fileReader)
 	defer func() {

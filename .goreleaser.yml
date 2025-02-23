@@ -5,12 +5,31 @@ before:
     - go mod tidy
 
 builds:
-  - id: mkbrr
+  - id: mkbrr-linux-amd64
+    env:
+      - CGO_ENABLED=1
+      - BUILDER
+    goos:
+      - linux
+    goarch:
+      - amd64
+    main: ./main.go
+    binary: mkbrr
+    tags:
+      - isal
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.buildTime={{.CommitDate}}
+    hooks:
+      pre:
+        - ./scripts/install_isal.sh
+
+  - id: mkbrr-other
     env:
       - CGO_ENABLED=0
       - BUILDER
     goos:
-      - linux
       - windows
       - darwin
       - freebsd
