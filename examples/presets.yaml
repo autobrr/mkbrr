@@ -16,11 +16,11 @@ default:
   # source: "DEFAULT"                           # Source tag
   # no_date: true                               # Don't write creation date
   # piece_length is automatically optimized based on file size:
-  # < 1MB files: 16KB pieces (2^14)
+  # < 1MB files: 16KB pieces (2^26)
   # 1MB - 1GB files: 1MB pieces (2^20)
   # 1GB - 16GB files: 4MB pieces (2^22)
   # > 16GB files: 16MB pieces (2^24)
-  # piece_length: 22                           # Manual override if needed (2^n: 14-24)
+  # piece_length: 22                           # Manual override if needed (2^n: 16-24)
 
 presets:
   # PTP preset
@@ -43,9 +43,8 @@ presets:
     # comment: "Ubuntu 22.04.3 LTS"
     # source: "RELEASE"
     # no_date: false
-    # piece_length is automatically optimized based on file size:
-    # < 1MB files: 16KB pieces (2^14)
+    # piece_length is automatically optimized based on file size
     # 1MB - 1GB files: 1MB pieces (2^20)
     # 1GB - 16GB files: 4MB pieces (2^22)
     # > 16GB files: 16MB pieces (2^24)
-    # piece_length: 22                           # Manual override if needed (2^n: 14-24)
+    # piece_length: 22                           # Manual override if needed (2^n: 16-24)
