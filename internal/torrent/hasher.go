@@ -1,6 +1,7 @@
 package torrent
 
 import (
+	"bufio"
 	"crypto/sha1"
 	"errors"
 	"fmt"
@@ -173,9 +174,10 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 
 	hasher := sha1.New()
 	// track open file handles to avoid reopening the same file
-	readers := make(map[string]*fileReader)
+	readers := make(map[string]*bufioReader)
 	defer func() {
 		for _, r := range readers {
+			r.reader.Reset(nil)
 			r.file.Close()
 		}
 	}()
@@ -226,8 +228,11 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 				if err != nil {
 					return fmt.Errorf("failed to open file %s: %w", file.path, err)
 				}
-				reader = &fileReader{
+				// Use buffered I/O for more efficient reading
+				bufReader := bufio.NewReaderSize(f, h.readSize)
+				reader = &bufioReader{
 					file:     f,
+					reader:   bufReader,
 					position: 0,
 					length:   file.length,
 				}
@@ -239,6 +244,7 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 				if _, err := reader.file.Seek(readStart, 0); err != nil {
 					return fmt.Errorf("failed to seek in file %s: %w", file.path, err)
 				}
+				reader.reader.Reset(reader.file)
 				reader.position = readStart
 			}
 
@@ -250,7 +256,7 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 					n = len(buf)
 				}
 
-				read, err := io.ReadFull(reader.file, buf[:n])
+				read, err := io.ReadFull(reader.reader, buf[:n])
 				if err != nil && err != io.ErrUnexpectedEOF {
 					return fmt.Errorf("failed to read file %s: %w", file.path, err)
 				}
@@ -271,20 +277,22 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 	return nil
 }
 
+// Update the fileReader to use buffered I/O
+type bufioReader struct {
+	file     *os.File
+	reader   *bufio.Reader
+	position int64
+	length   int64
+}
+
 func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Displayer) *pieceHasher {
-	bufferPool := &sync.Pool{
-		New: func() interface{} {
-			buf := make([]byte, pieceLen)
-			return buf
-		},
-	}
 	return &pieceHasher{
-		pieces:     make([][]byte, numPieces),
-		pieceLen:   pieceLen,
-		numPieces:  numPieces,
-		files:      files,
-		display:    display,
-		bufferPool: bufferPool,
+		pieces:    make([][]byte, numPieces),
+		pieceLen:  pieceLen,
+		numPieces: numPieces,
+		files:     files,
+		display:   display,
+		readSize:  4 << 20, // Default until optimized
 	}
 }
 
