@@ -24,72 +24,27 @@ type ioReader interface {
 // io_uring constants - these are architecture-independent
 const (
 	// Operation codes
-	IORING_OP_NOP          = 0
-	IORING_OP_READV        = 1
-	IORING_OP_WRITEV       = 2
-	IORING_OP_FSYNC        = 3
-	IORING_OP_READ_FIXED   = 4
-	IORING_OP_WRITE_FIXED  = 5
-	IORING_OP_POLL_ADD     = 6
-	IORING_OP_POLL_REMOVE  = 7
-	IORING_OP_SYNC_FILE_RANGE = 8
-	IORING_OP_SENDMSG      = 9
-	IORING_OP_RECVMSG      = 10
-	IORING_OP_TIMEOUT      = 11
-	IORING_OP_TIMEOUT_REMOVE = 12
-	IORING_OP_ACCEPT       = 13
-	IORING_OP_ASYNC_CANCEL = 14
-	IORING_OP_LINK_TIMEOUT = 15
-	IORING_OP_CONNECT      = 16
-	IORING_OP_FALLOCATE    = 17
-	IORING_OP_OPENAT       = 18
-	IORING_OP_CLOSE        = 19
-	IORING_OP_FILES_UPDATE = 20
-	IORING_OP_STATX        = 21
-	IORING_OP_READ         = 22
-	IORING_OP_WRITE        = 23
-	IORING_OP_FADVISE      = 24
-	IORING_OP_MADVISE      = 25
-	IORING_OP_SEND         = 26
-	IORING_OP_RECV         = 27
-	IORING_OP_OPENAT2      = 28
-	IORING_OP_EPOLL_CTL    = 29
-	IORING_OP_SPLICE       = 30
-	IORING_OP_PROVIDE_BUFFERS = 31
-	IORING_OP_REMOVE_BUFFERS  = 32
-	IORING_OP_TEE             = 33
-	IORING_OP_SHUTDOWN        = 34
-	IORING_OP_RENAMEAT        = 35
-	IORING_OP_UNLINKAT        = 36
+	IORING_OP_READ = 22  // Correct value is 22, not 1
 
 	// Flags
 	IORING_ENTER_GETEVENTS = 1
-	IORING_ENTER_SQ_WAKEUP = 2
 	
 	// Offsets
-	IORING_OFF_SQ_RING  = 0
-	IORING_OFF_CQ_RING  = 0x8000000
-	IORING_OFF_SQES     = 0x10000000
+	IORING_OFF_SQ_RING = 0
+	IORING_OFF_CQ_RING = 0x8000000
+	IORING_OFF_SQES    = 0x10000000
 	
-	// Timeout constants
-	ioUringOpTimeout = 100 * time.Millisecond
+	// Max attempts to wait for completion before falling back
+	maxCompletionAttempts = 1000
 )
 
-// io_uring syscall numbers for different architectures
-var (
-	sysFdByArch = map[string]int{
-		"amd64": 425,
-		"arm64": 425,
-		"386":   425,
-		// Add more architectures as needed
-	}
-	sysEnterByArch = map[string]int{
-		"amd64": 426,
-		"arm64": 426,
-		"386":   426,
-		// Add more architectures as needed
-	}
-)
+// ioURingConfig allows adjusting io_uring behavior
+var ioURingConfig struct {
+	// Disable io_uring completely (can be set by environment or tests)
+	Disabled atomic.Bool
+	// Debug mode for additional logging/verification
+	Debug bool
+}
 
 // io_uring structures
 type ioUringParams struct {
@@ -148,7 +103,7 @@ type ioUringCQE struct {
 	flags    uint32
 }
 
-// ioUringReader implements ioReader using io_uring when available
+// ioUringReader implements ioReader using io_uring
 type ioUringReader struct {
 	fd     int
 	path   string
@@ -179,92 +134,58 @@ var (
 	globalRing     *ioURing
 	globalRingOnce sync.Once
 	ringSupported  bool
-	disableIoUring atomic.Bool
 )
 
-func init() {
-	// Start with io_uring disabled until we confirm it works
-	disableIoUring.Store(true)
+// DisableIoURing disables io_uring for testing or compatibility
+func DisableIoURing() {
+	ioURingConfig.Disabled.Store(true)
 }
 
-// ioUringSetup calls the io_uring_setup syscall with correct number for the platform
+// EnableIoURing enables io_uring if supported
+func EnableIoURing() {
+	ioURingConfig.Disabled.Store(false)
+}
+
+// ioUringSetup calls the io_uring_setup syscall
 func ioUringSetup(entries uint32, params *ioUringParams) (int, error) {
-	sysNum, ok := sysFdByArch[runtime.GOARCH]
-	if !ok {
-		// If we don't know the syscall number for this architecture,
-		// report as not supported
-		return 0, syscall.ENOSYS
-	}
-	
-	r1, _, errno := syscall.Syscall(uintptr(sysNum), uintptr(entries), uintptr(unsafe.Pointer(params)), 0)
+	// io_uring_setup is syscall 425 on most platforms
+	r1, _, errno := syscall.Syscall(425, uintptr(entries), uintptr(unsafe.Pointer(params)), 0)
 	if errno != 0 {
-		// Check if this looks like a seccomp issue
-		if errno == syscall.EPERM || errno == syscall.EACCES {
-			// Seccomp is likely blocking the syscall
-			disableIoUring.Store(true)
-		}
 		return 0, errno
 	}
 	return int(r1), nil
 }
 
-// ioUringEnter calls the io_uring_enter syscall with correct number for the platform
+// ioUringEnter calls the io_uring_enter syscall
 func ioUringEnter(fd int, toSubmit uint32, minComplete uint32, flags uint32) (int, error) {
-	sysNum, ok := sysEnterByArch[runtime.GOARCH]
-	if !ok {
-		// If we don't know the syscall number for this architecture,
-		// report as not supported
-		return 0, syscall.ENOSYS
-	}
-	
-	r1, _, errno := syscall.Syscall6(uintptr(sysNum), uintptr(fd), uintptr(toSubmit), uintptr(minComplete), uintptr(flags), 0, 0)
+	// io_uring_enter is syscall 426 on most platforms
+	r1, _, errno := syscall.Syscall6(426, uintptr(fd), uintptr(toSubmit), uintptr(minComplete), uintptr(flags), 0, 0)
 	if errno != 0 {
-		// Check if this looks like a seccomp issue
-		if errno == syscall.EPERM || errno == syscall.EACCES {
-			// Seccomp is likely blocking the syscall
-			disableIoUring.Store(true)
-		}
 		return 0, errno
 	}
 	return int(r1), nil
-}
-
-// checkIoURingSupport tests if io_uring is properly supported
-func checkIoURingSupport() bool {
-	// Try to create a minimal io_uring instance
-	params := ioUringParams{}
-	fd, err := ioUringSetup(4, &params)
-	if err != nil {
-		return false
-	}
-	// Clean up
-	unix.Close(fd)
-	return true
 }
 
 // getGlobalRing returns a shared io_uring instance
 func getGlobalRing() (*ioURing, error) {
+	if ioURingConfig.Disabled.Load() {
+		return nil, syscall.ENOSYS
+	}
+
 	globalRingOnce.Do(func() {
-		// First check if io_uring is supported at all
-		if !checkIoURingSupport() {
-			ringSupported = false
-			disableIoUring.Store(true)
-			return
-		}
-		
 		ring := &ioURing{}
 		err := ring.init(128) // 128 entries is a good default
 		if err == nil {
 			globalRing = ring
 			ringSupported = true
-			disableIoUring.Store(false)
 		} else {
+			// If we failed to initialize, disable for future calls
 			ringSupported = false
-			disableIoUring.Store(true)
+			ioURingConfig.Disabled.Store(true)
 		}
 	})
 	
-	if !ringSupported || disableIoUring.Load() {
+	if !ringSupported || ioURingConfig.Disabled.Load() {
 		return nil, syscall.ENOSYS
 	}
 	return globalRing, nil
@@ -373,12 +294,13 @@ func (r *ioURing) submit() (int, error) {
 	return ioUringEnter(r.fd, 1, 1, IORING_ENTER_GETEVENTS)
 }
 
-// waitCompletion waits for a completion event
+// waitCompletion waits for a completion event with retry limit
 func (r *ioURing) waitCompletion(userData uint64) (int, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	
-	for {
+	// Maximum number of attempts to prevent hanging
+	for attempts := 0; attempts < maxCompletionAttempts; attempts++ {
 		// Check if there are any completions
 		head := atomic.LoadUint32(r.cqHead)
 		tail := atomic.LoadUint32(r.cqTail)
@@ -413,10 +335,15 @@ func (r *ioURing) waitCompletion(userData uint64) (int, error) {
 		_, err := ioUringEnter(r.fd, 0, 1, IORING_ENTER_GETEVENTS)
 		if err != nil {
 			// If any error occurs here, disable io_uring for future operations
-			disableIoUring.Store(true)
+			ioURingConfig.Disabled.Store(true)
 			return 0, err
 		}
 	}
+	
+	// If we reach here, we've hit the maximum number of attempts
+	// Disable io_uring for future operations and return timeout
+	ioURingConfig.Disabled.Store(true)
+	return 0, syscall.ETIMEDOUT
 }
 
 // close closes and cleans up the io_uring instance
@@ -452,7 +379,7 @@ func (r *ioURing) close() error {
 // NewIOReader creates an appropriate IO reader for a file
 func NewIOReader(path string) (ioReader, error) {
 	// Try to use io_uring if available and not disabled
-	if !disableIoUring.Load() {
+	if !ioURingConfig.Disabled.Load() {
 		ring, err := getGlobalRing()
 		if err == nil {
 			fd, err := unix.Open(path, unix.O_RDONLY, 0)
@@ -490,21 +417,21 @@ func (r *ioUringReader) Read(offset int64, buf []byte) (int, error) {
 	userData, err := r.ring.prepareRead(r.fd, buf, offset)
 	if err != nil {
 		// Disable io_uring and fall back to pread
-		disableIoUring.Store(true)
+		ioURingConfig.Disabled.Store(true)
 		return unix.Pread(r.fd, buf, offset)
 	}
 	
 	// Submit operation
 	_, err = r.ring.submit()
 	if err != nil {
-		disableIoUring.Store(true)
+		ioURingConfig.Disabled.Store(true)
 		return unix.Pread(r.fd, buf, offset)
 	}
 	
 	// Wait for completion
 	n, err := r.ring.waitCompletion(userData)
 	if err != nil {
-		disableIoUring.Store(true)
+		ioURingConfig.Disabled.Store(true)
 		return unix.Pread(r.fd, buf, offset)
 	}
 	
