@@ -1,9 +1,8 @@
 package torrent
 
 import (
-	"os"
-
 	"github.com/anacrolix/torrent/metainfo"
+	"github.com/kylesanderson/ioringfile"
 )
 
 // CreateTorrentOptions contains all options for creating a torrent
@@ -45,7 +44,7 @@ type fileEntry struct {
 
 // internal file reader for processing
 type fileReader struct {
-	file     *os.File
+	file     *ioringfile.File
 	position int64
 	length   int64
 }
