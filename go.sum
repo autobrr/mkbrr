@@ -146,6 +146,8 @@ github.com/kylesanderson/ioringfile v0.0.5 h1:JdRrbZJCD8Kj6gj0R+XlGm7cr9qVmoNIbv
 github.com/kylesanderson/ioringfile v0.0.5/go.mod h1:VyQaPzczkIIrBm02rTdZR5MR8dwc75QAvl56zyaP/58=
 github.com/kylesanderson/ioringfile v0.0.6 h1:XgY4e4Y/PRvVmVVrpjdFIPXtllXhsOlvog3EW1j/5Xw=
 github.com/kylesanderson/ioringfile v0.0.6/go.mod h1:VyQaPzczkIIrBm02rTdZR5MR8dwc75QAvl56zyaP/58=
+github.com/kylesanderson/ioringfile v0.0.7 h1:fkDbsAr4zu34mVCfhg35ITSkbmWSTit2tmU0s1aMgCg=
+github.com/kylesanderson/ioringfile v0.0.7/go.mod h1:VyQaPzczkIIrBm02rTdZR5MR8dwc75QAvl56zyaP/58=
 github.com/mattn/go-colorable v0.1.14 h1:9A9LHSqF/7dyVVX6g0U9cwm9pG3kP9gSzcuIPHPsaIE=
 github.com/mattn/go-colorable v0.1.14/go.mod h1:6LmQG8QLFO4G5z1gPvYEzlUgJ2wF+stgPZH1UqBm1s8=
 github.com/mattn/go-isatty v0.0.20 h1:xfD0iDuEKnDkl03q4limB+vH+GxLEtL/jb4xVJSWWEY=
