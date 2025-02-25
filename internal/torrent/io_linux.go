@@ -8,6 +8,7 @@ import (
 	"sync"
 	"syscall"
 	"unsafe"
+	"sync/atomic"
 
 	"golang.org/x/sys/unix"
 )
@@ -114,6 +115,7 @@ var (
 	globalRing     *ioURing
 	globalRingOnce sync.Once
 	ringSupported  bool
+	disableIoUring atomic.Bool // Track if io_uring should be disabled due to errors
 )
 
 // io_uring_setup syscall
@@ -306,16 +308,18 @@ func (r *ioURing) close() error {
 
 // NewIOReader creates an appropriate IO reader based on system capabilities
 func NewIOReader(path string) (ioReader, error) {
-	// Try to use io_uring first
-	ring, err := getGlobalRing()
-	if err == nil {
-		fd, err := unix.Open(path, unix.O_RDONLY, 0)
+	// Skip io_uring if it's been disabled due to previous errors
+	if !disableIoUring.Load() {
+		ring, err := getGlobalRing()
 		if err == nil {
-			return &ioUringReader{
-				fd:   fd,
-				path: path,
-				ring: ring,
-			}, nil
+			fd, err := unix.Open(path, unix.O_RDONLY, 0)
+			if err == nil {
+				return &ioUringReader{
+					fd:   fd,
+					path: path,
+					ring: ring,
+				}, nil
+			}
 		}
 	}
 	
@@ -342,21 +346,27 @@ func (r *ioUringReader) Read(offset int64, buf []byte) (int, error) {
 	// First try with io_uring
 	userData, err := r.ring.prepareRead(r.fd, buf, offset)
 	if err != nil {
-		// Fall back to pread if io_uring preparation fails
+		// Disable io_uring for future operations
+		disableIoUring.Store(true)
+		// Fall back to pread
 		return unix.Pread(r.fd, buf, offset)
 	}
 
 	// Submit operation
 	_, err = r.ring.submit()
 	if err != nil {
-		// Fall back to pread if submission fails
+		// Disable io_uring for future operations
+		disableIoUring.Store(true)
+		// Fall back to pread
 		return unix.Pread(r.fd, buf, offset)
 	}
 
 	// Wait for completion
 	n, err := r.ring.waitCompletion(userData)
 	if err != nil {
-		// Fall back to pread if completion fails
+		// Disable io_uring for future operations
+		disableIoUring.Store(true)
+		// Fall back to pread
 		return unix.Pread(r.fd, buf, offset)
 	}
 
