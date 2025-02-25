@@ -5,10 +5,8 @@ package torrent
 
 import (
 	"os"
-	"runtime"
 	"sync"
 	"syscall"
-	"time"
 	"unsafe"
 	"sync/atomic"
 
