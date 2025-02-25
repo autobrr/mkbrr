@@ -339,7 +339,7 @@ func (r *ioUringReader) Read(offset int64, buf []byte) (int, error) {
 		return 0, syscall.EBADF
 	}
 
-	// Prepare read operation
+	// First try with io_uring
 	userData, err := r.ring.prepareRead(r.fd, buf, offset)
 	if err != nil {
 		// Fall back to pread if io_uring preparation fails
@@ -354,7 +354,13 @@ func (r *ioUringReader) Read(offset int64, buf []byte) (int, error) {
 	}
 
 	// Wait for completion
-	return r.ring.waitCompletion(userData)
+	n, err := r.ring.waitCompletion(userData)
+	if err != nil {
+		// Fall back to pread if completion fails
+		return unix.Pread(r.fd, buf, offset)
+	}
+
+	return n, nil
 }
 
 // Close closes the file descriptor
