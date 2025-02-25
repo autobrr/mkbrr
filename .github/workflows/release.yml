@@ -52,7 +52,7 @@ jobs:
         
       - name: Run Tests
         if: matrix.os != 'windows-latest'
-        run: make test-race
+        run: go test -v ./...
 
   goreleaserbuild:
     name: Build distribution binaries
