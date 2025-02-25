@@ -230,8 +230,9 @@ func (r *ioURing) prepareRead(fd int, buf []byte, offset int64) (uint64, error) 
 	sqe.off = uint64(offset)
 	sqe.userData = uint64(index)
 
-	// Update array
-	r.sqArray[index] = index
+	// Update array - fix the indexing issue
+	arrayPtr := (*[1024]uint32)(unsafe.Pointer(r.sqArray))
+	arrayPtr[index] = index
 	
 	// Update tail
 	*r.sqTail = next + 1
