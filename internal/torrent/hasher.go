@@ -4,12 +4,15 @@ import (
 	"crypto/sha1"
 	"errors"
 	"fmt"
-	"io"
-	"os"
 	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
+)
+
+// Add a new constant for batch size
+const (
+	maxBatchSize = 16 // Maximum number of concurrent I/O operations per piece
 )
 
 type pieceHasher struct {
@@ -92,13 +95,11 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 	h.readSize, numWorkers = h.optimizeForWorkload()
 
 	if numWorkers == 0 {
-		// no workers needed, possibly no pieces to hash
 		h.display.ShowProgress(0)
 		h.display.FinishProgress()
 		return nil
 	}
 
-	// initialize buffer pool
 	h.bufferPool = &sync.Pool{
 		New: func() interface{} {
 			buf := make([]byte, h.readSize)
@@ -112,7 +113,6 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 
 	h.display.ShowProgress(h.numPieces)
 
-	// spawn worker goroutines to process piece ranges in parallel
 	var wg sync.WaitGroup
 	for i := 0; i < numWorkers; i++ {
 		start := i * piecesPerWorker
@@ -130,7 +130,6 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 		}(start, end)
 	}
 
-	// monitor and update progress bar in separate goroutine
 	go func() {
 		for {
 			completed := atomic.LoadUint64(&completedPieces)
@@ -155,36 +154,33 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 	return nil
 }
 
-// hashPieceRange processes and hashes a specific range of pieces assigned to a worker.
-// It handles:
-// - reading from multiple files that may span piece boundaries
-// - maintaining file positions and readers
-// - calculating SHA1 hashes for each piece
-// - updating progress through the completedPieces counter
-// Parameters:
-//
-//	startPiece: first piece index to process
-//	endPiece: last piece index to process (exclusive)
-//	completedPieces: atomic counter for progress tracking
+// hashPieceRange optimized for batch I/O operations
 func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *uint64) error {
-	// reuse buffer from pool to minimize allocations
-	buf := h.bufferPool.Get().([]byte)
-	defer h.bufferPool.Put(buf)
-
-	hasher := sha1.New()
-	// track open file handles to avoid reopening the same file
-	readers := make(map[string]*fileReader)
+	// Get multiple buffers for batch operations
+	buffers := make([][]byte, maxBatchSize)
+	for i := range buffers {
+		buffers[i] = h.bufferPool.Get().([]byte)
+	}
 	defer func() {
-		for _, r := range readers {
-			r.file.Close()
+		for i := range buffers {
+			h.bufferPool.Put(buffers[i])
 		}
 	}()
 
+	hasher := sha1.New()
+	readers := make(map[string]*fileReaderState)
+	defer func() {
+		for _, r := range readers {
+			r.reader.Close()
+		}
+	}()
+
+	// Process each piece
 	for pieceIndex := startPiece; pieceIndex < endPiece; pieceIndex++ {
 		pieceOffset := int64(pieceIndex) * h.pieceLen
 		pieceLength := h.pieceLen
 
-		// handle last piece which may be shorter than others
+		// Handle last piece which may be shorter
 		if pieceIndex == h.numPieces-1 {
 			var totalLength int64
 			for _, f := range h.files {
@@ -199,17 +195,29 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 		hasher.Reset()
 		remainingPiece := pieceLength
 
+		// Prepare read operations for this piece
+		type readOp struct {
+			file       fileEntry
+			readStart  int64
+			readLength int64
+			bufferIdx  int
+		}
+
+		// Plan all read operations for this piece
+		var readOps []readOp
+		currentOffset := pieceOffset
+		
 		for _, file := range h.files {
-			// skip files that don't contain data for this piece
-			if pieceOffset >= file.offset+file.length {
+			// Skip files that don't contain data for this piece
+			if currentOffset >= file.offset+file.length {
 				continue
 			}
 			if remainingPiece <= 0 {
 				break
 			}
 
-			// calculate read boundaries within the current file
-			readStart := pieceOffset - file.offset
+			// Calculate read boundaries within the current file
+			readStart := currentOffset - file.offset
 			if readStart < 0 {
 				readStart = 0
 			}
@@ -219,56 +227,105 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 				readLength = remainingPiece
 			}
 
-			// reuse or create new file reader
-			reader, ok := readers[file.path]
-			if !ok {
-				f, err := os.OpenFile(file.path, os.O_RDONLY, 0)
-				if err != nil {
-					return fmt.Errorf("failed to open file %s: %w", file.path, err)
-				}
-				reader = &fileReader{
-					file:     f,
-					position: 0,
-					length:   file.length,
-				}
-				readers[file.path] = reader
-			}
-
-			// ensure correct file position before reading
-			if reader.position != readStart {
-				if _, err := reader.file.Seek(readStart, 0); err != nil {
-					return fmt.Errorf("failed to seek in file %s: %w", file.path, err)
-				}
-				reader.position = readStart
-			}
-
-			// read file data in chunks to avoid large memory allocations
+			// Split large reads into buffer-sized chunks
 			remaining := readLength
+			fileReadStart := readStart
+			
 			for remaining > 0 {
-				n := int(remaining)
-				if n > len(buf) {
-					n = len(buf)
+				chunkSize := int64(h.readSize)
+				if remaining < chunkSize {
+					chunkSize = remaining
 				}
-
-				read, err := io.ReadFull(reader.file, buf[:n])
-				if err != nil && err != io.ErrUnexpectedEOF {
-					return fmt.Errorf("failed to read file %s: %w", file.path, err)
-				}
-
-				hasher.Write(buf[:read])
-				remaining -= int64(read)
-				remainingPiece -= int64(read)
-				reader.position += int64(read)
-				pieceOffset += int64(read)
+				
+				readOps = append(readOps, readOp{
+					file:       file,
+					readStart:  fileReadStart,
+					readLength: chunkSize,
+					bufferIdx:  len(readOps) % maxBatchSize,
+				})
+				
+				fileReadStart += chunkSize
+				remaining -= chunkSize
+				remainingPiece -= chunkSize
+				currentOffset += chunkSize
 			}
 		}
 
-		// store piece hash and update progress
+		// Process read operations in batches
+		for i := 0; i < len(readOps); i += maxBatchSize {
+			batchEnd := i + maxBatchSize
+			if batchEnd > len(readOps) {
+				batchEnd = len(readOps)
+			}
+			
+			// Submit batch of read operations
+			results := make(chan struct {
+				data []byte
+				err  error
+			}, batchEnd-i)
+			
+			for j := i; j < batchEnd; j++ {
+				op := readOps[j]
+				buffer := buffers[op.bufferIdx][:op.readLength]
+				
+				// Get or create reader for this file
+				reader, ok := readers[op.file.path]
+				if !ok {
+					ioReader, err := NewIOReader(op.file.path)
+					if err != nil {
+						return fmt.Errorf("failed to open file %s: %w", op.file.path, err)
+					}
+					reader = &fileReaderState{
+						reader:   ioReader,
+						position: 0,
+						length:   op.file.length,
+					}
+					readers[op.file.path] = reader
+				}
+				
+				// Submit read operation asynchronously
+				go func(r ioReader, offset int64, buf []byte, idx int) {
+					n, err := r.Read(offset, buf)
+					if err != nil {
+						results <- struct {
+							data []byte
+							err  error
+						}{nil, fmt.Errorf("failed to read file: %w", err)}
+						return
+					}
+					
+					results <- struct {
+						data []byte
+						err  error
+					}{buf[:n], nil}
+				}(reader.reader, op.readStart, buffer, j-i)
+			}
+			
+			// Process results as they complete
+			for j := i; j < batchEnd; j++ {
+				result := <-results
+				if result.err != nil {
+					return result.err
+				}
+				
+				// Update hash with read data
+				hasher.Write(result.data)
+			}
+		}
+
+		// Store piece hash and update progress
 		h.pieces[pieceIndex] = hasher.Sum(nil)
 		atomic.AddUint64(completedPieces, 1)
 	}
 
 	return nil
+}
+
+// fileReaderState tracks the state of an open file reader
+type fileReaderState struct {
+	reader   ioReader
+	position int64
+	length   int64
 }
 
 func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Displayer) *pieceHasher {
