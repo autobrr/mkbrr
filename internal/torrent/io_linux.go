@@ -75,37 +75,21 @@ const (
 	ioUringOpTimeout = 100 * time.Millisecond
 )
 
-// io_uring setup syscall numbers for different architectures
-var ioUringSetupSyscallNum = map[string]uintptr{
-	"386":         425,
-	"amd64":       425,
-	"arm":         425,
-	"arm64":       425,
-	"ppc64":       425,
-	"ppc64le":     425,
-	"mips":        425,
-	"mipsle":      425,
-	"mips64":      425,
-	"mips64le":    425,
-	"s390x":       425,
-	"riscv64":     425,
-}
-
-// io_uring enter syscall numbers for different architectures
-var ioUringEnterSyscallNum = map[string]uintptr{
-	"386":         426,
-	"amd64":       426,
-	"arm":         426,
-	"arm64":       426,
-	"ppc64":       426,
-	"ppc64le":     426,
-	"mips":        426,
-	"mipsle":      426,
-	"mips64":      426,
-	"mips64le":    426,
-	"s390x":       426,
-	"riscv64":     426,
-}
+// io_uring syscall numbers for different architectures
+var (
+	sysFdByArch = map[string]int{
+		"amd64": 425,
+		"arm64": 425,
+		"386":   425,
+		// Add more architectures as needed
+	}
+	sysEnterByArch = map[string]int{
+		"amd64": 426,
+		"arm64": 426,
+		"386":   426,
+		// Add more architectures as needed
+	}
+)
 
 // io_uring structures
 type ioUringParams struct {
@@ -117,11 +101,11 @@ type ioUringParams struct {
 	features     uint32
 	wqFd         uint32
 	resv         [3]uint32
-	sqOff        ioUringSQRingOffsets
-	cqOff        ioUringCQRingOffsets
+	sqOff        sqRingOffsets
+	cqOff        cqRingOffsets
 }
 
-type ioUringSQRingOffsets struct {
+type sqRingOffsets struct {
 	head        uint32
 	tail        uint32
 	ringMask    uint32
@@ -133,7 +117,7 @@ type ioUringSQRingOffsets struct {
 	resv2       uint64
 }
 
-type ioUringCQRingOffsets struct {
+type cqRingOffsets struct {
 	head        uint32
 	tail        uint32
 	ringMask    uint32
@@ -174,29 +158,28 @@ type ioUringReader struct {
 
 // ioURing represents an io_uring instance
 type ioURing struct {
-	fd          int
-	params      ioUringParams
-	sqRing      []byte
-	cqRing      []byte
-	sqes        []byte
-	sqHead      *uint32
-	sqTail      *uint32
-	sqMask      *uint32
-	sqArray     []uint32
-	cqHead      *uint32
-	cqTail      *uint32
-	cqMask      *uint32
-	entries     uint32
-	initialized bool
-	mu          sync.Mutex
+	fd           int
+	params       ioUringParams
+	sqRing       []byte
+	cqRing       []byte
+	sqes         []byte
+	sqHead       *uint32
+	sqTail       *uint32
+	sqMask       *uint32
+	sqArray      *uint32
+	cqHead       *uint32
+	cqTail       *uint32
+	cqMask       *uint32
+	mu           sync.Mutex
+	nextUserData uint64
 }
 
-// Global io_uring instance for reuse
+// Global io_uring instance and control
 var (
 	globalRing     *ioURing
 	globalRingOnce sync.Once
 	ringSupported  bool
-	disableIoUring atomic.Bool // Track if io_uring should be disabled due to errors
+	disableIoUring atomic.Bool
 )
 
 func init() {
@@ -204,32 +187,43 @@ func init() {
 	disableIoUring.Store(true)
 }
 
-// io_uring_setup syscall using architecture-specific syscall number
+// ioUringSetup calls the io_uring_setup syscall with correct number for the platform
 func ioUringSetup(entries uint32, params *ioUringParams) (int, error) {
-	arch := runtime.GOARCH
-	syscallNum, ok := ioUringSetupSyscallNum[arch]
+	sysNum, ok := sysFdByArch[runtime.GOARCH]
 	if !ok {
+		// If we don't know the syscall number for this architecture,
+		// report as not supported
 		return 0, syscall.ENOSYS
 	}
 	
-	r1, _, errno := syscall.Syscall(syscallNum, uintptr(entries), uintptr(unsafe.Pointer(params)), 0)
+	r1, _, errno := syscall.Syscall(uintptr(sysNum), uintptr(entries), uintptr(unsafe.Pointer(params)), 0)
 	if errno != 0 {
+		// Check if this looks like a seccomp issue
+		if errno == syscall.EPERM || errno == syscall.EACCES {
+			// Seccomp is likely blocking the syscall
+			disableIoUring.Store(true)
+		}
 		return 0, errno
 	}
 	return int(r1), nil
 }
 
-// io_uring_enter syscall using architecture-specific syscall number
-func ioUringEnter(fd int, toSubmit uint32, minComplete uint32, flags uint32, sigset unsafe.Pointer, size uint32) (int, error) {
-	arch := runtime.GOARCH
-	syscallNum, ok := ioUringEnterSyscallNum[arch]
+// ioUringEnter calls the io_uring_enter syscall with correct number for the platform
+func ioUringEnter(fd int, toSubmit uint32, minComplete uint32, flags uint32) (int, error) {
+	sysNum, ok := sysEnterByArch[runtime.GOARCH]
 	if !ok {
+		// If we don't know the syscall number for this architecture,
+		// report as not supported
 		return 0, syscall.ENOSYS
 	}
 	
-	r1, _, errno := syscall.Syscall6(syscallNum, uintptr(fd), uintptr(toSubmit), uintptr(minComplete), 
-	                                uintptr(flags), uintptr(sigset), uintptr(size))
+	r1, _, errno := syscall.Syscall6(uintptr(sysNum), uintptr(fd), uintptr(toSubmit), uintptr(minComplete), uintptr(flags), 0, 0)
 	if errno != 0 {
+		// Check if this looks like a seccomp issue
+		if errno == syscall.EPERM || errno == syscall.EACCES {
+			// Seccomp is likely blocking the syscall
+			disableIoUring.Store(true)
+		}
 		return 0, errno
 	}
 	return int(r1), nil
@@ -254,6 +248,7 @@ func getGlobalRing() (*ioURing, error) {
 		// First check if io_uring is supported at all
 		if !checkIoURingSupport() {
 			ringSupported = false
+			disableIoUring.Store(true)
 			return
 		}
 		
@@ -262,14 +257,14 @@ func getGlobalRing() (*ioURing, error) {
 		if err == nil {
 			globalRing = ring
 			ringSupported = true
-			// Only enable io_uring if initialization succeeded
 			disableIoUring.Store(false)
 		} else {
 			ringSupported = false
+			disableIoUring.Store(true)
 		}
 	})
 	
-	if !ringSupported {
+	if !ringSupported || disableIoUring.Load() {
 		return nil, syscall.ENOSYS
 	}
 	return globalRing, nil
@@ -277,7 +272,7 @@ func getGlobalRing() (*ioURing, error) {
 
 // init initializes an io_uring instance
 func (r *ioURing) init(entries uint32) error {
-	// Set up io_uring
+	// Set up parameters
 	params := ioUringParams{}
 	fd, err := ioUringSetup(entries, &params)
 	if err != nil {
@@ -285,20 +280,19 @@ func (r *ioURing) init(entries uint32) error {
 	}
 	r.fd = fd
 	r.params = params
-	r.entries = entries
 
-	// Map submission queue
-	sqSize := params.sqOff.array + params.sqEntries*4
-	sqRing, err := unix.Mmap(fd, IORING_OFF_SQ_RING, int(sqSize), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
+	// Map the submission queue ring buffer
+	sqRingSize := params.sqOff.array + params.sqEntries*4
+	sqRing, err := unix.Mmap(fd, IORING_OFF_SQ_RING, int(sqRingSize), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
 	if err != nil {
 		unix.Close(fd)
 		return err
 	}
 	r.sqRing = sqRing
 
-	// Map completion queue
-	cqSize := params.cqOff.cqes + params.cqEntries*16
-	cqRing, err := unix.Mmap(fd, IORING_OFF_CQ_RING, int(cqSize), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
+	// Map the completion queue ring buffer
+	cqRingSize := params.cqOff.cqes + params.cqEntries*16
+	cqRing, err := unix.Mmap(fd, IORING_OFF_CQ_RING, int(cqRingSize), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
 	if err != nil {
 		unix.Munmap(sqRing)
 		unix.Close(fd)
@@ -306,8 +300,8 @@ func (r *ioURing) init(entries uint32) error {
 	}
 	r.cqRing = cqRing
 
-	// Map SQEs
-	sqesSize := params.sqEntries * 64
+	// Map the submission queue entries
+	sqesSize := params.sqEntries * 64 // Each SQE is 64 bytes
 	sqes, err := unix.Mmap(fd, IORING_OFF_SQES, int(sqesSize), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
 	if err != nil {
 		unix.Munmap(cqRing)
@@ -317,23 +311,15 @@ func (r *ioURing) init(entries uint32) error {
 	}
 	r.sqes = sqes
 
-	// Set up pointers
+	// Set up pointers to ring elements
 	r.sqHead = (*uint32)(unsafe.Pointer(&sqRing[params.sqOff.head]))
 	r.sqTail = (*uint32)(unsafe.Pointer(&sqRing[params.sqOff.tail]))
 	r.sqMask = (*uint32)(unsafe.Pointer(&sqRing[params.sqOff.ringMask]))
-	
-	// Set up the array properly - this is the robust replacement for the previous unsafe array
-	arrayPtr := (*uint32)(unsafe.Pointer(&sqRing[params.sqOff.array]))
-	r.sqArray = make([]uint32, params.sqEntries)
-	for i := uint32(0); i < params.sqEntries; i++ {
-		r.sqArray[i] = *(*uint32)(unsafe.Pointer(uintptr(unsafe.Pointer(arrayPtr)) + uintptr(i)*unsafe.Sizeof(uint32(0))))
-	}
-	
+	r.sqArray = (*uint32)(unsafe.Pointer(&sqRing[params.sqOff.array]))
 	r.cqHead = (*uint32)(unsafe.Pointer(&cqRing[params.cqOff.head]))
 	r.cqTail = (*uint32)(unsafe.Pointer(&cqRing[params.cqOff.tail]))
 	r.cqMask = (*uint32)(unsafe.Pointer(&cqRing[params.cqOff.ringMask]))
-	
-	r.initialized = true
+
 	return nil
 }
 
@@ -342,194 +328,130 @@ func (r *ioURing) prepareRead(fd int, buf []byte, offset int64) (uint64, error) 
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if !r.initialized {
-		return 0, syscall.EINVAL
-	}
-
-	// Get next sqe
-	head := *r.sqHead
-	next := *r.sqTail
-	if (next - head) == r.params.sqEntries {
+	// Check if there's space in the submission queue
+	head := atomic.LoadUint32(r.sqHead)
+	next := atomic.LoadUint32(r.sqTail)
+	
+	if next-head >= r.params.sqEntries {
 		return 0, syscall.EBUSY
 	}
 
+	// Get index in the ring
 	index := next & *r.sqMask
-	if index >= r.params.sqEntries {
-		return 0, syscall.EINVAL
-	}
 	
+	// Get pointer to the SQE at this index
 	sqeOffset := index * 64
-	
-	// Prepare read operation
 	sqe := (*ioUringSQE)(unsafe.Pointer(&r.sqes[sqeOffset]))
+	
+	// Clear the SQE first to avoid any lingering values
+	*sqe = ioUringSQE{}
+	
+	// Set up the read operation
 	sqe.opcode = IORING_OP_READ
-	sqe.flags = 0
-	sqe.ioprio = 0
 	sqe.fd = int32(fd)
-	sqe.off = uint64(offset)
 	sqe.addr = uint64(uintptr(unsafe.Pointer(&buf[0])))
 	sqe.len = uint32(len(buf))
-	sqe.opcodeFlags = 0
+	sqe.off = uint64(offset)
 	
-	// Use a unique userData to identify this operation
-	// Combine index with a counter to ensure uniqueness
-	userData := uint64(time.Now().UnixNano()) | (uint64(index) << 56)
+	// Generate unique user data
+	r.nextUserData++
+	userData := r.nextUserData
 	sqe.userData = userData
-
-	// Update array properly using our properly initialized array
-	sqArrayPtr := (*uint32)(unsafe.Pointer(&r.sqRing[r.params.sqOff.array]))
-	if sqArrayPtr != nil {
-		*(*uint32)(unsafe.Pointer(uintptr(unsafe.Pointer(sqArrayPtr)) + uintptr(index)*4)) = index
-	}
 	
-	// Update tail with memory barrier to ensure visibility
-	atomic.StoreUint32(r.sqTail, next+1)
-
+	// Update the array - this is how the kernel knows which SQE to use
+	arrayPtr := (*uint32)(unsafe.Pointer(uintptr(unsafe.Pointer(r.sqArray)) + uintptr(index*4)))
+	*arrayPtr = index
+	
+	// Increment the tail pointer to indicate we've added an entry
+	atomic.AddUint32(r.sqTail, 1)
+	
 	return userData, nil
 }
 
-// submit submits the prepared operations with timeout
+// submit submits operations to the kernel
 func (r *ioURing) submit() (int, error) {
-	// Add a timeout to prevent hangs
-	submitChan := make(chan struct {
-		n   int
-		err error
-	}, 1)
-	
-	go func() {
-		n, err := ioUringEnter(r.fd, 1, 1, IORING_ENTER_GETEVENTS, nil, 0)
-		submitChan <- struct {
-			n   int
-			err error
-		}{n, err}
-	}()
-	
-	select {
-	case res := <-submitChan:
-		return res.n, res.err
-	case <-time.After(ioUringOpTimeout):
-		return 0, syscall.ETIMEDOUT
-	}
+	return ioUringEnter(r.fd, 1, 1, IORING_ENTER_GETEVENTS)
 }
 
-// waitCompletion waits for a completion event with timeout
+// waitCompletion waits for a completion event
 func (r *ioURing) waitCompletion(userData uint64) (int, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-
-	resultChan := make(chan struct {
-		n   int
-		err error
-	}, 1)
 	
-	go func() {
-		deadline := time.Now().Add(ioUringOpTimeout)
+	for {
+		// Check if there are any completions
+		head := atomic.LoadUint32(r.cqHead)
+		tail := atomic.LoadUint32(r.cqTail)
 		
-		for time.Now().Before(deadline) {
-			head := atomic.LoadUint32(r.cqHead)
-			tail := atomic.LoadUint32(r.cqTail)
-
-			if head == tail {
-				// No completions available, wait a bit
-				_, err := ioUringEnter(r.fd, 0, 1, IORING_ENTER_GETEVENTS, nil, 0)
-				if err != nil {
-					resultChan <- struct {
-						n   int
-						err error
-					}{0, err}
-					return
-				}
-				time.Sleep(time.Millisecond)
-				continue
-			}
-
-			// Process completions
+		if head != tail {
+			// Process completion queue entries
 			for ; head != tail; head++ {
 				index := head & *r.cqMask
-				if index >= r.params.cqEntries {
-					resultChan <- struct {
-						n   int
-						err error
-					}{0, syscall.EINVAL}
-					return
-				}
-				
 				cqeOffset := r.params.cqOff.cqes + index*16
 				cqe := (*ioUringCQE)(unsafe.Pointer(&r.cqRing[cqeOffset]))
-
+				
 				if cqe.userData == userData {
 					// Found our completion
-					if cqe.res < 0 {
-						err := syscall.Errno(-cqe.res)
-						atomic.StoreUint32(r.cqHead, head+1)
-						resultChan <- struct {
-							n   int
-							err error
-						}{0, err}
-						return
-					}
-
+					res := cqe.res
+					
+					// Update head pointer
 					atomic.StoreUint32(r.cqHead, head+1)
-					resultChan <- struct {
-						n   int
-						err error
-					}{int(cqe.res), nil}
-					return
+					
+					if res < 0 {
+						return 0, syscall.Errno(-res)
+					}
+					
+					return int(res), nil
 				}
 			}
-
-			// Update head with memory barrier
+			
+			// Update head pointer if we processed entries but didn't find ours
 			atomic.StoreUint32(r.cqHead, head)
 		}
 		
-		// Timeout reached
-		resultChan <- struct {
-			n   int
-			err error
-		}{0, syscall.ETIMEDOUT}
-	}()
-	
-	select {
-	case res := <-resultChan:
-		return res.n, res.err
-	case <-time.After(ioUringOpTimeout * 2):
-		return 0, syscall.ETIMEDOUT
+		// Wait for more completions
+		_, err := ioUringEnter(r.fd, 0, 1, IORING_ENTER_GETEVENTS)
+		if err != nil {
+			// If any error occurs here, disable io_uring for future operations
+			disableIoUring.Store(true)
+			return 0, err
+		}
 	}
 }
 
-// close closes the io_uring instance
+// close closes and cleans up the io_uring instance
 func (r *ioURing) close() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	
-	if !r.initialized {
-		return nil
-	}
+	var err error
 	
-	r.initialized = false
-	
-	if r.sqRing != nil {
-		unix.Munmap(r.sqRing)
-		r.sqRing = nil
-	}
-	if r.cqRing != nil {
-		unix.Munmap(r.cqRing)
-		r.cqRing = nil
-	}
 	if r.sqes != nil {
-		unix.Munmap(r.sqes)
+		err = unix.Munmap(r.sqes)
 		r.sqes = nil
 	}
+	
+	if r.cqRing != nil {
+		err = unix.Munmap(r.cqRing)
+		r.cqRing = nil
+	}
+	
+	if r.sqRing != nil {
+		err = unix.Munmap(r.sqRing)
+		r.sqRing = nil
+	}
+	
 	if r.fd != 0 {
-		unix.Close(r.fd)
+		err = unix.Close(r.fd)
 		r.fd = 0
 	}
-	return nil
+	
+	return err
 }
 
-// NewIOReader creates an appropriate IO reader based on system capabilities
+// NewIOReader creates an appropriate IO reader for a file
 func NewIOReader(path string) (ioReader, error) {
-	// Skip io_uring if it's been disabled due to previous errors
+	// Try to use io_uring if available and not disabled
 	if !disableIoUring.Load() {
 		ring, err := getGlobalRing()
 		if err == nil {
@@ -544,13 +466,13 @@ func NewIOReader(path string) (ioReader, error) {
 		}
 	}
 	
-	// Try direct I/O next
+	// Fall back to direct I/O if io_uring isn't available
 	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_DIRECT, 0)
 	if err == nil {
 		return &directReader{file: f}, nil
 	}
 	
-	// Fall back to standard file IO
+	// Last resort: standard file I/O
 	f, err = os.Open(path)
 	if err != nil {
 		return nil, err
@@ -564,33 +486,28 @@ func (r *ioUringReader) Read(offset int64, buf []byte) (int, error) {
 		return 0, syscall.EBADF
 	}
 
-	// First try with io_uring
+	// Try io_uring read
 	userData, err := r.ring.prepareRead(r.fd, buf, offset)
 	if err != nil {
-		// Disable io_uring for future operations
+		// Disable io_uring and fall back to pread
 		disableIoUring.Store(true)
-		// Fall back to pread
 		return unix.Pread(r.fd, buf, offset)
 	}
-
+	
 	// Submit operation
 	_, err = r.ring.submit()
 	if err != nil {
-		// Disable io_uring for future operations
 		disableIoUring.Store(true)
-		// Fall back to pread
 		return unix.Pread(r.fd, buf, offset)
 	}
-
+	
 	// Wait for completion
 	n, err := r.ring.waitCompletion(userData)
 	if err != nil {
-		// Disable io_uring for future operations
 		disableIoUring.Store(true)
-		// Fall back to pread
 		return unix.Pread(r.fd, buf, offset)
 	}
-
+	
 	return n, nil
 }
 
@@ -614,7 +531,6 @@ func (r *directReader) Read(offset int64, buf []byte) (int, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	
-	// Use pread for direct reading at offset
 	return unix.Pread(int(r.file.Fd()), buf, offset)
 }
 
@@ -634,12 +550,10 @@ func (r *stdReader) Read(offset int64, buf []byte) (int, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	
-	// Seek to the offset
 	_, err := r.file.Seek(offset, 0)
 	if err != nil {
 		return 0, err
 	}
-	// Read the data
 	return r.file.Read(buf)
 }
 
