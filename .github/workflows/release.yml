@@ -129,7 +129,7 @@ jobs:
           mkdir -p test_data
           dd if=/dev/urandom of=test_data/test1.bin bs=1M count=100
           dd if=/dev/urandom of=test_data/test2.bin bs=1M count=100
-          dd if=/dev/urandom of=test_data/test3.bin bs=1M count=500
+          for i in {1..20000}; do dd if=/dev/urandom bs=1 count=1 of=test_data/file$i.bin; done
 
       - name: Generate Profile
         run: |
