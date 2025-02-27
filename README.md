@@ -158,10 +158,11 @@ Example presets.yaml:
 ```yaml
 version: 1
 
-# Defaults that always apply
+# Defaults that always apply unless overridden
 default:
   private: true
   no_date: true
+  no_creator: false  # adds creator string by default
 
 presets:
   # opentrackr preset
@@ -209,6 +210,7 @@ Single mode flags:
 - `-o, --output <path>`: Set output path (default: <name>.torrent)
 - `-s, --source <text>`: Add source string
 - `-d, --no-date`: Don't write creation date
+- `--no-creator`: Don't write creator string in the torrent file
 
 Note: When using batch mode (-b), torrent settings are specified in the YAML configuration file instead of command line flags.
 When using preset mode (-P), command line flags will override the preset settings.
@@ -233,6 +235,7 @@ jobs:       # List of torrent creation jobs
     comment: string        # Optional: Torrent comment
     source: string         # Optional: Source tag
     no_date: bool          # Optional: Don't write creation date (default: false)
+    no_creator: bool       # Optional: Don't write creator string (default: false)
 ```
 
 #### Preset Configuration Format
@@ -247,6 +250,7 @@ version: 1    # Required, must be 1
 default:
   private: true
   no_date: true
+  no_creator: false
   trackers:
     - string
   # ... other settings as needed
@@ -263,6 +267,7 @@ presets:      # Map of preset names to their configurations
     comment: string        # Optional: Torrent comment
     source: string         # Optional: Source tag (overrides default)
     no_date: bool          # Optional: Don't write creation date (overrides default)
+    no_creator: bool       # Optional: Don't write creator string (overrides default)
 ```
 
 Any settings specified in a preset will override the corresponding default settings. This allows you to set common values in the `default` section and only specify differences in individual presets.

@@ -21,6 +21,7 @@ var (
 	outputPath        string
 	webSeeds          []string
 	noDate            bool
+	noCreator         bool
 	source            string
 	verbose           bool
 	batchFile         string
@@ -92,6 +93,7 @@ func init() {
 	createCmd.Flags().StringVarP(&outputPath, "output", "o", "", "set output path (default: <name>.torrent)")
 	createCmd.Flags().StringVarP(&source, "source", "s", "", "add source string")
 	createCmd.Flags().BoolVarP(&noDate, "no-date", "d", false, "don't write creation date")
+	createCmd.Flags().BoolVarP(&noCreator, "no-creator", "", false, "don't write creator")
 	createCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "be verbose")
 
 	createCmd.Flags().String("cpuprofile", "", "write cpu profile to file (development flag)")
@@ -238,6 +240,9 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		if cmd.Flags().Changed("no-date") {
 			opts.NoDate = noDate
 		}
+		if cmd.Flags().Changed("no-creator") {
+			opts.NoCreator = noCreator
+		}
 	} else {
 		// use command line options
 		opts = torrent.CreateTorrentOptions{
@@ -250,7 +255,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 			MaxPieceLength: maxPieceLengthExp,
 			Source:         source,
 			NoDate:         noDate,
-			NoCreator:      false,
+			NoCreator:      noCreator,
 			Verbose:        verbose,
 			Version:        version,
 		}
