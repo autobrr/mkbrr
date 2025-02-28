@@ -130,6 +130,8 @@ jobs:
           for i in {1..20000}; do dd if=/dev/urandom bs=1023 count=1 of=test_data/file$i.bin >/dev/null 2>&1; done
 
       - name: Generate Profile
+        env:
+          CGO_ENABLED: 0
         run: |
           # Build initial binary
           go build -o mkbrr
