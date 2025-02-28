@@ -83,7 +83,7 @@ var (
 )
 
 func (d *Display) ShowMessage(msg string) {
-	fmt.Printf("%s %s\n", success("\nInfo:"), msg)
+	fmt.Printf("%s %s\n", success("Info:"), msg)
 }
 
 func (d *Display) ShowError(msg string) {

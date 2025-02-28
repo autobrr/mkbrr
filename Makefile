@@ -21,12 +21,31 @@ GORACE=log_path=./race_report.log \
 .PHONY: all
 all: clean build install
 
+# install ISA-L crypto library if not already installed
+.PHONY: install-isal
+install-isal:
+	@if [ "$$(uname)" = "Linux" ] && [ "$$(uname -m)" = "x86_64" ]; then \
+		if [ ! -f "/usr/lib/libisal_crypto.so" ] && [ ! -f "/usr/local/lib/libisal_crypto.so" ]; then \
+			echo "Installing ISA-L crypto library..."; \
+			chmod +x scripts/install_isal.sh; \
+			./scripts/install_isal.sh; \
+		else \
+			echo "ISA-L crypto library already installed"; \
+		fi \
+	fi
+
 # build binary
 .PHONY: build
-build:
+build: install-isal
 	@echo "Building ${BINARY_NAME}..."
 	@mkdir -p ${BUILD_DIR}
-	CGO_ENABLED=0 $(GO) build ${LDFLAGS} -o ${BUILD_DIR}/${BINARY_NAME}
+	@if [ "$$(uname)" = "Linux" ] && [ "$$(uname -m)" = "x86_64" ] && ( [ -f "/usr/lib/libisal_crypto.so" ] || [ -f "/usr/local/lib/libisal_crypto.so" ] ); then \
+		echo "Building with ISA-L support..."; \
+		CGO_ENABLED=1 $(GO) build ${LDFLAGS} -tags isal -o ${BUILD_DIR}/${BINARY_NAME}; \
+	else \
+		echo "Building without ISA-L support..."; \
+		CGO_ENABLED=0 $(GO) build ${LDFLAGS} -o ${BUILD_DIR}/${BINARY_NAME}; \
+	fi
 
 # install binary in system path
 .PHONY: install
@@ -107,6 +126,7 @@ clean:
 help:
 	@echo "Available targets:"
 	@echo "  all            - Clean, build, and install the binary"
+	@echo "  install-isal   - Install ISA-L crypto library (Linux x86_64 only)"
 	@echo "  build          - Build the binary"
 	@echo "  install        - Install the binary in GOPATH"
 	@echo "  test           - Run tests (excluding large tests)"

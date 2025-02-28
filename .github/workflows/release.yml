@@ -46,6 +46,12 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: true
 
+      - name: Install ISA-L (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          chmod +x scripts/install_isal.sh
+          ./scripts/install_isal.sh
+
       - name: Run Tests
         if: matrix.os == 'windows-latest'
         run: go test -short ./...
@@ -69,6 +75,11 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
+
+      - name: Install ISA-L
+        run: |
+          chmod +x scripts/install_isal.sh
+          ./scripts/install_isal.sh
 
       - name: Run GoReleaser build
         if: github.event_name == 'pull_request'
