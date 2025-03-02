@@ -34,6 +34,48 @@ func Test_GetTrackerPieceSizeExp(t *testing.T) {
 			wantFound:   true,
 		},
 		{
+			name:        "torrent-syndikat small file should use 1 MiB pieces",
+			trackerURL:  "https://ulo.torrent-syndikat.org/ts_ann.php?passkey=123",
+			contentSize: 200 << 20, // 200 MB
+			wantExp:     20,        // 1 MiB pieces
+			wantFound:   true,
+		},
+		{
+			name:        "torrent-syndikat medium file should use 1 MiB pieces",
+			trackerURL:  "https://ulo.torrent-syndikat.org/ts_ann.php?passkey=123",
+			contentSize: 3 << 30, // 3 GB
+			wantExp:     20,      // 1 MiB pieces
+			wantFound:   true,
+		},
+		{
+			name:        "torrent-syndikat large file should use 4 MiB pieces",
+			trackerURL:  "https://ulo.torrent-syndikat.org/ts_ann.php?passkey=123",
+			contentSize: 10 << 30, // 10 GB
+			wantExp:     22,       // 4 MiB pieces
+			wantFound:   true,
+		},
+		{
+			name:        "torrent-syndikat very large file should use 8 MiB pieces",
+			trackerURL:  "https://ulo.torrent-syndikat.org/ts_ann.php?passkey=123",
+			contentSize: 40 << 30, // 40 GB
+			wantExp:     23,       // 8 MiB pieces
+			wantFound:   true,
+		},
+		{
+			name:        "torrent-syndikat huge file should use 16 MiB pieces",
+			trackerURL:  "https://ulo.torrent-syndikat.org/ts_ann.php?passkey=123",
+			contentSize: 60 << 30, // 60 GB
+			wantExp:     24,       // 16 MiB pieces
+			wantFound:   true,
+		},
+		{
+			name:        "torrent-syndikat alternate domain should use correct piece size",
+			trackerURL:  "https://ulo.tee-stube.org/ts_ann.php?passkey=123",
+			contentSize: 60 << 30, // 60 GB
+			wantExp:     24,       // 16 MiB pieces
+			wantFound:   true,
+		},
+		{
 			name:        "unknown tracker should not return piece size recommendations",
 			trackerURL:  "https://unknown.tracker/announce",
 			contentSize: 1 << 30,
@@ -90,6 +132,18 @@ func Test_GetTrackerMaxPieceLength(t *testing.T) {
 			name:       "mtv should allow up to 8 MiB pieces",
 			trackerURL: "https://morethantv.me/announce?passkey=123",
 			wantExp:    23, // 8 MiB pieces
+			wantFound:  true,
+		},
+		{
+			name:       "torrent-syndikat should allow up to 16 MiB pieces",
+			trackerURL: "https://ulo.torrent-syndikat.org/ts_ann.php?passkey=123",
+			wantExp:    24, // 16 MiB pieces
+			wantFound:  true,
+		},
+		{
+			name:       "torrent-syndikat alternate domain should allow up to 16 MiB pieces",
+			trackerURL: "https://ulo.tee-stube.org/ts_ann.php?passkey=123",
+			wantExp:    24, // 16 MiB pieces
 			wantFound:  true,
 		},
 		{
