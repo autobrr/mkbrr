@@ -20,6 +20,11 @@ type pieceHasher struct {
 	display    Displayer
 	bufferPool *sync.Pool
 	readSize   int
+
+	bytesProcessed int64
+	startTime      time.Time
+	lastUpdate     time.Time
+	mutex          sync.RWMutex
 }
 
 // optimizeForWorkload determines optimal read buffer size and number of worker goroutines
@@ -106,6 +111,23 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 		},
 	}
 
+	h.mutex.Lock()
+	h.startTime = time.Now()
+	h.lastUpdate = h.startTime
+	h.mutex.Unlock()
+	h.bytesProcessed = 0
+
+	h.display.ShowFiles(h.files)
+
+	seasonInfo := AnalyzeSeasonPack(h.files)
+
+	if seasonInfo.IsSeasonPack && seasonInfo.VideoFileCount > 1 {
+		if seasonInfo.MaxEpisode > seasonInfo.VideoFileCount {
+			seasonInfo.IsSuspicious = true
+			h.display.ShowSeasonPackWarnings(seasonInfo)
+		}
+	}
+
 	var completedPieces uint64
 	piecesPerWorker := (h.numPieces + numWorkers - 1) / numWorkers
 	errorsCh := make(chan error, numWorkers)
@@ -137,7 +159,17 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 			if completed >= uint64(h.numPieces) {
 				break
 			}
-			h.display.UpdateProgress(int(completed))
+
+			bytesProcessed := atomic.LoadInt64(&h.bytesProcessed)
+			h.mutex.RLock()
+			elapsed := time.Since(h.startTime).Seconds()
+			h.mutex.RUnlock()
+			var hashrate float64
+			if elapsed > 0 {
+				hashrate = float64(bytesProcessed) / elapsed
+			}
+
+			h.display.UpdateProgress(int(completed), hashrate)
 			time.Sleep(200 * time.Millisecond)
 		}
 	}()
@@ -260,6 +292,8 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 				remainingPiece -= int64(read)
 				reader.position += int64(read)
 				pieceOffset += int64(read)
+
+				atomic.AddInt64(&h.bytesProcessed, int64(read))
 			}
 		}
 
