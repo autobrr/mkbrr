@@ -24,6 +24,7 @@ type pieceHasher struct {
 	bytesProcessed int64
 	startTime      time.Time
 	lastUpdate     time.Time
+	mutex          sync.RWMutex
 }
 
 // optimizeForWorkload determines optimal read buffer size and number of worker goroutines
@@ -110,8 +111,10 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 		},
 	}
 
+	h.mutex.Lock()
 	h.startTime = time.Now()
 	h.lastUpdate = h.startTime
+	h.mutex.Unlock()
 	h.bytesProcessed = 0
 
 	h.display.ShowFiles(h.files)
@@ -158,7 +161,9 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 			}
 
 			bytesProcessed := atomic.LoadInt64(&h.bytesProcessed)
+			h.mutex.RLock()
 			elapsed := time.Since(h.startTime).Seconds()
+			h.mutex.RUnlock()
 			var hashrate float64
 			if elapsed > 0 {
 				hashrate = float64(bytesProcessed) / elapsed
