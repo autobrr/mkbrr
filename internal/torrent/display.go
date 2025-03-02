@@ -40,7 +40,7 @@ func (d *Display) ShowProgress(total int) {
 	)
 }
 
-func (d *Display) UpdateProgress(completed int) {
+func (d *Display) UpdateProgress(completed int, hashrate float64) {
 	if d.isBatch {
 		return
 	}
@@ -48,7 +48,31 @@ func (d *Display) UpdateProgress(completed int) {
 		if err := d.bar.Set(completed); err != nil {
 			log.Printf("failed to update progress bar: %v", err)
 		}
+
+		if hashrate > 0 {
+			description := fmt.Sprintf("[cyan][bold]Hashing pieces...[reset] [%.2f MB/s]", hashrate/1024/1024)
+			d.bar.Describe(description)
+		}
 	}
+}
+
+func (d *Display) ShowFiles(files []fileEntry) {
+	if d.isBatch {
+		return
+	}
+
+	fmt.Printf("\n%s\n", magenta("Files being hashed:"))
+	for i, file := range files {
+		prefix := "  ├─"
+		if i == len(files)-1 {
+			prefix = "  └─"
+		}
+		fmt.Printf("%s %s (%s)\n",
+			prefix,
+			success(filepath.Base(file.path)),
+			label(humanize.IBytes(uint64(file.length))))
+	}
+	fmt.Println()
 }
 
 func (d *Display) FinishProgress() {
@@ -236,7 +260,21 @@ func (f *Formatter) FormatDuration(dur time.Duration) string {
 	return humanize.RelTime(time.Now().Add(-dur), time.Now(), "", "")
 }
 
-// ShowWarning displays a warning message
 func (d *Display) ShowWarning(msg string) {
-	fmt.Printf("%s %s\n", yellow("warning:"), msg)
+	fmt.Printf("%s %s\n", yellow("Warning:"), msg)
+}
+
+func (d *Display) ShowSeasonPackWarnings(info *SeasonPackInfo) {
+	if !info.IsSeasonPack {
+		return
+	}
+
+	if info.IsSuspicious || len(info.MissingEpisodes) > 0 {
+		fmt.Printf("\n%s %s\n", yellow("Warning:"), "Possible incomplete season pack detected")
+		fmt.Printf("  %-13s %d\n", label("Season number:"), info.Season)
+		fmt.Printf("  %-13s %d\n", label("Highest episode number found:"), info.MaxEpisode)
+		fmt.Printf("  %-13s %d\n", label("Video files:"), info.VideoFileCount)
+
+		fmt.Println(yellow("\nThis may be an incomplete season pack. Check files before uploading."))
+	}
 }
