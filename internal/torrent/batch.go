@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/autobrr/mkbrr/internal/preset"
 	"gopkg.in/yaml.v3"
 )
 
@@ -147,8 +148,24 @@ func processJob(job BatchJob, verbose bool, version string) BatchResult {
 		Trackers: job.Trackers,
 	}
 
-	// ensure output has .torrent extension
+	var trackerURL string
+	if len(job.Trackers) > 0 {
+		trackerURL = job.Trackers[0]
+	}
+
 	output := job.Output
+	if output == "" {
+		baseName := filepath.Base(filepath.Clean(job.Path))
+
+		if trackerURL != "" {
+			prefix := preset.GetDomainPrefix(trackerURL)
+			baseName = prefix + "_" + baseName
+		}
+
+		output = baseName
+	}
+
+	// ensure output has .torrent extension
 	if filepath.Ext(output) != ".torrent" {
 		output += ".torrent"
 	}
