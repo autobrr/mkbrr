@@ -218,8 +218,56 @@ func (o *Options) ApplyToMetaInfo(mi *metainfo.MetaInfo) (bool, error) {
 	return wasModified, nil
 }
 
+// GetDomainPrefix extracts a clean domain name from a tracker URL to use as a filename prefix
+func GetDomainPrefix(trackerURL string) string {
+	if trackerURL == "" {
+		return "modified"
+	}
+
+	cleanURL := strings.TrimSpace(trackerURL)
+
+	domain := cleanURL
+
+	if strings.Contains(domain, "://") {
+		parts := strings.SplitN(domain, "://", 2)
+		if len(parts) == 2 {
+			domain = parts[1]
+		}
+	}
+
+	if strings.Contains(domain, "/") {
+		domain = strings.SplitN(domain, "/", 2)[0]
+	}
+
+	if strings.Contains(domain, ":") {
+		domain = strings.SplitN(domain, ":", 2)[0]
+	}
+
+	domain = strings.TrimPrefix(domain, "www.")
+
+	if domain != "" {
+		parts := strings.Split(domain, ".")
+
+		if len(parts) > 1 {
+			// take only the domain name without TLD
+			// for example, from "tracker.example.com", get "example"
+			if len(parts) > 2 {
+				// for subdomains, use the second-to-last part
+				domain = parts[len(parts)-2]
+			} else {
+				// for simple domains like example.com, use the first part
+				domain = parts[0]
+			}
+		}
+
+		return sanitizeFilename(domain)
+	}
+
+	return "modified"
+}
+
 // GenerateOutputPath generates an output path for a modified torrent file
-func GenerateOutputPath(originalPath, outputDir, presetName string) string {
+func GenerateOutputPath(originalPath, outputDir, presetName string, outputPattern string, trackerURL string) string {
 	dir := filepath.Dir(originalPath)
 	if outputDir != "" {
 		dir = outputDir
@@ -229,11 +277,34 @@ func GenerateOutputPath(originalPath, outputDir, presetName string) string {
 	ext := filepath.Ext(base)
 	name := strings.TrimSuffix(base, ext)
 
-	// add preset name or "modified" to filename
-	suffix := "-modified"
-	if presetName != "" {
-		suffix = "-" + presetName
+	// if custom output pattern is provided, use it
+	if outputPattern != "" {
+		return filepath.Join(dir, outputPattern+ext)
 	}
 
-	return filepath.Join(dir, name+suffix+ext)
+	prefix := GetDomainPrefix(trackerURL)
+
+	if trackerURL == "" && presetName != "" {
+		prefix = sanitizeFilename(presetName)
+	}
+
+	return filepath.Join(dir, prefix+"_"+name+ext)
+}
+
+// sanitizeFilename removes characters that are invalid in filenames
+func sanitizeFilename(input string) string {
+	// replace characters that are problematic in filenames
+	replacer := strings.NewReplacer(
+		"/", "_",
+		"\\", "_",
+		":", "_",
+		"*", "_",
+		"?", "_",
+		"\"", "_",
+		"<", "_",
+		">", "_",
+		"|", "_",
+		" ", "_",
+	)
+	return replacer.Replace(input)
 }

@@ -16,6 +16,7 @@ type Options struct {
 	PresetName     string
 	PresetFile     string
 	OutputDir      string
+	OutputPattern  string
 	NoDate         bool
 	NoCreator      bool
 	DryRun         bool
@@ -168,7 +169,7 @@ func ModifyTorrent(path string, opts Options) (*Result, error) {
 	}
 
 	// generate output path using the preset generating helper
-	outPath := preset.GenerateOutputPath(path, opts.OutputDir, opts.PresetName)
+	outPath := preset.GenerateOutputPath(path, opts.OutputDir, opts.PresetName, opts.OutputPattern, opts.TrackerURL)
 	result.OutputPath = outPath
 
 	// ensure output directory exists if specified

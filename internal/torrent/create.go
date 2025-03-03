@@ -10,6 +10,7 @@ import (
 
 	"github.com/anacrolix/torrent/bencode"
 	"github.com/anacrolix/torrent/metainfo"
+	"github.com/autobrr/mkbrr/internal/preset"
 	"github.com/autobrr/mkbrr/internal/trackers"
 )
 
@@ -357,9 +358,12 @@ func Create(opts CreateTorrentOptions) (*TorrentInfo, error) {
 		opts.Name = filepath.Base(filepath.Clean(opts.Path))
 	}
 
-	// set output path if not provided
 	if opts.OutputPath == "" {
-		opts.OutputPath = opts.Name + ".torrent"
+		fileName := opts.Name
+		if opts.TrackerURL != "" {
+			fileName = preset.GetDomainPrefix(opts.TrackerURL) + "_" + opts.Name
+		}
+		opts.OutputPath = fileName + ".torrent"
 	} else if !strings.HasSuffix(opts.OutputPath, ".torrent") {
 		opts.OutputPath = opts.OutputPath + ".torrent"
 	}

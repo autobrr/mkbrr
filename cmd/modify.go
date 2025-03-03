@@ -12,6 +12,7 @@ var (
 	modifyPresetName string
 	modifyPresetFile string
 	modifyOutputDir  string
+	modifyOutput     string
 	modifyDryRun     bool
 	modifyNoDate     bool
 	modifyNoCreator  bool
@@ -28,7 +29,8 @@ var modifyCmd = &cobra.Command{
 	Short: "Modify existing torrent files using a preset",
 	Long: `Modify existing torrent files using a preset or flags.
 This allows batch modification of torrent files with new tracker URLs, source tags, etc.
-Original files are preserved and new files are created with -[preset] or -modified suffix.
+Original files are preserved and new files are created with the tracker domain (without TLD) as prefix, e.g. "example_filename.torrent".
+A custom output filename can also be specified via --output.
 
 Note: All unnecessary metadata will be stripped.`,
 	Args:                  cobra.MinimumNArgs(1),
@@ -49,6 +51,7 @@ func init() {
 	modifyCmd.Flags().StringVarP(&modifyPresetName, "preset", "P", "", "use preset from config")
 	modifyCmd.Flags().StringVar(&modifyPresetFile, "preset-file", "", "preset config file (default: ~/.config/mkbrr/presets.yaml)")
 	modifyCmd.Flags().StringVar(&modifyOutputDir, "output-dir", "", "output directory for modified files")
+	modifyCmd.Flags().StringVarP(&modifyOutput, "output", "o", "", "custom output filename (without extension)")
 	modifyCmd.Flags().BoolVarP(&modifyNoDate, "no-date", "d", false, "don't update creation date")
 	modifyCmd.Flags().BoolVarP(&modifyNoCreator, "no-creator", "", false, "don't write creator")
 	modifyCmd.Flags().StringVarP(&modifyTracker, "tracker", "t", "", "tracker URL")
@@ -75,18 +78,19 @@ func runModify(cmd *cobra.Command, args []string) error {
 
 	// build opts, including our override flags defined above
 	opts := torrent.Options{
-		PresetName: modifyPresetName,
-		PresetFile: modifyPresetFile,
-		OutputDir:  modifyOutputDir,
-		NoDate:     modifyNoDate,
-		NoCreator:  modifyNoCreator,
-		DryRun:     modifyDryRun,
-		Verbose:    modifyVerbose,
-		TrackerURL: modifyTracker,
-		WebSeeds:   modifyWebSeeds,
-		Comment:    modifyComment,
-		Source:     modifySource,
-		Version:    version,
+		PresetName:    modifyPresetName,
+		PresetFile:    modifyPresetFile,
+		OutputDir:     modifyOutputDir,
+		OutputPattern: modifyOutput,
+		NoDate:        modifyNoDate,
+		NoCreator:     modifyNoCreator,
+		DryRun:        modifyDryRun,
+		Verbose:       modifyVerbose,
+		TrackerURL:    modifyTracker,
+		WebSeeds:      modifyWebSeeds,
+		Comment:       modifyComment,
+		Source:        modifySource,
+		Version:       version,
 	}
 
 	if cmd.Flags().Changed("private") {
