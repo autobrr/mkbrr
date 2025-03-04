@@ -168,8 +168,14 @@ func ModifyTorrent(path string, opts Options) (*Result, error) {
 		return result, nil
 	}
 
+	var metaInfoName string
+	info, err := mi.UnmarshalInfo()
+	if err == nil {
+		metaInfoName = info.Name
+	}
+
 	// generate output path using the preset generating helper
-	outPath := preset.GenerateOutputPath(path, opts.OutputDir, opts.PresetName, opts.OutputPattern, opts.TrackerURL)
+	outPath := preset.GenerateOutputPath(path, opts.OutputDir, opts.PresetName, opts.OutputPattern, opts.TrackerURL, metaInfoName)
 	result.OutputPath = outPath
 
 	// ensure output directory exists if specified

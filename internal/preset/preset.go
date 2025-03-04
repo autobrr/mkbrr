@@ -267,7 +267,7 @@ func GetDomainPrefix(trackerURL string) string {
 }
 
 // GenerateOutputPath generates an output path for a modified torrent file
-func GenerateOutputPath(originalPath, outputDir, presetName string, outputPattern string, trackerURL string) string {
+func GenerateOutputPath(originalPath, outputDir, presetName string, outputPattern string, trackerURL string, metaInfoName string) string {
 	dir := filepath.Dir(originalPath)
 	if outputDir != "" {
 		dir = outputDir
@@ -275,7 +275,11 @@ func GenerateOutputPath(originalPath, outputDir, presetName string, outputPatter
 
 	base := filepath.Base(originalPath)
 	ext := filepath.Ext(base)
+
 	name := strings.TrimSuffix(base, ext)
+	if metaInfoName != "" {
+		name = metaInfoName
+	}
 
 	// if custom output pattern is provided, use it
 	if outputPattern != "" {
