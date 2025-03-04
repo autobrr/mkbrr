@@ -117,6 +117,22 @@ var trackerConfigs = []TrackerConfig{
 		MaxPieceLength:   24, // max 16 MiB pieces (2^24)
 		UseDefaultRanges: false,
 	},
+	{
+		URLs: []string{
+			"torrent-syndikat.org",
+			"tee-stube.org",
+		},
+		MaxPieceLength: 24, // max 16 MiB pieces (2^24)
+		PieceSizeRanges: []PieceSizeRange{
+			{MaxSize: 250 << 20, PieceExp: 20},   // 1 MiB for < 250 MB
+			{MaxSize: 1024 << 20, PieceExp: 20},  // 1 MiB for 250 MB-1 GB
+			{MaxSize: 5120 << 20, PieceExp: 20},  // 1 MiB for 1-5 GB
+			{MaxSize: 20480 << 20, PieceExp: 22}, // 4 MiB for 5-20 GB
+			{MaxSize: 51200 << 20, PieceExp: 23}, // 8 MiB for 20-50 GB
+			{MaxSize: ^uint64(0), PieceExp: 24},  // 16 MiB for > 50 GB
+		},
+		UseDefaultRanges: false,
+	},
 }
 
 // findTrackerConfig returns the config for a given tracker URL

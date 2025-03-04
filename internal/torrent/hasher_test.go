@@ -17,10 +17,12 @@ import (
 // mockDisplay implements Displayer interface for testing
 type mockDisplay struct{}
 
-func (m *mockDisplay) ShowProgress(total int)   {}
-func (m *mockDisplay) UpdateProgress(count int) {}
-func (m *mockDisplay) FinishProgress()          {}
-func (m *mockDisplay) IsBatch() bool            { return true }
+func (m *mockDisplay) ShowProgress(total int)                      {}
+func (m *mockDisplay) UpdateProgress(count int, hashrate float64)  {}
+func (m *mockDisplay) ShowFiles(files []fileEntry)                 {}
+func (m *mockDisplay) ShowSeasonPackWarnings(info *SeasonPackInfo) {}
+func (m *mockDisplay) FinishProgress()                             {}
+func (m *mockDisplay) IsBatch() bool                               { return true }
 
 // TestPieceHasher_Concurrent tests the hasher with various real-world scenarios.
 // Test cases are designed to cover common torrent types and sizes:
