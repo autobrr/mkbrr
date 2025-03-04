@@ -1,22 +1,17 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/autobrr/mkbrr/main/schema/batch.json
 version: 1
 jobs:
-  # Single file torrent
-  - output: random_movie.torrent
+  - output: randomtracker_random_movie.torrent
     path: /Users/user/Downloads/Random.Movie.Title.2023.1080p.WEB-DL.mkv
     trackers:
       - https://tracker.randomtracker.org/announce
-    #piece_length: 20
     comment: "Random Movie Title - A thrilling adventure"
     private: false
 
-  # Directory torrent
-  - output: random_release.torrent
+  - output: anothertracker_random_release.torrent
     path: '/Users/user/Downloads/Random Album - Best Hits (2025)'
     trackers:
       - https://tracker.anothertracker.com/announce
-    #piece_length: 18
     private: true
-    source: "MUSIC"
-    comment: "Best Hits Compilation - 2025 Edition"
-    no_date: false
+    source: "anothertracker"
+    no_date: true

@@ -7,67 +7,104 @@
 |  Y Y  \    < | \_\ \  | \/|  | \/
 |__|_|  /__|_ \|___  /__|   |__|   
       \/     \/    \/              
-```
 
-mkbrr is a command-line tool to create and inspect torrent files. Fast, single binary, no dependencies. Written in Go.
+mkbrr is a tool to create and inspect torrent files.
 
-## Table of Contents
+Usage:
+  mkbrr [command]
 
-- [Installation](#installation)
-  - [Prebuilt Binaries](#prebuilt-binaries)
-  - [Homebrew](#homebrew)
-  - [Go Install](#go-install)
-  - [Build from Source](#build-from-source)
-- [Usage](#usage)
-  - [Create a Torrent](#create-a-torrent)
-    - [Single Mode](#single-mode)
-    - [Batch Mode](#batch-mode)
-    - [Preset Mode](#preset-mode)
-    - [Create Flags](#create-flags)
-    - [Batch Configuration Format](#batch-configuration-format)
-    - [Preset Configuration Format](#preset-configuration-format)
-  - [Inspect a Torrent](#inspect-a-torrent)
-  - [Modify a Torrent](#modify-a-torrent)
-  - [Tracker-Specific Requirements](#tracker-specific-requirements)
-  - [Version Information](#version-information)
-  - [Update](#update)
-- [Performance](#performance)
-- [License](#license)
+Available Commands:
+  create      Create a new torrent file
+  inspect     Inspect a torrent file
+  modify      Modify existing torrent files using a preset
+  update      Update mkbrr
+  version     Print version information
+  help        Help about any command
 
-## Installation
+Flags:
+  -h, --help   help for mkbrr
 
-### Prebuilt Binaries
+Use "mkbrr [command] --help" for more information about a command.
+````
 
-Download the latest release from the [releases page](https://github.com/autobrr/mkbrr/releases).
+## What is mkbrr?
 
-### Homebrew
+**mkbrr** (pronounced "make-burr") is a simple yet powerful tool for:
+- Creating torrent files
+- Inspecting torrent files
+- Modifying torrent metadata
+- Supports tracker-specific requirements automatically
+
+**Why use mkbrr?**
+- 🚀 **Fast**: Blazingly fast hashing beating the competition
+- 🔧 **Simple**: Easy to use CLI
+- 📦 **Portable**: Single binary with no dependencies
+- 💡 **Smart**: Will attempt to detect possible missing files when creating torrents for season packs
+
+## Quick Start
+
+### Install
+
+#### Pre-built binaries
+
+Download a ready-to-use binary for your platform from the [releases page](https://github.com/autobrr/mkbrr/releases).
+
+#### Homebrew
 
 ```bash
 brew tap autobrr/mkbrr
 brew install mkbrr
 ```
 
-### Go Install
-
-If you have Go installed:
+### Creating a Torrent
 
 ```bash
-go install github.com/autobrr/mkbrr@latest
+# torrents are private by default
+mkbrr create path/to/file -t https://example-tracker.com/announce
+
+# public torrent
+mkbrr create path/to/file -t https://example-tracker.com/announce --private=false
+```
+
+## Table of Contents
+
+- [Installation](#installation)
+- [Usage](#usage)
+  - [Creating Torrents](#creating-torrents)
+  - [Inspecting Torrents](#inspecting-torrents)
+  - [Modifying Torrents](#modifying-torrents)
+- [Advanced Usage](#advanced-usage)
+  - [Preset Mode](#preset-mode)
+  - [Batch Mode](#batch-mode)
+- [Tracker-Specific Features](#tracker-specific-features)
+- [Incomplete Season Pack Detection](#incomplete-season-pack-detection)
+- [Performance](#performance)
+- [License](#license)
+
+## Installation
+
+Choose the method that works best for you:
+
+### Prebuilt Binaries
+
+Download a ready-to-use binary for your platform from the [releases page](https://github.com/autobrr/mkbrr/releases).
+
+### Homebrew (macOS and Linux)
+
+```bash
+brew tap autobrr/mkbrr
+brew install mkbrr
 ```
 
 ### Build from Source
 
 Requirements:
-
-- Go 1.23.4 or later
+See [go.mod](https://github.com/autobrr/mkbrr/blob/main/go.mod#L3) for Go version.
 
 ```bash
 # Clone the repository
 git clone https://github.com/autobrr/mkbrr.git
 cd mkbrr
-
-# Build the binary to ./build/mkbrr
-make build
 
 # Install the binary to $GOPATH/bin
 make install
@@ -76,368 +113,164 @@ make install
 sudo make install    # installs to /usr/local/bin
 ```
 
-The build process will automatically include version information and build time in the binary. The version is determined from git tags, defaulting to "dev" if no tags are found.
+### Go Install
+
+If you have Go installed:
+
+```bash
+go install github.com/autobrr/mkbrr@latest
+
+# make sure its in your PATH
+export PATH="$PATH:$GOPATH/bin"
+```
 
 ## Usage
 
-### Create a Torrent
+### Creating Torrents
+
+The basic command structure for creating torrents is:
 
 ```bash
 mkbrr create [path] [flags]
 ```
 
-#### Single Mode
-
-Create a torrent from a single file or directory:
+For help:
 
 ```bash
-mkbrr create path/to/file -t https://please.passthe.tea
+mkbrr create --help
 ```
 
-#### Batch Mode
+#### Basic Examples
 
-Create multiple torrents using a YAML configuration file:
+```bash
+# Create a private torrent (default)
+mkbrr create path/to/file -t https://example-tracker.com/announce
+
+# Create a public torrent
+mkbrr create path/to/file -t https://example-tracker.com/announce --private=false
+
+# Create with a comment
+mkbrr create path/to/file -t https://example-tracker.com/announce -c "My awesome content"
+
+# Create with a custom output path
+mkbrr create path/to/file -t https://example-tracker.com/announce -o custom-name.torrent
+```
+
+### Inspecting Torrents
+
+View detailed information about a torrent:
+
+```bash
+mkbrr inspect my-torrent.torrent
+```
+
+This shows:
+- Name and size
+- Piece information and hash
+- Tracker URLs
+- Creation date
+- Magnet link
+- File list (for multi-file torrents)
+
+### Modifying Torrents
+
+Update metadata in existing torrent files without access to the original content:
+
+```bash
+# Basic usage
+mkbrr modify original.torrent --tracker https://new-tracker.com
+
+# Modify multiple torrents
+mkbrr modify *.torrent --private=false
+
+# See what would be changed without making actual changes
+mkbrr modify original.torrent --tracker https://new-tracker.com --dry-run
+```
+
+## Advanced Usage
+
+### Preset Mode
+
+Presets save you time by storing commonly used settings. Great for users who create torrents for the same trackers regularly.
+
+See [presets example](examples/presets.yaml) here.
+
+```bash
+# Uses the ptp-preset (defined in your presets.yaml file)
+mkbrr create -P ptp path/to/file
+
+# Override some preset values
+mkbrr create -P ptp --source "MySource" path/to/file
+```
+
+> [!TIP]
+> The preset file can be placed in the current directory, `~/.config/mkbrr/`, or `~/.mkbrr/`. You can also specify a custom location with `--preset-file`.
+
+### Batch Mode
+
+Create multiple torrents at once using a YAML configuration file:
 
 ```bash
 mkbrr create -b batch.yaml
 ```
 
-Example batch.yaml:
-
-```yaml
-version: 1
-jobs:
-  - output: ubuntu.torrent
-    path: /path/to/ubuntu.iso
-    trackers:
-      - https://tracker.openbittorrent.com/announce
-    webseeds:
-      - https://releases.ubuntu.com/22.04/ubuntu-22.04.3-desktop-amd64.iso
-    comment: "Ubuntu 22.04.3 LTS Desktop AMD64"
-    private: false
-    # piece_length is automatically optimized based on file size:
-    # piece_length: 22  # manual override if needed (2^n: 16-27)
-    # max_piece_length: 23  # limits the automatically calculated maximum piece length
-
-  - output: release.torrent
-    path: /path/to/release
-    trackers:
-      - https://tracker.openbittorrent.com/announce
-    private: true
-    source: "GROUP"
-    comment: "My awesome release"
-    no_date: false
-```
-
-Batch mode will process all jobs in parallel (up to 4 concurrent jobs) and provide a summary of results.
-
-#### Preset Mode
-
-Create torrents using predefined settings from a preset configuration:
-
-```bash
-# Use a preset from a config file
-mkbrr create -P private path/to/file
-
-# Use a preset from a custom config file
-mkbrr create -P emp --preset-file custom-presets.yaml path/to/file
-
-# Override preset settings with command line flags
-mkbrr create -P private --source "CUSTOM" path/to/file
-```
+See [batch example](examples/batch.yaml) here.
 
 > [!TIP]
-> The preset file is searched for in the following locations (in order):
-> 1. File specified by `--preset-file` flag
-> 2. `presets.yaml` in the current directory
-> 3. `~/.config/mkbrr/presets.yaml` in the user's home directory
-> 4. `~/.mkbrr/presets.yaml` in the user's home directory
+> Batch mode processes jobs in parallel (up to 4 at once) and shows a summary when complete.
 
-Example presets.yaml:
+## Tracker-Specific Features
 
-```yaml
-version: 1
-
-# Defaults that always apply unless overridden
-default:
-  private: true
-  no_date: true
-  no_creator: false  # adds creator string by default
-
-presets:
-  # opentrackr preset
-  ptp:
-    source: "PTP"
-    trackers:
-      - "https://please.passthe.tea/announce"
-    # piece_length is automatically optimized based on file size
-    # piece_length: 20  # manual override if needed (2^n: 16-27)
-    # max_piece_length: 23  # limits the automatically calculated maximum piece length
-
-  # Public tracker preset
-  public:
-    private: false  # overrides default preset
-    trackers:
-      - "udp://tracker.opentrackr.org:1337/announce"
-      - "udp://open.tracker.cl:1337/announce"
-      - "udp://9.rarbg.com:2810/announce"
-    # piece_length is automatically optimized based on file size
-    # piece_length: 22  # manual override if needed (2^n: 16-27)
-    # max_piece_length: 23  # limits the automatically calculated maximum piece length
-```
-
-#### Create Flags
-
-General flags:
-
-- `-b, --batch <file>`: Use batch configuration file (YAML)
-- `-P, --preset <name>`: Use preset from config
-- `--preset-file <file>`: Preset config file (default: ~/.config/mkbrr/presets.yaml)
-- `-v, --verbose`: Be verbose
-
-Single mode flags:
-
-- `-t, --tracker <url>`: Tracker URL
-- `-w, --web-seed <url>`: Add web seed URLs (can be specified multiple times)
-- `-p, --private`: Make torrent private (default: true)
-
-> [!NOTE]
-> To create a public torrent, use `--private=false` or `-p=false`. Using just `-p` will set private to true.
-
-- `-c, --comment <text>`: Add comment
-- `-l, --piece-length <n>`: Set piece length to 2^n bytes (16-27). Note: Automatic calculation is capped at 2^24 (16 MiB) unless using a tracker with specific requirements. Some trackers (like HDBits, BeyondHD, PTP) have their own piece size requirements which will be automatically enforced. If this flag is set, it will always override any value specified with `-m, --max-piece-length`.
-- `-m, --max-piece-length <n>`: Limit maximum piece length to 2^n bytes (16-27). Note: Some trackers enforce their own maximum piece lengths which will take precedence.
-- `-o, --output <path>`: Set output path (default: <name>.torrent)
-- `-s, --source <text>`: Add source string
-- `-d, --no-date`: Don't write creation date
-- `--no-creator`: Don't write creator string in the torrent file
-
-Note: When using batch mode (-b), torrent settings are specified in the YAML configuration file instead of command line flags.
-When using preset mode (-P), command line flags will override the preset settings.
-
-#### Batch Configuration Format
-
-The batch configuration file uses YAML format with the following structure:
-
-```yaml
-# yaml-language-server: $schema=https://raw.githubusercontent.com/autobrr/mkbrr/main/schema/batch.json
-version: 1  # Required, must be 1
-jobs:       # List of torrent creation jobs
-  - output: string         # Required: Output path for .torrent file
-    path: string           # Required: Path to source file/directory
-    trackers:              # Optional: List of tracker URLs
-      - string
-    webseeds:              # Optional: List of webseed URLs
-      - string
-    private: bool          # Optional: Make torrent private (default: true)
-    piece_length: int      # Optional: Piece length exponent (16-27). Note: Some trackers enforce specific piece size requirements
-    max_piece_length: int  # Optional: Limits the automatically calculated maximum piece length. Note: Some trackers enforce their own limits
-    comment: string        # Optional: Torrent comment
-    source: string         # Optional: Source tag
-    no_date: bool          # Optional: Don't write creation date (default: false)
-    no_creator: bool       # Optional: Don't write creator string (default: false)
-```
-
-#### Preset Configuration Format
-
-The preset configuration file uses YAML format with the following structure:
-
-```yaml
-# yaml-language-server: $schema=https://raw.githubusercontent.com/autobrr/mkbrr/main/schema/presets.json
-version: 1    # Required, must be 1
-
-# Optional: Default settings that apply to all presets unless overridden
-default:
-  private: true
-  no_date: true
-  no_creator: false
-  trackers:
-    - string
-  # ... other settings as needed
-
-presets:      # Map of preset names to their configurations
-  preset-name:
-    trackers:              # Optional: List of tracker URLs (overrides default)
-      - string
-    webseeds:              # Optional: List of webseed URLs (overrides default)
-      - string
-    private: bool          # Optional: Make torrent private (overrides default)
-    piece_length: int      # Optional: Piece length exponent (16-27). Note: Some trackers enforce specific piece size requirements
-    max_piece_length: int  # Optional: Limits the automatically calculated maximum piece length. Note: Some trackers enforce their own limits
-    comment: string        # Optional: Torrent comment
-    source: string         # Optional: Source tag (overrides default)
-    no_date: bool          # Optional: Don't write creation date (overrides default)
-    no_creator: bool       # Optional: Don't write creator string (overrides default)
-```
-
-Any settings specified in a preset will override the corresponding default settings. This allows you to set common values in the `default` section and only specify differences in individual presets.
-
-Example presets.yaml:
-
-```yaml
-version: 1
-
-# Defaults that always apply unless overridden
-default:
-  private: true
-  no_date: true
-
-presets:
-  # opentrackr preset
-  ptp:
-    source: "PTP"
-    trackers:
-      - "https://please.passthe.tea/announce"
-    # piece_length is automatically optimized based on file size
-    # piece_length: 20  # manual override if needed (2^n: 16-27)
-    # max_piece_length: 23  # limits the automatically calculated maximum piece length
-
-  # Public tracker preset
-  public:
-    private: false  # overrides default preset
-    trackers:
-      - "udp://tracker.opentrackr.org:1337/announce"
-      - "udp://open.tracker.cl:1337/announce"
-      - "udp://9.rarbg.com:2810/announce"
-    # piece_length is automatically optimized based on file size
-    # piece_length: 22  # manual override if needed (2^n: 16-27)
-    # max_piece_length: 23  # limits the automatically calculated maximum piece length
-```
-
-### Inspect a Torrent
-
-```bash
-mkbrr inspect <torrent-file>
-```
-
-The inspect command displays detailed information about a torrent file, including:
-
-- Name and size
-- Number of pieces and piece length
-- Private flag status
-- Info hash
-- Tracker URL(s)
-- Creation information
-- Magnet link
-- File list (for multi-file torrents)
-
-### Modify a Torrent
-
-```bash
-mkbrr modify [torrent files...] [flags]
-```
-
-The modify command allows batch modification of existing torrent metadata without requiring access to the source files. Original files are preserved and new files are created with `-[preset]` or `-modified` suffix in the same directory as the input files (unless `--output-dir` is specified).
-
-```bash
-# Modify a single torrent using a preset (outputs to same directory)
-mkbrr modify -P public original.torrent
-
-# Modify multiple torrents using a preset
-mkbrr modify -P private file1.torrent file2.torrent
-
-# Modify all torrent files in current directory
-mkbrr modify -P public *.torrent
-
-# Specify a different output directory
-mkbrr modify -P public --output-dir /path/to/output *.torrent
-```
-
-#### Modify Flags
-
-- `-P, --preset <name>`: use preset from config (if you prefer presets, you can use this just like with create)
-- `--preset-file <file>`: preset config file (default: ~/.config/mkbrr/presets.yaml)
-- `--output-dir <dir>`: output directory for modified files (default: same directory as input files)
-- `-n, --dry-run`: show what would be modified without making changes
-- `-v, --verbose`: be verbose
-
-If you don't want to use presets, you can modify individual metadata fields with these flags:
-
-- `-t, --tracker <url>`: tracker URL override
-- `-w, --web-seed <url>`: add web seed URLs (can be specified multiple times)
-- `-p, --private`: make torrent private (default: true)
-  > [!NOTE]
-  > To create a public torrent, use `--private=false` or `-p=false`. Using just `-p` will set private to true.
-- `-c, --comment <text>`: add comment to the torrent
-- `-s, --source <text>`: specify source string
-- `-d, --no-date`: don't update creation date
-
-Note: Changes that would require access to the source files (like modifying piece length) are not supported. If you need to change these parameters, please create a new torrent instead.
-
-### Tracker-Specific Requirements
-
-mkbrr includes built-in support for various private trackers and will automatically enforce their specific requirements:
+mkbrr automatically enforces some requirements for various private trackers so you don't have to:
 
 #### Piece Length Limits
-- HDB, BHD, SuperBits: Max 16 MiB pieces (2^24)
-- Emp, MTV: Max 8 MiB pieces (2^23)
-- GazelleGames: Max 64 MiB pieces (2^26)
 
-#### Custom Piece Ranges
-Some trackers (like PTP, BTN, GGn, Norbits) have specific piece size ranges based on content size. These ranges are automatically applied when creating torrents for these trackers.
+Different trackers have different requirements:
+- HDB, BHD, SuperBits: Max 16 MiB pieces
+- Emp, MTV: Max 8 MiB pieces
+- GazelleGames: Max 64 MiB pieces
 
 #### Torrent Size Limits
-Some trackers enforce maximum .torrent file sizes:
+
+Some trackers limit the size of the .torrent file itself:
 - Anthelion: 250 KiB
 - GazelleGames: 1 MB
 
-When creating torrents for these trackers, mkbrr will automatically adjust piece sizes if needed to stay within these limits.
+> [!INFO]
+> When creating torrents for these trackers, mkbrr automatically adjusts piece sizes to meet requirements, so you don't have to.
 
-### Version Information
+A full overview over tracker-specific limits can be seen in [trackers.go](internal/trackers/trackers.go)
 
-```bash
-mkbrr version
+## Incomplete Season Pack Detection
+
+If the input is a folder with a name that indicates that its a pack, it will find the highest number and do a count to look for missing files.
+
+```
+mkbrr create ~/Kyles.Original.Sins.S01.1080p.SRC.WEB-DL.DDP5.1.H.264 -t https://tracker.com/announce/1234567
+
+Files being hashed:
+  ├─ Kyles.Original.Sins.S01E01.Business.and.Pleasure.1080p.SRC.WEB-DL.DDP5.1.H.264.mkv (3.3 GiB)
+  ├─ Kyles.Original.Sins.S01E02.Putting.It.Back.In.1080p.SRC.WEB-DL.DDP5.1.H.264.mkv (3.4 GiB)
+  └─ Kyles.Original.Sins.S01E04.Cursor.For.Life.1080p.SRC.WEB-DL.DDP5.1.H.264.mkv (3.3 GiB)
+
+
+Warning: Possible incomplete season pack detected
+  Season number: 1
+  Highest episode number found: 4
+  Video files: 3
+
+This may be an incomplete season pack. Check files before uploading.
+
+Hashing pieces... [3220.23 MB/s] 100% [========================================]
+
+Wrote title.torrent (elapsed 3.22s)
 ```
 
-Displays the version and build time of mkbrr.
-
-### Update
-
-```bash
-mkbrr update
-```
-
-Self-updates the mkbrr binary if there is a new version available.
 
 ## Performance
 
-mkbrr is blazingly fast, matching, and sometimes outperforming other popular torrent creation tools. Here are some benchmarks:
-
-### 76GB Remux (Single File) [Ryzen 5 3600 / HDD]
-
-```bash
-# mktorrent
-time mktorrent -p
-Duration: 98.45s user 41.83s system 51% cpu 4:32.48 total
-
-# mkbrr
-time mkbrr create -p
-Duration: 74.16s user 36.52s system 56% cpu 3:17.26 total
-```
-
-### 3.6GB Episode (Single File) [Apple Silicon M3 / NVME]
-
-```bash
-# mktorrent
-time mktorrent -p
-Duration: 1.34s user 0.49s system 103% cpu 1.766 total
-
-# mkbrr
-time mkbrr create -p
-Duration: 1.27s user 0.67s system 122% cpu 1.587 total
-```
-
-### 350MB Music Album (15 Files) [Apple Silicon M3 / NVME]
-
-```bash
-# mktorrent
-time mktorrent -p
-Duration: 0.14s user 0.06s system 96% cpu 0.201 total
-
-# mkbrr
-time mkbrr create -p
-Duration: 0.13s user 0.05s system 94% cpu 0.189 total
-```
+mkbrr is optimized for speed, and outperforms other popular tools.
+We will post some benchmarks later on.
 
 ## License
 

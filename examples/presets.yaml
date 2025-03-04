@@ -1,50 +1,26 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/autobrr/mkbrr/main/schema/presets.json
 version: 1
 
-# Defaults that always apply to all presets unless overridden
+# defaults that always apply to all presets unless overridden
 default:
   private: true
   no_date: true
-  # All available options (commented out):
-  # trackers:                                    # List of tracker URLs
-  #   - "https://tracker.example.com/announce"
-  #   - "udp://tracker.example.com:1337/announce"
-  # webseeds:                                    # List of webseed URLs
-  #   - "https://example.com/files/file.iso"
-  # private: true                                # Make torrent private
+  no_creator: false
   # comment: "Default comment for all torrents"  # Torrent comment
   # source: "DEFAULT"                           # Source tag
-  # no_date: true                               # Don't write creation date
-  # piece_length is automatically optimized based on file size:
-  # < 1MB files: 16KB pieces (2^26)
-  # 1MB - 1GB files: 1MB pieces (2^20)
-  # 1GB - 16GB files: 4MB pieces (2^22)
-  # > 16GB files: 16MB pieces (2^24)
-  # piece_length: 22                           # Manual override if needed (2^n: 16-24)
 
 presets:
-  # PTP preset
   ptp:
     source: "PTP"
-    private: true
     trackers:
       - "https://please.passthe.tea/announce"
 
   # Public tracker preset with all options shown
   public:
     private: false  # overrides default preset
+    no_date: false
+    no_creator: true
     trackers:
       - "udp://tracker.opentrackr.org:1337/announce"
       - "udp://open.tracker.cl:1337/announce"
       - "udp://9.rarbg.com:2810/announce"
-    # All other available options (commented out):
-    # webseeds:
-    #   - "https://example.com/files/ubuntu.iso"
-    # comment: "Ubuntu 22.04.3 LTS"
-    # source: "RELEASE"
-    # no_date: false
-    # piece_length is automatically optimized based on file size
-    # 1MB - 1GB files: 1MB pieces (2^20)
-    # 1GB - 16GB files: 4MB pieces (2^22)
-    # > 16GB files: 16MB pieces (2^24)
-    # piece_length: 22                           # Manual override if needed (2^n: 16-24)
