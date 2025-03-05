@@ -1,19 +1,8 @@
 package utils
 
 import (
-	"fmt"
 	"strings"
 )
-
-// FormatPieceSize returns a human readable piece size,
-// using KiB for sizes < 1024 KiB and MiB for larger sizes
-func FormatPieceSize(exp uint) string {
-	size := uint64(1) << (exp - 10) // convert to KiB
-	if size >= 1024 {
-		return fmt.Sprintf("%d MiB", size/1024)
-	}
-	return fmt.Sprintf("%d KiB", size)
-}
 
 // SanitizeFilename removes characters that are invalid in filenames
 func SanitizeFilename(input string) string {

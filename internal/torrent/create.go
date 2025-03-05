@@ -176,7 +176,7 @@ func CreateTorrent(opts types.CreateTorrentOptions) (*types.Torrent, error) {
 			display := displayCallback(opts.Verbose)
 			if exp, ok := trackers.GetTrackerPieceSizeExp(opts.TrackerURL, uint64(totalSize)); ok {
 				display.ShowMessage(fmt.Sprintf("using tracker-specific range for content size: %d MiB (recommended: %s pieces)",
-					totalSize>>20, utils.FormatPieceSize(exp)))
+					totalSize>>20, torrentutils.FormatPieceSize(exp)))
 			}
 		}
 	} else {
@@ -192,10 +192,10 @@ func CreateTorrent(opts types.CreateTorrentOptions) (*types.Torrent, error) {
 			display := displayCallback(opts.Verbose)
 			if exp, ok := trackers.GetTrackerPieceSizeExp(opts.TrackerURL, uint64(totalSize)); ok {
 				display.ShowMessage(fmt.Sprintf("using tracker-specific range for content size: %d MiB (recommended: %s pieces)",
-					totalSize>>20, utils.FormatPieceSize(exp)))
+					totalSize>>20, torrentutils.FormatPieceSize(exp)))
 				if pieceLength != exp {
 					display.ShowWarning(fmt.Sprintf("custom piece length %s differs from recommendation",
-						utils.FormatPieceSize(pieceLength)))
+						torrentutils.FormatPieceSize(pieceLength)))
 				}
 			}
 		}

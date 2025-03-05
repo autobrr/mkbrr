@@ -47,9 +47,9 @@ func ValidatePieceLength(pieceLength uint, trackerURL string) error {
 			return fmt.Errorf(
 				"piece length exponent must be between %d (%s) and %d (%s) for %s, got: %d",
 				constraints.MinExp,
-				utils.FormatPieceSize(constraints.MinExp),
+				FormatPieceSize(constraints.MinExp),
 				maxExp,
-				utils.FormatPieceSize(maxExp),
+				FormatPieceSize(maxExp),
 				baseURL,
 				pieceLength,
 			)
@@ -57,9 +57,9 @@ func ValidatePieceLength(pieceLength uint, trackerURL string) error {
 		return fmt.Errorf(
 			"piece length exponent must be between %d (%s) and %d (%s), got: %d",
 			constraints.MinExp,
-			utils.FormatPieceSize(constraints.MinExp),
+			FormatPieceSize(constraints.MinExp),
 			maxExp,
-			utils.FormatPieceSize(maxExp),
+			FormatPieceSize(maxExp),
 			pieceLength,
 		)
 	}
@@ -159,4 +159,14 @@ func CalculatePieceLength(totalSize int64, maxPieceLength *uint, trackerURL stri
 	}
 
 	return exp
+}
+
+// FormatPieceSize returns a human readable piece size,
+// using KiB for sizes < 1024 KiB and MiB for larger sizes
+func FormatPieceSize(exp uint) string {
+	size := uint64(1) << (exp - 10) // convert to KiB
+	if size >= 1024 {
+		return fmt.Sprintf("%d MiB", size/1024)
+	}
+	return fmt.Sprintf("%d KiB", size)
 }
