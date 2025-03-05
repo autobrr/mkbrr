@@ -18,15 +18,20 @@ func Init(minIntFn func(a, b int) int) {
 }
 
 var seasonPackPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`(?i)\.S(\d{1,2})\.(?:\d+p|Complete|COMPLETE)`),
 	regexp.MustCompile(`(?i)\.S(\d{1,2})(?:\.|-|_|\s)Complete`),
 	regexp.MustCompile(`(?i)\.Season\.(\d{1,2})\.`),
-	regexp.MustCompile(`(?i)\.S(\d{1,2})(?:\.|-|_|\s)*$`),
-	regexp.MustCompile(`(?i)[-_\s]S(\d{1,2})[-_\s]`),
 	regexp.MustCompile(`(?i)[/\\]Season\s*(\d{1,2})[/\\]`),
 	regexp.MustCompile(`(?i)[/\\]S(\d{1,2})[/\\]`),
-	regexp.MustCompile(`(?i)\.S(\d{1,2})\.(?:\d+p|Complete|COMPLETE)`),
+	regexp.MustCompile(`(?i)[-_\s]S(\d{1,2})[-_\s]`),
+	regexp.MustCompile(`(?i)\.S(\d{1,2})(?:\.|-|_|\s)*$`),
 	regexp.MustCompile(`(?i)Season\s*(\d{1,2})(?:[/\\]|$)`),
+	regexp.MustCompile(`(?i)Temporada\s*(\d{1,2})`),
+	regexp.MustCompile(`(?i)Saison\s*(\d{1,2})`),
+	regexp.MustCompile(`(?i)Staffel\s*(\d{1,2})`),
 	regexp.MustCompile(`(?i)\.S(\d{1,2})$`),
+	regexp.MustCompile(`(?i)Season\s*(\d{1,2})$`),
+	regexp.MustCompile(`(?i)S(\d{1,2})$`),
 }
 
 var episodePattern = regexp.MustCompile(`(?i)S\d{1,2}E(\d{1,3})`)
@@ -35,6 +40,10 @@ var multiEpisodePattern = regexp.MustCompile(`(?i)S\d{1,2}E(\d{1,3})-?E?(\d{1,3}
 var videoExtensions = map[string]bool{
 	".mkv": true,
 	".mp4": true,
+	".avi": true,
+	".mov": true,
+	".wmv": true,
+	".flv": true,
 }
 
 func AnalyzeSeasonPack(files []types.EntryFile) *display.SeasonPackInfo {
@@ -133,9 +142,12 @@ func detectSeasonNumber(path string) int {
 	for _, pattern := range seasonPackPatterns {
 		matches := pattern.FindStringSubmatch(path)
 		if len(matches) > 1 {
-			if season, err := strconv.Atoi(matches[1]); err == nil {
-				return season
+			seasonStr := matches[1]
+			season, err := strconv.Atoi(seasonStr)
+			if err != nil {
+				return 0 // or log the error
 			}
+			return season
 		}
 	}
 	return 0
@@ -144,13 +156,23 @@ func detectSeasonNumber(path string) int {
 func extractSeasonEpisode(filename string) (season, episode int) {
 	epMatches := episodePattern.FindStringSubmatch(filename)
 	if len(epMatches) > 1 {
-		episode, _ = strconv.Atoi(epMatches[1])
+		episodeStr := epMatches[1]
+		var err error
+		episode, err = strconv.Atoi(episodeStr)
+		if err != nil {
+			episode = 0
+		}
 	}
 
 	seasonPattern := regexp.MustCompile(`(?i)S(\d{1,2})`)
 	sMatches := seasonPattern.FindStringSubmatch(filename)
 	if len(sMatches) > 1 {
-		season, _ = strconv.Atoi(sMatches[1])
+		seasonStr := sMatches[1]
+		var err error
+		season, err = strconv.Atoi(seasonStr)
+		if err != nil {
+			season = 0
+		}
 	}
 
 	return season, episode
@@ -161,8 +183,12 @@ func extractMultiEpisodes(filename string) []int {
 
 	matches := multiEpisodePattern.FindStringSubmatch(filename)
 	if len(matches) > 2 {
-		start, err1 := strconv.Atoi(matches[1])
-		end, err2 := strconv.Atoi(matches[2])
+		startStr := matches[1]
+		endStr := matches[2]
+
+		start, err1 := strconv.Atoi(startStr)
+		end, err2 := strconv.Atoi(endStr)
+
 		if err1 == nil && err2 == nil && end >= start {
 			for i := start; i <= end; i++ {
 				episodes = append(episodes, i)
