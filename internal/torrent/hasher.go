@@ -326,10 +326,4 @@ func NewPieceHasher(files []types.EntryFile, pieceLen int64, numPieces int, disp
 	}
 }
 
-// MinInt returns the smaller of two integers
-func MinInt(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
+// Helper function that used to be here has been moved to utils package

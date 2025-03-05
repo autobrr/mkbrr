@@ -7,8 +7,8 @@ import (
 	"sync"
 
 	"github.com/anacrolix/torrent/metainfo"
-	"github.com/autobrr/mkbrr/internal/preset"
 	"github.com/autobrr/mkbrr/internal/types"
+	"github.com/autobrr/mkbrr/internal/utils"
 	"gopkg.in/yaml.v3"
 )
 
@@ -16,16 +16,13 @@ import (
 var (
 	createTorrentFunc  func(opts types.CreateTorrentOptions) (*types.Torrent, error)
 	getTorrentInfoFunc func(t *types.Torrent) *metainfo.Info
-	minIntFunc         func(a, b int) int
 )
 
 // Init sets up package dependencies
 func Init(createFunc func(opts types.CreateTorrentOptions) (*types.Torrent, error),
-	getInfoFunc func(t *types.Torrent) *metainfo.Info,
-	minFunc func(a, b int) int) {
+	getInfoFunc func(t *types.Torrent) *metainfo.Info) {
 	createTorrentFunc = createFunc
 	getTorrentInfoFunc = getInfoFunc
-	minIntFunc = minFunc
 }
 
 // BatchConfig represents the YAML configuration for batch torrent creation
@@ -116,7 +113,7 @@ func ProcessBatch(configPath string, verbose bool, version string) ([]BatchResul
 	var wg sync.WaitGroup
 
 	// process jobs in parallel with a worker pool
-	workers := minIntFunc(len(config.Jobs), 4) // limit concurrent jobs
+	workers := min(len(config.Jobs), 4) // limit concurrent jobs
 	jobs := make(chan int, len(config.Jobs))
 
 	// start workers
@@ -176,7 +173,7 @@ func processJob(job BatchJob, verbose bool, version string) BatchResult {
 		baseName := filepath.Base(filepath.Clean(job.Path))
 
 		if trackerURL != "" {
-			prefix := preset.GetDomainPrefix(trackerURL)
+			prefix := utils.GetDomainPrefix(trackerURL)
 			baseName = prefix + "_" + baseName
 		}
 

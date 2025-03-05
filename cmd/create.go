@@ -73,7 +73,6 @@ func init() {
 	batch.Init(
 		torrent.CreateTorrent,
 		torrent.GetTorrentInfo,
-		torrent.MinInt,
 	)
 
 	// hide help flag

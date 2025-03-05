@@ -66,16 +66,8 @@ func setupTestMocks(t *testing.T) {
 		}
 	}
 
-	// mock min function
-	minMock := func(a, b int) int {
-		if a < b {
-			return a
-		}
-		return b
-	}
-
 	// initialize package with mock functions
-	Init(createMock, getInfoMock, minMock)
+	Init(createMock, getInfoMock)
 }
 
 func TestProcessBatch(t *testing.T) {

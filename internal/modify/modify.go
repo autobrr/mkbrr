@@ -5,9 +5,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/anacrolix/torrent/bencode"
 	"github.com/anacrolix/torrent/metainfo"
+
 	"github.com/autobrr/mkbrr/internal/preset"
+	"github.com/autobrr/mkbrr/internal/torrentutils"
 )
 
 // Options represents the options for modifying a torrent,
@@ -41,11 +42,7 @@ type Result struct {
 
 // LoadFromFile loads a torrent file and returns a MetaInfo
 func LoadFromFile(path string) (*metainfo.MetaInfo, error) {
-	mi, err := metainfo.LoadFromFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("could not load torrent: %w", err)
-	}
-	return mi, nil
+	return torrentutils.LoadFromFile(path)
 }
 
 // ModifyTorrent modifies a single torrent file according to the given options
@@ -55,7 +52,7 @@ func ModifyTorrent(path string, opts Options) (*Result, error) {
 	}
 
 	// load torrent file
-	mi, err := metainfo.LoadFromFile(path)
+	mi, err := torrentutils.LoadFromFile(path)
 	if err != nil {
 		result.Error = fmt.Errorf("could not load torrent: %w", err)
 		return result, result.Error
@@ -98,66 +95,51 @@ func ModifyTorrent(path string, opts Options) (*Result, error) {
 	// apply flag-based overrides:
 	// update tracker if flag provided
 	if opts.TrackerURL != "" {
-		mi.Announce = opts.TrackerURL
-		mi.AnnounceList = [][]string{{opts.TrackerURL}}
+		torrentutils.UpdateTrackers(mi, opts.TrackerURL)
 		wasModified = true
 	}
 
 	// update web seeds if provided via flag
 	if len(opts.WebSeeds) > 0 {
-		mi.UrlList = opts.WebSeeds
+		torrentutils.UpdateWebSeeds(mi, opts.WebSeeds)
 		wasModified = true
 	}
 
 	// update comment if provided via flag
 	if opts.Comment != "" && mi.Comment != opts.Comment {
-		mi.Comment = opts.Comment
+		torrentutils.UpdateComment(mi, opts.Comment)
 		wasModified = true
 	}
 
 	// update private flag if provided via flag
 	if opts.IsPrivate != nil {
-		info, err := mi.UnmarshalInfo()
-		if err == nil {
-			// update only if different
-			if info.Private == nil || *info.Private != *opts.IsPrivate {
-				info.Private = opts.IsPrivate
-				if infoBytes, err := bencode.Marshal(info); err == nil {
-					mi.InfoBytes = infoBytes
-				}
-				wasModified = true
-			}
+		modified, err := torrentutils.UpdatePrivateFlag(mi, opts.IsPrivate)
+		if err == nil && modified {
+			wasModified = true
 		}
 	}
 
 	// update source if provided via flag
 	if opts.Source != "" {
-		info, err := mi.UnmarshalInfo()
-		if err == nil {
-			if info.Source != opts.Source {
-				info.Source = opts.Source
-				if infoBytes, err := bencode.Marshal(info); err == nil {
-					mi.InfoBytes = infoBytes
-				}
-				wasModified = true
-			}
+		modified, err := torrentutils.UpdateSource(mi, opts.Source)
+		if err == nil && modified {
+			wasModified = true
 		}
 	}
 
-	// handle creator
-	if presetOpts != nil && presetOpts.NoCreator != nil && *presetOpts.NoCreator || opts.NoCreator {
-		mi.CreatedBy = ""
-		wasModified = true
+	// handle creator and creation date
+	noCreator := opts.NoCreator
+	if presetOpts != nil && presetOpts.NoCreator != nil {
+		noCreator = *presetOpts.NoCreator
 	}
 
-	// update creation date based on preset and command line options
-	if presetOpts != nil && presetOpts.NoDate != nil && *presetOpts.NoDate || opts.NoDate {
-		mi.CreationDate = 0
-		wasModified = true
-	} else {
-		mi.CreationDate = time.Now().Unix()
-		wasModified = true
+	noDate := opts.NoDate
+	if presetOpts != nil && presetOpts.NoDate != nil {
+		noDate = *presetOpts.NoDate
 	}
+
+	torrentutils.UpdateCreatorAndDate(mi, fmt.Sprintf("mkbrr/%s", opts.Version), noCreator, noDate, time.Now().Unix())
+	wasModified = true
 
 	if !wasModified {
 		return result, nil
@@ -187,15 +169,8 @@ func ModifyTorrent(path string, opts Options) (*Result, error) {
 	}
 
 	// save modified torrent file
-	f, err := os.Create(outPath)
-	if err != nil {
-		result.Error = fmt.Errorf("could not create output file: %w", err)
-		return result, result.Error
-	}
-	defer f.Close()
-
-	if err := mi.Write(f); err != nil {
-		result.Error = fmt.Errorf("could not write output file: %w", err)
+	if err := torrentutils.SaveToFile(mi, outPath); err != nil {
+		result.Error = fmt.Errorf("could not save output file: %w", err)
 		return result, result.Error
 	}
 

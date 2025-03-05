@@ -9,6 +9,7 @@ import (
 
 	"github.com/anacrolix/torrent/bencode"
 	"github.com/anacrolix/torrent/metainfo"
+	"github.com/autobrr/mkbrr/internal/utils"
 	"gopkg.in/yaml.v3"
 )
 
@@ -207,53 +208,6 @@ func (o *Options) ApplyToMetaInfo(mi *metainfo.MetaInfo) (bool, error) {
 	return wasModified, nil
 }
 
-func GetDomainPrefix(trackerURL string) string {
-	if trackerURL == "" {
-		return "modified"
-	}
-
-	cleanURL := strings.TrimSpace(trackerURL)
-
-	domain := cleanURL
-
-	if strings.Contains(domain, "://") {
-		parts := strings.SplitN(domain, "://", 2)
-		if len(parts) == 2 {
-			domain = parts[1]
-		}
-	}
-
-	if strings.Contains(domain, "/") {
-		domain = strings.SplitN(domain, "/", 2)[0]
-	}
-
-	if strings.Contains(domain, ":") {
-		domain = strings.SplitN(domain, ":", 2)[0]
-	}
-
-	domain = strings.TrimPrefix(domain, "www.")
-
-	if domain != "" {
-		parts := strings.Split(domain, ".")
-
-		if len(parts) > 1 {
-			// take only the domain name without TLD
-			// for example, from "tracker.example.com", get "example"
-			if len(parts) > 2 {
-				// for subdomains, use the second-to-last part
-				domain = parts[len(parts)-2]
-			} else {
-				// for simple domains like example.com, use the first part
-				domain = parts[0]
-			}
-		}
-
-		return sanitizeFilename(domain)
-	}
-
-	return "modified"
-}
-
 func GenerateOutputPath(originalPath, outputDir, presetName string, outputPattern string, trackerURL string, metaInfoName string) string {
 	dir := filepath.Dir(originalPath)
 	if outputDir != "" {
@@ -273,29 +227,11 @@ func GenerateOutputPath(originalPath, outputDir, presetName string, outputPatter
 		return filepath.Join(dir, outputPattern+ext)
 	}
 
-	prefix := GetDomainPrefix(trackerURL)
+	prefix := utils.GetDomainPrefix(trackerURL)
 
 	if trackerURL == "" && presetName != "" {
-		prefix = sanitizeFilename(presetName)
+		prefix = utils.SanitizeFilename(presetName)
 	}
 
 	return filepath.Join(dir, prefix+"_"+name+ext)
-}
-
-// sanitizeFilename removes characters that are invalid in filenames
-func sanitizeFilename(input string) string {
-	// replace characters that are problematic in filenames
-	replacer := strings.NewReplacer(
-		"/", "_",
-		"\\", "_",
-		":", "_",
-		"*", "_",
-		"?", "_",
-		"\"", "_",
-		"<", "_",
-		">", "_",
-		"|", "_",
-		" ", "_",
-	)
-	return replacer.Replace(input)
 }

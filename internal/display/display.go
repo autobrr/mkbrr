@@ -163,9 +163,11 @@ func (d *Display) ShowTorrentInfo(t *types.Torrent, info interface{}) {
 		}
 	}
 
+	private := "no"
 	if metaInfo.Private != nil && *metaInfo.Private {
-		fmt.Printf("  %-13s %s\n", label("Private:"), "yes")
+		private = "yes"
 	}
+	fmt.Printf("  %-13s %s\n", label("Private:"), private)
 
 	if metaInfo.Source != "" {
 		fmt.Printf("  %-13s %s\n", label("Source:"), metaInfo.Source)

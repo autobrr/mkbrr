@@ -5,7 +5,6 @@ import (
 
 	"github.com/autobrr/mkbrr/internal/batch"
 	"github.com/autobrr/mkbrr/internal/display"
-	"github.com/autobrr/mkbrr/internal/seasonpack"
 	"github.com/autobrr/mkbrr/internal/torrent"
 	"github.com/spf13/cobra"
 )
@@ -62,11 +61,8 @@ func initDependencies() {
 	batch.Init(
 		torrent.CreateTorrent,
 		torrent.GetTorrentInfo,
-		torrent.MinInt,
 	)
 
-	// Initialize seasonpack package with MinInt function
-	seasonpack.Init(torrent.MinInt)
 }
 
 func Execute() error {
