@@ -11,18 +11,24 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/autobrr/mkbrr/internal/display"
 	"github.com/autobrr/mkbrr/internal/trackers"
+	"github.com/autobrr/mkbrr/internal/types"
 )
 
-// mockDisplay implements Displayer interface for testing
+// mockDisplay implements interfaces.Displayer interface for testing
 type mockDisplay struct{}
 
-func (m *mockDisplay) ShowProgress(total int)                      {}
-func (m *mockDisplay) UpdateProgress(count int, hashrate float64)  {}
-func (m *mockDisplay) ShowFiles(files []fileEntry)                 {}
-func (m *mockDisplay) ShowSeasonPackWarnings(info *SeasonPackInfo) {}
-func (m *mockDisplay) FinishProgress()                             {}
-func (m *mockDisplay) IsBatch() bool                               { return true }
+func (m *mockDisplay) ShowProgress(total int)                              {}
+func (m *mockDisplay) UpdateProgress(count int, hashrate float64)          {}
+func (m *mockDisplay) ShowFiles(files []types.EntryFile)                   {}
+func (m *mockDisplay) ShowSeasonPackWarnings(info *display.SeasonPackInfo) {}
+func (m *mockDisplay) FinishProgress()                                     {}
+func (m *mockDisplay) IsBatch() bool                                       { return true }
+func (m *mockDisplay) SetBatch(isBatch bool)                               {}
+func (m *mockDisplay) ShowMessage(msg string)                              {}
+func (m *mockDisplay) ShowError(msg string)                                {}
+func (m *mockDisplay) ShowWarning(msg string)                              {}
 
 // TestPieceHasher_Concurrent tests the hasher with various real-world scenarios.
 // Test cases are designed to cover common torrent types and sizes:
@@ -95,7 +101,7 @@ func TestPieceHasher_Concurrent(t *testing.T) {
 }
 
 // createTestFilesFast creates test files more efficiently using sparse files
-func createTestFilesFast(t *testing.T, numFiles int, fileSize, pieceLen int64) ([]fileEntry, [][]byte) {
+func createTestFilesFast(t *testing.T, numFiles int, fileSize, pieceLen int64) ([]types.EntryFile, [][]byte) {
 	t.Helper()
 
 	tempDir, err := os.MkdirTemp("", "hasher_test")
@@ -104,7 +110,7 @@ func createTestFilesFast(t *testing.T, numFiles int, fileSize, pieceLen int64) (
 	}
 	t.Cleanup(func() { os.RemoveAll(tempDir) })
 
-	var files []fileEntry
+	var files []types.EntryFile
 	var expectedHashes [][]byte
 	var offset int64
 
@@ -146,10 +152,10 @@ func createTestFilesFast(t *testing.T, numFiles int, fileSize, pieceLen int64) (
 		}
 		f.Close()
 
-		files = append(files, fileEntry{
-			path:   path,
-			length: fileSize,
-			offset: offset,
+		files = append(files, types.EntryFile{
+			Path:   path,
+			Length: fileSize,
+			Offset: offset,
 		})
 		offset += fileSize
 
@@ -193,7 +199,7 @@ func TestPieceHasher_EdgeCases(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		setup     func() []fileEntry
+		setup     func() []types.EntryFile
 		pieceLen  int64
 		numPieces int
 		wantErr   bool
@@ -201,11 +207,11 @@ func TestPieceHasher_EdgeCases(t *testing.T) {
 	}{
 		{
 			name: "non-existent file",
-			setup: func() []fileEntry {
-				return []fileEntry{{
-					path:   filepath.Join(tempDir, "nonexistent"),
-					length: 1024,
-					offset: 0,
+			setup: func() []types.EntryFile {
+				return []types.EntryFile{{
+					Path:   filepath.Join(tempDir, "nonexistent"),
+					Length: 1024,
+					Offset: 0,
 				}}
 			},
 			pieceLen:  64,
@@ -214,15 +220,15 @@ func TestPieceHasher_EdgeCases(t *testing.T) {
 		},
 		{
 			name: "empty file",
-			setup: func() []fileEntry {
+			setup: func() []types.EntryFile {
 				path := filepath.Join(tempDir, "empty")
 				if err := os.WriteFile(path, []byte{}, 0644); err != nil {
 					t.Fatalf("failed to create empty file: %v", err)
 				}
-				return []fileEntry{{
-					path:   path,
-					length: 0,
-					offset: 0,
+				return []types.EntryFile{{
+					Path:   path,
+					Length: 0,
+					Offset: 0,
 				}}
 			},
 			pieceLen:  64,
@@ -231,15 +237,15 @@ func TestPieceHasher_EdgeCases(t *testing.T) {
 		},
 		{
 			name: "unreadable file",
-			setup: func() []fileEntry {
+			setup: func() []types.EntryFile {
 				path := filepath.Join(tempDir, "unreadable")
 				if err := os.WriteFile(path, []byte("test"), 0000); err != nil {
 					t.Fatalf("failed to create unreadable file: %v", err)
 				}
-				return []fileEntry{{
-					path:   path,
-					length: 4,
-					offset: 0,
+				return []types.EntryFile{{
+					Path:   path,
+					Length: 4,
+					Offset: 0,
 				}}
 			},
 			pieceLen:  64,
@@ -302,7 +308,7 @@ func TestPieceHasher_RaceConditions(t *testing.T) {
 }
 
 func TestPieceHasher_NoFiles(t *testing.T) {
-	hasher := NewPieceHasher([]fileEntry{}, 1<<16, 0, &mockDisplay{})
+	hasher := NewPieceHasher([]types.EntryFile{}, 1<<16, 0, &mockDisplay{})
 
 	err := hasher.hashPieces(0)
 	if err != nil {
@@ -321,10 +327,10 @@ func TestPieceHasher_ZeroWorkers(t *testing.T) {
 	}
 	defer os.RemoveAll(tempDir)
 
-	files := []fileEntry{{
-		path:   filepath.Join(tempDir, "test"),
-		length: 1 << 16,
-		offset: 0,
+	files := []types.EntryFile{{
+		Path:   filepath.Join(tempDir, "test"),
+		Length: 1 << 16,
+		Offset: 0,
 	}}
 	hasher := NewPieceHasher(files, 1<<16, 1, &mockDisplay{})
 
@@ -349,7 +355,7 @@ func TestPieceHasher_CorruptedData(t *testing.T) {
 	files, expectedHashes := createTestFilesFast(t, 1, 1<<16, 1<<16) // 1 file, 64KB
 
 	// corrupt the file by modifying a byte
-	corruptedPath := files[0].path
+	corruptedPath := files[0].Path
 	data, err := os.ReadFile(corruptedPath)
 	if err != nil {
 		t.Fatalf("failed to read file: %v", err)
@@ -450,7 +456,7 @@ func TestTorrentFileSize(t *testing.T) {
 			}
 
 			// Create torrent
-			opts := CreateTorrentOptions{
+			opts := types.CreateTorrentOptions{
 				Path:           testPath,
 				TrackerURL:     tt.trackerURL,
 				PieceLengthExp: &tt.pieceLen,

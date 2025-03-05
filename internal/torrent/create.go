@@ -10,9 +10,19 @@ import (
 
 	"github.com/anacrolix/torrent/bencode"
 	"github.com/anacrolix/torrent/metainfo"
+	"github.com/autobrr/mkbrr/internal/display"
 	"github.com/autobrr/mkbrr/internal/preset"
 	"github.com/autobrr/mkbrr/internal/trackers"
+	"github.com/autobrr/mkbrr/internal/types"
 )
+
+// Variables for display functionality - filled by Init
+var displayCallback func(verbose bool) display.Displayer
+
+// Init sets up display callback functions
+func Init(displayFunc func(verbose bool) display.Displayer) {
+	displayCallback = displayFunc
+}
 
 // max returns the larger of x or y
 func max(x, y int64) int64 {
@@ -52,8 +62,8 @@ func calculatePieceLength(totalSize int64, maxPieceLength *uint, trackerURL stri
 			if exp > maxExp {
 				exp = maxExp
 			}
-			if verbose {
-				display := NewDisplay(NewFormatter(verbose))
+			if verbose && displayCallback != nil {
+				display := displayCallback(verbose)
 				display.ShowMessage(fmt.Sprintf("using tracker-specific range for content size: %d MiB (recommended: %s pieces)",
 					totalSize>>20, formatPieceSize(exp)))
 			}
@@ -120,13 +130,14 @@ func calculatePieceLength(totalSize int64, maxPieceLength *uint, trackerURL stri
 	return exp
 }
 
-func (t *Torrent) GetInfo() *metainfo.Info {
+// GetTorrentInfo extracts and returns the metainfo.Info from a Torrent
+func GetTorrentInfo(t *types.Torrent) *metainfo.Info {
 	info := &metainfo.Info{}
 	_ = bencode.Unmarshal(t.InfoBytes, info)
 	return info
 }
 
-func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
+func CreateTorrent(opts types.CreateTorrentOptions) (*types.Torrent, error) {
 	path := filepath.ToSlash(opts.Path)
 	name := opts.Name
 	if name == "" {
@@ -147,7 +158,7 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 		mi.CreationDate = time.Now().Unix()
 	}
 
-	files := make([]fileEntry, 0, 1)
+	files := make([]types.EntryFile, 0, 1)
 	var totalSize int64
 	var baseDir string
 
@@ -164,10 +175,10 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 		if shouldIgnoreFile(filePath) {
 			return nil
 		}
-		files = append(files, fileEntry{
-			path:   filePath,
-			length: info.Size(),
-			offset: totalSize,
+		files = append(files, types.EntryFile{
+			Path:   filePath,
+			Length: info.Size(),
+			Offset: totalSize,
 		})
 		totalSize += info.Size()
 		return nil
@@ -178,15 +189,22 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 
 	// Sort files to ensure consistent order
 	sort.Slice(files, func(i, j int) bool {
-		return files[i].path < files[j].path
+		return files[i].Path < files[j].Path
 	})
 
 	// Function to create torrent with given piece length
-	createWithPieceLength := func(pieceLength uint) (*Torrent, error) {
+	createWithPieceLength := func(pieceLength uint) (*types.Torrent, error) {
 		pieceLenInt := int64(1) << pieceLength
 		numPieces := (totalSize + pieceLenInt - 1) / pieceLenInt
 
-		display := NewDisplay(NewFormatter(opts.Verbose))
+		var display display.Displayer
+		if displayCallback != nil {
+			display = displayCallback(opts.Verbose)
+		} else {
+			// Create a no-op displayer if display callback is not set
+			display = &noopDisplayer{}
+		}
+
 		hasher := NewPieceHasher(files, pieceLenInt, int(numPieces), display)
 
 		if err := hasher.hashPieces(1); err != nil {
@@ -218,24 +236,24 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 			if pathInfo.IsDir() {
 				// if it's a directory, use the folder structure even for single files
 				info.Files = make([]metainfo.FileInfo, 1)
-				relPath, _ := filepath.Rel(baseDir, files[0].path)
+				relPath, _ := filepath.Rel(baseDir, files[0].Path)
 				pathComponents := strings.Split(relPath, string(filepath.Separator))
 				info.Files[0] = metainfo.FileInfo{
 					Path:   pathComponents,
-					Length: files[0].length,
+					Length: files[0].Length,
 				}
 			} else {
 				// if it's a single file directly, use the simple format
-				info.Length = files[0].length
+				info.Length = files[0].Length
 			}
 		} else {
 			info.Files = make([]metainfo.FileInfo, len(files))
 			for i, f := range files {
-				relPath, _ := filepath.Rel(baseDir, f.path)
+				relPath, _ := filepath.Rel(baseDir, f.Path)
 				pathComponents := strings.Split(relPath, string(filepath.Separator))
 				info.Files[i] = metainfo.FileInfo{
 					Path:   pathComponents,
-					Length: f.length,
+					Length: f.Length,
 				}
 			}
 		}
@@ -250,7 +268,7 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 			mi.UrlList = opts.WebSeeds
 		}
 
-		return &Torrent{mi}, nil
+		return &types.Torrent{MetaInfo: mi}, nil
 	}
 
 	var pieceLength uint
@@ -288,8 +306,8 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 
 		// If we have a tracker with specific ranges, show that we're using them and check if piece length matches
 		if exp, ok := trackers.GetTrackerPieceSizeExp(opts.TrackerURL, uint64(totalSize)); ok {
-			if opts.Verbose {
-				display := NewDisplay(NewFormatter(opts.Verbose))
+			if opts.Verbose && displayCallback != nil {
+				display := displayCallback(opts.Verbose)
 				display.ShowMessage(fmt.Sprintf("using tracker-specific range for content size: %d MiB (recommended: %s pieces)",
 					totalSize>>20, formatPieceSize(exp)))
 				if pieceLength != exp {
@@ -316,8 +334,8 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 
 		// If it exceeds limit, try increasing piece length until it fits or we hit max
 		for uint64(len(torrentData)) > maxSize && pieceLength < 24 {
-			if opts.Verbose {
-				display := NewDisplay(NewFormatter(opts.Verbose))
+			if opts.Verbose && displayCallback != nil {
+				display := displayCallback(opts.Verbose)
 				display.ShowWarning(fmt.Sprintf("increasing piece length to reduce torrent size (current: %.1f KiB, limit: %.1f KiB)",
 					float64(len(torrentData))/(1<<10), float64(maxSize)/(1<<10)))
 			}
@@ -347,7 +365,7 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 }
 
 // Create creates a new torrent file with the given options
-func Create(opts CreateTorrentOptions) (*TorrentInfo, error) {
+func Create(opts types.CreateTorrentOptions) (*types.TorrentInfo, error) {
 	// validate input path
 	if _, err := os.Stat(opts.Path); err != nil {
 		return nil, fmt.Errorf("invalid path %q: %w", opts.Path, err)
@@ -387,25 +405,42 @@ func Create(opts CreateTorrentOptions) (*TorrentInfo, error) {
 	}
 
 	// get info for display
-	info := t.GetInfo()
+	info := GetTorrentInfo(t)
 
 	// create torrent info for return
-	torrentInfo := &TorrentInfo{
+	torrentInfo := &types.TorrentInfo{
 		Path:     opts.OutputPath,
-		Size:     info.Length,
+		Size:     info.TotalLength(),
 		InfoHash: t.MetaInfo.HashInfoBytes().String(),
 		Files:    len(info.Files),
 		Announce: opts.TrackerURL,
+		MetaInfo: t.MetaInfo,
 	}
 
 	// display info if verbose
-	if opts.Verbose {
-		display := NewDisplay(NewFormatter(opts.Verbose))
-		display.ShowTorrentInfo(t, info)
-		if len(info.Files) > 0 {
-			display.ShowFileTree(info)
+	if opts.Verbose && displayCallback != nil {
+		disp := displayCallback(opts.Verbose)
+		if td, ok := disp.(display.TorrentDisplayer); ok {
+			td.ShowTorrentInfo(t, info)
+			if len(info.Files) > 0 {
+				td.ShowFileTree(info)
+			}
 		}
 	}
 
 	return torrentInfo, nil
 }
+
+// noopDisplayer is a no-op implementation of interfaces.Displayer for when no display is provided
+type noopDisplayer struct{}
+
+func (n *noopDisplayer) ShowProgress(total int)                              {}
+func (n *noopDisplayer) UpdateProgress(completed int, hashrate float64)      {}
+func (n *noopDisplayer) ShowFiles(files []types.EntryFile)                   {}
+func (n *noopDisplayer) FinishProgress()                                     {}
+func (n *noopDisplayer) IsBatch() bool                                       { return false }
+func (n *noopDisplayer) SetBatch(isBatch bool)                               {}
+func (n *noopDisplayer) ShowMessage(msg string)                              {}
+func (n *noopDisplayer) ShowError(msg string)                                {}
+func (n *noopDisplayer) ShowWarning(msg string)                              {}
+func (n *noopDisplayer) ShowSeasonPackWarnings(info *display.SeasonPackInfo) {}

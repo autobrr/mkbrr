@@ -1,4 +1,4 @@
-package torrent
+package display
 
 import (
 	"fmt"
@@ -8,16 +8,35 @@ import (
 	"time"
 
 	"github.com/anacrolix/torrent/metainfo"
+	"github.com/autobrr/mkbrr/internal/types"
 	humanize "github.com/dustin/go-humanize"
 	"github.com/fatih/color"
 	progressbar "github.com/schollz/progressbar/v3"
 )
+
+// BatchJob represents a batch job
+type BatchJob struct {
+	Path string
+}
+
+// BatchResult represents the result of a single job in the batch processing
+type BatchResult struct {
+	Job      BatchJob
+	Success  bool
+	Error    error
+	Info     *types.TorrentInfo
+	Trackers []string
+}
 
 type Display struct {
 	formatter *Formatter
 	bar       *progressbar.ProgressBar
 	isBatch   bool
 }
+
+// Ensure Display implements all required interfaces
+var _ Displayer = (*Display)(nil)
+var _ TorrentDisplayer = (*Display)(nil)
 
 func NewDisplay(formatter *Formatter) *Display {
 	return &Display{
@@ -56,7 +75,7 @@ func (d *Display) UpdateProgress(completed int, hashrate float64) {
 	}
 }
 
-func (d *Display) ShowFiles(files []fileEntry) {
+func (d *Display) ShowFiles(files []types.EntryFile) {
 	if d.isBatch {
 		return
 	}
@@ -69,8 +88,8 @@ func (d *Display) ShowFiles(files []fileEntry) {
 		}
 		fmt.Printf("%s %s (%s)\n",
 			prefix,
-			success(filepath.Base(file.path)),
-			label(humanize.IBytes(uint64(file.length))))
+			success(filepath.Base(file.Path)),
+			label(humanize.IBytes(uint64(file.Length))))
 	}
 	fmt.Println()
 }
@@ -114,13 +133,17 @@ func (d *Display) ShowError(msg string) {
 	fmt.Println(errorColor(msg))
 }
 
-func (d *Display) ShowTorrentInfo(t *Torrent, info *metainfo.Info) {
+func (d *Display) ShowTorrentInfo(t *types.Torrent, info interface{}) {
+	metaInfo, ok := info.(*metainfo.Info)
+	if !ok {
+		return
+	}
 	fmt.Printf("\n%s\n", magenta("Torrent info:"))
-	fmt.Printf("  %-13s %s\n", label("Name:"), info.Name)
+	fmt.Printf("  %-13s %s\n", label("Name:"), metaInfo.Name)
 	fmt.Printf("  %-13s %s\n", label("Hash:"), t.HashInfoBytes())
-	fmt.Printf("  %-13s %s\n", label("Size:"), humanize.IBytes(uint64(info.TotalLength())))
-	fmt.Printf("  %-13s %s\n", label("Piece length:"), humanize.IBytes(uint64(info.PieceLength)))
-	fmt.Printf("  %-13s %d\n", label("Pieces:"), len(info.Pieces)/20)
+	fmt.Printf("  %-13s %s\n", label("Size:"), humanize.IBytes(uint64(metaInfo.TotalLength())))
+	fmt.Printf("  %-13s %s\n", label("Piece length:"), humanize.IBytes(uint64(metaInfo.PieceLength)))
+	fmt.Printf("  %-13s %d\n", label("Pieces:"), len(metaInfo.Pieces)/20)
 
 	if t.AnnounceList != nil {
 		fmt.Printf("  %-13s\n", label("Trackers:"))
@@ -140,12 +163,12 @@ func (d *Display) ShowTorrentInfo(t *Torrent, info *metainfo.Info) {
 		}
 	}
 
-	if info.Private != nil && *info.Private {
+	if metaInfo.Private != nil && *metaInfo.Private {
 		fmt.Printf("  %-13s %s\n", label("Private:"), "yes")
 	}
 
-	if info.Source != "" {
-		fmt.Printf("  %-13s %s\n", label("Source:"), info.Source)
+	if metaInfo.Source != "" {
+		fmt.Printf("  %-13s %s\n", label("Source:"), metaInfo.Source)
 	}
 
 	if t.Comment != "" {
@@ -161,17 +184,21 @@ func (d *Display) ShowTorrentInfo(t *Torrent, info *metainfo.Info) {
 		fmt.Printf("  %-13s %s\n", label("Created on:"), creationTime.Format("2006-01-02 15:04:05 MST"))
 	}
 
-	if len(info.Files) > 0 {
-		fmt.Printf("  %-13s %d\n", label("Files:"), len(info.Files))
+	if len(metaInfo.Files) > 0 {
+		fmt.Printf("  %-13s %d\n", label("Files:"), len(metaInfo.Files))
 	}
 }
 
-func (d *Display) ShowFileTree(info *metainfo.Info) {
+func (d *Display) ShowFileTree(info interface{}) {
+	metaInfo, ok := info.(*metainfo.Info)
+	if !ok {
+		return
+	}
 	fmt.Printf("\n%s\n", magenta("File tree:"))
-	fmt.Printf("%s %s\n", "└─", success(info.Name))
-	for i, file := range info.Files {
+	fmt.Printf("%s %s\n", "└─", success(metaInfo.Name))
+	for i, file := range metaInfo.Files {
 		prefix := "  ├─"
-		if i == len(info.Files)-1 {
+		if i == len(metaInfo.Files)-1 {
 			prefix = "  └─"
 		}
 		fmt.Printf("%s %s (%s)\n",
@@ -181,7 +208,12 @@ func (d *Display) ShowFileTree(info *metainfo.Info) {
 	}
 }
 
-func (d *Display) ShowOutputPathWithTime(path string, duration time.Duration) {
+func (d *Display) ShowOutputPathWithTime(path string, durationInput interface{}) {
+	duration, ok := durationInput.(time.Duration)
+	if !ok {
+		return
+	}
+
 	if duration < time.Second {
 		fmt.Printf("\n%s %s (%s)\n",
 			success("Wrote"),
@@ -195,7 +227,17 @@ func (d *Display) ShowOutputPathWithTime(path string, duration time.Duration) {
 	}
 }
 
-func (d *Display) ShowBatchResults(results []BatchResult, duration time.Duration) {
+func (d *Display) ShowBatchResults(resultsInput interface{}, durationInput interface{}) {
+	results, ok := resultsInput.([]BatchResult)
+	if !ok {
+		return
+	}
+
+	duration, ok := durationInput.(time.Duration)
+	if !ok {
+		return
+	}
+
 	fmt.Printf("\n%s\n", magenta("Batch processing results:"))
 
 	successful := 0
@@ -277,4 +319,17 @@ func (d *Display) ShowSeasonPackWarnings(info *SeasonPackInfo) {
 
 		fmt.Println(yellow("\nThis may be an incomplete season pack. Check files before uploading."))
 	}
+}
+
+// NewDisplayer returns a Displayer interface implementation
+func NewDisplayer(verbose bool) Displayer {
+	return NewDisplay(NewFormatter(verbose))
+}
+
+// GetTorrentDisplayer returns a TorrentDisplayer interface implementation
+func GetTorrentDisplayer(displayer Displayer) TorrentDisplayer {
+	if d, ok := displayer.(*Display); ok {
+		return d
+	}
+	return nil
 }

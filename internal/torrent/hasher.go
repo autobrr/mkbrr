@@ -10,14 +10,18 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/autobrr/mkbrr/internal/display"
+	"github.com/autobrr/mkbrr/internal/seasonpack"
+	"github.com/autobrr/mkbrr/internal/types"
 )
 
 type pieceHasher struct {
 	pieces     [][]byte
 	pieceLen   int64
 	numPieces  int
-	files      []fileEntry
-	display    Displayer
+	files      []types.EntryFile
+	display    display.Displayer
 	bufferPool *sync.Pool
 	readSize   int
 
@@ -42,9 +46,9 @@ func (h *pieceHasher) optimizeForWorkload() (int, int) {
 	var totalSize int64
 	maxFileSize := int64(0)
 	for _, f := range h.files {
-		totalSize += f.length
-		if f.length > maxFileSize {
-			maxFileSize = f.length
+		totalSize += f.Length
+		if f.Length > maxFileSize {
+			maxFileSize = f.Length
 		}
 	}
 	avgFileSize := totalSize / int64(len(h.files))
@@ -119,7 +123,7 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 
 	h.display.ShowFiles(h.files)
 
-	seasonInfo := AnalyzeSeasonPack(h.files)
+	seasonInfo := seasonpack.AnalyzeSeasonPack(h.files)
 
 	if seasonInfo.IsSeasonPack && seasonInfo.VideoFileCount > 1 {
 		if seasonInfo.MaxEpisode > seasonInfo.VideoFileCount {
@@ -201,14 +205,14 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *uint64) error {
 	// reuse buffer from pool to minimize allocations
 	buf := h.bufferPool.Get().([]byte)
-	defer h.bufferPool.Put(buf)
+	defer h.bufferPool.Put(buf) //lint:ignore SA6002 intentionally passing non-pointer to sync.Pool
 
 	hasher := sha1.New()
 	// track open file handles to avoid reopening the same file
-	readers := make(map[string]*fileReader)
+	readers := make(map[string]*types.FileReader)
 	defer func() {
 		for _, r := range readers {
-			r.file.Close()
+			r.File.Close()
 		}
 	}()
 
@@ -220,7 +224,7 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 		if pieceIndex == h.numPieces-1 {
 			var totalLength int64
 			for _, f := range h.files {
-				totalLength += f.length
+				totalLength += f.Length
 			}
 			remaining := totalLength - pieceOffset
 			if remaining < pieceLength {
@@ -233,7 +237,7 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 
 		for _, file := range h.files {
 			// skip files that don't contain data for this piece
-			if pieceOffset >= file.offset+file.length {
+			if pieceOffset >= file.Offset+file.Length {
 				continue
 			}
 			if remainingPiece <= 0 {
@@ -241,37 +245,37 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 			}
 
 			// calculate read boundaries within the current file
-			readStart := pieceOffset - file.offset
+			readStart := pieceOffset - file.Offset
 			if readStart < 0 {
 				readStart = 0
 			}
 
-			readLength := file.length - readStart
+			readLength := file.Length - readStart
 			if readLength > remainingPiece {
 				readLength = remainingPiece
 			}
 
 			// reuse or create new file reader
-			reader, ok := readers[file.path]
+			reader, ok := readers[file.Path]
 			if !ok {
-				f, err := os.OpenFile(file.path, os.O_RDONLY, 0)
+				f, err := os.OpenFile(file.Path, os.O_RDONLY, 0)
 				if err != nil {
-					return fmt.Errorf("failed to open file %s: %w", file.path, err)
+					return fmt.Errorf("failed to open file %s: %w", file.Path, err)
 				}
-				reader = &fileReader{
-					file:     f,
-					position: 0,
-					length:   file.length,
+				reader = &types.FileReader{
+					File:     f,
+					Position: 0,
+					Length:   file.Length,
 				}
-				readers[file.path] = reader
+				readers[file.Path] = reader
 			}
 
 			// ensure correct file position before reading
-			if reader.position != readStart {
-				if _, err := reader.file.Seek(readStart, 0); err != nil {
-					return fmt.Errorf("failed to seek in file %s: %w", file.path, err)
+			if reader.Position != readStart {
+				if _, err := reader.File.Seek(readStart, 0); err != nil {
+					return fmt.Errorf("failed to seek in file %s: %w", file.Path, err)
 				}
-				reader.position = readStart
+				reader.Position = readStart
 			}
 
 			// read file data in chunks to avoid large memory allocations
@@ -282,15 +286,15 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 					n = len(buf)
 				}
 
-				read, err := io.ReadFull(reader.file, buf[:n])
+				read, err := io.ReadFull(reader.File, buf[:n])
 				if err != nil && err != io.ErrUnexpectedEOF {
-					return fmt.Errorf("failed to read file %s: %w", file.path, err)
+					return fmt.Errorf("failed to read file %s: %w", file.Path, err)
 				}
 
 				hasher.Write(buf[:read])
 				remaining -= int64(read)
 				remainingPiece -= int64(read)
-				reader.position += int64(read)
+				reader.Position += int64(read)
 				pieceOffset += int64(read)
 
 				atomic.AddInt64(&h.bytesProcessed, int64(read))
@@ -305,7 +309,7 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 	return nil
 }
 
-func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Displayer) *pieceHasher {
+func NewPieceHasher(files []types.EntryFile, pieceLen int64, numPieces int, display display.Displayer) *pieceHasher {
 	bufferPool := &sync.Pool{
 		New: func() interface{} {
 			buf := make([]byte, pieceLen)
@@ -322,8 +326,8 @@ func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Di
 	}
 }
 
-// minInt returns the smaller of two integers
-func minInt(a, b int) int {
+// MinInt returns the smaller of two integers
+func MinInt(a, b int) int {
 	if a < b {
 		return a
 	}

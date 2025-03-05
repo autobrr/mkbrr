@@ -12,14 +12,12 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Config represents the YAML configuration for torrent creation presets
 type Config struct {
 	Version int                `yaml:"version"`
 	Default *Options           `yaml:"default"`
 	Presets map[string]Options `yaml:"presets"`
 }
 
-// Options represents the options for a single preset
 type Options struct {
 	Trackers       []string `yaml:"trackers"`
 	WebSeeds       []string `yaml:"webseeds"`
@@ -33,15 +31,12 @@ type Options struct {
 	Version        string   // used for creator string
 }
 
-// FindPresetFile searches for a preset file in known locations
 func FindPresetFile(explicitPath string) (string, error) {
-	// check known locations in order
 	locations := []string{
-		explicitPath,   // explicitly specified file
-		"presets.yaml", // current directory
+		explicitPath,
+		"presets.yaml",
 	}
 
-	// add user home directory locations
 	if home, err := os.UserHomeDir(); err == nil {
 		locations = append(locations,
 			filepath.Join(home, ".config", "mkbrr", "presets.yaml"), // ~/.config/mkbrr/
@@ -59,7 +54,6 @@ func FindPresetFile(explicitPath string) (string, error) {
 	return "", fmt.Errorf("could not find preset file in known locations")
 }
 
-// Load loads presets from a config file
 func Load(configPath string) (*Config, error) {
 	data, err := os.ReadFile(configPath)
 	if err != nil {
@@ -82,7 +76,6 @@ func Load(configPath string) (*Config, error) {
 	return &config, nil
 }
 
-// GetPreset returns a preset by name, merged with default settings
 func (c *Config) GetPreset(name string) (*Options, error) {
 	preset, ok := c.Presets[name]
 	if !ok {
@@ -91,7 +84,7 @@ func (c *Config) GetPreset(name string) (*Options, error) {
 
 	// create a copy with hardcoded defaults
 	defaultPrivate := true
-	defaultNoDate := false
+	defaultNoDate := true
 	defaultNoCreator := false
 
 	merged := Options{
@@ -100,7 +93,6 @@ func (c *Config) GetPreset(name string) (*Options, error) {
 		NoCreator: &defaultNoCreator,
 	}
 
-	// if we have defaults in config, use those instead
 	if c.Default != nil {
 		if c.Default.Private != nil {
 			merged.Private = c.Default.Private
@@ -119,7 +111,6 @@ func (c *Config) GetPreset(name string) (*Options, error) {
 		merged.MaxPieceLength = c.Default.MaxPieceLength
 	}
 
-	// override with preset values if they are set
 	if len(preset.Trackers) > 0 {
 		merged.Trackers = preset.Trackers
 	}
@@ -151,7 +142,6 @@ func (c *Config) GetPreset(name string) (*Options, error) {
 	return &merged, nil
 }
 
-// ApplyToMetaInfo applies preset options to a MetaInfo object
 func (o *Options) ApplyToMetaInfo(mi *metainfo.MetaInfo) (bool, error) {
 	wasModified := false
 
@@ -160,7 +150,6 @@ func (o *Options) ApplyToMetaInfo(mi *metainfo.MetaInfo) (bool, error) {
 		return false, fmt.Errorf("could not unmarshal info: %w", err)
 	}
 
-	// Only modify values that are explicitly set in the preset
 	if len(o.Trackers) > 0 {
 		mi.Announce = o.Trackers[0]
 		mi.AnnounceList = [][]string{o.Trackers}
@@ -218,7 +207,6 @@ func (o *Options) ApplyToMetaInfo(mi *metainfo.MetaInfo) (bool, error) {
 	return wasModified, nil
 }
 
-// GetDomainPrefix extracts a clean domain name from a tracker URL to use as a filename prefix
 func GetDomainPrefix(trackerURL string) string {
 	if trackerURL == "" {
 		return "modified"
@@ -266,7 +254,6 @@ func GetDomainPrefix(trackerURL string) string {
 	return "modified"
 }
 
-// GenerateOutputPath generates an output path for a modified torrent file
 func GenerateOutputPath(originalPath, outputDir, presetName string, outputPattern string, trackerURL string, metaInfoName string) string {
 	dir := filepath.Dir(originalPath)
 	if outputDir != "" {

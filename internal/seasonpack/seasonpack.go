@@ -1,4 +1,4 @@
-package torrent
+package seasonpack
 
 import (
 	"path/filepath"
@@ -6,16 +6,15 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/autobrr/mkbrr/internal/display"
+	"github.com/autobrr/mkbrr/internal/types"
 )
 
-type SeasonPackInfo struct {
-	IsSeasonPack    bool
-	Season          int
-	Episodes        []int
-	MissingEpisodes []int
-	MaxEpisode      int
-	VideoFileCount  int
-	IsSuspicious    bool
+var minIntFunc func(a, b int) int
+
+func Init(minIntFn func(a, b int) int) {
+	minIntFunc = minIntFn
 }
 
 var seasonPackPatterns = []*regexp.Regexp{
@@ -38,17 +37,24 @@ var videoExtensions = map[string]bool{
 	".mp4": true,
 }
 
-func AnalyzeSeasonPack(files []fileEntry) *SeasonPackInfo {
+func AnalyzeSeasonPack(files []types.EntryFile) *display.SeasonPackInfo {
 	if len(files) == 0 {
-		return &SeasonPackInfo{IsSeasonPack: false}
+		return &display.SeasonPackInfo{IsSeasonPack: false}
 	}
 
-	dirPath := filepath.Dir(files[0].path)
+	dirPath := filepath.Dir(files[0].Path)
 	season := detectSeasonNumber(dirPath)
 
 	if season == 0 && len(files) > 1 {
-		for i := 0; i < minInt(5, len(files)); i++ {
-			if s, _ := extractSeasonEpisode(filepath.Base(files[i].path)); s > 0 {
+		var loopMax int
+		if minIntFunc != nil {
+			loopMax = minIntFunc(5, len(files))
+		} else {
+			loopMax = min(5, len(files))
+		}
+
+		for i := 0; i < loopMax; i++ {
+			if s, _ := extractSeasonEpisode(filepath.Base(files[i].Path)); s > 0 {
 				season = s
 				break
 			}
@@ -56,10 +62,10 @@ func AnalyzeSeasonPack(files []fileEntry) *SeasonPackInfo {
 	}
 
 	if season == 0 {
-		return &SeasonPackInfo{IsSeasonPack: false}
+		return &display.SeasonPackInfo{IsSeasonPack: false}
 	}
 
-	info := &SeasonPackInfo{
+	info := &display.SeasonPackInfo{
 		IsSeasonPack: true,
 		Season:       season,
 		Episodes:     make([]int, 0),
@@ -67,11 +73,11 @@ func AnalyzeSeasonPack(files []fileEntry) *SeasonPackInfo {
 
 	episodeMap := make(map[int]bool)
 	for _, file := range files {
-		ext := strings.ToLower(filepath.Ext(file.path))
+		ext := strings.ToLower(filepath.Ext(file.Path))
 		if videoExtensions[ext] {
 			info.VideoFileCount++
 
-			_, episode := extractSeasonEpisode(filepath.Base(file.path))
+			_, episode := extractSeasonEpisode(filepath.Base(file.Path))
 			if episode > 0 {
 				episodeMap[episode] = true
 				if episode > info.MaxEpisode {
@@ -79,7 +85,7 @@ func AnalyzeSeasonPack(files []fileEntry) *SeasonPackInfo {
 				}
 			}
 
-			multiEps := extractMultiEpisodes(filepath.Base(file.path))
+			multiEps := extractMultiEpisodes(filepath.Base(file.Path))
 			for _, ep := range multiEps {
 				if ep > 0 {
 					episodeMap[ep] = true
