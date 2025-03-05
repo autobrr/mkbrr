@@ -15,7 +15,7 @@ type PieceLengthConstraints struct {
 }
 
 // GetPieceLengthConstraints returns the default and tracker-specific constraints for piece length
-func GetPieceLengthConstraints(trackerURL string) PieceLengthConstraints {
+func getPieceLengthConstraints(trackerURL string) PieceLengthConstraints {
 	constraints := PieceLengthConstraints{
 		MinExp: 14, // 16 KiB
 		MaxExp: 24, // 16 MiB
@@ -33,7 +33,7 @@ func GetPieceLengthConstraints(trackerURL string) PieceLengthConstraints {
 
 // ValidatePieceLength checks if a piece length exponent is valid for the given constraints
 func ValidatePieceLength(pieceLength uint, trackerURL string) error {
-	constraints := GetPieceLengthConstraints(trackerURL)
+	constraints := getPieceLengthConstraints(trackerURL)
 
 	// Use tracker max if available, otherwise use default max
 	maxExp := constraints.MaxExp
@@ -70,7 +70,7 @@ func ValidatePieceLength(pieceLength uint, trackerURL string) error {
 // CalculatePieceLength determines the optimal piece length based on total size
 // The min/max bounds take precedence over other constraints
 func CalculatePieceLength(totalSize int64, maxPieceLength *uint, trackerURL string) uint {
-	constraints := GetPieceLengthConstraints(trackerURL)
+	constraints := getPieceLengthConstraints(trackerURL)
 	minExp := constraints.MinExp
 	maxExp := constraints.MaxExp
 
