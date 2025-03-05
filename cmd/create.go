@@ -64,17 +64,6 @@ When a tracker URL is provided, the output filename will use the tracker domain 
 func init() {
 	rootCmd.AddCommand(createCmd)
 
-	// Wire up dependencies
-	torrent.Init(func(verbose bool) display.Displayer {
-		return display.NewDisplayer(verbose)
-	})
-
-	// Initialize batch package with torrent functions
-	batch.Init(
-		torrent.CreateTorrent,
-		torrent.GetTorrentInfo,
-	)
-
 	// hide help flag
 	createCmd.Flags().SortFlags = false
 	createCmd.Flags().BoolP("help", "h", false, "help for create")
