@@ -169,7 +169,6 @@ This shows:
 - Piece information and hash
 - Tracker URLs
 - Creation date
-- Magnet link
 - File list (for multi-file torrents)
 
 ### Modifying Torrents
