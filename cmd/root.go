@@ -3,6 +3,9 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/autobrr/mkbrr/internal/batch"
+	"github.com/autobrr/mkbrr/internal/display"
+	"github.com/autobrr/mkbrr/internal/torrent"
 	"github.com/spf13/cobra"
 )
 
@@ -47,7 +50,25 @@ Prints the version and build time information for mkbrr.
 `)
 }
 
+// initDependencies initializes all package dependencies in the correct order
+func initDependencies() {
+	// Initialize torrent package with display functionality
+	torrent.Init(func(verbose bool) display.Displayer {
+		return display.NewDisplayer(verbose)
+	})
+
+	// Initialize batch package with torrent functions
+	batch.Init(
+		torrent.CreateTorrent,
+		torrent.GetTorrentInfo,
+	)
+
+}
+
 func Execute() error {
+	// Initialize all dependencies
+	initDependencies()
+
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
 	rootCmd.SilenceUsage = false
 

@@ -1,4 +1,4 @@
-package torrent
+package batch
 
 import (
 	"fmt"
@@ -6,9 +6,24 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/autobrr/mkbrr/internal/preset"
+	"github.com/anacrolix/torrent/metainfo"
+	"github.com/autobrr/mkbrr/internal/types"
+	"github.com/autobrr/mkbrr/internal/utils"
 	"gopkg.in/yaml.v3"
 )
+
+// Variables for torrent functionality - filled by Init
+var (
+	createTorrentFunc  func(opts types.CreateTorrentOptions) (*types.Torrent, error)
+	getTorrentInfoFunc func(t *types.Torrent) *metainfo.Info
+)
+
+// Init sets up package dependencies
+func Init(createFunc func(opts types.CreateTorrentOptions) (*types.Torrent, error),
+	getInfoFunc func(t *types.Torrent) *metainfo.Info) {
+	createTorrentFunc = createFunc
+	getTorrentInfoFunc = getInfoFunc
+}
 
 // BatchConfig represents the YAML configuration for batch torrent creation
 type BatchConfig struct {
@@ -31,13 +46,13 @@ type BatchJob struct {
 }
 
 // ToCreateOptions converts a BatchJob to CreateTorrentOptions
-func (j *BatchJob) ToCreateOptions(verbose bool, version string) CreateTorrentOptions {
+func (j *BatchJob) ToCreateOptions(verbose bool, version string) types.CreateTorrentOptions {
 	var tracker string
 	if len(j.Trackers) > 0 {
 		tracker = j.Trackers[0]
 	}
 
-	opts := CreateTorrentOptions{
+	opts := types.CreateTorrentOptions{
 		Path:       j.Path,
 		Name:       j.Name,
 		TrackerURL: tracker,
@@ -63,7 +78,7 @@ type BatchResult struct {
 	Job      BatchJob
 	Success  bool
 	Error    error
-	Info     *TorrentInfo
+	Info     *types.TorrentInfo
 	Trackers []string
 }
 
@@ -98,7 +113,7 @@ func ProcessBatch(configPath string, verbose bool, version string) ([]BatchResul
 	var wg sync.WaitGroup
 
 	// process jobs in parallel with a worker pool
-	workers := minInt(len(config.Jobs), 4) // limit concurrent jobs
+	workers := min(len(config.Jobs), 4) // limit concurrent jobs
 	jobs := make(chan int, len(config.Jobs))
 
 	// start workers
@@ -158,7 +173,7 @@ func processJob(job BatchJob, verbose bool, version string) BatchResult {
 		baseName := filepath.Base(filepath.Clean(job.Path))
 
 		if trackerURL != "" {
-			prefix := preset.GetDomainPrefix(trackerURL)
+			prefix := utils.GetDomainPrefix(trackerURL)
 			baseName = prefix + "_" + baseName
 		}
 
@@ -174,7 +189,7 @@ func processJob(job BatchJob, verbose bool, version string) BatchResult {
 	opts := job.ToCreateOptions(verbose, version)
 
 	// create the torrent
-	mi, err := CreateTorrent(opts)
+	mi, err := createTorrentFunc(opts)
 	if err != nil {
 		result.Error = fmt.Errorf("failed to create torrent: %w", err)
 		return result
@@ -194,9 +209,9 @@ func processJob(job BatchJob, verbose bool, version string) BatchResult {
 	}
 
 	// collect torrent info
-	info := mi.GetInfo()
+	info := getTorrentInfoFunc(mi)
 	result.Success = true
-	result.Info = &TorrentInfo{
+	result.Info = &types.TorrentInfo{
 		Path:     output,
 		Size:     info.TotalLength(),
 		InfoHash: mi.HashInfoBytes().String(),

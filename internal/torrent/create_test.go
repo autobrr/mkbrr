@@ -2,6 +2,8 @@ package torrent
 
 import (
 	"testing"
+
+	"github.com/autobrr/mkbrr/internal/torrentutils"
 )
 
 func Test_calculatePieceLength(t *testing.T) {
@@ -89,7 +91,7 @@ func Test_calculatePieceLength(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := calculatePieceLength(tt.totalSize, tt.maxPieceLength, tt.trackerURL, false)
+			got := torrentutils.CalculatePieceLength(tt.totalSize, tt.maxPieceLength, tt.trackerURL)
 			if got != tt.want {
 				t.Errorf("calculatePieceLength() = %v, want %v", got, tt.want)
 			}

@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/autobrr/mkbrr/internal/torrent"
+	"github.com/autobrr/mkbrr/internal/display"
+	"github.com/autobrr/mkbrr/internal/modify"
+	"github.com/autobrr/mkbrr/internal/types"
 	"github.com/spf13/cobra"
 )
 
@@ -73,11 +75,11 @@ Flags:
 func runModify(cmd *cobra.Command, args []string) error {
 	start := time.Now()
 
-	display := torrent.NewDisplay(torrent.NewFormatter(modifyVerbose))
-	display.ShowMessage(fmt.Sprintf("Modifying %d torrent files...", len(args)))
+	displayer := display.NewDisplayer(modifyVerbose)
+	displayer.ShowMessage(fmt.Sprintf("Modifying %d torrent files...", len(args)))
 
 	// build opts, including our override flags defined above
-	opts := torrent.Options{
+	opts := modify.Options{
 		PresetName:    modifyPresetName,
 		PresetFile:    modifyPresetFile,
 		OutputDir:     modifyOutputDir,
@@ -97,7 +99,7 @@ func runModify(cmd *cobra.Command, args []string) error {
 		opts.IsPrivate = &modifyPrivate
 	}
 
-	results, err := torrent.ProcessTorrents(args, opts)
+	results, err := modify.ProcessTorrents(args, opts)
 	if err != nil {
 		return fmt.Errorf("could not process torrent files: %w", err)
 	}
@@ -106,32 +108,37 @@ func runModify(cmd *cobra.Command, args []string) error {
 	successCount := 0
 	for _, result := range results {
 		if result.Error != nil {
-			display.ShowError(fmt.Sprintf("Error processing %s: %v", result.Path, result.Error))
+			displayer.ShowError(fmt.Sprintf("Error processing %s: %v", result.Path, result.Error))
 			continue
 		}
 
 		if !result.WasModified {
-			display.ShowMessage(fmt.Sprintf("Skipping %s (no changes needed)", result.Path))
+			displayer.ShowMessage(fmt.Sprintf("Skipping %s (no changes needed)", result.Path))
 			continue
 		}
 
 		if opts.DryRun {
-			display.ShowMessage(fmt.Sprintf("Would modify %s", result.Path))
+			displayer.ShowMessage(fmt.Sprintf("Would modify %s", result.Path))
 			continue
 		}
 
 		if opts.Verbose {
 			// Load the modified torrent to display its info
-			mi, err := torrent.LoadFromFile(result.OutputPath)
+			mi, err := modify.LoadFromFile(result.OutputPath)
 			if err == nil {
 				info, err := mi.UnmarshalInfo()
 				if err == nil {
-					display.ShowTorrentInfo(mi, &info)
+					if td, ok := displayer.(display.TorrentDisplayer); ok {
+						t := &types.Torrent{MetaInfo: mi}
+						td.ShowTorrentInfo(t, &info)
+					}
 				}
 			}
 		}
 
-		display.ShowOutputPathWithTime(result.OutputPath, time.Since(start))
+		if td, ok := displayer.(display.TorrentDisplayer); ok {
+			td.ShowOutputPathWithTime(result.OutputPath, time.Since(start))
+		}
 		successCount++
 	}
 

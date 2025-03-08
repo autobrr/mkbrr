@@ -1,4 +1,4 @@
-package torrent
+package types
 
 import (
 	"os"
@@ -37,17 +37,17 @@ type FileEntry struct {
 }
 
 // internal file entry for processing
-type fileEntry struct {
-	path   string
-	length int64
-	offset int64
+type EntryFile struct {
+	Path   string
+	Length int64
+	Offset int64
 }
 
 // internal file reader for processing
-type fileReader struct {
-	file     *os.File
-	position int64
-	length   int64
+type FileReader struct {
+	File     *os.File
+	Position int64
+	Length   int64
 }
 
 // TorrentInfo contains summary information about the created torrent

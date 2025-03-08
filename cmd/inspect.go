@@ -6,7 +6,8 @@ import (
 
 	"github.com/anacrolix/torrent/bencode"
 	"github.com/anacrolix/torrent/metainfo"
-	"github.com/autobrr/mkbrr/internal/torrent"
+	"github.com/autobrr/mkbrr/internal/display"
+	"github.com/autobrr/mkbrr/internal/types"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
@@ -57,9 +58,11 @@ func runInspect(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("error parsing info: %w", err)
 	}
 
-	t := &torrent.Torrent{MetaInfo: mi}
-	display := torrent.NewDisplay(torrent.NewFormatter(true))
-	display.ShowTorrentInfo(t, &info)
+	t := &types.Torrent{MetaInfo: mi}
+	displayer := display.NewDisplayer(true)
+	if td, ok := displayer.(display.TorrentDisplayer); ok {
+		td.ShowTorrentInfo(t, &info)
+	}
 
 	if inspectVerbose {
 		fmt.Printf("\n%s\n", cyan("Additional metadata:"))
@@ -98,7 +101,10 @@ func runInspect(cmd *cobra.Command, args []string) error {
 	}
 
 	if info.IsDir() {
-		display.ShowFileTree(&info)
+		displayer := display.NewDisplayer(true)
+		if td, ok := displayer.(display.TorrentDisplayer); ok {
+			td.ShowFileTree(&info)
+		}
 	}
 
 	return nil

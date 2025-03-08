@@ -7,8 +7,11 @@ import (
 	"runtime/pprof"
 	"time"
 
+	"github.com/autobrr/mkbrr/internal/batch"
+	"github.com/autobrr/mkbrr/internal/display"
 	"github.com/autobrr/mkbrr/internal/preset"
 	"github.com/autobrr/mkbrr/internal/torrent"
+	"github.com/autobrr/mkbrr/internal/types"
 	"github.com/spf13/cobra"
 )
 
@@ -125,13 +128,15 @@ func runCreate(cmd *cobra.Command, args []string) error {
 
 	// batch mode
 	if batchFile != "" {
-		results, err := torrent.ProcessBatch(batchFile, verbose, version)
+		results, err := batch.ProcessBatch(batchFile, verbose, version)
 		if err != nil {
 			return fmt.Errorf("batch processing failed: %w", err)
 		}
 
-		display := torrent.NewDisplay(torrent.NewFormatter(verbose))
-		display.ShowBatchResults(results, time.Since(start))
+		displayer := display.NewDisplayer(verbose)
+		if td, ok := displayer.(display.TorrentDisplayer); ok {
+			td.ShowBatchResults(results, time.Since(start))
+		}
 		return nil
 	}
 
@@ -139,7 +144,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	inputPath := args[0]
 
 	// load preset if specified
-	var opts torrent.CreateTorrentOptions
+	var opts types.CreateTorrentOptions
 	if presetName != "" {
 		// determine preset file path
 		var presetFilePath string
@@ -193,7 +198,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		}
 
 		// convert preset to options
-		opts = torrent.CreateTorrentOptions{
+		opts = types.CreateTorrentOptions{
 			Path:       inputPath,
 			TrackerURL: presetOpts.Trackers[0],
 			WebSeeds:   presetOpts.WebSeeds,
@@ -246,7 +251,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		}
 	} else {
 		// use command line options
-		opts = torrent.CreateTorrentOptions{
+		opts = types.CreateTorrentOptions{
 			Path:           inputPath,
 			TrackerURL:     trackerURL,
 			WebSeeds:       webSeeds,
@@ -274,8 +279,10 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	// display info
-	display := torrent.NewDisplay(torrent.NewFormatter(verbose))
-	display.ShowOutputPathWithTime(torrentInfo.Path, time.Since(start))
+	displayer := display.NewDisplayer(verbose)
+	if td, ok := displayer.(display.TorrentDisplayer); ok {
+		td.ShowOutputPathWithTime(torrentInfo.Path, time.Since(start))
+	}
 
 	return nil
 }
