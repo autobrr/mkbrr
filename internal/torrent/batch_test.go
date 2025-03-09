@@ -74,7 +74,7 @@ jobs:
 	}
 
 	// process batch
-	results, err := ProcessBatch(configPath, true, "test-version")
+	results, err := ProcessBatch(configPath, true, false, "test-version")
 	if err != nil {
 		t.Fatalf("ProcessBatch failed: %v", err)
 	}
@@ -181,7 +181,7 @@ jobs: []`,
 				t.Fatalf("Failed to write config file: %v", err)
 			}
 
-			_, err = ProcessBatch(configPath, false, "test-version")
+			_, err = ProcessBatch(configPath, false, false, "test-version")
 			if tt.expectError && err == nil {
 				t.Error("Expected error but got nil")
 			}
