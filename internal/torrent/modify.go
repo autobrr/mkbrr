@@ -1,6 +1,8 @@
 package torrent
 
 import (
+	"crypto/rand"
+	"encoding/binary"
 	"fmt"
 	"os"
 	"time"
@@ -29,6 +31,7 @@ type Options struct {
 	MaxPieceLength *uint
 	Source         string
 	Version        string
+	Xseed          bool
 }
 
 // Result represents the result of modifying a torrent
@@ -140,6 +143,21 @@ func ModifyTorrent(path string, opts Options) (*Result, error) {
 					mi.InfoBytes = infoBytes
 				}
 				wasModified = true
+			}
+		}
+	}
+
+	// add random entropy field for cross-seeding if enabled
+	if opts.Xseed {
+		infoMap := make(map[string]interface{})
+		if err := bencode.Unmarshal(mi.InfoBytes, &infoMap); err == nil {
+			var entropy int64
+			if err := binary.Read(rand.Reader, binary.BigEndian, &entropy); err == nil {
+				infoMap["entropy"] = entropy
+				if infoBytes, err := bencode.Marshal(infoMap); err == nil {
+					mi.InfoBytes = infoBytes
+					wasModified = true
+				}
 			}
 		}
 	}
