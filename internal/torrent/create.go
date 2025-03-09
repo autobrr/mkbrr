@@ -1,6 +1,8 @@
 package torrent
 
 import (
+	"crypto/rand"
+	"encoding/binary"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -244,7 +246,22 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 		if err != nil {
 			return nil, fmt.Errorf("error encoding info: %w", err)
 		}
-		mi.InfoBytes = infoBytes
+
+		// add random entropy field for cross-seeding if enabled
+		if opts.Xseed {
+			infoMap := make(map[string]interface{})
+			if err := bencode.Unmarshal(infoBytes, &infoMap); err == nil {
+				var entropy int64
+				if err := binary.Read(rand.Reader, binary.BigEndian, &entropy); err == nil {
+					infoMap["entropy"] = entropy
+					if infoBytes, err = bencode.Marshal(infoMap); err == nil {
+						mi.InfoBytes = infoBytes
+					}
+				}
+			}
+		} else {
+			mi.InfoBytes = infoBytes
+		}
 
 		if len(opts.WebSeeds) > 0 {
 			mi.UrlList = opts.WebSeeds
