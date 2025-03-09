@@ -21,6 +21,7 @@ type Options struct {
 	NoCreator      bool
 	DryRun         bool
 	Verbose        bool
+	Quiet          bool
 	TrackerURL     string
 	WebSeeds       []string
 	IsPrivate      *bool
