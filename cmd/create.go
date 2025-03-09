@@ -27,6 +27,7 @@ var (
 	batchFile         string
 	presetName        string
 	presetFile        string
+	quiet             bool
 )
 
 var createCmd = &cobra.Command{
@@ -96,6 +97,7 @@ func init() {
 	createCmd.Flags().BoolVarP(&noDate, "no-date", "d", false, "don't write creation date")
 	createCmd.Flags().BoolVarP(&noCreator, "no-creator", "", false, "don't write creator")
 	createCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "be verbose")
+	createCmd.Flags().BoolVar(&quiet, "quiet", false, "reduced output mode (prints only final torrent path)")
 
 	createCmd.Flags().String("cpuprofile", "", "write cpu profile to file (development flag)")
 
@@ -125,13 +127,22 @@ func runCreate(cmd *cobra.Command, args []string) error {
 
 	// batch mode
 	if batchFile != "" {
-		results, err := torrent.ProcessBatch(batchFile, verbose, version)
+		results, err := torrent.ProcessBatch(batchFile, verbose, quiet, version)
 		if err != nil {
 			return fmt.Errorf("batch processing failed: %w", err)
 		}
 
-		display := torrent.NewDisplay(torrent.NewFormatter(verbose))
-		display.ShowBatchResults(results, time.Since(start))
+		if quiet {
+			// In quiet mode, only print the paths to the created torrent files
+			for _, result := range results {
+				if result.Success {
+					fmt.Println("Wrote:", result.Info.Path)
+				}
+			}
+		} else {
+			display := torrent.NewDisplay(torrent.NewFormatter(verbose))
+			display.ShowBatchResults(results, time.Since(start))
+		}
 		return nil
 	}
 
@@ -204,6 +215,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 			NoCreator:  presetOpts.NoCreator != nil && *presetOpts.NoCreator,
 			Verbose:    verbose,
 			Version:    version,
+			Quiet:      quiet,
 		}
 
 		if presetOpts.PieceLength != 0 {
@@ -259,6 +271,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 			NoCreator:      noCreator,
 			Verbose:        verbose,
 			Version:        version,
+			Quiet:          quiet,
 		}
 	}
 
@@ -273,9 +286,13 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// display info
-	display := torrent.NewDisplay(torrent.NewFormatter(verbose))
-	display.ShowOutputPathWithTime(torrentInfo.Path, time.Since(start))
+	// In quiet mode, only print the path to the created torrent file
+	if quiet {
+		fmt.Println("Wrote:", torrentInfo.Path)
+	} else {
+		display := torrent.NewDisplay(torrent.NewFormatter(verbose))
+		display.ShowOutputPathWithTime(torrentInfo.Path, time.Since(start))
+	}
 
 	return nil
 }
