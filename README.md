@@ -218,6 +218,21 @@ See [batch example](examples/batch.yaml) here.
 > [!TIP]
 > Batch mode processes jobs in parallel (up to 4 at once) and shows a summary when complete.
 
+### Combining Presets and Batch Mode
+
+You can now combine presets with batch mode to easily create multiple torrents that use the same tracker settings:
+
+```bash
+mkbrr create -P ptp -b batch_with_preset.yaml
+```
+
+This applies the `ptp` preset settings to each job in the batch file. With this approach, your batch file only needs to specify the `path` and `output` for each torrent, and all other settings (trackers, privacy, piece length, etc.) will be inherited from the preset.
+
+See [batch with preset example](examples/batch_with_preset.yaml) for details.
+
+> [!TIP]
+> You can still override specific preset settings in individual batch jobs if needed.
+
 ## Tracker-Specific Features
 
 mkbrr automatically enforces some requirements for various private trackers so you don't have to:
