@@ -59,3 +59,17 @@ type TorrentInfo struct {
 	Announce string
 	MetaInfo *metainfo.MetaInfo
 }
+
+// PresetOptions contains options that can be applied from a preset
+type PresetOptions struct {
+	Trackers       []string
+	WebSeeds       []string
+	Private        *bool
+	PieceLength    uint
+	MaxPieceLength uint
+	Comment        string
+	Source         string
+	NoDate         *bool
+	NoCreator      *bool
+	Version        string
+}

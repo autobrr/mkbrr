@@ -312,3 +312,21 @@ func sanitizeFilename(input string) string {
 	)
 	return replacer.Replace(input)
 }
+
+// ToPresetOptions converts preset.Options to types.PresetOptions
+func (o *Options) ToPresetOptions(version string) *Options {
+	presetOpts := &Options{
+		Trackers:       o.Trackers,
+		WebSeeds:       o.WebSeeds,
+		Private:        o.Private,
+		PieceLength:    o.PieceLength,
+		MaxPieceLength: o.MaxPieceLength,
+		Comment:        o.Comment,
+		Source:         o.Source,
+		NoDate:         o.NoDate,
+		NoCreator:      o.NoCreator,
+		Version:        version,
+	}
+
+	return presetOpts
+}

@@ -125,7 +125,28 @@ func runCreate(cmd *cobra.Command, args []string) error {
 
 	// batch mode
 	if batchFile != "" {
-		results, err := torrent.ProcessBatch(batchFile, verbose, version)
+		var presetOpts *preset.Options
+
+		if presetName != "" {
+			presetFilePath, err := getPresetFilePath(presetFile)
+			if err != nil {
+				return err
+			}
+
+			presets, err := preset.Load(presetFilePath)
+			if err != nil {
+				return fmt.Errorf("could not load presets: %w", err)
+			}
+
+			presetOptions, err := presets.GetPreset(presetName)
+			if err != nil {
+				return fmt.Errorf("could not get preset: %w", err)
+			}
+
+			presetOpts = presetOptions.ToPresetOptions(version)
+		}
+
+		results, err := torrent.ProcessBatch(batchFile, presetOpts, verbose, version)
 		if err != nil {
 			return fmt.Errorf("batch processing failed: %w", err)
 		}
@@ -142,36 +163,9 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	var opts torrent.CreateTorrentOptions
 	if presetName != "" {
 		// determine preset file path
-		var presetFilePath string
-		if presetFile != "" {
-			// if preset file is explicitly specified, use that
-			presetFilePath = presetFile
-		} else {
-			// check known locations in order
-			locations := []string{
-				presetFile,     // explicitly specified file
-				"presets.yaml", // current directory
-			}
-
-			// add user home directory locations
-			if home, err := os.UserHomeDir(); err == nil {
-				locations = append(locations,
-					filepath.Join(home, ".config", "mkbrr", "presets.yaml"), // ~/.config/mkbrr/
-					filepath.Join(home, ".mkbrr", "presets.yaml"),           // ~/.mkbrr/
-				)
-			}
-
-			// find first existing preset file
-			for _, loc := range locations {
-				if _, err := os.Stat(loc); err == nil {
-					presetFilePath = loc
-					break
-				}
-			}
-
-			if presetFilePath == "" {
-				return fmt.Errorf("no preset file found in known locations, create one or specify with --preset-file")
-			}
+		presetFilePath, err := getPresetFilePath(presetFile)
+		if err != nil {
+			return err
 		}
 
 		// find preset file
@@ -278,4 +272,41 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	display.ShowOutputPathWithTime(torrentInfo.Path, time.Since(start))
 
 	return nil
+}
+
+// getPresetFilePath determines the preset file path based on the provided file or known locations
+func getPresetFilePath(presetFile string) (string, error) {
+	var presetFilePath string
+	if presetFile != "" {
+		// if preset file is explicitly specified, use that
+		presetFilePath = presetFile
+	} else {
+		// check known locations in order
+		locations := []string{
+			presetFile,     // explicitly specified file
+			"presets.yaml", // current directory
+		}
+
+		// add user home directory locations
+		if home, err := os.UserHomeDir(); err == nil {
+			locations = append(locations,
+				filepath.Join(home, ".config", "mkbrr", "presets.yaml"), // ~/.config/mkbrr/
+				filepath.Join(home, ".mkbrr", "presets.yaml"),           // ~/.mkbrr/
+			)
+		}
+
+		// find first existing preset file
+		for _, loc := range locations {
+			if _, err := os.Stat(loc); err == nil {
+				presetFilePath = loc
+				break
+			}
+		}
+
+		if presetFilePath == "" {
+			return "", fmt.Errorf("no preset file found in known locations, create one or specify with --preset-file")
+		}
+	}
+
+	return presetFilePath, nil
 }
