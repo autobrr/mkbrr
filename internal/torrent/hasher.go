@@ -8,7 +8,6 @@ import (
 	"os"
 	"runtime"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -21,7 +20,7 @@ type pieceHasher struct {
 	bufferPool *sync.Pool
 	readSize   int
 
-	bytesProcessed int64
+	bytesProcessed atomicCounter
 	startTime      time.Time
 	lastUpdate     time.Time
 	mutex          sync.RWMutex
@@ -115,7 +114,7 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 	h.startTime = time.Now()
 	h.lastUpdate = h.startTime
 	h.mutex.Unlock()
-	h.bytesProcessed = 0
+	h.bytesProcessed = atomicCounter{}
 
 	h.display.ShowFiles(h.files)
 
@@ -128,7 +127,7 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 		}
 	}
 
-	var completedPieces uint64
+	var completedPieces atomicCounter
 	piecesPerWorker := (h.numPieces + numWorkers - 1) / numWorkers
 	errorsCh := make(chan error, numWorkers)
 
@@ -152,15 +151,15 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 		}(start, end)
 	}
 
-	// monitor and update progress bar in separate goroutine
+	// modify progress monitoring goroutine
 	go func() {
 		for {
-			completed := atomic.LoadUint64(&completedPieces)
+			completed := completedPieces.Load()
 			if completed >= uint64(h.numPieces) {
 				break
 			}
 
-			bytesProcessed := atomic.LoadInt64(&h.bytesProcessed)
+			bytesProcessed := h.bytesProcessed.Load()
 			h.mutex.RLock()
 			elapsed := time.Since(h.startTime).Seconds()
 			h.mutex.RUnlock()
@@ -198,7 +197,7 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 //	startPiece: first piece index to process
 //	endPiece: last piece index to process (exclusive)
 //	completedPieces: atomic counter for progress tracking
-func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *uint64) error {
+func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *atomicCounter) error {
 	// reuse buffer from pool to minimize allocations
 	buf := h.bufferPool.Get().([]byte)
 	defer h.bufferPool.Put(buf)
@@ -293,13 +292,13 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 				reader.position += int64(read)
 				pieceOffset += int64(read)
 
-				atomic.AddInt64(&h.bytesProcessed, int64(read))
+				h.bytesProcessed.Add(uint64(read))
 			}
 		}
 
 		// store piece hash and update progress
 		h.pieces[pieceIndex] = hasher.Sum(nil)
-		atomic.AddUint64(completedPieces, 1)
+		completedPieces.Add(1)
 	}
 
 	return nil
