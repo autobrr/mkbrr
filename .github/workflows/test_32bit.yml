@@ -16,10 +16,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install ARM cross-compilation tools
+      - name: Install ARM cross-compilation tools and QEMU
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-arm-linux-gnueabi libc6-dev-armel-cross
+          sudo apt-get install -y gcc-arm-linux-gnueabi libc6-dev-armel-cross qemu-user
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -33,8 +33,10 @@ jobs:
           GOARM: "6"
           CGO_ENABLED: 1
           CC: arm-linux-gnueabi-gcc
+          GOTEST_BINARY: "qemu-arm -L /usr/arm-linux-gnueabi"
         run: |
-          go test -v ./internal/torrent/...
+          go test -c ./internal/torrent -o torrent.test
+          qemu-arm -L /usr/arm-linux-gnueabi ./torrent.test -test.v
 
       - name: Generate Test Summary
         if: success()
