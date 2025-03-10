@@ -1,4 +1,4 @@
-//go:build 386 || arm || mips || mipsle
+//go:build arm
 
 package torrent
 
