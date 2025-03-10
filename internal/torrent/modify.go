@@ -1,8 +1,6 @@
 package torrent
 
 import (
-	"crypto/rand"
-	"encoding/binary"
 	"fmt"
 	"os"
 	"time"
@@ -151,8 +149,7 @@ func ModifyTorrent(path string, opts Options) (*Result, error) {
 	if opts.Entropy {
 		infoMap := make(map[string]interface{})
 		if err := bencode.Unmarshal(mi.InfoBytes, &infoMap); err == nil {
-			var entropy int64
-			if err := binary.Read(rand.Reader, binary.BigEndian, &entropy); err == nil {
+			if entropy, err := generateRandomString(); err == nil {
 				infoMap["entropy"] = entropy
 				if infoBytes, err := bencode.Marshal(infoMap); err == nil {
 					mi.InfoBytes = infoBytes

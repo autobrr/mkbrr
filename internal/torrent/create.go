@@ -2,7 +2,6 @@ package torrent
 
 import (
 	"crypto/rand"
-	"encoding/binary"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -128,6 +127,14 @@ func (t *Torrent) GetInfo() *metainfo.Info {
 	return info
 }
 
+func generateRandomString() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%x", b), nil
+}
+
 func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 	path := filepath.ToSlash(opts.Path)
 	name := opts.Name
@@ -251,8 +258,7 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 		if opts.Entropy {
 			infoMap := make(map[string]interface{})
 			if err := bencode.Unmarshal(infoBytes, &infoMap); err == nil {
-				var entropy int64
-				if err := binary.Read(rand.Reader, binary.BigEndian, &entropy); err == nil {
+				if entropy, err := generateRandomString(); err == nil {
 					infoMap["entropy"] = entropy
 					if infoBytes, err = bencode.Marshal(infoMap); err == nil {
 						mi.InfoBytes = infoBytes
