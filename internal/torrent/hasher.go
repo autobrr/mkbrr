@@ -8,7 +8,6 @@ import (
 	"os"
 	"runtime"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -21,7 +20,7 @@ type pieceHasher struct {
 	bufferPool *sync.Pool
 	readSize   int
 
-	bytesProcessed int64
+	bytesProcessed atomicCounter
 	startTime      time.Time
 	lastUpdate     time.Time
 	mutex          sync.RWMutex
@@ -115,7 +114,7 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 	h.startTime = time.Now()
 	h.lastUpdate = h.startTime
 	h.mutex.Unlock()
-	h.bytesProcessed = 0
+	h.bytesProcessed = atomicCounter{}
 
 	h.display.ShowFiles(h.files)
 
@@ -160,7 +159,7 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 				break
 			}
 
-			bytesProcessed := atomic.LoadInt64(&h.bytesProcessed)
+			bytesProcessed := h.bytesProcessed.Load()
 			h.mutex.RLock()
 			elapsed := time.Since(h.startTime).Seconds()
 			h.mutex.RUnlock()
@@ -293,7 +292,7 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 				reader.position += int64(read)
 				pieceOffset += int64(read)
 
-				atomic.AddInt64(&h.bytesProcessed, int64(read))
+				h.bytesProcessed.Add(uint64(read))
 			}
 		}
 
