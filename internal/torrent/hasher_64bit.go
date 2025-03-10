@@ -1,4 +1,4 @@
-//go:build amd64 || arm64 || ppc64 || ppc64le || s390x || mips64 || mips64le
+//go:build !386 && !arm && !mips && !mipsle
 
 package torrent
 
