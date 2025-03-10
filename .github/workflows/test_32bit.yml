@@ -16,6 +16,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Install ARM cross-compilation tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-arm-linux-gnueabi libc6-dev-armel-cross
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
@@ -27,6 +32,7 @@ jobs:
           GOARCH: "arm"
           GOARM: "6"
           CGO_ENABLED: 1
+          CC: arm-linux-gnueabi-gcc
         run: |
           go test -v ./internal/torrent/...
 
