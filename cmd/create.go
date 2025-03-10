@@ -27,7 +27,7 @@ var (
 	batchFile         string
 	presetName        string
 	presetFile        string
-	xseed             bool
+	entropy           bool
 )
 
 var createCmd = &cobra.Command{
@@ -96,7 +96,7 @@ func init() {
 	createCmd.Flags().StringVarP(&source, "source", "s", "", "add source string")
 	createCmd.Flags().BoolVarP(&noDate, "no-date", "d", false, "don't write creation date")
 	createCmd.Flags().BoolVarP(&noCreator, "no-creator", "", false, "don't write creator")
-	createCmd.Flags().BoolVarP(&xseed, "xseed", "x", false, "randomize info hash by adding entropy field")
+	createCmd.Flags().BoolVarP(&entropy, "entropy", "e", false, "randomize info hash by adding entropy field")
 	createCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "be verbose")
 
 	createCmd.Flags().String("cpuprofile", "", "write cpu profile to file (development flag)")
@@ -206,7 +206,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 			NoCreator:  presetOpts.NoCreator != nil && *presetOpts.NoCreator,
 			Verbose:    verbose,
 			Version:    version,
-			Xseed:      xseed,
+			Entropy:    entropy,
 		}
 
 		if presetOpts.PieceLength != 0 {
@@ -262,7 +262,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 			NoCreator:      noCreator,
 			Verbose:        verbose,
 			Version:        version,
-			Xseed:          xseed,
+			Entropy:        entropy,
 		}
 	}
 

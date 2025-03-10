@@ -22,7 +22,7 @@ type CreateTorrentOptions struct {
 	Verbose        bool
 	Version        string
 	OutputPath     string
-	Xseed          bool
+	Entropy        bool
 }
 
 // Torrent represents a torrent file with additional functionality

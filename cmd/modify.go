@@ -22,7 +22,7 @@ var (
 	modifyPrivate    bool = true // default to true like create
 	modifyComment    string
 	modifySource     string
-	modifyXseed      bool
+	modifyEntropy    bool
 )
 
 var modifyCmd = &cobra.Command{
@@ -60,7 +60,7 @@ func init() {
 	modifyCmd.Flags().BoolVarP(&modifyPrivate, "private", "p", true, "make torrent private (default: true)")
 	modifyCmd.Flags().StringVarP(&modifyComment, "comment", "c", "", "add comment")
 	modifyCmd.Flags().StringVarP(&modifySource, "source", "s", "", "add source string")
-	modifyCmd.Flags().BoolVarP(&modifyXseed, "xseed", "x", false, "randomize info hash by adding entropy field")
+	modifyCmd.Flags().BoolVarP(&modifyEntropy, "entropy", "e", false, "randomize info hash by adding entropy field")
 	modifyCmd.Flags().BoolVarP(&modifyVerbose, "verbose", "v", false, "be verbose")
 	modifyCmd.Flags().BoolVarP(&modifyDryRun, "dry-run", "n", false, "show what would be modified without making changes")
 
@@ -93,7 +93,7 @@ func runModify(cmd *cobra.Command, args []string) error {
 		Comment:       modifyComment,
 		Source:        modifySource,
 		Version:       version,
-		Xseed:         modifyXseed,
+		Entropy:       modifyEntropy,
 	}
 
 	if cmd.Flags().Changed("private") {

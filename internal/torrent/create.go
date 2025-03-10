@@ -248,7 +248,7 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 		}
 
 		// add random entropy field for cross-seeding if enabled
-		if opts.Xseed {
+		if opts.Entropy {
 			infoMap := make(map[string]interface{})
 			if err := bencode.Unmarshal(infoBytes, &infoMap); err == nil {
 				var entropy int64

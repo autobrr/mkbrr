@@ -31,7 +31,7 @@ type Options struct {
 	MaxPieceLength *uint
 	Source         string
 	Version        string
-	Xseed          bool
+	Entropy        bool
 }
 
 // Result represents the result of modifying a torrent
@@ -148,7 +148,7 @@ func ModifyTorrent(path string, opts Options) (*Result, error) {
 	}
 
 	// add random entropy field for cross-seeding if enabled
-	if opts.Xseed {
+	if opts.Entropy {
 		infoMap := make(map[string]interface{})
 		if err := bencode.Unmarshal(mi.InfoBytes, &infoMap); err == nil {
 			var entropy int64
