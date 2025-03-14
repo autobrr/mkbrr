@@ -1,6 +1,7 @@
 package torrent
 
 import (
+	"crypto/rand"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -126,6 +127,14 @@ func (t *Torrent) GetInfo() *metainfo.Info {
 	return info
 }
 
+func generateRandomString() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%x", b), nil
+}
+
 func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 	path := filepath.ToSlash(opts.Path)
 	name := opts.Name
@@ -245,7 +254,21 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 		if err != nil {
 			return nil, fmt.Errorf("error encoding info: %w", err)
 		}
-		mi.InfoBytes = infoBytes
+
+		// add random entropy field for cross-seeding if enabled
+		if opts.Entropy {
+			infoMap := make(map[string]interface{})
+			if err := bencode.Unmarshal(infoBytes, &infoMap); err == nil {
+				if entropy, err := generateRandomString(); err == nil {
+					infoMap["entropy"] = entropy
+					if infoBytes, err = bencode.Marshal(infoMap); err == nil {
+						mi.InfoBytes = infoBytes
+					}
+				}
+			}
+		} else {
+			mi.InfoBytes = infoBytes
+		}
 
 		if len(opts.WebSeeds) > 0 {
 			mi.UrlList = opts.WebSeeds

@@ -25,7 +25,7 @@ Flags:
   -h, --help   help for mkbrr
 
 Use "mkbrr [command] --help" for more information about a command.
-````
+```
 
 ## What is mkbrr?
 
@@ -64,6 +64,9 @@ mkbrr create path/to/file -t https://example-tracker.com/announce
 
 # public torrent
 mkbrr create path/to/file -t https://example-tracker.com/announce --private=false
+
+# Create with randomized info hash
+mkbrr create path/to/file -t https://example-tracker.com/announce -e
 ```
 
 ## Table of Contents
@@ -154,6 +157,9 @@ mkbrr create path/to/file -t https://example-tracker.com/announce -c "My awesome
 
 # Create with a custom output path
 mkbrr create path/to/file -t https://example-tracker.com/announce -o custom-name.torrent
+
+# Create with randomized info hash
+mkbrr create path/to/file -t https://example-tracker.com/announce -e
 ```
 
 ### Inspecting Torrents
@@ -184,6 +190,9 @@ mkbrr modify *.torrent --private=false
 
 # See what would be changed without making actual changes
 mkbrr modify original.torrent --tracker https://new-tracker.com --dry-run
+
+# Randomize info hash
+mkbrr modify original.torrent -e
 ```
 
 ## Advanced Usage

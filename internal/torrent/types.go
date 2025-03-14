@@ -22,6 +22,7 @@ type CreateTorrentOptions struct {
 	Verbose        bool
 	Version        string
 	OutputPath     string
+	Entropy        bool
 	Quiet          bool
 }
 
