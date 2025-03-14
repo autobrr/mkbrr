@@ -196,6 +196,7 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 		numPieces := (totalSize + pieceLenInt - 1) / pieceLenInt
 
 		display := NewDisplay(NewFormatter(opts.Verbose))
+		display.SetQuiet(opts.Quiet)
 		hasher := NewPieceHasher(files, pieceLenInt, int(numPieces), display)
 
 		if err := hasher.hashPieces(1); err != nil {
@@ -313,6 +314,7 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 		if exp, ok := trackers.GetTrackerPieceSizeExp(opts.TrackerURL, uint64(totalSize)); ok {
 			if opts.Verbose {
 				display := NewDisplay(NewFormatter(opts.Verbose))
+				display.SetQuiet(opts.Quiet)
 				display.ShowMessage(fmt.Sprintf("using tracker-specific range for content size: %d MiB (recommended: %s pieces)",
 					totalSize>>20, formatPieceSize(exp)))
 				if pieceLength != exp {
@@ -341,6 +343,7 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 		for uint64(len(torrentData)) > maxSize && pieceLength < 24 {
 			if opts.Verbose {
 				display := NewDisplay(NewFormatter(opts.Verbose))
+				display.SetQuiet(opts.Quiet)
 				display.ShowWarning(fmt.Sprintf("increasing piece length to reduce torrent size (current: %.1f KiB, limit: %.1f KiB)",
 					float64(len(torrentData))/(1<<10), float64(maxSize)/(1<<10)))
 			}

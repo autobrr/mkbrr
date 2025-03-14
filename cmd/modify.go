@@ -17,6 +17,7 @@ var (
 	modifyNoDate     bool
 	modifyNoCreator  bool
 	modifyVerbose    bool
+	modifyQuiet      bool
 	modifyTracker    string
 	modifyWebSeeds   []string
 	modifyPrivate    bool = true // default to true like create
@@ -62,6 +63,7 @@ func init() {
 	modifyCmd.Flags().StringVarP(&modifySource, "source", "s", "", "add source string")
 	modifyCmd.Flags().BoolVarP(&modifyEntropy, "entropy", "e", false, "randomize info hash by adding entropy field")
 	modifyCmd.Flags().BoolVarP(&modifyVerbose, "verbose", "v", false, "be verbose")
+	modifyCmd.Flags().BoolVar(&modifyQuiet, "quiet", false, "reduced output mode (prints only final torrent paths)")
 	modifyCmd.Flags().BoolVarP(&modifyDryRun, "dry-run", "n", false, "show what would be modified without making changes")
 
 	modifyCmd.SetUsageTemplate(`Usage:
@@ -76,6 +78,7 @@ func runModify(cmd *cobra.Command, args []string) error {
 	start := time.Now()
 
 	display := torrent.NewDisplay(torrent.NewFormatter(modifyVerbose))
+	display.SetQuiet(modifyQuiet)
 	display.ShowMessage(fmt.Sprintf("Modifying %d torrent files...", len(args)))
 
 	// build opts, including our override flags defined above
@@ -88,6 +91,7 @@ func runModify(cmd *cobra.Command, args []string) error {
 		NoCreator:     modifyNoCreator,
 		DryRun:        modifyDryRun,
 		Verbose:       modifyVerbose,
+		Quiet:         modifyQuiet,
 		TrackerURL:    modifyTracker,
 		WebSeeds:      modifyWebSeeds,
 		Comment:       modifyComment,
@@ -134,7 +138,11 @@ func runModify(cmd *cobra.Command, args []string) error {
 			}
 		}
 
-		display.ShowOutputPathWithTime(result.OutputPath, time.Since(start))
+		if modifyQuiet {
+			fmt.Println("Wrote:", result.OutputPath)
+		} else {
+			display.ShowOutputPathWithTime(result.OutputPath, time.Since(start))
+		}
 		successCount++
 	}
 
