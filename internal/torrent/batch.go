@@ -68,7 +68,7 @@ type BatchResult struct {
 }
 
 // ProcessBatch processes a batch configuration file and creates multiple torrents
-func ProcessBatch(configPath string, verbose bool, version string) ([]BatchResult, error) {
+func ProcessBatch(configPath string, presetOpts *preset.Options, verbose bool, version string) ([]BatchResult, error) {
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read batch config: %w", err)
@@ -87,9 +87,18 @@ func ProcessBatch(configPath string, verbose bool, version string) ([]BatchResul
 		return nil, fmt.Errorf("no jobs defined in batch config")
 	}
 
+	// apply preset to jobs if provided
+	hasPreset := presetOpts != nil
+
+	if hasPreset {
+		for i := range config.Jobs {
+			applyPresetToJob(&config.Jobs[i], presetOpts)
+		}
+	}
+
 	// validate all jobs before processing
 	for _, job := range config.Jobs {
-		if err := validateJob(job); err != nil {
+		if err := validateJob(job, hasPreset); err != nil {
 			return nil, fmt.Errorf("invalid job configuration: %w", err)
 		}
 	}
@@ -122,7 +131,7 @@ func ProcessBatch(configPath string, verbose bool, version string) ([]BatchResul
 	return results, nil
 }
 
-func validateJob(job BatchJob) error {
+func validateJob(job BatchJob, hasPreset bool) error {
 	if job.Path == "" {
 		return fmt.Errorf("path is required")
 	}
@@ -135,11 +144,55 @@ func validateJob(job BatchJob) error {
 		return fmt.Errorf("output is required")
 	}
 
+	// Only require trackers if no preset is provided
+	if !hasPreset && len(job.Trackers) == 0 {
+		return fmt.Errorf("trackers are required when no preset is provided")
+	}
+
 	if job.PieceLength != 0 && (job.PieceLength < 14 || job.PieceLength > 24) {
 		return fmt.Errorf("piece length must be between 14 and 24")
 	}
 
 	return nil
+}
+
+// applyPresetToJob applies preset options to a batch job if the job doesn't specify them
+func applyPresetToJob(job *BatchJob, preset *preset.Options) {
+	// Apply trackers from preset if job doesn't have them
+	if len(job.Trackers) == 0 && len(preset.Trackers) > 0 {
+		job.Trackers = preset.Trackers
+	}
+
+	// Apply webseeds from preset if job doesn't have them
+	if len(job.WebSeeds) == 0 && len(preset.WebSeeds) > 0 {
+		job.WebSeeds = preset.WebSeeds
+	}
+
+	// Apply private flag from preset if not explicitly set in job
+	// (default for private is false, so we only override if preset.Private is true)
+	if !job.Private && preset.Private != nil && *preset.Private {
+		job.Private = true
+	}
+
+	// Apply piece length from preset if job doesn't specify it
+	if job.PieceLength == 0 && preset.PieceLength != 0 {
+		job.PieceLength = preset.PieceLength
+	}
+
+	// Apply comment from preset if job doesn't have one
+	if job.Comment == "" && preset.Comment != "" {
+		job.Comment = preset.Comment
+	}
+
+	// Apply source from preset if job doesn't have one
+	if job.Source == "" && preset.Source != "" {
+		job.Source = preset.Source
+	}
+
+	// Apply no-date flag from preset if not explicitly set in job and preset has it set to true
+	if !job.NoDate && preset.NoDate != nil && *preset.NoDate {
+		job.NoDate = true
+	}
 }
 
 func processJob(job BatchJob, verbose bool, version string) BatchResult {
