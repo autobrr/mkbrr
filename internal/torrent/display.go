@@ -73,8 +73,8 @@ func (d *Display) UpdateProgress(completed int, hashrate float64) {
 		}
 
 		if hashrate > 0 {
-			hrStr := humanize.IBytes(uint64(hashrate)) + "/s"
-			description := fmt.Sprintf("[cyan][bold]Hashing pieces...[reset] [%s]", hrStr)
+			hrStr := d.formatter.FormatBytes(int64(hashrate))
+			description := fmt.Sprintf("[cyan][bold]Hashing pieces...[reset] [%s/s]", hrStr)
 			d.bar.Describe(description)
 		}
 	}
