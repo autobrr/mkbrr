@@ -90,7 +90,7 @@ func (d *Display) ShowFiles(files []fileEntry) {
 		fmt.Fprintf(d.output, "%s %s (%s)\n",
 			prefix,
 			success(filepath.Base(file.path)),
-			label(humanize.IBytes(uint64(file.length))))
+			label(d.formatter.FormatBytes(file.length)))
 	}
 	fmt.Fprintln(d.output)
 }
@@ -144,8 +144,8 @@ func (d *Display) ShowTorrentInfo(t *Torrent, info *metainfo.Info) {
 	fmt.Fprintf(d.output, "\n%s\n", magenta("Torrent info:"))
 	fmt.Fprintf(d.output, "  %-13s %s\n", label("Name:"), info.Name)
 	fmt.Fprintf(d.output, "  %-13s %s\n", label("Hash:"), t.HashInfoBytes())
-	fmt.Fprintf(d.output, "  %-13s %s\n", label("Size:"), humanize.IBytes(uint64(info.TotalLength())))
-	fmt.Fprintf(d.output, "  %-13s %s\n", label("Piece length:"), humanize.IBytes(uint64(info.PieceLength)))
+	fmt.Fprintf(d.output, "  %-13s %s\n", label("Size:"), d.formatter.FormatBytes(info.TotalLength()))
+	fmt.Fprintf(d.output, "  %-13s %s\n", label("Piece length:"), d.formatter.FormatBytes(info.PieceLength))
 	fmt.Fprintf(d.output, "  %-13s %d\n", label("Pieces:"), len(info.Pieces)/20)
 
 	if t.AnnounceList != nil {
@@ -203,7 +203,7 @@ func (d *Display) ShowFileTree(info *metainfo.Info) {
 		fmt.Fprintf(d.output, "%s %s (%s)\n",
 			prefix,
 			success(filepath.Join(file.Path...)),
-			label(humanize.IBytes(uint64(file.Length))))
+			label(d.formatter.FormatBytes(file.Length)))
 	}
 }
 
@@ -242,7 +242,7 @@ func (d *Display) ShowBatchResults(results []BatchResult, duration time.Duration
 	fmt.Fprintf(d.output, "  %-15s %d\n", label("Total jobs:"), len(results))
 	fmt.Fprintf(d.output, "  %-15s %s\n", label("Successful:"), success(successful))
 	fmt.Fprintf(d.output, "  %-15s %s\n", label("Failed:"), errorColor(failed))
-	fmt.Fprintf(d.output, "  %-15s %s\n", label("Total size:"), humanize.IBytes(uint64(totalSize)))
+	fmt.Fprintf(d.output, "  %-15s %s\n", label("Total size:"), d.formatter.FormatBytes(totalSize))
 	fmt.Fprintf(d.output, "  %-15s %s\n", label("Processing time:"), d.formatter.FormatDuration(duration))
 
 	if d.formatter.verbose {
@@ -252,7 +252,7 @@ func (d *Display) ShowBatchResults(results []BatchResult, duration time.Duration
 			if result.Success {
 				fmt.Fprintf(d.output, "  %-11s %s\n", label("Status:"), success("Success"))
 				fmt.Fprintf(d.output, "  %-11s %s\n", label("Output:"), result.Info.Path)
-				fmt.Fprintf(d.output, "  %-11s %s\n", label("Size:"), humanize.IBytes(uint64(result.Info.Size)))
+				fmt.Fprintf(d.output, "  %-11s %s\n", label("Size:"), d.formatter.FormatBytes(result.Info.Size))
 				fmt.Fprintf(d.output, "  %-11s %s\n", label("Info hash:"), result.Info.InfoHash)
 				fmt.Fprintf(d.output, "  %-11s %s\n", label("Trackers:"), strings.Join(result.Trackers, ", "))
 				if result.Info.Files > 0 {
