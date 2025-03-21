@@ -386,7 +386,7 @@ func Create(opts CreateTorrentOptions) (*TorrentInfo, error) {
 
 	if opts.OutputPath == "" {
 		fileName := opts.Name
-		if opts.TrackerURL != "" {
+		if opts.TrackerURL != "" && !opts.NoPrefix {
 			fileName = preset.GetDomainPrefix(opts.TrackerURL) + "_" + opts.Name
 		}
 		opts.OutputPath = fileName + ".torrent"

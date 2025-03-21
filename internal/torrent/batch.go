@@ -28,6 +28,7 @@ type BatchJob struct {
 	Comment     string   `yaml:"comment"`
 	Source      string   `yaml:"source"`
 	NoDate      bool     `yaml:"no_date"`
+	NoPrefix    bool     `yaml:"no_prefix"`
 }
 
 // ToCreateOptions converts a BatchJob to CreateTorrentOptions
@@ -49,6 +50,7 @@ func (j *BatchJob) ToCreateOptions(verbose bool, quiet bool, version string) Cre
 		Verbose:    verbose,
 		Quiet:      quiet,
 		Version:    version,
+		NoPrefix:   j.NoPrefix,
 	}
 
 	if j.PieceLength != 0 {
@@ -158,7 +160,7 @@ func processJob(job BatchJob, verbose bool, quiet bool, version string) BatchRes
 	if output == "" {
 		baseName := filepath.Base(filepath.Clean(job.Path))
 
-		if trackerURL != "" {
+		if trackerURL != "" && !job.NoPrefix {
 			prefix := preset.GetDomainPrefix(trackerURL)
 			baseName = prefix + "_" + baseName
 		}

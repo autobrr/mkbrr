@@ -29,6 +29,7 @@ var (
 	presetFile        string
 	entropy           bool
 	quiet             bool
+	noPrefix          bool
 )
 
 var createCmd = &cobra.Command{
@@ -37,7 +38,7 @@ var createCmd = &cobra.Command{
 	Long: `Create a new torrent file from a file or directory.
 Supports both single file/directory and batch mode using a YAML config file.
 Supports presets for commonly used settings.
-When a tracker URL is provided, the output filename will use the tracker domain (without TLD) as prefix, e.g. "example_filename.torrent".`,
+When a tracker URL is provided, the output filename will use the tracker domain (without TLD) as prefix by default (e.g. "example_filename.torrent"). This behavior can be disabled with --no-prefix.`,
 	Args: func(cmd *cobra.Command, args []string) error {
 		if len(args) > 1 {
 			return fmt.Errorf("accepts at most one arg")
@@ -100,6 +101,7 @@ func init() {
 	createCmd.Flags().BoolVarP(&entropy, "entropy", "e", false, "randomize info hash by adding entropy field")
 	createCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "be verbose")
 	createCmd.Flags().BoolVar(&quiet, "quiet", false, "reduced output mode (prints only final torrent path)")
+	createCmd.Flags().BoolVarP(&noPrefix, "no-prefix", "", false, "don't add tracker domain prefix to output filename")
 
 	createCmd.Flags().String("cpuprofile", "", "write cpu profile to file (development flag)")
 
@@ -219,6 +221,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 			Version:    version,
 			Entropy:    entropy,
 			Quiet:      quiet,
+			NoPrefix:   noPrefix,
 		}
 
 		if presetOpts.PieceLength != 0 {
@@ -276,6 +279,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 			Version:        version,
 			Entropy:        entropy,
 			Quiet:          quiet,
+			NoPrefix:       noPrefix,
 		}
 	}
 
