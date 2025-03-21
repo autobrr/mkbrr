@@ -24,7 +24,7 @@ type CreateTorrentOptions struct {
 	OutputPath     string
 	Entropy        bool
 	Quiet          bool
-	NoPrefix       bool
+	SkipPrefix     bool
 }
 
 // Torrent represents a torrent file with additional functionality
