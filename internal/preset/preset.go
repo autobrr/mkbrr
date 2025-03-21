@@ -30,6 +30,7 @@ type Options struct {
 	Source         string   `yaml:"source"`
 	NoDate         *bool    `yaml:"no_date"`
 	NoCreator      *bool    `yaml:"no_creator"`
+	SkipPrefix     *bool    `yaml:"skip_prefix"`
 	Version        string   // used for creator string
 }
 
@@ -93,11 +94,13 @@ func (c *Config) GetPreset(name string) (*Options, error) {
 	defaultPrivate := true
 	defaultNoDate := false
 	defaultNoCreator := false
+	defaultSkipPrefix := false
 
 	merged := Options{
-		Private:   &defaultPrivate,
-		NoDate:    &defaultNoDate,
-		NoCreator: &defaultNoCreator,
+		Private:    &defaultPrivate,
+		NoDate:     &defaultNoDate,
+		NoCreator:  &defaultNoCreator,
+		SkipPrefix: &defaultSkipPrefix,
 	}
 
 	// if we have defaults in config, use those instead
@@ -110,6 +113,9 @@ func (c *Config) GetPreset(name string) (*Options, error) {
 		}
 		if c.Default.NoCreator != nil {
 			merged.NoCreator = c.Default.NoCreator
+		}
+		if c.Default.SkipPrefix != nil {
+			merged.SkipPrefix = c.Default.SkipPrefix
 		}
 		merged.Trackers = c.Default.Trackers
 		merged.WebSeeds = c.Default.WebSeeds
@@ -146,6 +152,9 @@ func (c *Config) GetPreset(name string) (*Options, error) {
 	}
 	if preset.NoCreator != nil {
 		merged.NoCreator = preset.NoCreator
+	}
+	if preset.SkipPrefix != nil {
+		merged.SkipPrefix = preset.SkipPrefix
 	}
 
 	return &merged, nil

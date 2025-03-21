@@ -6,6 +6,7 @@ default:
   private: true
   no_date: true
   no_creator: false
+  skip_prefix: false
   # comment: "Default comment for all torrents"  # Torrent comment
   # source: "DEFAULT"                           # Source tag
 

@@ -29,6 +29,7 @@ var (
 	presetFile        string
 	entropy           bool
 	quiet             bool
+	skipPrefix        bool
 )
 
 var createCmd = &cobra.Command{
@@ -37,7 +38,7 @@ var createCmd = &cobra.Command{
 	Long: `Create a new torrent file from a file or directory.
 Supports both single file/directory and batch mode using a YAML config file.
 Supports presets for commonly used settings.
-When a tracker URL is provided, the output filename will use the tracker domain (without TLD) as prefix, e.g. "example_filename.torrent".`,
+When a tracker URL is provided, the output filename will use the tracker domain (without TLD) as prefix by default (e.g. "example_filename.torrent"). This behavior can be disabled with --skip-prefix.`,
 	Args: func(cmd *cobra.Command, args []string) error {
 		if len(args) > 1 {
 			return fmt.Errorf("accepts at most one arg")
@@ -100,6 +101,7 @@ func init() {
 	createCmd.Flags().BoolVarP(&entropy, "entropy", "e", false, "randomize info hash by adding entropy field")
 	createCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "be verbose")
 	createCmd.Flags().BoolVar(&quiet, "quiet", false, "reduced output mode (prints only final torrent path)")
+	createCmd.Flags().BoolVarP(&skipPrefix, "skip-prefix", "", false, "don't add tracker domain prefix to output filename")
 
 	createCmd.Flags().String("cpuprofile", "", "write cpu profile to file (development flag)")
 
@@ -215,6 +217,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 			Source:     presetOpts.Source,
 			NoDate:     presetOpts.NoDate != nil && *presetOpts.NoDate,
 			NoCreator:  presetOpts.NoCreator != nil && *presetOpts.NoCreator,
+			SkipPrefix: presetOpts.SkipPrefix != nil && *presetOpts.SkipPrefix,
 			Verbose:    verbose,
 			Version:    version,
 			Entropy:    entropy,
@@ -259,6 +262,9 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		if cmd.Flags().Changed("no-creator") {
 			opts.NoCreator = noCreator
 		}
+		if cmd.Flags().Changed("skip-prefix") {
+			opts.SkipPrefix = skipPrefix
+		}
 	} else {
 		// use command line options
 		opts = torrent.CreateTorrentOptions{
@@ -276,6 +282,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 			Version:        version,
 			Entropy:        entropy,
 			Quiet:          quiet,
+			SkipPrefix:     skipPrefix,
 		}
 	}
 
