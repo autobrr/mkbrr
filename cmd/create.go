@@ -217,11 +217,11 @@ func runCreate(cmd *cobra.Command, args []string) error {
 			Source:     presetOpts.Source,
 			NoDate:     presetOpts.NoDate != nil && *presetOpts.NoDate,
 			NoCreator:  presetOpts.NoCreator != nil && *presetOpts.NoCreator,
+			SkipPrefix: presetOpts.SkipPrefix != nil && *presetOpts.SkipPrefix,
 			Verbose:    verbose,
 			Version:    version,
 			Entropy:    entropy,
 			Quiet:      quiet,
-			SkipPrefix: skipPrefix,
 		}
 
 		if presetOpts.PieceLength != 0 {
@@ -261,6 +261,9 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		}
 		if cmd.Flags().Changed("no-creator") {
 			opts.NoCreator = noCreator
+		}
+		if cmd.Flags().Changed("skip-prefix") {
+			opts.SkipPrefix = skipPrefix
 		}
 	} else {
 		// use command line options
