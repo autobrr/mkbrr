@@ -127,7 +127,7 @@ func (t *Torrent) GetInfo() *metainfo.Info {
 	return info
 }
 
-func generateRandomString() (string, error) {
+func GenerateRandomString() (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
 		return "", err
@@ -259,7 +259,7 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 		if opts.Entropy {
 			infoMap := make(map[string]interface{})
 			if err := bencode.Unmarshal(infoBytes, &infoMap); err == nil {
-				if entropy, err := generateRandomString(); err == nil {
+				if entropy, err := GenerateRandomString(); err == nil {
 					infoMap["entropy"] = entropy
 					if infoBytes, err = bencode.Marshal(infoMap); err == nil {
 						mi.InfoBytes = infoBytes
