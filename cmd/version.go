@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"runtime/debug"
 
 	"github.com/spf13/cobra"
 )
@@ -24,6 +25,11 @@ var versionCmd = &cobra.Command{
 }
 
 func SetVersion(v, bt string) {
+	if v == "dev" {
+		if info, ok := debug.ReadBuildInfo(); ok {
+			v = info.Main.Version
+		}
+	}
 	version = v
 	buildTime = bt
 }
