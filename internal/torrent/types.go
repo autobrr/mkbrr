@@ -24,6 +24,7 @@ type CreateTorrentOptions struct {
 	OutputPath      string
 	Entropy         bool
 	Quiet           bool
+	SkipPrefix      bool
 	ExcludePatterns []string
 }
 

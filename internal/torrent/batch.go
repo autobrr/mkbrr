@@ -28,6 +28,7 @@ type BatchJob struct {
 	Comment         string   `yaml:"comment"`
 	Source          string   `yaml:"source"`
 	NoDate          bool     `yaml:"no_date"`
+	SkipPrefix      bool     `yaml:"skip_prefix"`
 	ExcludePatterns []string `yaml:"exclude_patterns"`
 }
 
@@ -50,6 +51,7 @@ func (j *BatchJob) ToCreateOptions(verbose bool, quiet bool, version string) Cre
 		Verbose:         verbose,
 		Quiet:           quiet,
 		Version:         version,
+		SkipPrefix:      j.SkipPrefix,
 		ExcludePatterns: j.ExcludePatterns,
 	}
 
@@ -160,7 +162,7 @@ func processJob(job BatchJob, verbose bool, quiet bool, version string) BatchRes
 	if output == "" {
 		baseName := filepath.Base(filepath.Clean(job.Path))
 
-		if trackerURL != "" {
+		if trackerURL != "" && !job.SkipPrefix {
 			prefix := preset.GetDomainPrefix(trackerURL)
 			baseName = prefix + "_" + baseName
 		}
