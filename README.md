@@ -160,7 +160,16 @@ mkbrr create path/to/file -t https://example-tracker.com/announce -o custom-name
 
 # Create with randomized info hash
 mkbrr create path/to/file -t https://example-tracker.com/announce -e
+
+# Create a torrent excluding specific file patterns (comma-separated)
+mkbrr create path/to/file -t https://example-tracker.com/announce --exclude "*.nfo,*.jpg"
+
+# Exclude multiple patterns using separate flags
+mkbrr create path/to/file -t https://example-tracker.com/announce --exclude "*.nfo" --exclude "*sample*"
 ```
+
+> [!NOTE]
+> The exclude patterns feature supports standard glob pattern matching (like `*` for any number of characters, `?` for a single character) and is case-insensitive.
 
 ### Inspecting Torrents
 
@@ -212,7 +221,7 @@ mkbrr create -P ptp --source "MySource" path/to/file
 ```
 
 > [!TIP]
-> The preset file can be placed in the current directory, `~/.config/mkbrr/`, or `~/.mkbrr/`. You can also specify a custom location with `--preset-file`.
+> The preset file can be placed in the current directory, `~/.config/mkbrr/`, or `~/.mkbrr/`. You can also specify a custom location with `--preset-file`. Presets also support the `exclude_patterns` field, allowing you to define default or preset-specific file exclusions.
 
 ### Batch Mode
 
@@ -223,6 +232,21 @@ mkbrr create -b batch.yaml
 ```
 
 See [batch example](examples/batch.yaml) here.
+
+Batch mode also supports excluding file patterns via the `exclude_patterns` field. This is useful for automatically filtering unwanted files like NFOs, samples, or image files.
+
+```yaml
+# Example batch.yaml snippet showing exclude_patterns
+jobs:
+  - output: example.torrent
+    path: /path/to/content
+    trackers:
+      - https://example-tracker.com/announce
+    exclude_patterns:
+      - "*.nfo"
+      - "*.jpg"
+      - "*sample*"
+```
 
 > [!TIP]
 > Batch mode processes jobs in parallel (up to 4 at once) and shows a summary when complete.

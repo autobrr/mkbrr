@@ -170,7 +170,7 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 			}
 			return nil
 		}
-		if shouldIgnoreFile(filePath) {
+		if shouldIgnoreFile(filePath, opts.ExcludePatterns) {
 			return nil
 		}
 		files = append(files, fileEntry{

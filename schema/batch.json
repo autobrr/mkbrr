@@ -64,9 +64,16 @@
             "type": "boolean",
             "description": "Don't write creation date",
             "default": false
+          },
+          "exclude_patterns": {
+            "type": "array",
+            "description": "List of glob patterns to exclude files (e.g., \"*.nfo\", \"*sample*\")",
+            "items": {
+              "type": "string"
+            }
           }
         }
       }
     }
   }
-} 
+}
