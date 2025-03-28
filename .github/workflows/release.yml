@@ -196,7 +196,7 @@ jobs:
         with:
           distribution: goreleaser
           version: "~> v2"
-          args: release --clean --skip=validate,publish --parallelism 5 --single-target
+          args: release --clean --skip=validate,publish --parallelism 5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BUILDER: ${{ github.actor }}@github-actions
@@ -207,7 +207,7 @@ jobs:
         with:
           distribution: goreleaser
           version: "~> v2"
-          args: release --clean --single-target
+          args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BUILDER: ${{ github.actor }}@github-actions
