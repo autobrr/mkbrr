@@ -26,6 +26,7 @@ type CreateTorrentOptions struct {
 	Quiet           bool
 	SkipPrefix      bool
 	ExcludePatterns []string
+	Displayer       Displayer // Add Displayer interface for progress reporting
 }
 
 // Torrent represents a torrent file with additional functionality

@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time" // Keep time import
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -14,9 +15,74 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/anacrolix/torrent/bencode"
+	mt "github.com/anacrolix/torrent/metainfo" // Use alias for metainfo
 	"github.com/autobrr/mkbrr/internal/torrent"
 	"github.com/spf13/cobra"
 )
+
+// fyneDisplayer implements the torrent.Displayer interface for Fyne GUI
+type fyneDisplayer struct {
+	progressDialog dialog.Dialog
+	progressBar    *widget.ProgressBar
+	totalPieces    int
+}
+
+// NewFyneDisplayer creates a new displayer linked to a Fyne progress dialog
+func newFyneDisplayer(w fyne.Window, title, message string) *fyneDisplayer {
+	progressBar := widget.NewProgressBar()
+	progressDialog := dialog.NewCustom(title, "Cancel", container.NewVBox(widget.NewLabel(message), progressBar), w)
+
+	return &fyneDisplayer{
+		progressDialog: progressDialog,
+		progressBar:    progressBar,
+	}
+}
+
+func (d *fyneDisplayer) ShowProgress(total int) {
+	d.totalPieces = total
+	if total == 0 {
+		d.progressBar.Max = 1 // Avoid division by zero if no pieces
+		d.progressBar.SetValue(1)
+	} else {
+		d.progressBar.Max = float64(total)
+		d.progressBar.SetValue(0)
+	}
+	d.progressDialog.Show()
+}
+
+func (d *fyneDisplayer) UpdateProgress(completed int, hashrate float64) {
+	if d.totalPieces > 0 {
+		d.progressBar.SetValue(float64(completed))
+	}
+	// Optionally, update a label in the dialog with hashrate if needed
+	// e.g., d.progressDialog.Content.(*fyne.Container).Objects[0].(*widget.Label).SetText(fmt.Sprintf(...))
+}
+
+func (d *fyneDisplayer) FinishProgress() {
+	if d.progressDialog != nil {
+		// Ensure the bar shows 100% on completion
+		if d.totalPieces > 0 {
+			d.progressBar.SetValue(float64(d.totalPieces))
+		} else {
+			d.progressBar.SetValue(1) // Show full for 0 pieces case
+		}
+		// Keep the dialog open briefly or hide immediately? Hiding for now.
+		// time.Sleep(500 * time.Millisecond) // Optional brief pause
+		d.progressDialog.Hide()
+	}
+}
+
+// Implement other Displayer methods (can be empty for GUI)
+// Note: ShowFiles signature uses the exported FileEntry type
+func (d *fyneDisplayer) ShowFiles(files []torrent.FileEntry)                                     {}
+func (d *fyneDisplayer) ShowSeasonPackWarnings(info *torrent.SeasonPackInfo)                     {}
+func (d *fyneDisplayer) IsBatch() bool                                                           { return false }
+func (d *fyneDisplayer) ShowMessage(msg string)                                                  {} // Could show in a label
+func (d *fyneDisplayer) ShowWarning(msg string)                                                  {} // Could show in a label or separate dialog
+func (d *fyneDisplayer) ShowOutputPathWithTime(path string, t time.Duration)                     {} // Handled by success dialog
+func (d *fyneDisplayer) ShowTorrentInfo(t *torrent.Torrent, info *mt.Info)                       {} // Use alias mt.Info
+func (d *fyneDisplayer) ShowFileTree(info *mt.Info)                                              {} // Use alias mt.Info
+func (d *fyneDisplayer) ShowBatchResults(results []torrent.BatchResult, totalTime time.Duration) {}
 
 var guiCmd = &cobra.Command{
 	Use:   "gui",
@@ -215,9 +281,8 @@ func createTorrentTab(w fyne.Window) fyne.CanvasObject {
 			pieceSize = 0
 		}
 
-		// Create progress dialog
-		progress := dialog.NewProgress("Creating Torrent", "Processing files...", w)
-		progress.Show()
+		// Create Fyne displayer for progress
+		displayer := newFyneDisplayer(w, "Creating Torrent", "Hashing pieces...")
 
 		// Set up the options for creating a torrent
 		isPrivate := privateCheck.Checked
@@ -228,6 +293,7 @@ func createTorrentTab(w fyne.Window) fyne.CanvasObject {
 			Source:     sourceEntry.Text,
 			Comment:    commentEntry.Text,
 			TrackerURL: trackerURL,
+			Displayer:  displayer, // Pass the displayer
 		}
 
 		if pieceSize > 0 {
@@ -236,7 +302,8 @@ func createTorrentTab(w fyne.Window) fyne.CanvasObject {
 
 		// Create torrent in a goroutine to avoid blocking UI
 		go func() {
-			defer progress.Hide()
+			// ShowProgress is called within torrent.Create via the displayer
+			// defer displayer.FinishProgress() // FinishProgress is called within torrent.Create
 
 			// Create the torrent
 			result, err := torrent.Create(options)
@@ -249,6 +316,14 @@ func createTorrentTab(w fyne.Window) fyne.CanvasObject {
 			dialog.ShowInformation("Torrent Created",
 				fmt.Sprintf("Successfully created torrent: %s\n\nInfo Hash: %s\nSize: %d bytes",
 					outputPath, result.InfoHash, result.Size), w)
+
+			// Clear fields after success
+			selectedPathLabel.SetText("No path selected")
+			trackerEntry.SetText("")
+			sourceEntry.SetText("")
+			commentEntry.SetText("")
+			outputEntry.SetText("")
+			// Optionally reset piece size select? pieceSizeSelect.SetSelectedIndex(0)
 		}()
 	})
 
@@ -301,6 +376,7 @@ func inspectTorrentTab(w fyne.Window) fyne.CanvasObject {
 	infoText := widget.NewMultiLineEntry()
 	infoText.Wrapping = fyne.TextWrapBreak
 	infoText.SetPlaceHolder("Torrent information will be displayed here")
+	// infoText.SetMinSize(fyne.NewSize(0, 300)) // Remove previous attempt
 	infoText.Disable()
 
 	// Inspect button
@@ -379,13 +455,20 @@ func inspectTorrentTab(w fyne.Window) fyne.CanvasObject {
 		}()
 	})
 
-	return container.NewVBox(
+	// Layout using Border to make the scrollable area expand
+	topContainer := container.NewVBox(
 		widget.NewLabelWithStyle("Inspect a Torrent", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
 		container.NewVBox(selectedFileLabel, selectButton),
 		widget.NewSeparator(),
 		inspectButton,
-		container.NewScroll(infoText),
 	)
+	scrollContainer := container.NewScroll(infoText)
+
+	// Use VSplit layout
+	split := container.NewVSplit(topContainer, scrollContainer)
+	split.Offset = 0.3 // Give top container ~30% initially, bottom gets the rest
+
+	return split
 }
 
 func modifyTorrentTab(w fyne.Window) fyne.CanvasObject {

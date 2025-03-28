@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath" // Ensure this import is present
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -117,7 +118,16 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 	h.mutex.Unlock()
 	h.bytesProcessed = 0
 
-	h.display.ShowFiles(h.files)
+	// Convert internal fileEntry slice to exported FileEntry slice for displayer
+	exportedFiles := make([]FileEntry, len(h.files))
+	for i, f := range h.files {
+		exportedFiles[i] = FileEntry{
+			Path: f.path, // Use exported Path field name if it exists, otherwise adjust
+			Size: f.length,
+			Name: filepath.Base(f.path), // Add Name field
+		}
+	}
+	h.display.ShowFiles(exportedFiles)
 
 	seasonInfo := AnalyzeSeasonPack(h.files)
 
