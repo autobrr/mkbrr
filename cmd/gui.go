@@ -228,6 +228,9 @@ func createTorrentTab(w fyne.Window) fyne.CanvasObject {
 
 	outputContainer := container.NewBorder(nil, nil, nil, outputBrowseButton, outputEntry)
 
+	// Randomize info hash
+	randomizeCheck := widget.NewCheck("Randomize Info Hash", nil)
+
 	// Create button
 	createButton := widget.NewButtonWithIcon("Create Torrent", theme.DocumentCreateIcon(), func() {
 		path := selectedPathLabel.Text
@@ -293,7 +296,9 @@ func createTorrentTab(w fyne.Window) fyne.CanvasObject {
 			Source:     sourceEntry.Text,
 			Comment:    commentEntry.Text,
 			TrackerURL: trackerURL,
-			Displayer:  displayer, // Pass the displayer
+			Displayer:  displayer,              // Pass the displayer
+			Version:    version,                // Add the version field
+			Entropy:    randomizeCheck.Checked, // Add entropy flag
 		}
 
 		if pieceSize > 0 {
@@ -314,8 +319,8 @@ func createTorrentTab(w fyne.Window) fyne.CanvasObject {
 
 			// Show success dialog
 			dialog.ShowInformation("Torrent Created",
-				fmt.Sprintf("Successfully created torrent: %s\n\nInfo Hash: %s\nSize: %d bytes",
-					outputPath, result.InfoHash, result.Size), w)
+				fmt.Sprintf("Successfully created torrent: %s\n\nInfo Hash: %s",
+					outputPath, result.InfoHash), w)
 
 			// Clear fields after success
 			selectedPathLabel.SetText("No path selected")
@@ -336,7 +341,8 @@ func createTorrentTab(w fyne.Window) fyne.CanvasObject {
 			{Text: "Private", Widget: privateCheck},
 			{Text: "Source", Widget: sourceEntry},
 			{Text: "Comment", Widget: commentEntry},
-			{Text: "Output File", Widget: outputContainer}, // Use container with browse button
+			{Text: "Output File", Widget: outputContainer},   // Use container with browse button
+			{Text: "Randomize Hash", Widget: randomizeCheck}, // Add randomize checkbox to form
 		},
 		SubmitText: "Create Torrent",
 		OnSubmit: func() {
@@ -379,6 +385,8 @@ func inspectTorrentTab(w fyne.Window) fyne.CanvasObject {
 	// infoText.SetMinSize(fyne.NewSize(0, 300)) // Remove previous attempt
 	infoText.Disable()
 
+	formatter := torrent.NewBytesFormatter(false)
+
 	// Inspect button
 	inspectButton := widget.NewButtonWithIcon("Inspect Torrent", theme.SearchIcon(), func() {
 		path := selectedFileLabel.Text
@@ -408,15 +416,17 @@ func inspectTorrentTab(w fyne.Window) fyne.CanvasObject {
 			var sb strings.Builder
 			sb.WriteString(fmt.Sprintf("Name: %s\n", info.Name))
 			sb.WriteString(fmt.Sprintf("Info Hash: %s\n", t.HashInfoBytes()))
-			sb.WriteString(fmt.Sprintf("Created: %v\n", t.CreationDate))
-			sb.WriteString(fmt.Sprintf("Piece Length: %d bytes\n", info.PieceLength))
+			if t.CreationDate != 0 {
+				sb.WriteString(fmt.Sprintf("Created: %s\n", time.Unix(t.CreationDate, 0).Format("2006-01-02 15:04:05 MST")))
+			}
+			sb.WriteString(fmt.Sprintf("Piece Length: %s\n", formatter.FormatBytes(info.PieceLength)))
 			sb.WriteString(fmt.Sprintf("Pieces: %d\n", len(info.Pieces)/20))
 
 			if info.Private != nil {
 				sb.WriteString(fmt.Sprintf("Private: %t\n", *info.Private))
 			}
 
-			sb.WriteString(fmt.Sprintf("Total Size: %d bytes\n", info.TotalLength()))
+			sb.WriteString(fmt.Sprintf("Total Size: %s\n", formatter.FormatBytes(info.TotalLength())))
 
 			if t.Comment != "" {
 				sb.WriteString(fmt.Sprintf("\nComment: %s\n", t.Comment))
@@ -441,12 +451,14 @@ func inspectTorrentTab(w fyne.Window) fyne.CanvasObject {
 				sb.WriteString(fmt.Sprintf("\nTracker: %s\n", t.Announce))
 			}
 
-			if len(info.Files) > 1 {
+			if len(info.Files) > 0 {
 				sb.WriteString(fmt.Sprintf("\nFiles: %d\n", len(info.Files)))
 				for _, file := range info.Files {
 					filePath := filepath.Join(file.Path...)
-					sb.WriteString(fmt.Sprintf("- %s (%d bytes)\n", filePath, file.Length))
+					sb.WriteString(fmt.Sprintf("- %s (%s)\n", filePath, formatter.FormatBytes(file.Length)))
 				}
+			} else if info.Length > 0 {
+				sb.WriteString(fmt.Sprintf("\nFile: %s (%s)\n", info.Name, formatter.FormatBytes(info.Length)))
 			}
 
 			// Update the info display

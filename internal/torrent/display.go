@@ -16,14 +16,14 @@ import (
 )
 
 type Display struct {
-	formatter *Formatter
+	formatter *BytesFormatter
 	bar       *progressbar.ProgressBar
 	isBatch   bool
 	quiet     bool
 	output    io.Writer
 }
 
-func NewDisplay(formatter *Formatter) *Display {
+func NewDisplay(formatter *BytesFormatter) *Display {
 	return &Display{
 		formatter: formatter,
 		quiet:     false,
@@ -268,19 +268,19 @@ func (d *Display) ShowBatchResults(results []BatchResult, duration time.Duration
 	}
 }
 
-type Formatter struct {
+type BytesFormatter struct {
 	verbose bool
 }
 
-func NewFormatter(verbose bool) *Formatter {
-	return &Formatter{verbose: verbose}
+func NewBytesFormatter(verbose bool) *BytesFormatter {
+	return &BytesFormatter{verbose: verbose}
 }
 
-func (f *Formatter) FormatBytes(bytes int64) string {
+func (f *BytesFormatter) FormatBytes(bytes int64) string {
 	return humanize.IBytes(uint64(bytes))
 }
 
-func (f *Formatter) FormatDuration(dur time.Duration) string {
+func (f *BytesFormatter) FormatDuration(dur time.Duration) string {
 	if dur < time.Second {
 		return fmt.Sprintf("%dms", dur.Milliseconds())
 	}

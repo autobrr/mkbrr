@@ -10,6 +10,7 @@ BUILD_DIR=build
 VERSION=$(shell git describe --tags 2>/dev/null || echo "dev")
 BUILD_TIME=$(shell date +%FT%T%z)
 LDFLAGS=-ldflags "-X main.version=${VERSION} -X main.buildTime=${BUILD_TIME}"
+LDFLAGS_GUI=-ldflags "-X main.version=${VERSION} -X main.buildTime=${BUILD_TIME}"
 
 # race detector settings
 GORACE=log_path=./race_report.log \
@@ -28,6 +29,12 @@ build:
 	@mkdir -p ${BUILD_DIR}
 	CGO_ENABLED=0 $(GO) build ${LDFLAGS} -o ${BUILD_DIR}/${BINARY_NAME}
 
+# build GUI binary (suppresses console window)
+.PHONY: build-gui
+build-gui:
+	@echo "Building ${BINARY_NAME} (GUI)..."
+	@mkdir -p ${BUILD_DIR}
+	CGO_ENABLED=1 $(GO) build ${LDFLAGS_GUI} -o ${BUILD_DIR}/${BINARY_NAME}
 # build with PGO
 .PHONY: build-pgo
 build-pgo:
@@ -140,9 +147,10 @@ clean:
 .PHONY: help
 help:
 	@echo "Available targets:"
-	@echo "  all            - Clean, build, and install the binary"
-	@echo "  build          - Build the binary"
-	@echo "  install        - Install the binary in GOPATH"
+	@echo "  all            - Clean, build (CLI), and install the binary"
+	@echo "  build          - Build the standard CLI binary"
+	@echo "  build-gui      - Build the GUI binary (no console window)"
+	@echo "  install        - Install the standard CLI binary in GOPATH"
 	@echo "  test           - Run tests (excluding large tests)"
 	@echo "  test-race-short- Run quick tests with race detector"
 	@echo "  test-race      - Run all tests with race detector (excluding large tests)"

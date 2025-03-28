@@ -77,7 +77,7 @@ Flags:
 func runModify(cmd *cobra.Command, args []string) error {
 	start := time.Now()
 
-	display := torrent.NewDisplay(torrent.NewFormatter(modifyVerbose))
+	display := torrent.NewDisplay(torrent.NewBytesFormatter(modifyVerbose))
 	display.SetQuiet(modifyQuiet)
 	display.ShowMessage(fmt.Sprintf("Modifying %d torrent files...", len(args)))
 
