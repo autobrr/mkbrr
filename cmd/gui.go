@@ -15,7 +15,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/anacrolix/torrent/bencode"
-	mt "github.com/anacrolix/torrent/metainfo" // Use alias for metainfo
+	mi "github.com/anacrolix/torrent/metainfo" // Use alias for metainfo
 	"github.com/autobrr/mkbrr/internal/torrent"
 	"github.com/spf13/cobra"
 )
@@ -80,8 +80,8 @@ func (d *fyneDisplayer) IsBatch() bool                                          
 func (d *fyneDisplayer) ShowMessage(msg string)                                                  {} // Could show in a label
 func (d *fyneDisplayer) ShowWarning(msg string)                                                  {} // Could show in a label or separate dialog
 func (d *fyneDisplayer) ShowOutputPathWithTime(path string, t time.Duration)                     {} // Handled by success dialog
-func (d *fyneDisplayer) ShowTorrentInfo(t *torrent.Torrent, info *mt.Info)                       {} // Use alias mt.Info
-func (d *fyneDisplayer) ShowFileTree(info *mt.Info)                                              {} // Use alias mt.Info
+func (d *fyneDisplayer) ShowTorrentInfo(t *torrent.Torrent, info *mi.Info)                       {} // Use alias mi.Info
+func (d *fyneDisplayer) ShowFileTree(info *mi.Info)                                              {} // Use alias mi.Info
 func (d *fyneDisplayer) ShowBatchResults(results []torrent.BatchResult, totalTime time.Duration) {}
 
 var guiCmd = &cobra.Command{
@@ -430,7 +430,11 @@ func inspectTorrentTab(w fyne.Window) fyne.CanvasObject {
 		}
 
 		// Show progress dialog
-		progress := dialog.NewProgress("Inspecting Torrent", "Loading torrent data...", w)
+		progressBar := widget.NewProgressBar()
+		progress := dialog.NewCustomWithoutButtons("Inspecting Torrent", container.NewVBox(
+			widget.NewLabel("Loading torrent data..."),
+			progressBar,
+		), w)
 		progress.Show()
 
 		// Inspect the torrent in a goroutine
@@ -611,7 +615,10 @@ func modifyTorrentTab(w fyne.Window) fyne.CanvasObject {
 		}
 
 		// Show progress dialog
-		progress := dialog.NewProgress("Modifying Torrent", "Processing...", w)
+		progress := dialog.NewCustomWithoutButtons("Modifying Torrent", container.NewVBox(
+			widget.NewLabel("Processing..."),
+			widget.NewProgressBar(),
+		), w)
 		progress.Show()
 
 		// Get output path
