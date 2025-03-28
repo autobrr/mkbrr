@@ -172,6 +172,8 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     needs: [ pgo ]
+    env:
+      GOOS_TARGET: ${{ matrix.os == 'ubuntu-latest' && 'linux' || matrix.os == 'windows-latest' && 'windows' || matrix.os == 'macos-latest' && 'darwin' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4

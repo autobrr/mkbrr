@@ -11,11 +11,7 @@ builds:
       - BUILDER
     flags:
       - -pgo=cpu.pprof
-    goos:
-      - linux
-      - windows
-      - darwin
-      - freebsd
+    goos: [ "{{ .Env.GOOS_TARGET }}" ]
     goarch:
       - amd64
       - arm
@@ -44,10 +40,7 @@ builds:
     env:
       - CGO_ENABLED=1
       - BUILDER
-    goos:
-      - linux
-      - windows
-      - darwin
+    goos: [ "{{ .Env.GOOS_TARGET }}" ]
     goarch:
       - amd64
       - arm64
