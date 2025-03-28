@@ -109,22 +109,41 @@ See [go.mod](https://github.com/autobrr/mkbrr/blob/main/go.mod#L3) for Go versio
 git clone https://github.com/autobrr/mkbrr.git
 cd mkbrr
 
-# Install the binary to $GOPATH/bin
+# Build the CLI binary (output: ./build/mkbrr)
+make build
+
+# Build the GUI binary (output: ./build/mkbrr-gui)
+make build-gui
+
+# Install the CLI binary (to $GOPATH/bin or /usr/local/bin)
 make install
 
-# Or install system-wide (requires sudo)
-sudo make install    # installs to /usr/local/bin
+# Install the GUI binary (to $GOPATH/bin or /usr/local/bin)
+make install-gui
+
+# Use sudo for system-wide installation (e.g., /usr/local/bin)
+# sudo make install
+# sudo make install-gui
 ```
 
 ### Go Install
 
-If you have Go installed:
+If you have Go installed, you can install the CLI or GUI version directly:
 
+**CLI Version:**
 ```bash
-go install github.com/autobrr/mkbrr@latest
+go install github.com/autobrr/mkbrr/cmd/mkbrr@latest
+```
 
-# make sure its in your PATH
-export PATH="$PATH:$GOPATH/bin"
+**GUI Version:**
+```bash
+go install github.com/autobrr/mkbrr/cmd/mkbrr-gui@latest
+```
+
+After installation, ensure `$GOPATH/bin` is in your system's `PATH`:
+```bash
+# Example for bash/zsh
+export PATH="$PATH:$(go env GOPATH)/bin"
 ```
 
 ## Usage

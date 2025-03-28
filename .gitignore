@@ -1,5 +1,6 @@
 *.torrent
 /build
+/dist
 .DS_Store
 
 race_report.log

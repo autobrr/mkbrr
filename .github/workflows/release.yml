@@ -164,8 +164,11 @@ jobs:
           path: cpu.pprof
 
   goreleaserbuild:
-    name: Build distribution binaries
-    runs-on: ubuntu-latest
+    name: Build distribution binaries (${{ matrix.os }})
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     needs: [ pgo ]
     steps:
       - name: Checkout
@@ -191,7 +194,7 @@ jobs:
         with:
           distribution: goreleaser
           version: "~> v2"
-          args: release --clean --skip=validate,publish --parallelism 5
+          args: release --clean --skip=validate,publish --parallelism 5 --single-target
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BUILDER: ${{ github.actor }}@github-actions
@@ -202,7 +205,7 @@ jobs:
         with:
           distribution: goreleaser
           version: "~> v2"
-          args: release --clean
+          args: release --clean --single-target
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BUILDER: ${{ github.actor }}@github-actions
@@ -210,9 +213,10 @@ jobs:
       - name: Upload assets
         uses: actions/upload-artifact@v4
         with:
-          name: mkbrr
+          name: mkbrr-${{ matrix.os }}
           path: |
             dist/*.tar.gz
             dist/*.zip
             dist/*.deb
             dist/*.rpm
+            dist/*.exe

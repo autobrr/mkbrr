@@ -33,7 +33,7 @@ builds:
         goarch: arm
       - goos: freebsd
         goarch: arm64
-    main: ./main.go
+    main: ./cmd/mkbrr/
     binary: mkbrr
     ldflags:
       - -s -w
@@ -44,8 +44,6 @@ builds:
     env:
       - CGO_ENABLED=1
       - BUILDER
-    tags:
-      - gui
     goos:
       - linux
       - windows
@@ -58,7 +56,7 @@ builds:
         goarch: arm64
       - goos: windows
         goarch: arm64
-    main: ./main.go
+    main: ./cmd/mkbrr-gui/
     binary: mkbrr-gui
     ldflags:
       - -s -w

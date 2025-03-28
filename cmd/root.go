@@ -17,14 +17,7 @@ var rootCmd = &cobra.Command{
 	Long:  banner + "\n\nmkbrr is a tool to create and inspect torrent files.",
 }
 
-func Execute() error {
-	rootCmd.CompletionOptions.DisableDefaultCmd = true
-	rootCmd.SilenceUsage = false
-
-	// Add subcommands (versionCmd is added in its own file's init)
-	// guiCmd is added conditionally in cmd/gui_enabled.go's init
-
-	rootCmd.SetUsageTemplate(`Usage:
+const commonUsageTemplate = `Usage:
   {{.CommandPath}} [command]
 
 Available Commands:{{range .Commands}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
@@ -34,15 +27,24 @@ Flags:
 {{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}
 
 Use "{{.CommandPath}} [command] --help" for more information about a command.
-`)
+`
 
-	// If no arguments are provided and this is a GUI build, run the GUI.
-	// runGuiIfNoArgs() is defined in gui_enabled.go (for GUI builds)
-	// or gui_disabled.go (for non-GUI builds).
-	if runGuiIfNoArgs() {
-		return nil // Exit after running the GUI
-	}
+// setupCommon prepares the rootCmd with common settings.
+func setupCommon() {
+	rootCmd.CompletionOptions.DisableDefaultCmd = true
+	rootCmd.SilenceUsage = false
+	rootCmd.SetUsageTemplate(commonUsageTemplate)
+	rootCmd.AddCommand(versionCmd)
+}
 
-	// Otherwise, execute normally using Cobra's argument parsing for CLI commands.
+// ExecuteCLI configures and executes the root command for CLI mode.
+func ExecuteCLI() error {
+	setupCommon()
+	rootCmd.AddCommand(versionCmd)
 	return rootCmd.Execute()
+}
+
+// Execute remains for potential backward compatibility or internal use, defaulting to CLI.
+func Execute() error {
+	return ExecuteCLI()
 }
