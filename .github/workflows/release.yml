@@ -86,13 +86,13 @@ jobs:
         if: matrix.os == 'macos-latest'
         env:
           CGO_ENABLED: 0
-        run: go test ./...
+        run: go test github.com/autobrr/mkbrr/cmd github.com/autobrr/mkbrr/internal/... # Explicitly list non-GUI packages to test
 
       - name: Run Tests (Windows)
         if: matrix.os == 'windows-latest'
         env:
           CGO_ENABLED: 0
-        run: go test -short ./...
+        run: go test -short github.com/autobrr/mkbrr/cmd github.com/autobrr/mkbrr/internal/...
 
       - name: Generate Test Summary
         if: matrix.os != 'windows-latest'
@@ -134,7 +134,8 @@ jobs:
           CGO_ENABLED: 0
         run: |
           # Build initial binary
-          go build -o mkbrr
+          # Build from the correct main package path
+          go build -o mkbrr ./cmd/mkbrr/
 
           # Run different workload scenarios
           ./mkbrr create test_data/test1.bin --cpuprofile=cpu1.pprof
