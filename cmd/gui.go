@@ -182,6 +182,10 @@ func createTorrentTab(w fyne.Window) fyne.CanvasObject {
 	commentEntry.MultiLine = true
 	commentEntry.Wrapping = fyne.TextWrapBreak
 
+	// Exclude patterns input
+	excludeEntry := widget.NewEntry()
+	excludeEntry.SetPlaceHolder("*.nfo, *.jpg, temp* (comma-separated)")
+
 	// Output filename
 	outputEntry := widget.NewEntry()
 	outputEntry.SetPlaceHolder("auto-generated filename")
@@ -290,15 +294,16 @@ func createTorrentTab(w fyne.Window) fyne.CanvasObject {
 		// Set up the options for creating a torrent
 		isPrivate := privateCheck.Checked
 		options := torrent.CreateTorrentOptions{
-			Path:       path,
-			OutputPath: outputPath,
-			IsPrivate:  isPrivate,
-			Source:     sourceEntry.Text,
-			Comment:    commentEntry.Text,
-			TrackerURL: trackerURL,
-			Displayer:  displayer,              // Pass the displayer
-			Version:    version,                // Add the version field
-			Entropy:    randomizeCheck.Checked, // Add entropy flag
+			Path:            path,
+			OutputPath:      outputPath,
+			IsPrivate:       isPrivate,
+			Source:          sourceEntry.Text,
+			Comment:         commentEntry.Text,
+			TrackerURL:      trackerURL,
+			Displayer:       displayer,                               // Pass the displayer
+			Version:         version,                                 // Add the version field
+			Entropy:         randomizeCheck.Checked,                  // Add entropy flag
+			ExcludePatterns: parseExcludePatterns(excludeEntry.Text), // Add exclude patterns
 		}
 
 		if pieceSize > 0 {
@@ -341,6 +346,7 @@ func createTorrentTab(w fyne.Window) fyne.CanvasObject {
 			{Text: "Private", Widget: privateCheck},
 			{Text: "Source", Widget: sourceEntry},
 			{Text: "Comment", Widget: commentEntry},
+			{Text: "Exclude Patterns", Widget: excludeEntry}, // Add exclude entry to form
 			{Text: "Output File", Widget: outputContainer},   // Use container with browse button
 			{Text: "Randomize Hash", Widget: randomizeCheck}, // Add randomize checkbox to form
 		},
@@ -354,6 +360,22 @@ func createTorrentTab(w fyne.Window) fyne.CanvasObject {
 		widget.NewLabelWithStyle("Create a Torrent", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
 		form,
 	)
+}
+
+// Helper function to parse comma-separated exclude patterns
+func parseExcludePatterns(patterns string) []string {
+	if patterns == "" {
+		return nil
+	}
+	parts := strings.Split(patterns, ",")
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		trimmed := strings.TrimSpace(p)
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
 }
 
 func inspectTorrentTab(w fyne.Window) fyne.CanvasObject {
