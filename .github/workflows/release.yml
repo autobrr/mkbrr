@@ -50,7 +50,8 @@ jobs:
         run: make test-race
 
       - name: Generate Test Summary
-        run: go run gotest.tools/gotestsum@latest --junitfile unit-tests.xml --format pkgname
+        # Explicitly list non-GUI packages for test summary generation
+        run: go run gotest.tools/gotestsum@latest --junitfile unit-tests.xml --format pkgname -- github.com/autobrr/mkbrr/cmd github.com/autobrr/mkbrr/internal/...
 
       - name: Test Summary
         uses: test-summary/action@v2
@@ -86,13 +87,13 @@ jobs:
         if: matrix.os == 'macos-latest'
         env:
           CGO_ENABLED: 0
-        run: go test ./...
+        run: go test github.com/autobrr/mkbrr/cmd github.com/autobrr/mkbrr/internal/... # Explicitly list non-GUI packages to test
 
       - name: Run Tests (Windows)
         if: matrix.os == 'windows-latest'
         env:
           CGO_ENABLED: 0
-        run: go test -short ./...
+        run: go test -short github.com/autobrr/mkbrr/cmd github.com/autobrr/mkbrr/internal/...
 
       - name: Generate Test Summary
         if: matrix.os != 'windows-latest'
@@ -134,7 +135,8 @@ jobs:
           CGO_ENABLED: 0
         run: |
           # Build initial binary
-          go build -o mkbrr
+          # Build from the correct main package path
+          go build -o mkbrr ./cmd/mkbrr/
 
           # Run different workload scenarios
           ./mkbrr create test_data/test1.bin --cpuprofile=cpu1.pprof
@@ -164,9 +166,14 @@ jobs:
           path: cpu.pprof
 
   goreleaserbuild:
-    name: Build distribution binaries
-    runs-on: ubuntu-latest
+    name: Build distribution binaries (${{ matrix.os }})
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     needs: [ pgo ]
+    env:
+      GOOS_TARGET: ${{ matrix.os == 'ubuntu-latest' && 'linux' || matrix.os == 'windows-latest' && 'windows' || matrix.os == 'macos-latest' && 'darwin' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -210,9 +217,10 @@ jobs:
       - name: Upload assets
         uses: actions/upload-artifact@v4
         with:
-          name: mkbrr
+          name: mkbrr-${{ matrix.os }}
           path: |
             dist/*.tar.gz
             dist/*.zip
             dist/*.deb
             dist/*.rpm
+            dist/*.exe

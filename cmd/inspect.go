@@ -58,7 +58,7 @@ func runInspect(cmd *cobra.Command, args []string) error {
 	}
 
 	t := &torrent.Torrent{MetaInfo: mi}
-	display := torrent.NewDisplay(torrent.NewFormatter(true))
+	display := torrent.NewDisplay(torrent.NewBytesFormatter(true))
 	display.ShowTorrentInfo(t, &info)
 
 	if inspectVerbose {
