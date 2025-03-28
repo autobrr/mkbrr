@@ -51,6 +51,13 @@
         "no_date": {
           "type": "boolean",
           "description": "Don't write creation date"
+        },
+        "exclude_patterns": {
+          "type": "array",
+          "description": "List of glob patterns to exclude files (e.g., \"*.nfo\", \"*sample*\")",
+          "items": {
+            "type": "string"
+          }
         }
       }
     },
@@ -104,9 +111,16 @@
             "description": "Maximum piece length as 2^n bytes (16-27)",
             "minimum": 16,
             "maximum": 27
+          },
+          "exclude_patterns": {
+            "type": "array",
+            "description": "List of glob patterns to exclude files (e.g., \"*.nfo\", \"*sample*\")",
+            "items": {
+              "type": "string"
+            }
           }
         }
       }
     }
   }
-} 
+}

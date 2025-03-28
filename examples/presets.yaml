@@ -6,14 +6,21 @@ default:
   private: true
   no_date: true
   no_creator: false
+  skip_prefix: false
   # comment: "Default comment for all torrents"  # Torrent comment
   # source: "DEFAULT"                           # Source tag
+  # exclude_patterns:                           # Default list of glob patterns to exclude files
+  #   - "*.bak"
+  #   - "temp.*"
 
 presets:
   ptp:
     source: "PTP"
     trackers:
       - "https://please.passthe.tea/announce"
+    exclude_patterns: # Example: exclude NFO files and samples
+      - "*.nfo"
+      - "*sample*"
 
   # Public tracker preset with all options shown
   public:

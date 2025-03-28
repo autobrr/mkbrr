@@ -170,7 +170,7 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 			}
 			return nil
 		}
-		if shouldIgnoreFile(filePath) {
+		if shouldIgnoreFile(filePath, opts.ExcludePatterns) {
 			return nil
 		}
 		files = append(files, fileEntry{
@@ -386,7 +386,7 @@ func Create(opts CreateTorrentOptions) (*TorrentInfo, error) {
 
 	if opts.OutputPath == "" {
 		fileName := opts.Name
-		if opts.TrackerURL != "" {
+		if opts.TrackerURL != "" && !opts.SkipPrefix {
 			fileName = preset.GetDomainPrefix(opts.TrackerURL) + "_" + opts.Name
 		}
 		opts.OutputPath = fileName + ".torrent"

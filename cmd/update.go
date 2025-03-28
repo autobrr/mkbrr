@@ -27,12 +27,6 @@ Flags:
 }
 
 func runUpdate(cmd *cobra.Command, args []string) error {
-
-	if version == "dev" {
-		fmt.Println("Update is not supported on development builds")
-		return nil
-	}
-
 	v, err := semver.ParseTolerant(version)
 	if err != nil {
 		return fmt.Errorf("could not parse version: %w", err)

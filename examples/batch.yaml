@@ -15,3 +15,6 @@ jobs:
     private: true
     source: "anothertracker"
     no_date: true
+    exclude_patterns: # Example: exclude NFO files and samples
+      - "*.nfo"
+      - "*sample*"
