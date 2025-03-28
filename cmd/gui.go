@@ -166,7 +166,10 @@ func createTorrentTab(w fyne.Window) fyne.CanvasObject {
 	trackerEntry.SetPlaceHolder("https://example.com/announce")
 
 	// Piece size selection
-	pieceSizeOptions := []string{"Auto", "16 KiB", "32 KiB", "64 KiB", "128 KiB", "256 KiB", "512 KiB", "1 MiB", "2 MiB", "4 MiB", "8 MiB", "16 MiB"}
+	pieceSizeOptions := []string{
+		"Auto", "16 KiB", "32 KiB", "64 KiB", "128 KiB", "256 KiB", "512 KiB",
+		"1 MiB", "2 MiB", "4 MiB", "8 MiB", "16 MiB", "32 MiB", "64 MiB", "128 MiB", // Added 32, 64, 128 MiB
+	}
 	pieceSizeSelect := widget.NewSelect(pieceSizeOptions, func(value string) {})
 	pieceSizeSelect.SetSelectedIndex(0)
 
@@ -284,6 +287,12 @@ func createTorrentTab(w fyne.Window) fyne.CanvasObject {
 			pieceSize = 23 // 2^23 = 8 MiB
 		case "16 MiB":
 			pieceSize = 24 // 2^24 = 16 MiB
+		case "32 MiB":
+			pieceSize = 25 // 2^25 = 32 MiB
+		case "64 MiB":
+			pieceSize = 26 // 2^26 = 64 MiB
+		case "128 MiB":
+			pieceSize = 27 // 2^27 = 128 MiB
 		default:
 			pieceSize = 0
 		}
