@@ -10,6 +10,7 @@ import (
 	"github.com/autobrr/mkbrr/internal/preset"
 	"github.com/autobrr/mkbrr/internal/torrent"
 	"github.com/spf13/cobra"
+	"golang.org/x/exp/slices"
 )
 
 var (
@@ -224,11 +225,11 @@ func runCreate(cmd *cobra.Command, args []string) error {
 			Version:         version,
 			Entropy:         entropy,
 			Quiet:           quiet,
-			ExcludePatterns: excludePatterns,
+			ExcludePatterns: []string{},
 		}
 
-		if !cmd.Flags().Changed("exclude") && len(presetOpts.ExcludePatterns) > 0 {
-			opts.ExcludePatterns = presetOpts.ExcludePatterns
+		if len(presetOpts.ExcludePatterns) > 0 {
+			opts.ExcludePatterns = slices.Clone(presetOpts.ExcludePatterns)
 		}
 
 		if presetOpts.PieceLength != 0 {
@@ -273,7 +274,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 			opts.SkipPrefix = skipPrefix
 		}
 		if cmd.Flags().Changed("exclude") {
-			opts.ExcludePatterns = excludePatterns
+			opts.ExcludePatterns = append(opts.ExcludePatterns, excludePatterns...)
 		}
 	} else {
 		// use command line options
