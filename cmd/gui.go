@@ -1,3 +1,5 @@
+//go:build gui
+
 package cmd
 
 import (
@@ -94,9 +96,7 @@ var guiCmd = &cobra.Command{
 	DisableFlagsInUseLine: true,
 }
 
-func init() {
-	rootCmd.AddCommand(guiCmd)
-}
+// Removed init() function that added guiCmd here, as it's now handled in gui_enabled.go
 
 func runGUI() {
 	a := app.NewWithID("com.autobrr.mkbrr")
@@ -311,6 +311,7 @@ func createTorrentTab(w fyne.Window) fyne.CanvasObject {
 			TrackerURL:      trackerURL,
 			Displayer:       displayer,                               // Pass the displayer
 			Version:         version,                                 // Add the version field
+			AppName:         GetAppName(),                            // Pass the application name
 			Entropy:         randomizeCheck.Checked,                  // Add entropy flag
 			ExcludePatterns: parseExcludePatterns(excludeEntry.Text), // Add exclude patterns
 		}

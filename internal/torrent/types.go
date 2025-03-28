@@ -21,12 +21,13 @@ type CreateTorrentOptions struct {
 	NoCreator       bool
 	Verbose         bool
 	Version         string
+	AppName         string
 	OutputPath      string
 	Entropy         bool
 	Quiet           bool
 	SkipPrefix      bool
 	ExcludePatterns []string
-	Displayer       Displayer // Add Displayer interface for progress reporting
+	Displayer       Displayer
 }
 
 // Torrent represents a torrent file with additional functionality

@@ -16,7 +16,7 @@ var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print version information",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("mkbrr version: %s\n", version)
+		fmt.Printf("%s version: %s\n", GetAppName(), version)
 		if buildTime != "unknown" {
 			fmt.Printf("Build Time:    %s\n", buildTime)
 		}
@@ -35,9 +35,9 @@ func SetVersion(v, bt string) {
 }
 
 func init() {
-	versionCmd.SetUsageTemplate(`Usage:
+	versionCmd.SetUsageTemplate(fmt.Sprintf(`Usage:
   {{.CommandPath}}
 
-Prints the version and build time information for mkbrr.
-`)
+Prints the version and build time information for %s.
+`, GetAppName()))
 }

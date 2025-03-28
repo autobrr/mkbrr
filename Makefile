@@ -34,7 +34,7 @@ build:
 build-gui:
 	@echo "Building ${BINARY_NAME} (GUI)..."
 	@mkdir -p ${BUILD_DIR}
-	CGO_ENABLED=1 $(GO) build ${LDFLAGS_GUI} -o ${BUILD_DIR}/${BINARY_NAME}
+	CGO_ENABLED=1 $(GO) build -tags gui ${LDFLAGS_GUI} -o ${BUILD_DIR}/${BINARY_NAME}-gui
 # build with PGO
 .PHONY: build-pgo
 build-pgo:
