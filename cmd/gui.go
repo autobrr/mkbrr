@@ -356,10 +356,13 @@ func createTorrentTab(w fyne.Window) fyne.CanvasObject {
 		},
 	}
 
-	return container.NewVBox(
+	content := container.NewVBox(
 		widget.NewLabelWithStyle("Create a Torrent", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
 		form,
 	)
+
+	// Add padding around the content
+	return container.NewPadded(content)
 }
 
 // Helper function to parse comma-separated exclude patterns
@@ -502,7 +505,8 @@ func inspectTorrentTab(w fyne.Window) fyne.CanvasObject {
 	split := container.NewVSplit(topContainer, scrollContainer)
 	split.Offset = 0.3 // Give top container ~30% initially, bottom gets the rest
 
-	return split
+	// Add padding around the content
+	return container.NewPadded(split)
 }
 
 func modifyTorrentTab(w fyne.Window) fyne.CanvasObject {
@@ -733,8 +737,11 @@ func modifyTorrentTab(w fyne.Window) fyne.CanvasObject {
 		},
 	}
 
-	return container.NewVBox(
+	content := container.NewVBox(
 		widget.NewLabelWithStyle("Modify a Torrent", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
 		form,
 	)
+
+	// Add padding around the content
+	return container.NewPadded(content)
 }
