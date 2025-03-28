@@ -10,6 +10,7 @@ import (
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/storage" // Added for file filter
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/anacrolix/torrent/bencode"
@@ -59,9 +60,25 @@ func createTorrentTab(w fyne.Window) fyne.CanvasObject {
 	selectedPathLabel := widget.NewLabel("No path selected")
 	selectedPathLabel.Wrapping = fyne.TextWrapBreak
 
-	// Create a button to select a file/directory
-	selectButton := widget.NewButtonWithIcon("Select File/Directory", theme.FolderOpenIcon(), func() {
-		dialog.ShowFileOpen(func(uri fyne.URIReadCloser, err error) {
+	// Button for selecting a directory
+	selectDirButton := widget.NewButtonWithIcon("Select Directory", theme.FolderOpenIcon(), func() {
+		folderDialog := dialog.NewFolderOpen(func(uri fyne.ListableURI, err error) {
+			if err != nil {
+				dialog.ShowError(err, w)
+				return
+			}
+			if uri == nil {
+				return // User cancelled
+			}
+			selectedPathLabel.SetText(uri.Path())
+		}, w)
+		folderDialog.Resize(fyne.NewSize(700, 500)) // Set a larger size
+		folderDialog.Show()
+	})
+
+	// Button for selecting a file
+	selectFileButton := widget.NewButtonWithIcon("Select File", theme.FileIcon(), func() {
+		fileDialog := dialog.NewFileOpen(func(uri fyne.URIReadCloser, err error) {
 			if err != nil {
 				dialog.ShowError(err, w)
 				return
@@ -71,7 +88,12 @@ func createTorrentTab(w fyne.Window) fyne.CanvasObject {
 			}
 			selectedPathLabel.SetText(uri.URI().Path())
 		}, w)
+		fileDialog.Resize(fyne.NewSize(700, 500)) // Set a larger size
+		fileDialog.Show()
 	})
+
+	// Arrange buttons horizontally
+	selectButtons := container.NewHBox(selectDirButton, selectFileButton)
 
 	// Tracker URL input
 	trackerEntry := widget.NewEntry()
@@ -97,6 +119,48 @@ func createTorrentTab(w fyne.Window) fyne.CanvasObject {
 	// Output filename
 	outputEntry := widget.NewEntry()
 	outputEntry.SetPlaceHolder("auto-generated filename")
+
+	// Browse button for output file location
+	outputBrowseButton := widget.NewButton("Browse...", func() {
+		saveDialog := dialog.NewFileSave(func(uri fyne.URIWriteCloser, err error) {
+			if err != nil {
+				dialog.ShowError(err, w)
+				return
+			}
+			if uri == nil {
+				return // User cancelled
+			}
+			outputEntry.SetText(uri.URI().Path())
+		}, w)
+
+		// Pre-populate filename
+		currentOutput := outputEntry.Text
+		if currentOutput == "" {
+			inputPath := selectedPathLabel.Text
+			if inputPath != "No path selected" {
+				// Use the base name of the selected input path + .torrent as default
+				currentOutput = filepath.Base(filepath.Clean(inputPath)) + ".torrent"
+			} else {
+				currentOutput = "new.torrent" // More generic default if no input selected yet
+			}
+		}
+		// Set the filename in the dialog directly using the calculated default
+		saveDialog.SetFileName(currentOutput)
+		// Try setting initial directory (might not work perfectly on all OS)
+		if dir := filepath.Dir(currentOutput); dir != "." && dir != "/" {
+			// Attempt to list the directory URI
+			listableURI, err := storage.ListerForURI(storage.NewFileURI(dir))
+			if err == nil {
+				saveDialog.SetLocation(listableURI)
+			}
+		}
+
+		saveDialog.SetFilter(storage.NewExtensionFileFilter([]string{".torrent"}))
+		saveDialog.Resize(fyne.NewSize(700, 500))
+		saveDialog.Show()
+	})
+
+	outputContainer := container.NewBorder(nil, nil, nil, outputBrowseButton, outputEntry)
 
 	// Create button
 	createButton := widget.NewButtonWithIcon("Create Torrent", theme.DocumentCreateIcon(), func() {
@@ -191,13 +255,13 @@ func createTorrentTab(w fyne.Window) fyne.CanvasObject {
 	// Form layout
 	form := &widget.Form{
 		Items: []*widget.FormItem{
-			{Text: "Path", Widget: container.NewVBox(selectedPathLabel, selectButton)},
+			{Text: "Path", Widget: container.NewVBox(selectedPathLabel, selectButtons)}, // Use HBox container for buttons
 			{Text: "Tracker URL", Widget: trackerEntry},
 			{Text: "Piece Size", Widget: pieceSizeSelect},
 			{Text: "Private", Widget: privateCheck},
 			{Text: "Source", Widget: sourceEntry},
 			{Text: "Comment", Widget: commentEntry},
-			{Text: "Output File", Widget: outputEntry},
+			{Text: "Output File", Widget: outputContainer}, // Use container with browse button
 		},
 		SubmitText: "Create Torrent",
 		OnSubmit: func() {
@@ -218,7 +282,7 @@ func inspectTorrentTab(w fyne.Window) fyne.CanvasObject {
 
 	// Create a button to select a torrent file
 	selectButton := widget.NewButtonWithIcon("Select Torrent File", theme.FolderOpenIcon(), func() {
-		dialog.ShowFileOpen(func(uri fyne.URIReadCloser, err error) {
+		fileDialog := dialog.NewFileOpen(func(uri fyne.URIReadCloser, err error) {
 			if err != nil {
 				dialog.ShowError(err, w)
 				return
@@ -228,6 +292,9 @@ func inspectTorrentTab(w fyne.Window) fyne.CanvasObject {
 			}
 			selectedFileLabel.SetText(uri.URI().Path())
 		}, w)
+		fileDialog.SetFilter(storage.NewExtensionFileFilter([]string{".torrent"})) // Filter for .torrent files
+		fileDialog.Resize(fyne.NewSize(700, 500))                                  // Set a larger size
+		fileDialog.Show()
 	})
 
 	// Info display area
@@ -328,7 +395,7 @@ func modifyTorrentTab(w fyne.Window) fyne.CanvasObject {
 
 	// Create a button to select a torrent file
 	selectButton := widget.NewButtonWithIcon("Select Torrent File", theme.FolderOpenIcon(), func() {
-		dialog.ShowFileOpen(func(uri fyne.URIReadCloser, err error) {
+		fileDialog := dialog.NewFileOpen(func(uri fyne.URIReadCloser, err error) {
 			if err != nil {
 				dialog.ShowError(err, w)
 				return
@@ -338,6 +405,9 @@ func modifyTorrentTab(w fyne.Window) fyne.CanvasObject {
 			}
 			selectedFileLabel.SetText(uri.URI().Path())
 		}, w)
+		fileDialog.SetFilter(storage.NewExtensionFileFilter([]string{".torrent"})) // Filter for .torrent files
+		fileDialog.Resize(fyne.NewSize(700, 500))                                  // Set a larger size
+		fileDialog.Show()
 	})
 
 	// Tracker URL input
@@ -359,6 +429,45 @@ func modifyTorrentTab(w fyne.Window) fyne.CanvasObject {
 	// Output filename
 	outputEntry := widget.NewEntry()
 	outputEntry.SetPlaceHolder("Same as input (will overwrite)")
+
+	// Browse button for output file location
+	outputBrowseButton := widget.NewButton("Browse...", func() {
+		saveDialog := dialog.NewFileSave(func(uri fyne.URIWriteCloser, err error) {
+			if err != nil {
+				dialog.ShowError(err, w)
+				return
+			}
+			if uri == nil {
+				return // User cancelled
+			}
+			outputEntry.SetText(uri.URI().Path())
+		}, w)
+
+		// Pre-populate filename
+		currentOutput := outputEntry.Text
+		if currentOutput == "" {
+			inputPath := selectedFileLabel.Text
+			if inputPath != "No torrent file selected" {
+				currentOutput = inputPath // Default to overwriting input
+			} else {
+				currentOutput = "output.torrent" // Default if no input selected yet
+			}
+		}
+		saveDialog.SetFileName(filepath.Base(currentOutput))
+		// Try setting initial directory
+		if dir := filepath.Dir(currentOutput); dir != "." && dir != "/" {
+			listableURI, err := storage.ListerForURI(storage.NewFileURI(dir))
+			if err == nil {
+				saveDialog.SetLocation(listableURI)
+			}
+		}
+
+		saveDialog.SetFilter(storage.NewExtensionFileFilter([]string{".torrent"}))
+		saveDialog.Resize(fyne.NewSize(700, 500))
+		saveDialog.Show()
+	})
+
+	outputContainer := container.NewBorder(nil, nil, nil, outputBrowseButton, outputEntry)
 
 	// Randomize info hash
 	randomizeCheck := widget.NewCheck("Randomize Info Hash", nil)
@@ -498,7 +607,7 @@ func modifyTorrentTab(w fyne.Window) fyne.CanvasObject {
 			{Text: "Private", Widget: privateCheck},
 			{Text: "Source", Widget: sourceEntry},
 			{Text: "Comment", Widget: commentEntry},
-			{Text: "Output File", Widget: outputEntry},
+			{Text: "Output File", Widget: outputContainer}, // Use container with browse button
 			{Text: "Randomize Hash", Widget: randomizeCheck},
 		},
 		SubmitText: "Modify Torrent",

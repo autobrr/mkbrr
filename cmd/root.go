@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"os"
+
 	"github.com/spf13/cobra"
 )
 
@@ -21,7 +23,8 @@ func Execute() error {
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
 	rootCmd.SilenceUsage = false
 
-	rootCmd.AddCommand(versionCmd)
+	// Add subcommands (versionCmd is added in its own file's init)
+	// guiCmd is added in cmd/gui.go's init
 
 	rootCmd.SetUsageTemplate(`Usage:
   {{.CommandPath}} [command]
@@ -35,5 +38,22 @@ Flags:
 Use "{{.CommandPath}} [command] --help" for more information about a command.
 `)
 
+	// If no arguments are provided (likely double-clicked), run the GUI command.
+	if len(os.Args) == 1 {
+		// Find the gui command and execute it directly
+		// This assumes guiCmd is added to rootCmd in cmd/gui.go's init()
+		for _, cmd := range rootCmd.Commands() {
+			if cmd.Name() == "gui" {
+				// Execute the gui command's Run function
+				// We pass nil for args as the gui command doesn't expect any
+				cmd.Run(cmd, nil)
+				return nil // Exit after running the GUI
+			}
+		}
+		// Fallback if gui command isn't found for some reason
+		return rootCmd.Execute()
+	}
+
+	// Otherwise, execute normally using Cobra's argument parsing
 	return rootCmd.Execute()
 }
