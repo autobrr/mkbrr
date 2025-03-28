@@ -50,7 +50,8 @@ jobs:
         run: make test-race
 
       - name: Generate Test Summary
-        run: go run gotest.tools/gotestsum@latest --junitfile unit-tests.xml --format pkgname
+        # Explicitly list non-GUI packages for test summary generation
+        run: go run gotest.tools/gotestsum@latest --junitfile unit-tests.xml --format pkgname -- github.com/autobrr/mkbrr/cmd github.com/autobrr/mkbrr/internal/...
 
       - name: Test Summary
         uses: test-summary/action@v2
