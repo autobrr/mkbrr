@@ -40,7 +40,6 @@ func setupCommon() {
 // ExecuteCLI configures and executes the root command for CLI mode.
 func ExecuteCLI() error {
 	setupCommon()
-	rootCmd.AddCommand(versionCmd)
 	return rootCmd.Execute()
 }
 
