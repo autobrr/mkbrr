@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/blang/semver"
-	"github.com/rhysd/go-github-selfupdate/selfupdate"
+	"github.com/creativeprojects/go-selfupdate"
 	"github.com/spf13/cobra"
 )
 
@@ -27,21 +27,33 @@ Flags:
 }
 
 func runUpdate(cmd *cobra.Command, args []string) error {
-	v, err := semver.ParseTolerant(version)
+	_, err := semver.ParseTolerant(version)
 	if err != nil {
 		return fmt.Errorf("could not parse version: %w", err)
 	}
 
-	latest, err := selfupdate.UpdateSelf(v, "autobrr/mkbrr")
+	latest, found, err := selfupdate.DetectLatest(cmd.Context(), selfupdate.ParseSlug("autobrr/mkbrr"))
 	if err != nil {
-		return fmt.Errorf("could not selfupdate: %w", err)
+		return fmt.Errorf("error occurred while detecting version: %w", err)
+	}
+	if !found {
+		return fmt.Errorf("latest version for %s/%s could not be found from github repository", "autobrr/mkbrr", version)
 	}
 
-	if latest.Version.Equals(v) {
-		// latest version is the same as current version. It means current binary is up-to-date.
+	if latest.LessOrEqual(version) {
 		fmt.Printf("Current binary is the latest version: %s\n", version)
-	} else {
-		fmt.Printf("Successfully updated to version: %s\n", latest.Version)
+		return nil
 	}
+
+	exe, err := selfupdate.ExecutablePath()
+	if err != nil {
+		return fmt.Errorf("could not locate executable path: %w", err)
+	}
+
+	if err := selfupdate.UpdateTo(cmd.Context(), latest.AssetURL, latest.AssetName, exe); err != nil {
+		return fmt.Errorf("error occurred while updating binary: %w", err)
+	}
+
+	fmt.Printf("Successfully updated to version: %s\n", latest.Version())
 	return nil
 }
