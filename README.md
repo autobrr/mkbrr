@@ -124,7 +124,7 @@ If you have Go installed:
 go install github.com/autobrr/mkbrr@latest
 
 # make sure its in your PATH
-export PATH="$PATH:$GOPATH/bin"
+export PATH=$PATH:$(go env GOPATH)/bin
 ```
 
 ## Usage
