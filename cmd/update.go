@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/blang/semver"
@@ -33,7 +32,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("could not parse version: %w", err)
 	}
 
-	latest, found, err := selfupdate.DetectLatest(context.Background(), selfupdate.ParseSlug("autobrr/mkbrr"))
+	latest, found, err := selfupdate.DetectLatest(cmd.Context(), selfupdate.ParseSlug("autobrr/mkbrr"))
 	if err != nil {
 		return fmt.Errorf("error occurred while detecting version: %w", err)
 	}
@@ -51,7 +50,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("could not locate executable path: %w", err)
 	}
 
-	if err := selfupdate.UpdateTo(context.Background(), latest.AssetURL, latest.AssetName, exe); err != nil {
+	if err := selfupdate.UpdateTo(cmd.Context(), latest.AssetURL, latest.AssetName, exe); err != nil {
 		return fmt.Errorf("error occurred while updating binary: %w", err)
 	}
 
