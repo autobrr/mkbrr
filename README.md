@@ -161,11 +161,11 @@ mkbrr create path/to/file -t https://example-tracker.com/announce -o custom-name
 # Create with randomized info hash
 mkbrr create path/to/file -t https://example-tracker.com/announce -e
 
-+# Create a torrent excluding specific file patterns (comma-separated)
-+mkbrr create path/to/file -t https://example-tracker.com/announce --exclude "*.nfo,*.jpg"
-+
-+# Create a torrent including only specific file patterns (comma-separated)
-+mkbrr create path/to/video-folder -t https://example-tracker.com/announce --include "*.mkv,*.mp4"
+# Create a torrent excluding specific file patterns (comma-separated)
+mkbrr create path/to/file -t https://example-tracker.com/announce --exclude "*.nfo,*.jpg"
+
+# Create a torrent including only specific file patterns (comma-separated)
+mkbrr create path/to/video-folder -t https://example-tracker.com/announce --include "*.mkv,*.mp4"
 ```
 
 > [!NOTE]
@@ -227,8 +227,8 @@ mkbrr create -P ptp --source "MySource" path/to/file
 
 > [!TIP]
 > The preset file can be placed in the current directory, `~/.config/mkbrr/`, or `~/.mkbrr/`. You can also specify a custom location with `--preset-file`. Presets support both `exclude_patterns` and `include_patterns` fields, allowing you to define default or preset-specific file filtering.
-+
-+### Batch Mode
+
+### Batch Mode
 
 Create multiple torrents at once using a YAML configuration file:
 
@@ -237,11 +237,11 @@ mkbrr create -b batch.yaml
 ```
 
 See [batch example](examples/batch.yaml) here.
-+
-+> [!TIP]
-+> Batch mode processes jobs in parallel (up to 4 at once) and shows a summary when complete. Batch mode also supports both `exclude_patterns` and `include_patterns` fields.
-+
-+## Tracker-Specific Features
+
+> [!TIP]
+> Batch mode processes jobs in parallel (up to 4 at once) and shows a summary when complete. Batch mode also supports both `exclude_patterns` and `include_patterns` fields.
+
+## Tracker-Specific Features
 
 mkbrr automatically enforces some requirements for various private trackers so you don't have to:
 
