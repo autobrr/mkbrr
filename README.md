@@ -285,6 +285,10 @@ Wrote title.torrent (elapsed 3.22s)
 
 mkbrr is optimized for speed and consistently outperforms other popular torrent creation tools in our benchmarks.
 
+### Benchmark Methodology
+
+All tests were performed using [hyperfine](https://github.com/sharkdp/hyperfine) with 5 runs per tool after a warm-up run. Cache was cleared between runs on the servers, but not on the Macbook.
+
 ### Benchmark Results
 
 | Hardware | Test Size | mkbrr | mktorrent | torrenttools | torf |
@@ -322,9 +326,7 @@ Besides raw speed, mkbrr shows more consistent performance between runs, with st
 - RAM: 16GB
 - Storage: 512GB NVME
 
-### Benchmark Methodology
-
-All tests were performed using [hyperfine](https://github.com/sharkdp/hyperfine) with 5 runs per tool after a warm-up run. Cache was cleared between runs on the servers, but not on the Macbook.
+### Full results
 
 <details>
 <summary>View Full Benchmark Commands & Results</summary>
