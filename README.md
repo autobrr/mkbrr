@@ -297,9 +297,9 @@ mkbrr is optimized for speed and consistently outperforms other popular torrent 
 
 | Hardware | vs mktorrent | vs torrenttools | vs torf |
 |----------|-------------|----------------|---------|
-| **Leaseweb Server (NVME)** | 17.1× faster | 2.2× faster | 2.0× faster |
+| **Leaseweb Server (SSD)** | 17.1× faster | 2.2× faster | 2.0× faster |
 | **Hetzner Server (HDD)** | 1.3× faster | 1.1× faster | 1.1× faster |
-| **Macbook Pro M4** | 1.1× faster | - | 1.1× faster |
+| **Macbook Pro M4 (NVME)** | 1.1× faster | - | 1.1× faster |
 
 ### Consistency
 
@@ -307,10 +307,10 @@ Besides raw speed, mkbrr shows more consistent performance between runs, with st
 
 ### Hardware Specifications
 
-#### Leaseweb Dedicated Server (NVME)
+#### Leaseweb Dedicated Server (SSD)
 - CPU: Intel Xeon E-2274G @ 4.00GHz
 - RAM: 32GB
-- Storage: 1 × 1.7TB NVME
+- Storage: 1 × SAMSUNG MZQL21T9HCJR-00A07 1.92TB SSD
 
 #### Hetzner Dedicated Server (HDD)
 - CPU: AMD Ryzen 5 3600 (12) @ 4.71GHz
