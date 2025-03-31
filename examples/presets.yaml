@@ -12,6 +12,9 @@ default:
   # exclude_patterns:                           # Default list of glob patterns to exclude files
   #   - "*.bak"
   #   - "temp.*"
+  # include_patterns:                           # Default list of glob patterns to include files (only these will be included)
+  #   - "*.mkv"
+  #   - "*.mp4"
 
 presets:
   ptp:
@@ -21,6 +24,9 @@ presets:
     exclude_patterns: # Example: exclude NFO files and samples
       - "*.nfo"
       - "*sample*"
+    include_patterns: # Example: include only video files
+      - "*.mkv"
+      - "*.mp4"
 
   # Public tracker preset with all options shown
   public:
@@ -29,5 +35,4 @@ presets:
     no_creator: true
     trackers:
       - "udp://tracker.opentrackr.org:1337/announce"
-      - "udp://open.tracker.cl:1337/announce"
-      - "udp://9.rarbg.com:2810/announce"
+

@@ -30,6 +30,7 @@ type BatchJob struct {
 	NoDate          bool     `yaml:"no_date"`
 	SkipPrefix      bool     `yaml:"skip_prefix"`
 	ExcludePatterns []string `yaml:"exclude_patterns"`
+	IncludePatterns []string `yaml:"include_patterns"`
 }
 
 // ToCreateOptions converts a BatchJob to CreateTorrentOptions
@@ -53,6 +54,7 @@ func (j *BatchJob) ToCreateOptions(verbose bool, quiet bool, version string) Cre
 		Version:         version,
 		SkipPrefix:      j.SkipPrefix,
 		ExcludePatterns: j.ExcludePatterns,
+		IncludePatterns: j.IncludePatterns,
 	}
 
 	if j.PieceLength != 0 {
