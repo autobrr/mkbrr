@@ -324,7 +324,7 @@ Besides raw speed, mkbrr shows more consistent performance between runs, with st
 
 ### Benchmark Methodology
 
-All tests were performed using [hyperfine](https://github.com/sharkdp/hyperfine) with 5 runs per tool after a warm-up run. For the HDD test, caches were cleared between runs.
+All tests were performed using [hyperfine](https://github.com/sharkdp/hyperfine) with 5 runs per tool after a warm-up run. Cache was cleared between runs on the servers, but not on the Macbook.
 
 <details>
 <summary>View Full Benchmark Commands & Results</summary>
