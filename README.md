@@ -283,19 +283,53 @@ Wrote title.torrent (elapsed 3.22s)
 
 ## Performance
 
-mkbrr is optimized for speed, and outperforms other popular tools during our testing.
+mkbrr is optimized for speed and consistently outperforms other popular torrent creation tools in our benchmarks.
 
-Here are some benchmarks:
+### Benchmark Results
 
-### Leaseweb Dedicated Server with NVME
+| Hardware | Test File Size | mkbrr | mktorrent | torrenttools | torf |
+|----------|---------------|-------|-----------|--------------|------|
+| **Leaseweb Server (NVME)** | 21 GiB | **6.49s** | 111.12s | 14.05s | 13.18s |
+| **Hetzner Server (HDD)** | 14 GiB | **40.58s** | 53.72s | 44.65s | 45.73s |
+| **Macbook Pro M4** | 30 GiB | **9.80s** | 10.40s | - | 10.41s |
 
-- CPU: Intel(R) Xeon(R) E-2274G CPU @ 4.00GHz
-- RAM: 32G
-- DISKS: 1 x 1.7T NVME
+### Speed Comparison
 
-We're not sure why mktorrent is *that* slow on this machine.
+| Hardware | vs mktorrent | vs torrenttools | vs torf |
+|----------|-------------|----------------|---------|
+| **Leaseweb Server (NVME)** | 17.1× faster | 2.2× faster | 2.0× faster |
+| **Hetzner Server (HDD)** | 1.3× faster | 1.1× faster | 1.1× faster |
+| **Macbook Pro M4** | 1.1× faster | - | 1.1× faster |
 
-**21 GiB 1080p season pack:**
+### Consistency
+
+Besides raw speed, mkbrr shows more consistent performance between runs, with standard deviation percentages between 1.2-2.6% across platforms compared to much higher variances for other tools (up to 35%). This predictable performance is particularly noticeable on mechanical storage where other tools showed wider fluctuations.
+
+### Hardware Specifications
+
+#### Leaseweb Dedicated Server (NVME)
+- CPU: Intel Xeon E-2274G @ 4.00GHz
+- RAM: 32GB
+- Storage: 1 × 1.7TB NVME
+
+#### Hetzner Dedicated Server (HDD)
+- CPU: AMD Ryzen 5 3600 (12) @ 4.71GHz
+- RAM: 64GB
+- Storage: 4 × TOSHIBA MG08ACA16TEY in RAID0
+
+#### Macbook Pro M4
+- CPU: Apple M4
+- RAM: 16GB
+- Storage: 512GB NVME
+
+### Benchmark Methodology
+
+All tests were performed using [hyperfine](https://github.com/sharkdp/hyperfine) with 5 runs per tool after a warm-up run. For the HDD test, caches were cleared between runs.
+
+<details>
+<summary>View Full Benchmark Commands & Results</summary>
+
+#### Leaseweb Server (21 GiB 1080p season pack)
 
 ```bash
 hyperfine --warmup 1 --runs 5 \
@@ -327,13 +361,7 @@ Summary
    17.12 ± 0.50 times faster than 'rm -f /home/user/Show.S01.DL.1080p.WEB.H264-GROUP.torrent && mktorrent /home/user/torrents/qbittorrent/Show.S01.DL.1080p.WEB.H264-GROUP'
 ```
 
-### Hetzner Dedicated Server with HDDs
-
-- CPU: MD Ryzen 5 3600 (12) @ 4.71 GHz
-- RAM: 64GB
-- DISKS: 4 x TOSHIBA MG08ACA16TEY in raid0
-
-**14 GiB 1080p season pack:**
+#### Hetzner Server (14 GiB 1080p season pack)
 
 ```bash
 hyperfine --warmup 1 --runs 5 \
@@ -367,13 +395,7 @@ Summary
     1.32 ± 0.39 times faster than rm -f /home/user/mkbrr/Show.S01.1080p.SRC.WEB-DL.DDP5.1.H.264-GRP.torrent && mktorrent ~/torrents/qbittorrent/tv/Show.S01.1080p.SRC.WEB-DL.DDP5.1.H.264-GRP
 ```
 
-### Macbook Pro M4
-
-- CPU: M4
-- RAM: 16GB
-- DISKS: 512GB NVME
-
-**30 GiB 1080p season pack:**
+#### Macbook Pro M4 (30 GiB 1080p season pack)
 
 ```bash
 hyperfine --warmup 1 --runs 5 \
@@ -399,6 +421,7 @@ Summary
     1.06 ± 0.07 times faster than rm -f Show.S01.1080p.SRC.WEB-DL.DDP5.1.H.264-GRP.torrent && torf --threads 12 ~/Desktop/Show.S01.1080p.SRC.WEB-DL.DDP5.1.H.264-GRP
 ```
 
+</details>
 
 ## License
 
