@@ -287,7 +287,7 @@ mkbrr is optimized for speed and consistently outperforms other popular torrent 
 
 ### Benchmark Results
 
-| Hardware | Test File Size | mkbrr | mktorrent | torrenttools | torf |
+| Hardware | Test Size | mkbrr | mktorrent | torrenttools | torf |
 |----------|---------------|-------|-----------|--------------|------|
 | **Leaseweb Server (SSD)** | 21 GiB | **7.24s** | 45.41s | 9.07s | 8.85s |
 | **Hetzner Server (HDD)** | 14 GiB | **41.02s** | 68.17s | 47.97s | 58.19s |
