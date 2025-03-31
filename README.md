@@ -82,6 +82,11 @@ mkbrr create path/to/file -t https://example-tracker.com/announce -e
 - [Tracker-Specific Features](#tracker-specific-features)
 - [Incomplete Season Pack Detection](#incomplete-season-pack-detection)
 - [Performance](#performance)
+  - [Benchmark Methodology](#benchmark-methodology)
+  - [Benchmark Results](#benchmark-results)
+  - [Speed Comparison](#speed-comparison)
+  - [Consistency](#consistency)
+  - [Hardware Specifications](#hardware-specifications)
 - [License](#license)
 
 ## Installation
