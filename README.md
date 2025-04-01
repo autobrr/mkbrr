@@ -302,6 +302,8 @@ All tests were performed using [hyperfine](https://github.com/sharkdp/hyperfine)
 | **Hetzner Server (HDD)** | 14 GiB | **41.02s** | 68.17s | 47.97s | 58.19s |
 | **Macbook Pro M4 (NVME)** | 30 GiB | **9.71s** | 10.90s | - | 9.78s |
 
+![Benchmark Comparison](docs/benchmarks/benchmark_comparison.png)
+
 ### Speed Comparison
 
 | Hardware | vs mktorrent | vs torrenttools | vs torf |
@@ -310,9 +312,13 @@ All tests were performed using [hyperfine](https://github.com/sharkdp/hyperfine)
 | **Hetzner Server (HDD)** | 1.7× faster | 1.2× faster | 1.4× faster |
 | **Macbook Pro M4 (NVME)** | 1.1× faster | - | Similar |
 
+![Speed Comparison](docs/benchmarks/speed_comparison.png)
+
 ### Consistency
 
 Besides raw speed, mkbrr shows more consistent performance between runs, with standard deviation percentages between 0.25-3.7% across platforms compared to much higher variances for other tools (up to 39%). This predictable performance is particularly noticeable on mechanical storage where other tools showed wider fluctuations.
+
+![Consistency Comparison](docs/benchmarks/consistency_comparison.png)
 
 ### Hardware Specifications
 
