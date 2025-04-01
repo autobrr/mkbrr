@@ -234,11 +234,7 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 		}
 
 		buf.Reset(f)
-		for {
-			if currentPiece == int64(endPiece) {
-				break
-			}
-
+		for currentPiece != int64(endPiece) {
 			toRead := h.pieceLen - readPiece
 			if toRead > remain {
 				if remain == 0 {
