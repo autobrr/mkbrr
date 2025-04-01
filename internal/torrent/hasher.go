@@ -1,7 +1,6 @@
 package torrent
 
 import (
-	"bufio"
 	"crypto/sha1"
 	"errors"
 	"fmt"
@@ -196,8 +195,8 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 //	completedPieces: atomic counter for progress tracking
 func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *uint64) error {
 	// reuse buffer from pool to minimize allocations
-	buf := h.readerPool.Get().(*bufio.Reader)
-	defer h.readerPool.Put(buf)
+	readBuf := h.readerPool.Get().(*[][]byte)
+	defer h.readerPool.Put(readBuf)
 
 	bounceBuf := h.bufferPool.Get().(*[]byte)
 	defer h.bufferPool.Put(bounceBuf)
@@ -286,11 +285,16 @@ func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Di
 		display:   display,
 	}
 
-	bufSize, _ := h.optimizeForWorkload()
+	bufSize, workers := h.optimizeForWorkload()
 
 	h.readerPool = &sync.Pool{
 		New: func() interface{} {
-			return bufio.NewReaderSize(nil, bufSize)
+			b := make([][]byte, workers)
+			for i := 0; i < len(b); i++ {
+				b[i] = make([]byte, bufSize)
+			}
+
+			return &b
 		},
 	}
 
