@@ -279,19 +279,23 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 }
 
 func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Displayer) *pieceHasher {
-	bufferPool := &sync.Pool{
+	h := &pieceHasher{
+		pieces:    make([][]byte, numPieces),
+		pieceLen:  pieceLen,
+		numPieces: numPieces,
+		files:     files,
+		display:   display,
+	}
+
+	bufSize, _ := h.optimizeForWorkload()
+
+	h.bufferPool = &sync.Pool{
 		New: func() interface{} {
-			return bufio.NewReaderSize(nil, int(pieceLen))
+			return bufio.NewReaderSize(nil, bufSize)
 		},
 	}
-	return &pieceHasher{
-		pieces:     make([][]byte, numPieces),
-		pieceLen:   pieceLen,
-		numPieces:  numPieces,
-		files:      files,
-		display:    display,
-		bufferPool: bufferPool,
-	}
+
+	return h
 }
 
 // minInt returns the smaller of two integers
