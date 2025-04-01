@@ -19,6 +19,7 @@ type pieceHasher struct {
 	numPieces  int
 	files      []fileEntry
 	display    Displayer
+	readerPool *sync.Pool
 	bufferPool *sync.Pool
 	readSize   int
 
@@ -193,8 +194,11 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 //	completedPieces: atomic counter for progress tracking
 func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *uint64) error {
 	// reuse buffer from pool to minimize allocations
-	buf := h.bufferPool.Get().(*bufio.Reader)
-	defer h.bufferPool.Put(buf)
+	buf := h.readerPool.Get().(*bufio.Reader)
+	defer h.readerPool.Put(buf)
+
+	bounceBuf := h.bufferPool.Get().(*[]byte)
+	defer h.bufferPool.Put(bounceBuf)
 
 	hasher := sha1.New()
 
@@ -243,7 +247,7 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 				toRead = remain
 			}
 
-			read, err := io.CopyN(hasher, buf, toRead)
+			read, err := io.CopyBuffer(hasher, io.LimitReader(buf, toRead), *bounceBuf)
 			if err != nil && err != io.ErrUnexpectedEOF {
 				return fmt.Errorf("failed to read file %s: %w", file.path, err)
 			} else if err == io.EOF {
@@ -252,6 +256,7 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 
 			readPiece += int64(read)
 			remain -= read
+
 			if readPiece == h.pieceLen {
 				h.pieces[currentPiece] = hasher.Sum(nil)
 
@@ -284,9 +289,16 @@ func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Di
 
 	bufSize, _ := h.optimizeForWorkload()
 
-	h.bufferPool = &sync.Pool{
+	h.readerPool = &sync.Pool{
 		New: func() interface{} {
 			return bufio.NewReaderSize(nil, bufSize)
+		},
+	}
+
+	h.bufferPool = &sync.Pool{
+		New: func() interface{} {
+			b := make([]byte, int(h.pieceLen))
+			return &b
 		},
 	}
 
