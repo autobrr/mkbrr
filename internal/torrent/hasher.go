@@ -290,9 +290,8 @@ func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Di
 	h.readerPool = &sync.Pool{
 		New: func() interface{} {
 			b := make([][]byte, workers)
-			t := make([]byte, bufSize)
 			for i := 0; i < len(b); i++ {
-				b[i] = t
+				b[i] = make([]byte, bufSize)
 			}
 
 			return &b
