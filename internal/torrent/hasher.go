@@ -12,7 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/google/readahead"
+	"github.com/klauspost/readahead"
 )
 
 type pieceHasher struct {
@@ -235,7 +235,7 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 			baseOffset = 0
 		}
 
-		buf := readahead.NewConcurrentReader("", f, int(h.pieceLen), 4, 2)
+		buf := readahead.NewReadSeeker(f)
 		for currentPiece != int64(endPiece) {
 			toRead := h.pieceLen - readPiece
 			if toRead > remain {
