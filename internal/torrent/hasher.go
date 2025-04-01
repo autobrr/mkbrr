@@ -234,7 +234,7 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 			baseOffset = 0
 		}
 
-		buf := readahead.NewReadSeeker(f)
+		buf, _ := readahead.NewReadSeekCloserBuffer(f, *readBuf)
 		for currentPiece != int64(endPiece) {
 			toRead := h.pieceLen - readPiece
 			if toRead > remain {
@@ -290,8 +290,9 @@ func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Di
 	h.readerPool = &sync.Pool{
 		New: func() interface{} {
 			b := make([][]byte, workers)
+			t := make([]byte, bufSize)
 			for i := 0; i < len(b); i++ {
-				b[i] = make([]byte, bufSize)
+				b[i] = t
 			}
 
 			return &b
