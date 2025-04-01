@@ -1,6 +1,7 @@
 package torrent
 
 import (
+	"bufio"
 	"crypto/sha1"
 	"errors"
 	"fmt"
@@ -103,14 +104,6 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 		return nil
 	}
 
-	// initialize buffer pool
-	h.bufferPool = &sync.Pool{
-		New: func() interface{} {
-			buf := make([]byte, h.readSize)
-			return buf
-		},
-	}
-
 	h.mutex.Lock()
 	h.startTime = time.Now()
 	h.lastUpdate = h.startTime
@@ -200,106 +193,86 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 //	completedPieces: atomic counter for progress tracking
 func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *uint64) error {
 	// reuse buffer from pool to minimize allocations
-	buf := h.bufferPool.Get().([]byte)
+	buf := h.bufferPool.Get().(*bufio.Reader)
 	defer h.bufferPool.Put(buf)
 
 	hasher := sha1.New()
-	// track open file handles to avoid reopening the same file
-	readers := make(map[string]*fileReader)
-	defer func() {
-		for _, r := range readers {
-			r.file.Close()
+
+	currentPiece := int64(startPiece)
+	baseOffset := int64(startPiece) * h.pieceLen
+	readPiece := int64(0)
+	for _, file := range h.files {
+		if currentPiece == int64(endPiece) {
+			break
 		}
-	}()
-
-	for pieceIndex := startPiece; pieceIndex < endPiece; pieceIndex++ {
-		pieceOffset := int64(pieceIndex) * h.pieceLen
-		pieceLength := h.pieceLen
-
-		// handle last piece which may be shorter than others
-		if pieceIndex == h.numPieces-1 {
-			var totalLength int64
-			for _, f := range h.files {
-				totalLength += f.length
-			}
-			remaining := totalLength - pieceOffset
-			if remaining < pieceLength {
-				pieceLength = remaining
-			}
-		}
-
-		hasher.Reset()
-		remainingPiece := pieceLength
-
-		for _, file := range h.files {
-			// skip files that don't contain data for this piece
-			if pieceOffset >= file.offset+file.length {
+		if baseOffset != 0 {
+			if baseOffset >= file.offset+file.length {
 				continue
 			}
-			if remainingPiece <= 0 {
+
+			baseOffset -= file.offset
+		}
+
+		f, err := os.OpenFile(file.path, os.O_RDONLY, 0)
+		if err != nil {
+			return fmt.Errorf("failed to open file %s: %w", file.path, err)
+		}
+
+		defer f.Close()
+
+		remain := file.length
+		if baseOffset != 0 {
+			if _, err := f.Seek(baseOffset, io.SeekStart); err != nil {
+				return fmt.Errorf("failed to seek in file %s: %w", file.path, err)
+			}
+			remain -= baseOffset
+			baseOffset = 0
+		}
+
+		buf.Reset(f)
+
+		rd := io.LimitReader(buf, remain)
+
+		baseOffset = 0
+
+		for {
+			if currentPiece == int64(endPiece) {
 				break
 			}
 
-			// calculate read boundaries within the current file
-			readStart := pieceOffset - file.offset
-			if readStart < 0 {
-				readStart = 0
+			toRead := h.pieceLen - readPiece
+			if toRead > remain {
+				if remain == 0 {
+					break
+				}
+				toRead = remain
 			}
 
-			readLength := file.length - readStart
-			if readLength > remainingPiece {
-				readLength = remainingPiece
+			read, err := io.CopyN(hasher, rd, toRead)
+			if err != nil && err != io.ErrUnexpectedEOF {
+				return fmt.Errorf("failed to read file %s: %w", file.path, err)
+			} else if err == io.EOF {
+				break
 			}
 
-			// reuse or create new file reader
-			reader, ok := readers[file.path]
-			if !ok {
-				f, err := os.OpenFile(file.path, os.O_RDONLY, 0)
-				if err != nil {
-					return fmt.Errorf("failed to open file %s: %w", file.path, err)
-				}
-				reader = &fileReader{
-					file:     f,
-					position: 0,
-					length:   file.length,
-				}
-				readers[file.path] = reader
+			readPiece += int64(read)
+			remain -= read
+			if readPiece == h.pieceLen {
+				h.pieces[currentPiece] = hasher.Sum(nil)
+
+				atomic.AddUint64(completedPieces, 1)
+				currentPiece++
+
+				hasher.Reset()
+				readPiece = 0
 			}
 
-			// ensure correct file position before reading
-			if reader.position != readStart {
-				if _, err := reader.file.Seek(readStart, 0); err != nil {
-					return fmt.Errorf("failed to seek in file %s: %w", file.path, err)
-				}
-				reader.position = readStart
-			}
-
-			// read file data in chunks to avoid large memory allocations
-			remaining := readLength
-			for remaining > 0 {
-				n := int(remaining)
-				if n > len(buf) {
-					n = len(buf)
-				}
-
-				read, err := io.ReadFull(reader.file, buf[:n])
-				if err != nil && err != io.ErrUnexpectedEOF {
-					return fmt.Errorf("failed to read file %s: %w", file.path, err)
-				}
-
-				hasher.Write(buf[:read])
-				remaining -= int64(read)
-				remainingPiece -= int64(read)
-				reader.position += int64(read)
-				pieceOffset += int64(read)
-
-				atomic.AddInt64(&h.bytesProcessed, int64(read))
-			}
+			atomic.AddInt64(&h.bytesProcessed, int64(read))
 		}
+	}
 
-		// store piece hash and update progress
-		h.pieces[pieceIndex] = hasher.Sum(nil)
-		atomic.AddUint64(completedPieces, 1)
+	if readPiece != 0 {
+		h.pieces[currentPiece] = hasher.Sum(nil)
 	}
 
 	return nil
@@ -308,8 +281,7 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Displayer) *pieceHasher {
 	bufferPool := &sync.Pool{
 		New: func() interface{} {
-			buf := make([]byte, pieceLen)
-			return buf
+			return bufio.NewReaderSize(nil, int(pieceLen))
 		},
 	}
 	return &pieceHasher{
