@@ -273,6 +273,7 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 
 	if readPiece != 0 {
 		h.pieces[currentPiece] = hasher.Sum(nil)
+		atomic.AddUint64(completedPieces, 1)
 	}
 
 	return nil
