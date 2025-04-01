@@ -286,12 +286,12 @@ func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Di
 		display:   display,
 	}
 
-	bufSize, workers := h.optimizeForWorkload()
+	bufSize, _ := h.optimizeForWorkload()
 
 	h.readerPool = &sync.Pool{
 		New: func() interface{} {
-			b := make([][]byte, workers)
-			for i := 0; i < len(b); i++ {
+			b := make([][]byte, 2)
+			for i := range len(b) {
 				b[i] = make([]byte, bufSize)
 			}
 
