@@ -230,11 +230,6 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 		}
 
 		buf.Reset(f)
-
-		rd := io.LimitReader(buf, remain)
-
-		baseOffset = 0
-
 		for {
 			if currentPiece == int64(endPiece) {
 				break
@@ -248,7 +243,7 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 				toRead = remain
 			}
 
-			read, err := io.CopyN(hasher, rd, toRead)
+			read, err := io.CopyN(hasher, buf, toRead)
 			if err != nil && err != io.ErrUnexpectedEOF {
 				return fmt.Errorf("failed to read file %s: %w", file.path, err)
 			} else if err == io.EOF {
