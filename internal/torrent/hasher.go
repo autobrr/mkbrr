@@ -235,6 +235,7 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 		}
 
 		buf, _ := readahead.NewReadSeekCloserBuffer(f, *readBuf)
+		defer buf.Close()
 		for currentPiece != int64(endPiece) {
 			toRead := h.pieceLen - readPiece
 			if toRead > remain {
