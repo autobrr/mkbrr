@@ -11,6 +11,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/google/readahead"
 )
 
 type pieceHasher struct {
@@ -206,15 +208,14 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 	baseOffset := int64(startPiece) * h.pieceLen
 	readPiece := int64(0)
 	for _, file := range h.files {
-		if currentPiece == int64(endPiece) {
-			break
-		}
 		if baseOffset != 0 {
 			if baseOffset >= file.offset+file.length {
 				continue
 			}
 
 			baseOffset -= file.offset
+		} else if currentPiece == int64(endPiece) {
+			break
 		}
 
 		f, err := os.OpenFile(file.path, os.O_RDONLY, 0)
@@ -229,11 +230,12 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 			if _, err := f.Seek(baseOffset, io.SeekStart); err != nil {
 				return fmt.Errorf("failed to seek in file %s: %w", file.path, err)
 			}
+
 			remain -= baseOffset
 			baseOffset = 0
 		}
 
-		buf.Reset(f)
+		buf := readahead.NewConcurrentReader("", f, int(h.pieceLen), 4, 2)
 		for currentPiece != int64(endPiece) {
 			toRead := h.pieceLen - readPiece
 			if toRead > remain {

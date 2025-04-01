@@ -8,6 +8,7 @@ require (
 	github.com/creativeprojects/go-selfupdate v1.4.1
 	github.com/dustin/go-humanize v1.0.1
 	github.com/fatih/color v1.18.0
+	github.com/google/readahead v0.0.0-20161222183148-eaceba169032
 	github.com/schollz/progressbar/v3 v3.18.0
 	github.com/spf13/cobra v1.9.1
 	golang.org/x/exp v0.0.0-20250106191152-7588d65b2ba8
@@ -24,6 +25,7 @@ require (
 	github.com/bradfitz/iter v0.0.0-20191230175014-e8f45d346db8 // indirect
 	github.com/davidmz/go-pageant v1.0.2 // indirect
 	github.com/go-fed/httpsig v1.1.0 // indirect
+	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b // indirect
 	github.com/google/go-github/v30 v30.1.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
