@@ -173,6 +173,13 @@ jobs:
     runs-on: ${{ matrix.os }}
     needs: [ pgo ]
     steps:
+      - name: Install Linux CGO dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y gcc libgl1-mesa-dev xorg-dev
+
+      # Windows usually has necessary MinGW/GCC via MSYS2 on runners
+      # MacOS usually has Xcode Command Line Tools on runners
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -194,22 +201,24 @@ jobs:
         if: github.event_name == 'pull_request'
         uses: goreleaser/goreleaser-action@v6
         with:
-          distribution: goreleaser
+          distribution: goreleaser-pro
           version: "~> v2"
           args: release --clean --skip=validate,publish --parallelism 5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
           BUILDER: ${{ github.actor }}@github-actions
 
       - name: Run GoReleaser build and publish tags
         if: startsWith(github.ref, 'refs/tags/')
         uses: goreleaser/goreleaser-action@v6
         with:
-          distribution: goreleaser
+          distribution: goreleaser-pro
           version: "~> v2"
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
           BUILDER: ${{ github.actor }}@github-actions
 
       - name: Upload assets

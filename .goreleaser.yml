@@ -44,19 +44,7 @@ builds:
     env:
       - CGO_ENABLED=1
       - BUILDER
-    goos:
-      - linux
-      - windows
-      - darwin
-      - freebsd
-    goarch:
-      - amd64
-      - arm64
-    ignore:
-      - goos: linux
-        goarch: arm64
-      - goos: windows
-        goarch: arm64
+
     main: ./cmd/mkbrr-gui/
     binary: mkbrr-gui
     ldflags:
