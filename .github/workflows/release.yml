@@ -205,7 +205,8 @@ jobs:
         with:
           distribution: goreleaser-pro
           version: "~> v2"
-          args: build --snapshot --clean --id={{ matrix.os }}
+          # Correct syntax for matrix variable: ${{ matrix.os }}
+          args: build --snapshot --clean --id=${{ matrix.os }}
         env:
           # GORELEASER_KEY is needed for CGO builds
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
