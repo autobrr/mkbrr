@@ -10,6 +10,7 @@ require (
 	github.com/fatih/color v1.18.0
 	github.com/klauspost/readahead v1.4.0
 	github.com/schollz/progressbar/v3 v3.18.0
+	github.com/smallnest/ringbuffer v0.0.0-20250317021400-0da97b586904
 	github.com/spf13/cobra v1.9.1
 	golang.org/x/exp v0.0.0-20250305212735-054e65f0b394
 	gopkg.in/yaml.v3 v3.0.1

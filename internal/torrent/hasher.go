@@ -11,7 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/klauspost/readahead"
+	"github.com/autobrr/mkbrr/internal/ringbuffer"
 )
 
 type pieceHasher struct {
@@ -195,7 +195,7 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 //	completedPieces: atomic counter for progress tracking
 func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *uint64) error {
 	// reuse buffer from pool to minimize allocations
-	readBuf := h.readerPool.Get().(*[][]byte)
+	readBuf := h.readerPool.Get().(*ringbuffer.RingBuffer)
 	defer h.readerPool.Put(readBuf)
 
 	bounceBuf := h.bufferPool.Get().(*[]byte)
@@ -222,8 +222,6 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 			return fmt.Errorf("failed to open file %s: %w", file.path, err)
 		}
 
-		defer f.Close()
-
 		remain := file.length
 		if baseOffset != 0 {
 			if _, err := f.Seek(baseOffset, io.SeekStart); err != nil {
@@ -234,8 +232,9 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 			baseOffset = 0
 		}
 
-		buf, _ := readahead.NewReadSeekCloserBuffer(f, *readBuf)
-		defer buf.Close()
+		readBuf.Reset()
+		go asycnReadFile(f, readBuf)
+
 		for currentPiece != int64(endPiece) {
 			toRead := h.pieceLen - readPiece
 			if toRead > remain {
@@ -245,11 +244,11 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 				toRead = remain
 			}
 
-			read, err := io.CopyBuffer(hasher, io.LimitReader(buf, toRead), *bounceBuf)
-			if err != nil && err != io.ErrUnexpectedEOF {
-				return fmt.Errorf("failed to read file %s: %w", file.path, err)
-			} else if err == io.EOF {
+			read, err := io.CopyBuffer(hasher, io.LimitReader(readBuf, toRead), *bounceBuf)
+			if err == io.EOF {
 				break
+			} else if err != nil {
+				return fmt.Errorf("error reading %q: %v", file.path, err)
 			}
 
 			readPiece += int64(read)
@@ -286,16 +285,9 @@ func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Di
 		display:   display,
 	}
 
-	bufSize, _ := h.optimizeForWorkload()
-
 	h.readerPool = &sync.Pool{
 		New: func() interface{} {
-			b := make([][]byte, 2)
-			for i := range len(b) {
-				b[i] = make([]byte, bufSize)
-			}
-
-			return &b
+			return ringbuffer.New(4 * 1024) // 256 KiB buffer for reading, can be adjusted based on workload
 		},
 	}
 
@@ -307,6 +299,15 @@ func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Di
 	}
 
 	return h
+}
+
+func asycnReadFile(lf *os.File, lrb *ringbuffer.RingBuffer) {
+	defer lf.Close()
+	if _, err := io.Copy(lrb, lf); err != nil {
+		lrb.CloseWithError(err)
+	} else {
+		lrb.CloseWriter()
+	}
 }
 
 // minInt returns the smaller of two integers
