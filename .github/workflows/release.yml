@@ -175,6 +175,7 @@ jobs:
       - name: Install Cross-compilation Dependencies
         # Install base Linux deps + MinGW for Windows cross-compile
         run: sudo apt-get update && sudo apt-get install -y gcc libgl1-mesa-dev xorg-dev mingw-w64
+
       - name: Configure MinGW for Windows cross-compilation
         run: |
           sudo update-alternatives --set x86_64-w64-mingw32-gcc /usr/bin/x86_64-w64-mingw32-gcc-posix
