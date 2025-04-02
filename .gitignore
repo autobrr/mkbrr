@@ -7,7 +7,6 @@ coverage.txt
 coverage.html
 test.sh
 .idea
-*.png
 *.pprof
 test_ant/*
 .pgo_profiles/
