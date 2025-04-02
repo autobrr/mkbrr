@@ -1,9 +1,8 @@
 version: 2
 
-# Tell GoReleaser Pro to split work by target (GOOS/GOARCH)
-# This is ideal for the split/merge workflow with native runners
-partial:
-  by: target
+# Using single-runner strategy, remove partial config
+# partial:
+#   by: target
 
 before:
   hooks:
@@ -14,8 +13,8 @@ builds:
     env:
       - CGO_ENABLED=0
       - BUILDER
-    flags:
-      - -pgo=cpu.pprof
+    # flags: # Temporarily remove PGO flag for troubleshooting Windows build
+    #   - -pgo=cpu.pprof
     goos:
       - linux
       - windows
@@ -44,6 +43,12 @@ builds:
       - -s -w
       - -X main.version={{.Version}}
       - -X main.buildTime={{.CommitDate}}
+    overrides:
+      - goos: windows
+        # Try removing the buildTime ldflag for Windows build troubleshooting
+        ldflags:
+          - -s -w
+          - -X main.version={{.Version}}
 
   - id: mkbrr-gui
     env:
@@ -59,20 +64,20 @@ builds:
     ignore:
       - goos: linux
         goarch: arm64
-      - goos: windows # Ignore all Windows builds for mkbrr-gui for now
-      # - goos: windows # Original ignore for arm64, now covered by the above line
-      #   goarch: arm64
+      # Re-enable Windows GUI build, but ignore arm64
+      - goos: windows
+        goarch: arm64
     main: ./cmd/mkbrr-gui/
     binary: mkbrr-gui
     ldflags:
       - -s -w
       - -X main.version={{.Version}}
       - -X main.buildTime={{.CommitDate}}
-    # overrides: # Keep this commented out or remove as it's not needed if Windows is ignored
-    #   - goos: windows
-    #     env:
-    #       # Explicitly set the C compiler for Windows CGO builds
-    #       - CC=x86_64-w64-mingw32-gcc
+    overrides:
+      - goos: windows
+        env:
+          # Explicitly set the C compiler for Windows CGO cross-compilation from Linux
+          - CC=x86_64-w64-mingw32-gcc
 
 archives:
   - format_overrides:
