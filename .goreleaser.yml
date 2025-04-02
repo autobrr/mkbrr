@@ -64,7 +64,6 @@ builds:
     ignore:
       - goos: linux
         goarch: arm64
-      # Re-enable Windows GUI build, but ignore arm64
       - goos: windows
         goarch: arm64
     main: ./cmd/mkbrr-gui/
@@ -76,8 +75,12 @@ builds:
     overrides:
       - goos: windows
         env:
-          # Explicitly set the C compiler for Windows CGO cross-compilation from Linux
           - CC=x86_64-w64-mingw32-gcc
+          - CXX=x86_64-w64-mingw32-g++
+          - CGO_CFLAGS=-I/usr/x86_64-w64-mingw32/include
+          - CGO_LDFLAGS=-L/usr/x86_64-w64-mingw32/lib
+          - GOOS=windows
+          - GOARCH=amd64
 
 archives:
   - format_overrides:
