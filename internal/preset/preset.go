@@ -32,6 +32,7 @@ type Options struct {
 	NoCreator       *bool    `yaml:"no_creator"`
 	SkipPrefix      *bool    `yaml:"skip_prefix"`
 	ExcludePatterns []string `yaml:"exclude_patterns"`
+	IncludePatterns []string `yaml:"include_patterns"`
 	Version         string   // used for creator string
 }
 
@@ -127,6 +128,9 @@ func (c *Config) GetPreset(name string) (*Options, error) {
 		if len(c.Default.ExcludePatterns) > 0 {
 			merged.ExcludePatterns = c.Default.ExcludePatterns
 		}
+		if len(c.Default.IncludePatterns) > 0 {
+			merged.IncludePatterns = c.Default.IncludePatterns
+		}
 	}
 
 	// override with preset values if they are set
@@ -162,6 +166,9 @@ func (c *Config) GetPreset(name string) (*Options, error) {
 	}
 	if len(preset.ExcludePatterns) > 0 {
 		merged.ExcludePatterns = preset.ExcludePatterns
+	}
+	if len(preset.IncludePatterns) > 0 {
+		merged.IncludePatterns = preset.IncludePatterns
 	}
 
 	return &merged, nil

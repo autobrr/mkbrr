@@ -27,6 +27,7 @@ type CreateTorrentOptions struct {
 	Quiet           bool
 	SkipPrefix      bool
 	ExcludePatterns []string
+	IncludePatterns []string
 	Displayer       Displayer
 }
 
