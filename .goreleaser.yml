@@ -67,6 +67,11 @@ builds:
       - -s -w
       - -X main.version={{.Version}}
       - -X main.buildTime={{.CommitDate}}
+    overrides:
+      - goos: windows
+        env:
+          # Explicitly set the C compiler for Windows CGO builds
+          - CC=x86_64-w64-mingw32-gcc
 
 archives:
   - format_overrides:
