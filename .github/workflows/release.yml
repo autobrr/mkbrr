@@ -25,6 +25,7 @@ env:
 permissions:
   contents: write
   packages: write
+  # id-token: write # Only needed for keyless signing, not used here yet
 
 jobs:
   test:
@@ -165,20 +166,27 @@ jobs:
           name: pprof
           path: cpu.pprof
 
-  # Build and Release job: runs on ubuntu, handles cross-compilation
-  goreleaser:
-    name: Build and Release binaries
-    runs-on: ubuntu-latest # Use Ubuntu as the primary builder
+  # Build job: runs on matrix, builds native artifacts only using --split
+  build:
+    name: Build distribution binaries (${{ matrix.os }})
+    strategy:
+      matrix:
+        # Use native runners for CGO builds
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     needs: [ pgo ]
     steps:
-      - name: Install Cross-compilation Dependencies
-        # Install base Linux deps + MinGW for Windows cross-compile
-        run: sudo apt-get update && sudo apt-get install -y gcc libgl1-mesa-dev xorg-dev mingw-w64
+      - name: Install Linux CGO dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y gcc libgl1-mesa-dev xorg-dev
+
+      # Windows usually has necessary MinGW/GCC via MSYS2 on runners
+      # MacOS usually has Xcode Command Line Tools on runners
 
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Ensure tags are fetched for release notes
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -192,25 +200,66 @@ jobs:
           name: pprof
           path: .
 
-      # Run GoReleaser Pro - it will build all targets defined in .goreleaser.yml
-      # including cross-compiled CGO builds
-      - name: Run GoReleaser
+      # Use goreleaser release --split to build native targets
+      # This requires partial.by: target in .goreleaser.yml
+      - name: Run GoReleaser Split Build
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser-pro
           version: "~> v2"
-          # Use 'release --clean' for tags, 'build --snapshot --clean' for PRs/main
-          args: ${{ startsWith(github.ref, 'refs/tags/') && 'release --clean' || 'build --snapshot --clean' }}
+          args: release --split --clean
+        env:
+          # GORELEASER_KEY is needed for CGO builds
+          GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
+          BUILDER: ${{ github.actor }}@github-actions
+          # GITHUB_TOKEN is needed even for split if accessing private deps, etc.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Upload the entire dist directory containing the partial artifacts for this OS
+      - name: Upload GoReleaser artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.os }}
+          path: dist
+
+  # Release job: runs on tags, merges artifacts and releases
+  release:
+    name: Merge GoReleaser artifacts and release
+    runs-on: ubuntu-latest
+    needs: [ build ] # Depends on the build matrix job
+    # Only run the merge and release step on tag pushes
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Ensure tags are fetched
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Download all GoReleaser artifacts
+        uses: actions/download-artifact@v4
+        with:
+          # Use pattern to download all dist-* directories
+          pattern: dist-*
+          path: . # Download to the root, preserving directory structure (dist-ubuntu-latest/, etc.)
+
+      # Display structure of downloaded artifacts for debugging
+      - name: List downloaded artifacts
+        run: ls -R .
+
+      # Run goreleaser release continue --merge to combine artifacts and publish
+      - name: Run GoReleaser Merge and Release
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser-pro
+          version: "~> v2"
+          args: release continue --merge
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
           BUILDER: ${{ github.actor }}@github-actions
-
-      # Optional: Upload assets from build step if needed (e.g., for PR checks)
-      - name: Upload Build Assets (Optional)
-        # Compare startsWith result to false instead of using negation operator
-        if: startsWith(github.ref, 'refs/tags/') == false # Only upload if not a tag release
-        uses: actions/upload-artifact@v4
-        with:
-          name: mkbrr-build-artifacts
-          path: dist/*

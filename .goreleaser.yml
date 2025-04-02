@@ -1,5 +1,10 @@
 version: 2
 
+# Tell GoReleaser Pro to split work by target (GOOS/GOARCH)
+# This is ideal for the split/merge workflow with native runners
+partial:
+  by: target
+
 before:
   hooks:
     - go mod tidy
