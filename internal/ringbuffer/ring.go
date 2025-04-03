@@ -40,6 +40,8 @@ func (r *RingBuffer) Read(p []byte) (int, error) {
 	for w < len(p) {
 		if r.isShutdown() {
 			return w, io.ErrUnexpectedEOF
+		} else if r.isClosedRead() {
+			break
 		} else if r.isEmpty() {
 			r.readWake.Wait()
 			continue
@@ -72,6 +74,8 @@ func (r *RingBuffer) Write(p []byte) (int, error) {
 	for w < len(p) {
 		if r.isShutdown() {
 			return w, io.ErrUnexpectedEOF
+		} else if r.isClosed() {
+			break
 		} else if r.isFull() {
 			r.writeWake.Wait()
 			continue
@@ -107,6 +111,7 @@ func (r *RingBuffer) Reset() {
 	r.m.Lock()
 	defer r.m.Unlock()
 	r.shutdown = true
+
 	r.readWake.Broadcast()
 	r.writeWake.Broadcast()
 	r.readWake.L.Lock()
@@ -115,15 +120,21 @@ func (r *RingBuffer) Reset() {
 	defer r.writeWake.L.Unlock()
 
 	r.err = nil
-	r.start = 0
-	r.end = 0
-	r.full = false
 	r.shutdown = false
+	r.resetposition()
 }
 
 func (r *RingBuffer) Bytes() []byte {
 	r.m.RLock()
 	defer r.m.RUnlock()
+	return r.bytes()
+}
+
+func (r *RingBuffer) ConsumeBytes() []byte {
+	r.m.Lock()
+	defer r.m.Unlock()
+	defer r.resetposition()
+
 	return r.bytes()
 }
 
@@ -190,6 +201,9 @@ func (r *RingBuffer) read(p []byte) int {
 	}
 
 	r.full = r.full && w == 0
+	if r.isempty() {
+		r.resetposition()
+	}
 	//fmt.Printf("Read Done: %q | Buf: %q | start %d | end %d | full %v\n", p, r.bytes(), r.start, r.end, r.full)
 	return w
 }
@@ -209,7 +223,6 @@ func (r *RingBuffer) write(p []byte) int {
 	}
 
 	r.full = w != 0 && r.end == r.start
-	r.bytes()
 	//fmt.Printf("Write Done: %q | Buf: %q | start %d | end %d | full %v\n", p, r.bytes(), r.start, r.end, r.full)
 	return w
 }
@@ -224,4 +237,10 @@ func (r *RingBuffer) isempty() bool {
 
 func (r *RingBuffer) isfull() bool {
 	return r.full
+}
+
+func (r *RingBuffer) resetposition() {
+	r.start = 0
+	r.end = 0
+	r.full = false
 }
