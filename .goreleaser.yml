@@ -49,10 +49,10 @@ builds:
       - amd64
     main: ./main.go
     binary: mkbrr
-    # Minimal ldflags for Windows to avoid potential command line length issues
-    ldflags: -s -w -X main.version={{.Version}}
-    # Explicitly disable flags for Windows
-    flags: []
+    ldflags: >-
+      -s -w
+      -X main.version={{.Version}}
+      -X main.buildTime={{.CommitDate}}
 
 archives:
   - format_overrides:
