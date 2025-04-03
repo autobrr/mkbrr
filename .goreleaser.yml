@@ -1,8 +1,5 @@
 version: 2
 
-partial:
-  by: target
-
 before:
   hooks:
     - go mod tidy
@@ -16,6 +13,7 @@ builds:
       - -pgo=cpu.pprof
     goos:
       - linux
+      - windows
       - darwin
       - freebsd
     goarch:
@@ -25,6 +23,10 @@ builds:
     goarm:
       - 6
     ignore:
+      - goos: windows
+        goarch: arm
+      - goos: windows
+        goarch: arm64
       - goos: darwin
         goarch: arm
       - goos: freebsd
@@ -33,26 +35,10 @@ builds:
         goarch: arm64
     main: ./main.go
     binary: mkbrr
-    ldflags: >-
-      -s -w
-      -X main.version={{.Version}}
-      -X main.buildTime={{.CommitDate}}
-
-  # Separate build config for Windows without PGO
-  - id: mkbrr-windows
-    env:
-      - CGO_ENABLED=0
-      - BUILDER
-    goos:
-      - windows
-    goarch:
-      - amd64
-    main: ./main.go
-    binary: mkbrr
-    ldflags: >-
-      -s -w
-      -X main.version={{.Version}}
-      -X main.buildTime={{.CommitDate}}
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.buildTime={{.CommitDate}}
 
 archives:
   - format_overrides:
@@ -72,6 +58,23 @@ release:
 
 checksum:
   name_template: "{{ .ProjectName }}_{{ .Version }}_checksums.txt"
+  algorithm: sha256
+
+sboms:
+  - artifacts: archive
+
+signs:
+  - cmd: cosign
+    artifacts: checksum
+    output: true
+    args:
+      - sign-blob
+      - --key=env://COSIGN_PRIVATE_KEY
+      - --output-signature=${signature}
+      - --yes
+      - ${artifact}
+    env:
+      - COSIGN_PRIVATE_KEY={{ .Env.COSIGN_PRIVATE_KEY }}
 
 changelog:
   sort: asc
@@ -101,3 +104,17 @@ nfpms:
       - deb
       - rpm
       - archlinux
+
+announce:
+  skip: false
+  twitter:
+    enabled: true
+    message_template: 'mkbrr {{ .Tag }} has been released! Check it out at {{ .ReleaseURL }}'
+
+gomod:
+  proxy: true
+
+source:
+  enabled: true
+  name_template: '{{ .ProjectName }}_{{ .Version }}_source'
+  format: 'tar.gz'
