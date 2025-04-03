@@ -16,7 +16,6 @@ builds:
       - -pgo=cpu.pprof
     goos:
       - linux
-      - windows
       - darwin
       - freebsd
     goarch:
@@ -26,16 +25,28 @@ builds:
     goarm:
       - 6
     ignore:
-      - goos: windows
-        goarch: arm
-      - goos: windows
-        goarch: arm64
       - goos: darwin
         goarch: arm
       - goos: freebsd
         goarch: arm
       - goos: freebsd
         goarch: arm64
+    main: ./main.go
+    binary: mkbrr
+    ldflags: >-
+      -s -w
+      -X main.version={{.Version}}
+      -X main.buildTime={{.CommitDate}}
+
+  # Separate build config for Windows without PGO
+  - id: mkbrr-windows
+    env:
+      - CGO_ENABLED=0
+      - BUILDER
+    goos:
+      - windows
+    goarch:
+      - amd64
     main: ./main.go
     binary: mkbrr
     ldflags: >-
