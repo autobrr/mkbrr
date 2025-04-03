@@ -1,7 +1,6 @@
 package ringbuffer
 
 import (
-	"fmt"
 	"io"
 	"sync"
 )
@@ -16,7 +15,7 @@ type RingBuffer struct {
 
 	err error
 
-	m         *sync.Mutex
+	m         *sync.RWMutex
 	readWake  *sync.Cond
 	writeWake *sync.Cond
 }
@@ -24,54 +23,74 @@ type RingBuffer struct {
 func New(size int) *RingBuffer {
 	return &RingBuffer{
 		buf:       make([]byte, size),
-		m:         &sync.Mutex{},
+		m:         &sync.RWMutex{},
 		readWake:  sync.NewCond(&sync.Mutex{}),
 		writeWake: sync.NewCond(&sync.Mutex{}),
 	}
 }
 
 func (r *RingBuffer) Read(p []byte) (int, error) {
-	if r.err != nil && r.isEmpty() {
-		return 0, r.err
+	if r.isClosedRead() {
+		return 0, r.returnState()
 	}
 
+	w := 0
 	r.readWake.L.Lock()
-	for r.isEmpty() {
-		r.readWake.Wait()
-		if r.shutdown {
-			r.readWake.L.Unlock()
-			return 0, io.ErrUnexpectedEOF
-		}
-	}
 	defer r.readWake.L.Unlock()
+	for w < len(p) {
+		if r.isShutdown() {
+			return w, io.ErrUnexpectedEOF
+		} else if r.isEmpty() {
+			r.readWake.Wait()
+			continue
+		}
 
-	r.m.Lock()
-	n := r.read(p)
-	r.m.Unlock()
-	r.writeWake.Signal()
-	return n, nil
+		r.m.Lock()
+		if n := r.read(p[w:]); n != 0 {
+			r.writeWake.Signal()
+			w += n
+		}
+		r.m.Unlock()
+	}
+
+	var err error = nil
+	if w != len(p) {
+		err = io.ErrUnexpectedEOF
+	}
+
+	return w, err
 }
 
 func (r *RingBuffer) Write(p []byte) (int, error) {
-	if r.err != nil {
-		return 0, r.err
+	if r.isClosed() {
+		return 0, r.returnState()
 	}
 
+	w := 0
 	r.writeWake.L.Lock()
-	for r.isFull() {
-		r.writeWake.Wait()
-		if r.shutdown {
-			r.readWake.L.Unlock()
-			return 0, io.ErrUnexpectedEOF
-		}
-	}
 	defer r.writeWake.L.Unlock()
+	for w < len(p) {
+		if r.isShutdown() {
+			return w, io.ErrUnexpectedEOF
+		} else if r.isFull() {
+			r.writeWake.Wait()
+			continue
+		}
 
-	r.m.Lock()
-	n := r.write(p)
-	r.m.Unlock()
-	r.readWake.Signal()
-	return n, nil
+		r.m.Lock()
+		if n := r.write(p[w:]); n != 0 {
+			r.readWake.Signal()
+			w += n
+		}
+		r.m.Unlock()
+
+	}
+
+	var err error = nil
+	if w != len(p) {
+		err = io.ErrShortWrite
+	}
+	return w, err
 }
 
 func (r *RingBuffer) CloseWriter() {
@@ -80,77 +99,77 @@ func (r *RingBuffer) CloseWriter() {
 
 func (r *RingBuffer) CloseWithError(err error) {
 	r.m.Lock()
+	defer r.m.Unlock()
 	r.err = err
-	r.m.Unlock()
 }
 
 func (r *RingBuffer) Reset() {
 	r.m.Lock()
+	defer r.m.Unlock()
 	r.shutdown = true
 	r.readWake.Broadcast()
 	r.writeWake.Broadcast()
 	r.readWake.L.Lock()
 	r.writeWake.L.Lock()
+	defer r.readWake.L.Unlock()
+	defer r.writeWake.L.Unlock()
 
 	r.err = nil
 	r.start = 0
 	r.end = 0
 	r.full = false
 	r.shutdown = false
-
-	r.readWake.L.Unlock()
-	r.writeWake.L.Unlock()
-	r.m.Unlock()
-	fmt.Printf("RESET DONE!\n")
 }
 
 func (r *RingBuffer) read(p []byte) int {
 	w := 0
-	for w < len(p) && !r.isEmpty() {
-		if r.start < r.end {
-			end := min(r.end-r.start, len(p)-w)
-			w += copy(p[w:], r.buf[r.start:r.start+end])
-			r.start += end
-		} else {
-			end := min(len(r.buf)-r.start, len(p)-w)
-			w += copy(p[w:], r.buf[r.start:r.start+end])
-			r.start = (r.start + end) % len(r.buf)
-		}
+	//fmt.Printf("Read: %q | Buf: %q | start %d | end %d\n", p, r.bytes(), r.start, r.end)
+	if r.start < r.end {
+		end := min(r.end-r.start, len(p))
+		w = copy(p, r.buf[r.start:r.start+end])
+		r.start += end
+	} else {
+		end := min(len(r.buf)-r.start, len(p))
+		w = copy(p, r.buf[r.start:r.start+end])
+		r.start = (r.start + end) % len(r.buf)
 	}
-	r.full = false
+
+	r.full = w == 0
+	//fmt.Printf("Read Done: %q | Buf: %q | start %d | end %d | full %v\n", p, r.bytes(), r.start, r.end, r.full)
 	return w
 }
 
 func (r *RingBuffer) write(p []byte) int {
 	w := 0
-	for w < len(p) && !r.isFull() {
-		if r.end >= r.start {
-			end := min(len(r.buf)-r.end, len(p)-w)
-			w += copy(r.buf[r.end:r.end+end], p[w:])
-			r.end = (r.end + end) % len(r.buf)
-		} else {
-			// Write to the start of the buffer
-			end := min(r.start-r.end, len(p)-w)
-			w += copy(r.buf[r.end:r.end+end], p[w:])
-			r.end += end
-		}
+	//fmt.Printf("Write: %q | Buf: %q | start %d | end %d\n", p, r.bytes(), r.start, r.end)
+	if r.start <= r.end {
+		end := min(len(r.buf)-r.end, len(p))
+		w = copy(r.buf[r.end:r.end+end], p)
+		r.end = (r.end + end) % len(r.buf)
+	} else {
+		// Write to the start of the buffer
+		end := min(r.start-r.end, len(p))
+		w = copy(r.buf[r.end:r.end+end], p)
+		r.end += end
 	}
 
-	if w > 0 {
-		r.full = r.end == r.start
-	}
+	r.full = w != 0 && r.end == r.start
+	//fmt.Printf("Write Done: %q | Buf: %q | start %d | end %d | full %v\n", p, r.bytes(), r.start, r.end, r.full)
 	return w
 }
 
-func (r *RingBuffer) bytes() []byte {
-	r.m.Lock()
-	defer r.m.Unlock()
+func (r *RingBuffer) Bytes() []byte {
+	r.m.RLock()
+	defer r.m.RUnlock()
+	return r.bytes()
+}
 
-	if r.isEmpty() {
+func (r *RingBuffer) bytes() []byte {
+	if r.isempty() {
 		return nil
 	}
 
-	if r.start < r.end {
+	if r.start <= r.end {
 		return r.buf[r.start:r.end]
 	}
 
@@ -161,9 +180,49 @@ func (r *RingBuffer) bytes() []byte {
 }
 
 func (r *RingBuffer) isEmpty() bool {
-	return !r.isFull() && r.start == r.end
+	r.m.RLock()
+	defer r.m.RUnlock()
+	return r.isempty()
 }
 
 func (r *RingBuffer) isFull() bool {
+	r.m.RLock()
+	defer r.m.RUnlock()
+	return r.isfull()
+}
+
+func (r *RingBuffer) isClosedRead() bool {
+	r.m.RLock()
+	defer r.m.RUnlock()
+	return r.isclosed() && r.isempty()
+}
+
+func (r *RingBuffer) isClosed() bool {
+	r.m.RLock()
+	defer r.m.RUnlock()
+	return r.isclosed()
+}
+
+func (r *RingBuffer) isShutdown() bool {
+	r.m.RLock()
+	defer r.m.RUnlock()
+	return r.shutdown
+}
+
+func (r *RingBuffer) returnState() error {
+	r.m.RLock()
+	defer r.m.RUnlock()
+	return r.err
+}
+
+func (r *RingBuffer) isclosed() bool {
+	return r.err != nil
+}
+
+func (r *RingBuffer) isempty() bool {
+	return !r.isfull() && r.start == r.end
+}
+
+func (r *RingBuffer) isfull() bool {
 	return r.full
 }
