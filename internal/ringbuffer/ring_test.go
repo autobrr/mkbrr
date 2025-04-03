@@ -322,3 +322,32 @@ func TestRingBuffer_MultipleResets(t *testing.T) {
 		}
 	}
 }
+
+func TestRingBuffer_LargeReadBufferWithAsyncWrites(t *testing.T) {
+	rb := New(10) // Buffer size of 10
+	expected := "helloworldthisistest"
+	readBuf := make([]byte, len(expected)) // Read buffer larger than the ring buffer
+
+	// Writer goroutine to write data in chunks
+	go func() {
+		chunks := []string{"hello", "world", "this", "is", "test"}
+		for _, chunk := range chunks {
+			_, err := rb.Write([]byte(chunk))
+			if err != nil {
+				t.Errorf("Write error: %v", err)
+			}
+			time.Sleep(100 * time.Millisecond) // Simulate delay between writes
+		}
+		rb.CloseWithError(io.EOF) // Signal end of writing
+	}()
+
+	// Reader to read data into the large buffer
+	n, err := rb.Read(readBuf)
+	if err != io.EOF && err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if n != len(expected) || string(readBuf[:n]) != expected {
+		t.Errorf("Expected to read '%s', got '%s'", expected, string(readBuf[:n]))
+	}
+}

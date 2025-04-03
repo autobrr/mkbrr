@@ -287,7 +287,7 @@ func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Di
 
 	h.readerPool = &sync.Pool{
 		New: func() interface{} {
-			return ringbuffer.New(4 * 1024) // 256 KiB buffer for reading, can be adjusted based on workload
+			return ringbuffer.New(8 * 1024 * 1000) // 256 KiB buffer for reading, can be adjusted based on workload
 		},
 	}
 
