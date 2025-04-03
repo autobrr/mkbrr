@@ -121,62 +121,10 @@ func (r *RingBuffer) Reset() {
 	r.shutdown = false
 }
 
-func (r *RingBuffer) read(p []byte) int {
-	w := 0
-	//fmt.Printf("Read: %q | Buf: %q | start %d | end %d\n", p, r.bytes(), r.start, r.end)
-	if r.start < r.end {
-		end := min(r.end-r.start, len(p))
-		w = copy(p, r.buf[r.start:r.start+end])
-		r.start += end
-	} else {
-		end := min(len(r.buf)-r.start, len(p))
-		w = copy(p, r.buf[r.start:r.start+end])
-		r.start = (r.start + end) % len(r.buf)
-	}
-
-	r.full = w == 0
-	//fmt.Printf("Read Done: %q | Buf: %q | start %d | end %d | full %v\n", p, r.bytes(), r.start, r.end, r.full)
-	return w
-}
-
-func (r *RingBuffer) write(p []byte) int {
-	w := 0
-	//fmt.Printf("Write: %q | Buf: %q | start %d | end %d\n", p, r.bytes(), r.start, r.end)
-	if r.start <= r.end {
-		end := min(len(r.buf)-r.end, len(p))
-		w = copy(r.buf[r.end:r.end+end], p)
-		r.end = (r.end + end) % len(r.buf)
-	} else {
-		// Write to the start of the buffer
-		end := min(r.start-r.end, len(p))
-		w = copy(r.buf[r.end:r.end+end], p)
-		r.end += end
-	}
-
-	r.full = w != 0 && r.end == r.start
-	//fmt.Printf("Write Done: %q | Buf: %q | start %d | end %d | full %v\n", p, r.bytes(), r.start, r.end, r.full)
-	return w
-}
-
 func (r *RingBuffer) Bytes() []byte {
 	r.m.RLock()
 	defer r.m.RUnlock()
 	return r.bytes()
-}
-
-func (r *RingBuffer) bytes() []byte {
-	if r.isempty() {
-		return nil
-	}
-
-	if r.start <= r.end {
-		return r.buf[r.start:r.end]
-	}
-
-	v := make([]byte, len(r.buf)-(r.start-r.end))
-	copy(v, r.buf[r.start:])
-	copy(v[len(r.buf)-r.start:], r.buf[:r.end])
-	return v
 }
 
 func (r *RingBuffer) isEmpty() bool {
@@ -213,6 +161,58 @@ func (r *RingBuffer) returnState() error {
 	r.m.RLock()
 	defer r.m.RUnlock()
 	return r.err
+}
+
+func (r *RingBuffer) bytes() []byte {
+	if r.isempty() {
+		return nil
+	}
+
+	if r.start <= r.end {
+		return r.buf[r.start:r.end]
+	}
+
+	v := make([]byte, len(r.buf)-(r.start-r.end))
+	copy(v, r.buf[r.start:])
+	copy(v[len(r.buf)-r.start:], r.buf[:r.end])
+	return v
+}
+
+func (r *RingBuffer) read(p []byte) int {
+	w := 0
+	//fmt.Printf("Read: %q | Buf: %q | start %d | end %d\n", p, r.bytes(), r.start, r.end)
+	if r.start < r.end {
+		end := min(r.end-r.start, len(p))
+		w = copy(p, r.buf[r.start:r.start+end])
+		r.start += end
+	} else {
+		end := min(len(r.buf)-r.start, len(p))
+		w = copy(p, r.buf[r.start:r.start+end])
+		r.start = (r.start + end) % len(r.buf)
+	}
+
+	r.full = r.full && w == 0
+	//fmt.Printf("Read Done: %q | Buf: %q | start %d | end %d | full %v\n", p, r.bytes(), r.start, r.end, r.full)
+	return w
+}
+
+func (r *RingBuffer) write(p []byte) int {
+	w := 0
+	//fmt.Printf("Write: %q | Buf: %q | start %d | end %d\n", p, r.bytes(), r.start, r.end)
+	if r.start <= r.end {
+		end := min(len(r.buf)-r.end, len(p))
+		w = copy(r.buf[r.end:r.end+end], p)
+		r.end = (r.end + end) % len(r.buf)
+	} else {
+		// Write to the start of the buffer
+		end := min(r.start-r.end, len(p))
+		w = copy(r.buf[r.end:r.end+end], p)
+		r.end += end
+	}
+
+	r.full = w != 0 && r.end == r.start
+	//fmt.Printf("Write Done: %q | Buf: %q | start %d | end %d | full %v\n", p, r.bytes(), r.start, r.end, r.full)
+	return w
 }
 
 func (r *RingBuffer) isclosed() bool {
