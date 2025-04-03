@@ -165,10 +165,10 @@ jobs:
 
   prepare:
     name: Prepare build for ${{ matrix.goos }}/${{ matrix.goarch }}
-    needs: [ pgo ]
+    needs: [ pgo, test, testother ]
     runs-on: ubuntu-latest
     strategy:
-      fail-fast: false # Allow other builds to continue if one fails
+      fail-fast: true
       matrix:
         include:
           - goos: linux
@@ -249,8 +249,6 @@ jobs:
     name: Merge builds and release
     needs: prepare
     runs-on: ubuntu-latest
-    # Only run release on tagged commits
-    if: startsWith(github.ref, 'refs/tags/')
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -320,7 +318,7 @@ jobs:
           args: release continue --merge --parallelism 5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }} # Ensure this secret is set in GitHub repo settings
+          GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
           BUILDER: ${{ github.actor }}@github-actions
 
       - name: Upload final assets artifact (optional)
@@ -335,4 +333,3 @@ jobs:
             dist/*.apk
             dist/*.pkg.tar.zst # Arch Linux package
             dist/*checksums.txt
-            # Add any other expected artifact patterns
