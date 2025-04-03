@@ -75,9 +75,6 @@ func (r *RingBuffer) Write(p []byte) (int, error) {
 		} else if r.isClosed() {
 			break
 		} else if r.isFull() {
-			if w != 0 {
-				break
-			}
 			r.writeWake.Wait()
 			continue
 		}
