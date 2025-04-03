@@ -219,7 +219,7 @@ jobs:
         shell: pwsh
         run: |
           # For Windows, we will completely skip PGO by creating an empty flag env var
-          echo "GORELEASER_FLAGS=--clean --split --parallelism 1 --skip-validate" | Out-File -FilePath $env:GITHUB_ENV -Append
+          echo "GORELEASER_FLAGS=--clean --split --parallelism 1" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Set short git commit SHA
         shell: bash
