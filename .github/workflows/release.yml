@@ -166,7 +166,7 @@ jobs:
   prepare:
     name: Prepare build for ${{ matrix.goos }}/${{ matrix.goarch }}
     needs: [ pgo ]
-    runs-on: ${{ matrix.runner }}
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false # Allow other builds to continue if one fails
       matrix:
