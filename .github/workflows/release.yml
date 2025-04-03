@@ -239,7 +239,7 @@ jobs:
         with:
           distribution: goreleaser-pro
           version: "~> v2"
-          args: ${{ matrix.goos == 'windows' && 'release --clean --split --parallelism 1' || 'release --clean --split --parallelism 5' }}
+          args: ${{ matrix.goos == 'windows' && 'release --clean --split --parallelism 1 --debug' || 'release --clean --split --parallelism 5' }}
         env:
           GGOOS: ${{ matrix.goos }}
           GGOARCH: ${{ matrix.goarch }}
