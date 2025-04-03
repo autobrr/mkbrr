@@ -287,3 +287,38 @@ func TestRingBuffer_DataIntegrity(t *testing.T) {
 	// Allow time for goroutines to complete
 	time.Sleep(1 * time.Second)
 }
+
+func TestRingBuffer_MultipleResets(t *testing.T) {
+	rb := New(5) // Buffer size of 5
+
+	for i := 0; i < 5; i++ {
+		// Write data to the buffer
+		data := []byte("abcde")
+		n, err := rb.Write(data)
+		if err != nil {
+			t.Fatalf("Unexpected error during write: %v", err)
+		}
+		if n != len(data) {
+			t.Errorf("Expected to write %d bytes, wrote %d", len(data), n)
+		}
+
+		// Reset the buffer
+		rb.Reset()
+
+		// Ensure the buffer is empty
+		if !rb.isEmpty() {
+			t.Errorf("Buffer should be empty after reset #%d", i+1)
+		}
+
+		// Write and read again to ensure the buffer works after reset
+		rb.Write([]byte("xyz"))
+		buf := make([]byte, 3)
+		n, err = rb.Read(buf)
+		if err != nil {
+			t.Fatalf("Unexpected error during read: %v", err)
+		}
+		if n != 3 || string(buf) != "xyz" {
+			t.Errorf("Expected to read 'xyz', got '%s' after reset #%d", string(buf), i+1)
+		}
+	}
+}
