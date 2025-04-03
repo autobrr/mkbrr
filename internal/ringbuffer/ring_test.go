@@ -1,6 +1,7 @@
 package ringbuffer
 
 import (
+	"bytes"
 	"io"
 	"testing"
 	"time"
@@ -353,7 +354,6 @@ func TestRingBuffer_MultipleResets(t *testing.T) {
 func TestRingBuffer_LargeReadBufferWithAsyncWrites(t *testing.T) {
 	rb := New(10) // Buffer size of 10
 	expected := "helloworldthisistest"
-	readBuf := make([]byte, len(expected)) // Read buffer larger than the ring buffer
 
 	// Writer goroutine to write data in chunks
 	go func() {
@@ -369,12 +369,13 @@ func TestRingBuffer_LargeReadBufferWithAsyncWrites(t *testing.T) {
 	}()
 
 	// Reader to read data into the large buffer
-	n, err := rb.Read(readBuf)
+	b := &bytes.Buffer{}
+	n, err := io.Copy(b, rb)
 	if err != io.EOF && err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	if n != len(expected) || string(readBuf[:n]) != expected {
-		t.Errorf("Expected to read '%s', got '%s'", expected, string(readBuf[:n]))
+	if n != int64(len(expected)) || string(b.Bytes()[:n]) != expected {
+		t.Errorf("Expected to read '%s', got '%s'", expected, string(b.Bytes()[:n]))
 	}
 }

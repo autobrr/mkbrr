@@ -43,6 +43,9 @@ func (r *RingBuffer) Read(p []byte) (int, error) {
 		} else if r.isClosedRead() {
 			break
 		} else if r.isEmpty() {
+			if w != 0 {
+				break
+			}
 			r.readWake.Wait()
 			continue
 		}
@@ -55,12 +58,7 @@ func (r *RingBuffer) Read(p []byte) (int, error) {
 		r.m.Unlock()
 	}
 
-	var err error = nil
-	if w != len(p) {
-		err = io.ErrUnexpectedEOF
-	}
-
-	return w, err
+	return w, nil
 }
 
 func (r *RingBuffer) Write(p []byte) (int, error) {
@@ -77,6 +75,9 @@ func (r *RingBuffer) Write(p []byte) (int, error) {
 		} else if r.isClosed() {
 			break
 		} else if r.isFull() {
+			if w != 0 {
+				break
+			}
 			r.writeWake.Wait()
 			continue
 		}
@@ -105,6 +106,7 @@ func (r *RingBuffer) CloseWithError(err error) {
 	r.m.Lock()
 	defer r.m.Unlock()
 	r.err = err
+	r.readWake.Signal()
 }
 
 func (r *RingBuffer) Reset() {
