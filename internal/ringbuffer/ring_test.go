@@ -115,31 +115,39 @@ func TestRingBuffer_FullCondition(t *testing.T) {
 func TestRingBuffer_ConcurrentReadWrite(t *testing.T) {
 	rb := New(10) // Buffer size of 10
 
+	// Channels to signal completion of writer and reader
+	writerDone := make(chan struct{})
+	readerDone := make(chan struct{})
+
 	// Writer goroutine
 	go func() {
+		defer close(writerDone)
 		for i := 0; i < 100; i++ {
 			data := []byte{byte('a' + (i % 26))} // Cycle through 'a' to 'z'
 			_, err := rb.Write(data)
 			if err != nil {
 				t.Errorf("Write error: %v", err)
+				return
 			}
 		}
 	}()
 
 	// Reader goroutine
 	go func() {
+		defer close(readerDone)
 		buf := make([]byte, 1)
 		for i := 0; i < 100; i++ {
 			_, err := rb.Read(buf)
 			if err != nil && err != io.EOF {
 				t.Errorf("Read error: %v", err)
+				return
 			}
 		}
 	}()
 
-	// Allow time for goroutines to complete
-	// This is not ideal for deterministic testing but works for basic concurrency checks
-	<-time.After(1 * time.Second)
+	// Wait for both goroutines to finish
+	<-writerDone
+	<-readerDone
 }
 
 func TestRingBuffer_ConcurrentAccess(t *testing.T) {
@@ -268,24 +276,43 @@ func TestRingBuffer_CloseWithError(t *testing.T) {
 func TestRingBuffer_DataIntegrity(t *testing.T) {
 	rb := New(10) // Buffer size of 10
 
+	// Channels to signal completion of writer and reader
+	writerDone := make(chan struct{})
+	readerDone := make(chan struct{})
+
 	// Write data
 	go func() {
+		defer close(writerDone)
 		for i := 0; i < 100; i++ {
 			data := []byte{byte('a' + (i % 26))} // Cycle through 'a' to 'z'
-			rb.Write(data)
+			_, err := rb.Write(data)
+			if err != nil {
+				t.Errorf("Write error: %v", err)
+				return
+			}
 		}
 	}()
 
 	// Read data
 	go func() {
+		defer close(readerDone)
 		buf := make([]byte, 1)
 		for i := 0; i < 100; i++ {
-			rb.Read(buf)
+			data := []byte{byte('a' + (i % 26))}
+			_, err := rb.Read(buf)
+			if err != nil {
+				t.Errorf("Read error: %v", err)
+				return
+			}
+			if data[0] != buf[0] {
+				t.Errorf("bad bytes %d %c/%c", i, data[0], buf[0])
+			}
 		}
 	}()
 
-	// Allow time for goroutines to complete
-	time.Sleep(1 * time.Second)
+	// Wait for both goroutines to complete
+	<-writerDone
+	<-readerDone
 }
 
 func TestRingBuffer_MultipleResets(t *testing.T) {
@@ -336,9 +363,9 @@ func TestRingBuffer_LargeReadBufferWithAsyncWrites(t *testing.T) {
 			if err != nil {
 				t.Errorf("Write error: %v", err)
 			}
-			time.Sleep(100 * time.Millisecond) // Simulate delay between writes
+			time.Sleep(1 * time.Millisecond) // Simulate delay between writes
 		}
-		rb.CloseWithError(io.EOF) // Signal end of writing
+		rb.CloseWriter() // Signal end of writing
 	}()
 
 	// Reader to read data into the large buffer
