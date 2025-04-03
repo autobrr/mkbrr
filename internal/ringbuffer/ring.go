@@ -6,18 +6,18 @@ import (
 )
 
 type RingBuffer struct {
-	start int
-	end   int
-	buf   []byte
-
-	full     bool
-	shutdown bool
-
 	err error
 
 	m         *sync.RWMutex
 	readWake  *sync.Cond
 	writeWake *sync.Cond
+	buf       []byte
+
+	start int
+	end   int
+
+	full     bool
+	shutdown bool
 }
 
 func New(size int) *RingBuffer {
@@ -119,8 +119,8 @@ func (r *RingBuffer) Reset() {
 	defer r.writeWake.L.Unlock()
 
 	r.err = nil
-	r.shutdown = false
 	r.resetposition()
+	r.shutdown = false
 }
 
 func (r *RingBuffer) Bytes() []byte {
