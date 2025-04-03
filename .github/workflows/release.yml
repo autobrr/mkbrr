@@ -107,7 +107,7 @@ jobs:
   pgo:
     name: Generate PGO Profile
     runs-on: ubuntu-latest
-    needs: [test, testother]
+    #needs: [test, testother]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
