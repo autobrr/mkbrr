@@ -166,7 +166,8 @@ jobs:
   prepare:
     name: Prepare build for ${{ matrix.goos }}/${{ matrix.goarch }}
     needs: [ pgo, test, testother ]
-    runs-on: ubuntu-latest
+    # Use ubuntu-latest for Windows builds, otherwise use the matrix runner
+    runs-on: ${{ matrix.goos == 'windows' && 'ubuntu-latest' || matrix.runner }}
     strategy:
       fail-fast: true
       matrix:
@@ -182,7 +183,7 @@ jobs:
             runner: ubuntu-latest
           - goos: windows
             goarch: amd64
-            runner: windows-latest
+            runner: windows-latest  # This won't be used for Windows due to the runs-on condition above
           - goos: darwin
             goarch: amd64
             runner: macos-latest
