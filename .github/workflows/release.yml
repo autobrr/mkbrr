@@ -173,8 +173,8 @@ jobs:
     needs: [ pgo ]
     steps:
       - name: Install Cross-compilation Dependencies
-        # Install base Linux deps + MinGW for Windows cross-compile
-        run: sudo apt-get update && sudo apt-get install -y gcc libgl1-mesa-dev xorg-dev mingw-w64
+        # Install base Linux deps + MinGW for Windows cross-compile (using official package names)
+        run: sudo apt-get update && sudo apt-get install -y gcc libgl1-mesa-dev xorg-dev gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64
 
       - name: Checkout
         uses: actions/checkout@v4
