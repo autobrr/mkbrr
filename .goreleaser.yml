@@ -58,23 +58,6 @@ release:
 
 checksum:
   name_template: "{{ .ProjectName }}_{{ .Version }}_checksums.txt"
-  algorithm: sha256
-
-sboms:
-  - artifacts: archive
-
-signs:
-  - cmd: cosign
-    artifacts: checksum
-    output: true
-    args:
-      - sign-blob
-      - --key=env://COSIGN_PRIVATE_KEY
-      - --output-signature=${signature}
-      - --yes
-      - ${artifact}
-    env:
-      - COSIGN_PRIVATE_KEY={{ .Env.COSIGN_PRIVATE_KEY }}
 
 changelog:
   sort: asc
@@ -104,17 +87,3 @@ nfpms:
       - deb
       - rpm
       - archlinux
-
-announce:
-  skip: false
-  twitter:
-    enabled: true
-    message_template: 'mkbrr {{ .Tag }} has been released! Check it out at {{ .ReleaseURL }}'
-
-gomod:
-  proxy: true
-
-source:
-  enabled: true
-  name_template: '{{ .ProjectName }}_{{ .Version }}_source'
-  format: 'tar.gz'
