@@ -213,15 +213,6 @@ jobs:
           name: pprof
           path: .
 
-      # Special handling for Windows pprof artifact to avoid path issues
-      - name: Move pprof file to short path on Windows
-        if: matrix.goos == 'windows'
-        shell: pwsh
-        run: |
-          mkdir -p C:\pgo
-          Copy-Item -Path "cpu.pprof" -Destination "C:\pgo\cpu.pprof" -Force
-          echo "PGO_PATH=C:\pgo\cpu.pprof" | Out-File -FilePath $env:GITHUB_ENV -Append
-
       - name: Set short git commit SHA
         shell: bash
         run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
