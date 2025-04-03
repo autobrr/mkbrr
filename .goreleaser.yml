@@ -77,7 +77,6 @@ builds:
         env:
           # Explicitly set the C compiler for Windows CGO cross-compilation from Linux
           - CC=x86_64-w64-mingw32-gcc
-          - CGO_LDFLAGS=-lpthread
           - CGO_CFLAGS=-pthread
 
 archives:
