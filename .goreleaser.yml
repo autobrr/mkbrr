@@ -38,10 +38,10 @@ builds:
         goarch: arm64
     main: ./main.go
     binary: mkbrr
-    ldflags:
-      - -s -w
-      - -X main.version={{.Version}}
-      - -X main.buildTime={{.CommitDate}}
+    ldflags: >-
+      -s -w
+      -X main.version={{.Version}}
+      -X main.buildTime={{.CommitDate}}
 
 archives:
   - format_overrides:
