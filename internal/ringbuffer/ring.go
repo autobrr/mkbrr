@@ -164,17 +164,15 @@ func (r *RingBuffer) returnState() error {
 }
 
 func (r *RingBuffer) bytes() []byte {
-	if r.isempty() {
-		return nil
-	}
-
-	if r.start <= r.end {
+	if r.isempty() || r.start <= r.end {
+		//fmt.Printf("seq: first %q %d second %q %d final %d\n", r.buf[r.start:], r.start, r.buf[:r.end], r.end, len(r.buf))
 		return r.buf[r.start:r.end]
 	}
 
-	v := make([]byte, len(r.buf)-(r.start-r.end))
-	copy(v, r.buf[r.start:])
-	copy(v[len(r.buf)-r.start:], r.buf[:r.end])
+	v := make([]byte, 0, len(r.buf)-(r.start-r.end))
+	v = append(v, r.buf[r.start:]...)
+	v = append(v, r.buf[:r.end]...)
+	//fmt.Printf("bytes: first %q %d second %q %d final %q %d\n", r.buf[r.start:], r.start, r.buf[:r.end], r.end, v, len(r.buf))
 	return v
 }
 
@@ -211,6 +209,7 @@ func (r *RingBuffer) write(p []byte) int {
 	}
 
 	r.full = w != 0 && r.end == r.start
+	r.bytes()
 	//fmt.Printf("Write Done: %q | Buf: %q | start %d | end %d | full %v\n", p, r.bytes(), r.start, r.end, r.full)
 	return w
 }

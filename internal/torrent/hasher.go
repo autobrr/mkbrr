@@ -1,6 +1,7 @@
 package torrent
 
 import (
+	"bufio"
 	"crypto/sha1"
 	"errors"
 	"fmt"
@@ -303,7 +304,7 @@ func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Di
 
 func asycnReadFile(lf *os.File, lrb *ringbuffer.RingBuffer) {
 	defer lf.Close()
-	if _, err := io.Copy(lrb, lf); err != nil {
+	if _, err := io.Copy(lrb, bufio.NewReader(lf)); err != nil {
 		lrb.CloseWithError(err)
 	} else {
 		lrb.CloseWriter()
