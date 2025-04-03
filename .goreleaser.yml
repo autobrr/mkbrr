@@ -75,8 +75,8 @@ builds:
     overrides:
       - goos: windows
         env:
-          # Explicitly set the C compiler for Windows CGO cross-compilation from Linux
-          - CC=x86_64-w64-mingw32-gcc
+          # Explicitly set the C compiler for Windows CGO cross-compilation from Linux (aligning with Fyne docs)
+          - CC=x86_64-w64-mingw64-gcc
           - CGO_CFLAGS=-pthread
 
 archives:
