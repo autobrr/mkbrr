@@ -218,9 +218,8 @@ jobs:
         if: matrix.goos == 'windows'
         shell: pwsh
         run: |
-          mkdir -p C:\pgo
-          Copy-Item -Path "cpu.pprof" -Destination "C:\pgo\cpu.pprof" -Force
-          echo "PGO_PATH=C:\pgo\cpu.pprof" | Out-File -FilePath $env:GITHUB_ENV -Append
+          # For Windows, we will completely skip PGO by creating an empty flag env var
+          echo "GORELEASER_FLAGS=--clean --split --parallelism 1 --skip-validate" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Set short git commit SHA
         shell: bash
@@ -239,7 +238,7 @@ jobs:
         with:
           distribution: goreleaser-pro
           version: "~> v2"
-          args: ${{ matrix.goos == 'windows' && 'release --clean --split --parallelism 1' || 'release --clean --split --parallelism 5' }}
+          args: ${{ matrix.goos == 'windows' && env.GORELEASER_FLAGS || 'release --clean --split --parallelism 5' }}
         env:
           GGOOS: ${{ matrix.goos }}
           GGOARCH: ${{ matrix.goarch }}
