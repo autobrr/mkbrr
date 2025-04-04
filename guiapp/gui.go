@@ -2,8 +2,10 @@ package guiapp
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -16,6 +18,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 	"github.com/anacrolix/torrent/bencode"
 	mi "github.com/anacrolix/torrent/metainfo"
+	"github.com/autobrr/mkbrr/internal/preset"
 	"github.com/autobrr/mkbrr/internal/torrent"
 )
 
@@ -91,6 +94,19 @@ func (d *fyneDisplayer) ShowFileTree(info *mi.Info)                             
 func (d *fyneDisplayer) ShowBatchResults(results []torrent.BatchResult, totalTime time.Duration) {}
 
 func createTorrentTab(w fyne.Window, version, appName string) fyne.CanvasObject {
+	var presetConfig *preset.Config
+	presetPath, err := preset.FindPresetFile("")
+	if err == nil {
+		presetConfig, err = preset.Load(presetPath)
+		if err != nil {
+			log.Printf("Error loading presets from %s: %v\n", presetPath, err)
+		} else {
+			log.Printf("Loaded presets from %s\n", presetPath)
+		}
+	} else {
+		log.Println("No preset file found.")
+	}
+
 	selectedPathLabel := widget.NewLabel("No path selected")
 	selectedPathLabel.Wrapping = fyne.TextWrapBreak
 	selectDirButton := widget.NewButtonWithIcon("Select Directory", theme.FolderOpenIcon(), func() {
@@ -170,6 +186,46 @@ func createTorrentTab(w fyne.Window, version, appName string) fyne.CanvasObject 
 	})
 	outputContainer := container.NewBorder(nil, nil, nil, outputBrowseButton, outputEntry)
 	randomizeCheck := widget.NewCheck("Randomize Info Hash", nil)
+
+	presetSelect := widget.NewSelect([]string{"Manual"}, func(selectedName string) {
+		if presetConfig == nil || selectedName == "Manual" {
+			return
+		}
+
+		opts, err := presetConfig.GetPreset(selectedName)
+		if err != nil {
+			log.Printf("Error getting preset %s: %v\n", selectedName, err)
+			dialog.ShowError(fmt.Errorf("failed to load preset '%s': %w", selectedName, err), w)
+			return
+		}
+
+		if len(opts.Trackers) > 0 {
+			trackerEntry.SetText(opts.Trackers[0])
+		} else {
+			trackerEntry.SetText("")
+		}
+		if opts.Private != nil {
+			privateCheck.SetChecked(*opts.Private)
+		}
+		sourceEntry.SetText(opts.Source)
+		commentEntry.SetText(opts.Comment)
+		excludeEntry.SetText(strings.Join(opts.ExcludePatterns, ", "))
+	})
+	presetSelect.PlaceHolder = "Select Preset (Optional)"
+
+	if presetConfig != nil {
+		presetNames := []string{"Manual"}
+		keys := make([]string, 0, len(presetConfig.Presets))
+		for k := range presetConfig.Presets {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys) // Sort preset names alphabetically
+		presetNames = append(presetNames, keys...)
+		presetSelect.Options = presetNames
+		presetSelect.SetSelectedIndex(0) // Default to "Manual"
+	} else {
+		presetSelect.Disable()
+	}
 
 	createButton := widget.NewButtonWithIcon("Create Torrent", theme.DocumentCreateIcon(), func() {
 		path := selectedPathLabel.Text
@@ -256,19 +312,37 @@ func createTorrentTab(w fyne.Window, version, appName string) fyne.CanvasObject 
 			sourceEntry.SetText("")
 			commentEntry.SetText("")
 			outputEntry.SetText("")
+			if presetConfig != nil { // Only reset if presets were loaded and the select is enabled
+				presetSelect.SetSelectedIndex(0) // Reset to "Manual"
+			}
 		}()
 	})
 
-	form := &widget.Form{
-		Items: []*widget.FormItem{
-			{Text: "Path", Widget: container.NewVBox(selectedPathLabel, selectButtons)},
-			{Text: "Tracker URL", Widget: trackerEntry}, {Text: "Piece Size", Widget: pieceSizeSelect},
-			{Text: "Private", Widget: privateCheck}, {Text: "Source", Widget: sourceEntry},
-			{Text: "Comment", Widget: commentEntry}, {Text: "Exclude Patterns", Widget: excludeEntry},
-			{Text: "Output File", Widget: outputContainer}, {Text: "Randomize Hash", Widget: randomizeCheck},
-		},
-		SubmitText: "Create Torrent", OnSubmit: func() { createButton.OnTapped() },
+	formItems := []*widget.FormItem{
+		{Text: "Path", Widget: container.NewVBox(selectedPathLabel, selectButtons)},
 	}
+
+	if presetConfig != nil {
+		formItems = append(formItems, &widget.FormItem{Text: "Preset", Widget: presetSelect})
+	}
+
+	formItems = append(formItems,
+		&widget.FormItem{Text: "Tracker URL", Widget: trackerEntry},
+		&widget.FormItem{Text: "Piece Size", Widget: pieceSizeSelect},
+		&widget.FormItem{Text: "Private", Widget: privateCheck},
+		&widget.FormItem{Text: "Source", Widget: sourceEntry},
+		&widget.FormItem{Text: "Comment", Widget: commentEntry},
+		&widget.FormItem{Text: "Exclude Patterns", Widget: excludeEntry},
+		&widget.FormItem{Text: "Output File", Widget: outputContainer},
+		&widget.FormItem{Text: "Randomize Hash", Widget: randomizeCheck},
+	)
+
+	form := &widget.Form{
+		Items:      formItems,
+		SubmitText: "Create Torrent",
+		OnSubmit:   func() { createButton.OnTapped() },
+	}
+
 	content := container.NewVBox(widget.NewLabelWithStyle("Create a Torrent", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}), form)
 	return container.NewPadded(content)
 }
