@@ -151,6 +151,8 @@ func createTorrentTab(w fyne.Window, version, appName string) fyne.CanvasObject 
 	commentEntry.Wrapping = fyne.TextWrapBreak
 	excludeEntry := widget.NewEntry()
 	excludeEntry.SetPlaceHolder("*.nfo, *.jpg, temp* (comma-separated)")
+	includeEntry := widget.NewEntry()
+	includeEntry.SetPlaceHolder("*.mkv, *.mp4 (comma-separated)")
 	outputEntry := widget.NewEntry()
 	outputEntry.SetPlaceHolder("auto-generated filename")
 	outputBrowseButton := widget.NewButton("Browse...", func() {
@@ -210,6 +212,7 @@ func createTorrentTab(w fyne.Window, version, appName string) fyne.CanvasObject 
 		sourceEntry.SetText(opts.Source)
 		commentEntry.SetText(opts.Comment)
 		excludeEntry.SetText(strings.Join(opts.ExcludePatterns, ", "))
+		includeEntry.SetText(strings.Join(opts.IncludePatterns, ", "))
 	})
 	presetSelect.PlaceHolder = "Select Preset (Optional)"
 
@@ -291,10 +294,11 @@ func createTorrentTab(w fyne.Window, version, appName string) fyne.CanvasObject 
 			Comment:         commentEntry.Text,
 			TrackerURL:      trackerURL,
 			Displayer:       displayer,
-			Version:         version, // Use passed-in version
-			AppName:         appName, // Use passed-in appName
+			Version:         version,
+			AppName:         appName,
 			Entropy:         randomizeCheck.Checked,
 			ExcludePatterns: parseExcludePatterns(excludeEntry.Text),
+			IncludePatterns: parseIncludePatterns(includeEntry.Text),
 		}
 		if pieceSize > 0 {
 			options.PieceLengthExp = &pieceSize
@@ -311,9 +315,11 @@ func createTorrentTab(w fyne.Window, version, appName string) fyne.CanvasObject 
 			trackerEntry.SetText("")
 			sourceEntry.SetText("")
 			commentEntry.SetText("")
+			excludeEntry.SetText("")
+			includeEntry.SetText("")
 			outputEntry.SetText("")
-			if presetConfig != nil { // Only reset if presets were loaded and the select is enabled
-				presetSelect.SetSelectedIndex(0) // Reset to "Manual"
+			if presetConfig != nil {
+				presetSelect.SetSelectedIndex(0)
 			}
 		}()
 	})
@@ -333,6 +339,7 @@ func createTorrentTab(w fyne.Window, version, appName string) fyne.CanvasObject 
 		&widget.FormItem{Text: "Source", Widget: sourceEntry},
 		&widget.FormItem{Text: "Comment", Widget: commentEntry},
 		&widget.FormItem{Text: "Exclude Patterns", Widget: excludeEntry},
+		&widget.FormItem{Text: "Include Patterns", Widget: includeEntry},
 		&widget.FormItem{Text: "Output File", Widget: outputContainer},
 		&widget.FormItem{Text: "Randomize Hash", Widget: randomizeCheck},
 	)
@@ -348,6 +355,21 @@ func createTorrentTab(w fyne.Window, version, appName string) fyne.CanvasObject 
 }
 
 func parseExcludePatterns(patterns string) []string {
+	if patterns == "" {
+		return nil
+	}
+	parts := strings.Split(patterns, ",")
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		trimmed := strings.TrimSpace(p)
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
+}
+
+func parseIncludePatterns(patterns string) []string {
 	if patterns == "" {
 		return nil
 	}
