@@ -29,74 +29,69 @@ func New(size int) *RingBuffer {
 	}
 }
 
-func (r *RingBuffer) processReadWrite(
-	p []byte,
-	isRead bool,
-	isBlocked func() bool,
-	wait func(),
-	signal func(),
-	process func([]byte) int,
-	recalculate func(int),
-) (int, error) {
-	w := 0
-	lock := r.readWake.L
-	if (!isRead) {
-		lock = r.writeWake.L
+func (r *RingBuffer) Read(p []byte) (int, error) {
+	if r.isClosedRead() {
+		return 0, r.returnState()
 	}
 
-	lock.Lock()
-	defer lock.Unlock()
-
+	w := 0
+	r.readWake.L.Lock()
+	defer r.readWake.L.Unlock()
 	for w < len(p) {
 		if r.isShutdown() {
 			return w, io.ErrUnexpectedEOF
-		} else if isRead && r.isClosedRead() {
+		} else if r.isClosedRead() {
 			break
-		} else if !isRead && r.isClosed() {
-			break
-		} else if isBlocked() {
+		} else if r.isEmpty() {
 			if w != 0 {
 				break
 			}
-			wait()
+			r.readWake.Wait()
 			continue
 		}
 
 		r.m.Lock()
-		n := process(p[w:])
-		if n != 0 {
-			signal()
+		if n := r.read(p[w:]); n != 0 {
+			r.writeWake.Signal()
 			w += n
 		}
 		r.m.Unlock()
 	}
 
-	recalculate(w)
 	return w, nil
 }
 
-func (r *RingBuffer) Read(p []byte) (int, error) {
-	return r.processReadWrite(
-		p,
-		true,
-		r.isEmpty,
-		r.readWake.Wait,
-		r.writeWake.Signal,
-		r.read,
-		r.recalculateRead,
-	)
-}
-
 func (r *RingBuffer) Write(p []byte) (int, error) {
-	return r.processReadWrite(
-		p,
-		false,
-		r.isFull,
-		r.writeWake.Wait,
-		r.readWake.Signal,
-		r.write,
-		r.recalculateWrite,
-	)
+	if r.isClosed() {
+		return 0, r.returnState()
+	}
+
+	w := 0
+	r.writeWake.L.Lock()
+	defer r.writeWake.L.Unlock()
+	for w < len(p) {
+		if r.isShutdown() {
+			return w, io.ErrUnexpectedEOF
+		} else if r.isClosed() {
+			break
+		} else if r.isFull() {
+			r.writeWake.Wait()
+			continue
+		}
+
+		r.m.Lock()
+		if n := r.write(p[w:]); n != 0 {
+			r.readWake.Signal()
+			w += n
+		}
+		r.m.Unlock()
+	}
+
+	var err error = nil
+	if w != len(p) {
+		err = io.ErrShortWrite
+	}
+	return w, err
 }
 
 func (r *RingBuffer) ReadFrom(rio io.Reader) (int64, error) {
