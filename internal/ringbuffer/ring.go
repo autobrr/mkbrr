@@ -85,7 +85,6 @@ func (r *RingBuffer) Write(p []byte) (int, error) {
 			w += n
 		}
 		r.m.Unlock()
-
 	}
 
 	var err error = nil
@@ -93,6 +92,100 @@ func (r *RingBuffer) Write(p []byte) (int, error) {
 		err = io.ErrShortWrite
 	}
 	return w, err
+}
+
+func (r *RingBuffer) ReadFrom(rio io.Reader) (int64, error) {
+	if r.isClosed() {
+		return 0, r.returnState()
+	}
+
+	var w int64
+	r.writeWake.L.Lock()
+	defer r.writeWake.L.Unlock()
+	for {
+		if r.isShutdown() {
+			return w, io.ErrUnexpectedEOF
+		} else if r.isClosed() {
+			break
+		} else if r.isFull() {
+			r.writeWake.Wait()
+			continue
+		}
+
+		r.m.Lock()
+		nn, e := r.copyfrom(rio)
+		r.m.Unlock()
+
+		if nn > 0 {
+			w += int64(nn)
+			r.readWake.Signal()
+		}
+
+		if e != nil {
+			if e == io.EOF {
+				break
+			}
+			return w, e
+		}
+	}
+
+	//fmt.Printf("ReadFrom Done: W %d | Buf: %q | start %d | end %d | full %v\n", w, r.bytes(), r.start, r.end, r.full)
+	return w, nil
+}
+
+func (r *RingBuffer) WriteTo(wio io.Writer) (int64, error) {
+	if r.isClosedRead() {
+		return 0, r.returnState()
+	}
+
+	var w int64
+	r.readWake.L.Lock()
+	defer r.readWake.L.Unlock()
+	for {
+		if r.isShutdown() {
+			return w, io.ErrUnexpectedEOF
+		} else if r.isClosedRead() {
+			break
+		} else if r.isEmpty() {
+			r.readWake.Wait()
+			continue
+		}
+
+		r.m.Lock()
+		nn, e := r.copyto(wio)
+		r.m.Unlock()
+
+		if nn > 0 {
+			w += int64(nn)
+			r.writeWake.Signal()
+		} else if nn == 0 && e == nil {
+			break
+		}
+
+		if e != nil {
+			if e == io.EOF {
+				break
+			}
+			return w, e
+		}
+	}
+
+	return w, nil
+}
+
+func (r *RingBuffer) Len() int {
+	r.m.RLock()
+	defer r.m.RUnlock()
+
+	if r.start <= r.end {
+		return r.end - r.start
+	}
+
+	return len(r.buf) - r.start + r.end
+}
+
+func (r *RingBuffer) Size() int {
+	return len(r.buf)
 }
 
 func (r *RingBuffer) CloseWriter() {
@@ -224,6 +317,48 @@ func (r *RingBuffer) write(p []byte) int {
 	r.full = w != 0 && r.end == r.start
 	//fmt.Printf("Write Done: %q | Buf: %q | start %d | end %d | full %v\n", p, r.bytes(), r.start, r.end, r.full)
 	return w
+}
+
+func (r *RingBuffer) copyfrom(rio io.Reader) (int, error) {
+	w := 0
+	var err error
+	//fmt.Printf("copyFrom: Buf: %q | start %d | end %d\n", r.bytes(), r.start, r.end)
+	if r.start <= r.end {
+		end := len(r.buf) - r.end
+		w, err = rio.Read(r.buf[r.end : r.end+end])
+		r.end = (r.end + w) % len(r.buf)
+	} else {
+		// Write to the start of the buffer
+		end := r.start - r.end
+		w, err = rio.Read(r.buf[r.end : r.end+end])
+		r.end += w
+	}
+
+	r.full = w != 0 && r.end == r.start
+	//fmt.Printf("copyFrom Done: W %d | Err: %q | Buf: %q | start %d | end %d | full %v\n", w, err, r.bytes(), r.start, r.end, r.full)
+	return w, err
+}
+
+func (r *RingBuffer) copyto(wio io.Writer) (int, error) {
+	w := 0
+	var err error
+	//fmt.Printf("copyTo: Buf: %q | start %d | end %d\n", r.bytes(), r.start, r.end)
+	if r.start < r.end {
+		end := r.end - r.start
+		w, err = wio.Write(r.buf[r.start : r.start+end])
+		r.start += w
+	} else {
+		end := len(r.buf) - r.start
+		w, err = wio.Write(r.buf[r.start : r.start+end])
+		r.start = (r.start + w) % len(r.buf)
+	}
+
+	r.full = r.full && w == 0
+	if r.isempty() {
+		r.resetposition()
+	}
+	//fmt.Printf("copyTo Done: W %d | Err: %q | Buf: %q | start %d | end %d | full %v\n", w, err, r.bytes(), r.start, r.end, r.full)
+	return w, err
 }
 
 func (r *RingBuffer) isclosed() bool {

@@ -379,3 +379,59 @@ func TestRingBuffer_LargeReadBufferWithAsyncWrites(t *testing.T) {
 		t.Errorf("Expected to read '%s', got '%s'", expected, string(b.Bytes()[:n]))
 	}
 }
+
+func TestRingBuffer_ConcurrentWorkers(t *testing.T) {
+	rb := New(20) // Buffer size of 20
+
+	// Number of workers
+	numWriters := 50
+	numReaders := 50
+	numIterations := 50
+
+	// Channels to signal completion of workers
+	writerDone := make(chan struct{}, numWriters)
+	readerDone := make(chan struct{}, numReaders)
+
+	// Writer workers
+	for i := 0; i < numWriters; i++ {
+		go func(id int) {
+			defer func() { writerDone <- struct{}{} }()
+			for j := 0; j < numIterations; j++ {
+				data := []byte{byte('A' + (id % 26))} // Each writer writes its own character
+				_, err := rb.Write(data)
+				if err != nil {
+					t.Errorf("Writer %d error: %v", id, err)
+					return
+				}
+			}
+		}(i)
+	}
+
+	// Reader workers
+	for i := 0; i < numReaders; i++ {
+		go func(id int) {
+			defer func() { readerDone <- struct{}{} }()
+			buf := make([]byte, 1)
+			for j := 0; j < numIterations; j++ {
+				_, err := rb.Read(buf)
+				if err != nil && err != io.EOF {
+					t.Errorf("Reader %d error: %v", id, err)
+					return
+				}
+			}
+		}(i)
+	}
+
+	// Wait for all workers to finish
+	for i := 0; i < numWriters; i++ {
+		<-writerDone
+	}
+	for i := 0; i < numReaders; i++ {
+		<-readerDone
+	}
+
+	// Ensure the buffer is empty after all workers are done
+	if !rb.isEmpty() {
+		t.Errorf("Buffer should be empty after all workers are done")
+	}
+}
