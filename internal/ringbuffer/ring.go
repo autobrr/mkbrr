@@ -279,86 +279,67 @@ func (r *RingBuffer) bytes() []byte {
 	return v
 }
 
-func (r *RingBuffer) read(p []byte) int {
-	w := 0
-	//fmt.Printf("Read: %q | Buf: %q | start %d | end %d\n", p, r.bytes(), r.start, r.end)
-	if r.start < r.end {
-		end := min(r.end-r.start, len(p))
-		w = copy(p, r.buf[r.start:r.start+end])
-		r.start += end
-	} else {
-		end := min(len(r.buf)-r.start, len(p))
-		w = copy(p, r.buf[r.start:r.start+end])
-		r.start = (r.start + end) % len(r.buf)
+func processRing[T any](p []T, src []T, start, end int) int {
+	if start < end {
+		return copy(p, src[start:end])
 	}
 
-	r.full = r.full && w == 0
-	if r.isempty() {
-		r.resetposition()
+	n := copy(p, src[start:])
+	if n < len(p) {
+		n += copy(p[n:], src[:end])
 	}
-	//fmt.Printf("Read Done: %q | Buf: %q | start %d | end %d | full %v\n", p, r.bytes(), r.start, r.end, r.full)
+	return n
+}
+
+func (r *RingBuffer) read(p []byte) int {
+	w := processRing(p, r.buf, r.start, r.end)
+	r.recalculateRead(w)
 	return w
 }
 
 func (r *RingBuffer) write(p []byte) int {
-	w := 0
-	//fmt.Printf("Write: %q | Buf: %q | start %d | end %d\n", p, r.bytes(), r.start, r.end)
-	if r.start <= r.end {
-		end := min(len(r.buf)-r.end, len(p))
-		w = copy(r.buf[r.end:r.end+end], p)
-		r.end = (r.end + end) % len(r.buf)
-	} else {
-		// Write to the start of the buffer
-		end := min(r.start-r.end, len(p))
-		w = copy(r.buf[r.end:r.end+end], p)
-		r.end += end
-	}
-
-	r.full = w != 0 && r.end == r.start
-	//fmt.Printf("Write Done: %q | Buf: %q | start %d | end %d | full %v\n", p, r.bytes(), r.start, r.end, r.full)
+	w := processRing(r.buf[r.end:], p, 0, len(p))
+	r.recalculateWrite(w)
 	return w
 }
 
-func (r *RingBuffer) copyfrom(rio io.Reader) (int, error) {
-	w := 0
-	var err error
-	//fmt.Printf("copyFrom: Buf: %q | start %d | end %d\n", r.bytes(), r.start, r.end)
-	if r.start <= r.end {
-		end := len(r.buf) - r.end
-		w, err = rio.Read(r.buf[r.end : r.end+end])
-		r.end = (r.end + w) % len(r.buf)
-	} else {
-		// Write to the start of the buffer
-		end := r.start - r.end
-		w, err = rio.Read(r.buf[r.end : r.end+end])
-		r.end += w
+func processIO(buf []byte, start, end int, handler func([]byte) (int, error)) (int, error) {
+	if start < end {
+		return handler(buf[start:end])
 	}
 
-	r.full = w != 0 && r.end == r.start
-	//fmt.Printf("copyFrom Done: W %d | Err: %q | Buf: %q | start %d | end %d | full %v\n", w, err, r.bytes(), r.start, r.end, r.full)
+	n, err := handler(buf[start:])
+	if err != nil || n == len(buf)-start {
+		return n, err
+	}
+
+	m, err := handler(buf[:end])
+	return n + m, err
+}
+
+func (r *RingBuffer) copyfrom(rio io.Reader) (int, error) {
+	w, err := processIO(r.buf, r.end, r.start, rio.Read)
+	r.recalculateWrite(w)
 	return w, err
 }
 
 func (r *RingBuffer) copyto(wio io.Writer) (int, error) {
-	w := 0
-	var err error
-	//fmt.Printf("copyTo: Buf: %q | start %d | end %d\n", r.bytes(), r.start, r.end)
-	if r.start < r.end {
-		end := r.end - r.start
-		w, err = wio.Write(r.buf[r.start : r.start+end])
-		r.start += w
-	} else {
-		end := len(r.buf) - r.start
-		w, err = wio.Write(r.buf[r.start : r.start+end])
-		r.start = (r.start + w) % len(r.buf)
-	}
+	w, err := processIO(r.buf, r.start, r.end, wio.Write)
+	r.recalculateRead(w)
+	return w, err
+}
 
+func (r *RingBuffer) recalculateRead(w int) {
+	r.start = (r.start + w) % len(r.buf)
 	r.full = r.full && w == 0
 	if r.isempty() {
 		r.resetposition()
 	}
-	//fmt.Printf("copyTo Done: W %d | Err: %q | Buf: %q | start %d | end %d | full %v\n", w, err, r.bytes(), r.start, r.end, r.full)
-	return w, err
+}
+
+func (r *RingBuffer) recalculateWrite(w int) {
+	r.end = (r.end + w) % len(r.buf)
+	r.full = w != 0 && r.end == r.start
 }
 
 func (r *RingBuffer) isclosed() bool {
