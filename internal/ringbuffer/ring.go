@@ -117,8 +117,8 @@ func (r *RingBuffer) ReadFrom(rio io.Reader) (int64, error) {
 		r.m.Unlock()
 
 		if nn > 0 {
-			w += int64(nn)
 			r.readWake.Signal()
+			w += int64(nn)
 		}
 
 		if e != nil {
@@ -156,8 +156,8 @@ func (r *RingBuffer) WriteTo(wio io.Writer) (int64, error) {
 		r.m.Unlock()
 
 		if nn > 0 {
-			w += int64(nn)
 			r.writeWake.Signal()
+			w += int64(nn)
 		} else if nn == 0 && e == nil {
 			break
 		}
@@ -279,26 +279,34 @@ func (r *RingBuffer) bytes() []byte {
 	return v
 }
 
-func processRing[T any](p []T, src []T, start, end int) int {
+func processRead[T any](p []T, src []T, start, end int) int {
 	if start < end {
 		return copy(p, src[start:end])
 	}
 
 	n := copy(p, src[start:])
-	if n < len(p) {
-		n += copy(p[n:], src[:end])
+	n += copy(p[n:], src[:end])
+	return n
+}
+
+func processWrite[T any](p []T, src []T, start, end int) int {
+	if start < end {
+		return copy(p[start:end], src)
 	}
+
+	n := copy(p[start:], src)
+	n += copy(p[:end], src[n:])
 	return n
 }
 
 func (r *RingBuffer) read(p []byte) int {
-	w := processRing(p, r.buf, r.start, r.end)
+	w := processRead(p, r.buf, r.start, r.end)
 	r.recalculateRead(w)
 	return w
 }
 
 func (r *RingBuffer) write(p []byte) int {
-	w := processRing(r.buf[r.end:], p, 0, len(p))
+	w := processWrite(r.buf, p, r.end, r.start)
 	r.recalculateWrite(w)
 	return w
 }
