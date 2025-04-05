@@ -13,72 +13,25 @@ builds:
     env:
       - CGO_ENABLED=0
       - BUILDER
-    # flags: # Temporarily remove PGO flag for troubleshooting Windows build
+    # flags: # PGO flag removed during simplification, can be re-added if needed
     #   - -pgo=cpu.pprof
-    goos:
-      - linux
-      - windows
-      - darwin
-      - freebsd
-    goarch:
-      - amd64
-      - arm
-      - arm64
-    goarm:
-      - 6
-    ignore:
-      - goos: windows
-        goarch: arm
-      - goos: windows
-        goarch: arm64
-      - goos: darwin
-        goarch: arm
-      - goos: freebsd
-        goarch: arm
-      - goos: freebsd
-        goarch: arm64
     main: ./cmd/mkbrr/
     binary: mkbrr
     ldflags:
       - -s -w
       - -X main.version={{.Version}}
       - -X main.buildTime={{.CommitDate}}
-    overrides:
-      - goos: windows
-        # Try removing the buildTime ldflag for Windows build troubleshooting
-        ldflags:
-          - -s -w
-          - -X main.version={{.Version}}
 
   - id: mkbrr-gui
     env:
-      - CGO_ENABLED=1
+      - CGO_ENABLED=1 # CGO is needed for GUI
       - BUILDER
-    goos:
-      - linux
-      - windows
-      - darwin
-    goarch:
-      - amd64
-      - arm64
-    ignore:
-      - goos: linux
-        goarch: arm64
-      - goos: windows
-        goarch: arm64
     main: ./cmd/mkbrr-gui/
     binary: mkbrr-gui
     ldflags:
       - -s -w
       - -X main.version={{.Version}}
       - -X main.buildTime={{.CommitDate}}
-    overrides:
-      - goos: windows
-        env:
-          # Explicitly set the C compiler for Windows CGO cross-compilation from Linux (aligning with Fyne docs)
-          - CC=x86_64-w64-mingw64-gcc
-          - CGO_CFLAGS=-pthread
-
 archives:
   - format_overrides:
       - goos: windows

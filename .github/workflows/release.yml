@@ -166,20 +166,19 @@ jobs:
           name: pprof
           path: cpu.pprof
 
-  # Build and Release job: runs on ubuntu, handles cross-compilation
-  goreleaser:
-    name: Build and Release binaries
-    runs-on: ubuntu-latest # Use Ubuntu as the primary builder
+  prepare:
+    name: Prepare release (${{ matrix.os }})
     needs: [ pgo ]
+    strategy:
+      fail-fast: false # Allow other jobs to finish even if one fails
+      matrix:
+        os: [ ubuntu-latest, macos-latest, windows-latest ]
+    runs-on: ${{ matrix.os }}
     steps:
-      - name: Install Cross-compilation Dependencies
-        # Install base Linux deps + MinGW for Windows cross-compile (using official package names)
-        run: sudo apt-get update && sudo apt-get install -y gcc libgl1-mesa-dev xorg-dev gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64
-
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Ensure tags are fetched for release notes
+          fetch-depth: 0 # Ensure tags are fetched
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -187,31 +186,113 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: true
 
-      - name: Download pprof
+      - name: Download pprof artifact
         uses: actions/download-artifact@v4
         with:
           name: pprof
           path: .
 
-      # Run GoReleaser Pro - it will build all targets defined in .goreleaser.yml
-      # including cross-compiled CGO builds
-      - name: Run GoReleaser
+      - name: Get short SHA
+        id: sha
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      # Cache dist directory per OS based on commit SHA
+      # Note: Caching might be less effective for PRs/branch builds if they don't reuse commits often
+      - name: Cache GoReleaser dist directory (Linux)
+        uses: actions/cache@v4
+        if: matrix.os == 'ubuntu-latest'
+        with:
+          path: dist/linux* # Cache linux specific dist outputs
+          key: goreleaser-dist-linux-${{ steps.sha.outputs.sha_short }}-${{ github.ref }}
+          restore-keys: |
+            goreleaser-dist-linux-${{ steps.sha.outputs.sha_short }}-
+
+      - name: Cache GoReleaser dist directory (macOS)
+        uses: actions/cache@v4
+        if: matrix.os == 'macos-latest'
+        with:
+          path: dist/darwin* # Cache darwin specific dist outputs
+          key: goreleaser-dist-darwin-${{ steps.sha.outputs.sha_short }}-${{ github.ref }}
+          restore-keys: |
+            goreleaser-dist-darwin-${{ steps.sha.outputs.sha_short }}-
+
+      - name: Cache GoReleaser dist directory (Windows)
+        uses: actions/cache@v4
+        if: matrix.os == 'windows-latest'
+        with:
+          path: dist/windows* # Cache windows specific dist outputs
+          key: goreleaser-dist-windows-${{ steps.sha.outputs.sha_short }}-${{ github.ref }}
+          restore-keys: |
+            goreleaser-dist-windows-${{ steps.sha.outputs.sha_short }}-
+          # enableCrossOsArchive: true # Might not be needed if only caching native builds
+
+      # Run GoReleaser build/split phase
+      # Only use --split for actual tag releases
+      - name: Run GoReleaser Prepare Phase
+        id: goreleaser-prepare
+        uses: goreleaser/goreleaser-action@v6
+        # Check if cache was hit for the specific OS dist directory
+        # If cache hit, skip running goreleaser build/split again
+        if: steps.cache-${{ matrix.os }}.outputs.cache-hit != 'true'
+        with:
+          distribution: goreleaser-pro
+          version: "~> v2"
+          args: ${{ startsWith(github.ref, 'refs/tags/') && 'release --clean --split' || 'build --snapshot --clean' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
+          BUILDER: ${{ github.actor }}@github-actions-${{ matrix.os }}
+
+  release:
+    name: Merge and Publish Release
+    needs: [ prepare ]
+    runs-on: ubuntu-latest # Merge step typically runs on a single runner
+    # Only run the merge/publish job for tag pushes
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true # Cache Go modules
+
+      - name: Get short SHA
+        id: sha
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      # Restore all cached dist directories from prepare jobs
+      - name: Restore GoReleaser dist cache (Linux)
+        uses: actions/cache@v4
+        with:
+          path: dist/linux*
+          key: goreleaser-dist-linux-${{ steps.sha.outputs.sha_short }}-${{ github.ref }}
+          # No restore-keys needed here, we need the exact cache from prepare
+
+      - name: Restore GoReleaser dist cache (macOS)
+        uses: actions/cache@v4
+        with:
+          path: dist/darwin*
+          key: goreleaser-dist-darwin-${{ steps.sha.outputs.sha_short }}-${{ github.ref }}
+
+      - name: Restore GoReleaser dist cache (Windows)
+        uses: actions/cache@v4
+        with:
+          path: dist/windows*
+          key: goreleaser-dist-windows-${{ steps.sha.outputs.sha_short }}-${{ github.ref }}
+
+      # Run GoReleaser merge/publish phase
+      - name: Run GoReleaser Merge Phase
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser-pro
           version: "~> v2"
-          # Use 'release --clean' for tags, 'build --snapshot --clean' for PRs/main
-          args: ${{ startsWith(github.ref, 'refs/tags/') && 'release --clean' || 'build --snapshot --clean' }}
+          args: release --merge
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
-          BUILDER: ${{ github.actor }}@github-actions
-
-      # Optional: Upload assets from build step if needed (e.g., for PR checks)
-      - name: Upload Build Assets (Optional)
-        # Compare startsWith result to false instead of using negation operator
-        if: startsWith(github.ref, 'refs/tags/') == false # Only upload if not a tag release
-        uses: actions/upload-artifact@v4
-        with:
-          name: mkbrr-build-artifacts
-          path: dist/*
+          BUILDER: ${{ github.actor }}@github-actions-release-job # Different builder ID for merge job
