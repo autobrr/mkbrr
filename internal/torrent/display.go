@@ -16,14 +16,14 @@ import (
 )
 
 type Display struct {
-	formatter *Formatter
+	formatter *BytesFormatter
 	bar       *progressbar.ProgressBar
 	isBatch   bool
 	quiet     bool
 	output    io.Writer
 }
 
-func NewDisplay(formatter *Formatter) *Display {
+func NewDisplay(formatter *BytesFormatter) *Display {
 	return &Display{
 		formatter: formatter,
 		quiet:     false,
@@ -80,17 +80,18 @@ func (d *Display) UpdateProgress(completed int, hashrate float64) {
 	}
 }
 
-func (d *Display) ShowFiles(files []fileEntry) {
+func (d *Display) ShowFiles(files []FileEntry) { // Changed to exported FileEntry
 	fmt.Fprintf(d.output, "\n%s\n", magenta("Files being hashed:"))
 	for i, file := range files {
 		prefix := "  ├─"
 		if i == len(files)-1 {
 			prefix = "  └─"
 		}
+		// Use exported fields Name and Size
 		fmt.Fprintf(d.output, "%s %s (%s)\n",
 			prefix,
-			success(filepath.Base(file.path)),
-			label(d.formatter.FormatBytes(file.length)))
+			success(file.Name),
+			label(d.formatter.FormatBytes(file.Size)))
 	}
 	fmt.Fprintln(d.output)
 }
@@ -267,19 +268,19 @@ func (d *Display) ShowBatchResults(results []BatchResult, duration time.Duration
 	}
 }
 
-type Formatter struct {
+type BytesFormatter struct {
 	verbose bool
 }
 
-func NewFormatter(verbose bool) *Formatter {
-	return &Formatter{verbose: verbose}
+func NewBytesFormatter(verbose bool) *BytesFormatter {
+	return &BytesFormatter{verbose: verbose}
 }
 
-func (f *Formatter) FormatBytes(bytes int64) string {
+func (f *BytesFormatter) FormatBytes(bytes int64) string {
 	return humanize.IBytes(uint64(bytes))
 }
 
-func (f *Formatter) FormatDuration(dur time.Duration) string {
+func (f *BytesFormatter) FormatDuration(dur time.Duration) string {
 	if dur < time.Second {
 		return fmt.Sprintf("%dms", dur.Milliseconds())
 	}

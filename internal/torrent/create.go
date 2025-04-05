@@ -11,6 +11,7 @@ import (
 
 	"github.com/anacrolix/torrent/bencode"
 	"github.com/anacrolix/torrent/metainfo"
+
 	"github.com/autobrr/mkbrr/internal/preset"
 	"github.com/autobrr/mkbrr/internal/trackers"
 )
@@ -54,7 +55,7 @@ func calculatePieceLength(totalSize int64, maxPieceLength *uint, trackerURL stri
 				exp = maxExp
 			}
 			if verbose {
-				display := NewDisplay(NewFormatter(verbose))
+				display := NewDisplay(NewBytesFormatter(verbose))
 				display.ShowMessage(fmt.Sprintf("using tracker-specific range for content size: %d MiB (recommended: %s pieces)",
 					totalSize>>20, formatPieceSize(exp)))
 			}
@@ -127,7 +128,7 @@ func (t *Torrent) GetInfo() *metainfo.Info {
 	return info
 }
 
-func generateRandomString() (string, error) {
+func GenerateRandomString() (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
 		return "", err
@@ -149,7 +150,7 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 	}
 
 	if !opts.NoCreator {
-		mi.CreatedBy = fmt.Sprintf("mkbrr/%s (https://github.com/autobrr/mkbrr)", opts.Version)
+		mi.CreatedBy = fmt.Sprintf("%s/%s (https://github.com/autobrr/mkbrr)", opts.AppName, opts.Version)
 	}
 
 	if !opts.NoDate {
@@ -190,16 +191,23 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 		return files[i].path < files[j].path
 	})
 
+	// Use the provided displayer, or create a default CLI one if nil
+	displayer := opts.Displayer
+	if displayer == nil {
+		cliDisplayer := NewDisplay(NewBytesFormatter(opts.Verbose))
+		cliDisplayer.SetQuiet(opts.Quiet)
+		displayer = cliDisplayer
+	}
+
 	// Function to create torrent with given piece length
 	createWithPieceLength := func(pieceLength uint) (*Torrent, error) {
 		pieceLenInt := int64(1) << pieceLength
 		numPieces := (totalSize + pieceLenInt - 1) / pieceLenInt
 
-		display := NewDisplay(NewFormatter(opts.Verbose))
-		display.SetQuiet(opts.Quiet)
-		hasher := NewPieceHasher(files, pieceLenInt, int(numPieces), display)
+		// Use the displayer (either from opts or the default CLI one)
+		hasher := NewPieceHasher(files, pieceLenInt, int(numPieces), displayer)
 
-		if err := hasher.hashPieces(1); err != nil {
+		if err := hasher.hashPieces(1); err != nil { // TODO: Consider using optimized numWorkers here?
 			return nil, fmt.Errorf("error hashing pieces: %w", err)
 		}
 
@@ -259,7 +267,7 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 		if opts.Entropy {
 			infoMap := make(map[string]interface{})
 			if err := bencode.Unmarshal(infoBytes, &infoMap); err == nil {
-				if entropy, err := generateRandomString(); err == nil {
+				if entropy, err := GenerateRandomString(); err == nil {
 					infoMap["entropy"] = entropy
 					if infoBytes, err = bencode.Marshal(infoMap); err == nil {
 						mi.InfoBytes = infoBytes
@@ -313,7 +321,7 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 		// If we have a tracker with specific ranges, show that we're using them and check if piece length matches
 		if exp, ok := trackers.GetTrackerPieceSizeExp(opts.TrackerURL, uint64(totalSize)); ok {
 			if opts.Verbose {
-				display := NewDisplay(NewFormatter(opts.Verbose))
+				display := NewDisplay(NewBytesFormatter(opts.Verbose))
 				display.SetQuiet(opts.Quiet)
 				display.ShowMessage(fmt.Sprintf("using tracker-specific range for content size: %d MiB (recommended: %s pieces)",
 					totalSize>>20, formatPieceSize(exp)))
@@ -328,7 +336,7 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 	// Check for tracker size limits and adjust piece length if needed
 	if maxSize, ok := trackers.GetTrackerMaxTorrentSize(opts.TrackerURL); ok {
 		// Try creating the torrent with initial piece length
-		t, err := createWithPieceLength(pieceLength)
+		t, err := createWithPieceLength(pieceLength) // Pass displayer implicitly via closure
 		if err != nil {
 			return nil, err
 		}
@@ -342,14 +350,14 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 		// If it exceeds limit, try increasing piece length until it fits or we hit max
 		for uint64(len(torrentData)) > maxSize && pieceLength < 24 {
 			if opts.Verbose {
-				display := NewDisplay(NewFormatter(opts.Verbose))
+				display := NewDisplay(NewBytesFormatter(opts.Verbose))
 				display.SetQuiet(opts.Quiet)
 				display.ShowWarning(fmt.Sprintf("increasing piece length to reduce torrent size (current: %.1f KiB, limit: %.1f KiB)",
 					float64(len(torrentData))/(1<<10), float64(maxSize)/(1<<10)))
 			}
 
 			pieceLength++
-			t, err = createWithPieceLength(pieceLength)
+			t, err = createWithPieceLength(pieceLength) // Pass displayer implicitly via closure
 			if err != nil {
 				return nil, err
 			}
@@ -369,7 +377,7 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 	}
 
 	// No size limit, just create with original piece length
-	return createWithPieceLength(pieceLength)
+	return createWithPieceLength(pieceLength) // Pass displayer implicitly via closure
 }
 
 // Create creates a new torrent file with the given options
@@ -424,12 +432,18 @@ func Create(opts CreateTorrentOptions) (*TorrentInfo, error) {
 		Announce: opts.TrackerURL,
 	}
 
-	// display info if verbose
-	if opts.Verbose {
-		display := NewDisplay(NewFormatter(opts.Verbose))
-		display.ShowTorrentInfo(t, info)
+	// display info if verbose using the appropriate displayer
+	// (No need to create a new one here, CreateTorrent handles that)
+	if opts.Displayer != nil && opts.Verbose {
+		opts.Displayer.ShowTorrentInfo(t, info)
 		if len(info.Files) > 0 {
-			display.ShowFileTree(info)
+			opts.Displayer.ShowFileTree(info)
+		}
+	} else if opts.Verbose { // Fallback to CLI displayer if opts.Displayer is nil but verbose is true
+		cliDisplayer := NewDisplay(NewBytesFormatter(opts.Verbose))
+		cliDisplayer.ShowTorrentInfo(t, info)
+		if len(info.Files) > 0 {
+			cliDisplayer.ShowFileTree(info)
 		}
 	}
 
