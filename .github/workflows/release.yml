@@ -189,13 +189,14 @@ jobs:
           name: pprof
           path: .
 
-      - name: Cache dist directory
-        uses: actions/cache@v4
+      - shell: bash
+        run: |
+          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+
+      - uses: actions/cache@v4
         with:
-          path: dist
-          key: ${{ runner.os }}-dist-${{ matrix.goos }}-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-dist-${{ matrix.goos }}-
+          path: dist/${{ matrix.goos }}
+          key: ${{ matrix.goos }}-${{ env.sha_short }}
 
       - name: Run GoReleaser Split Build
         uses: goreleaser/goreleaser-action@v6
@@ -208,13 +209,6 @@ jobs:
           BUILDER: ${{ github.actor }}@github-actions
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
           GGOOS: ${{ matrix.goos }}
-
-      - name: Upload split artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist-${{ matrix.goos }}
-          path: dist/${{ matrix.goos }}
-          retention-days: 1
 
   merge-release:
     name: Merge and Release
@@ -232,32 +226,35 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: true
 
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          pattern: dist-*
-          path: dist
-          merge-multiple: true
+      - shell: bash
+        run: |
+          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
 
-      - name: Run GoReleaser Merge (PR)
-        if: github.event_name == 'pull_request'
+      # Restore all OS builds from cache
+      - uses: actions/cache@v4
+        with:
+          path: dist/linux
+          key: linux-${{ env.sha_short }}
+      - uses: actions/cache@v4
+        with:
+          path: dist/darwin
+          key: darwin-${{ env.sha_short }}
+      - uses: actions/cache@v4
+        with:
+          path: dist/windows
+          key: windows-${{ env.sha_short }}
+      - uses: actions/cache@v4
+        with:
+          path: dist/freebsd
+          key: freebsd-${{ env.sha_short }}
+
+      # Run merge for both PR and tag, but skip publish for PRs
+      - name: Run GoReleaser Merge
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser-pro
           version: latest
-          args: continue --merge --skip=publish
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BUILDER: ${{ github.actor }}@github-actions
-          GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
-
-      - name: Run GoReleaser Merge and Publish (Tag)
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: goreleaser/goreleaser-action@v6
-        with:
-          distribution: goreleaser-pro
-          version: latest
-          args: continue --merge
+          args: continue --merge ${{ github.event_name == 'pull_request' && '--skip=publish' || '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BUILDER: ${{ github.actor }}@github-actions
