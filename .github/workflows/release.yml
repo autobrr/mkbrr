@@ -295,7 +295,7 @@ jobs:
           version: ~> v2
           args: continue --merge ${{ github.event_name == 'pull_request' && '--skip=publish' || '' }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
 
       - name: Upload final assets
