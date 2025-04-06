@@ -169,6 +169,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    needs: [ pgo ]
     env:
       DOCKER_CLI_EXPERIMENTAL: "enabled"
       flags: ""
