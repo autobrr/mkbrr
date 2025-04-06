@@ -244,10 +244,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
+          BUILDER: ${{ matrix.os == 'windows-latest' && 'github-actions@windows' || github.actor }}@github-actions
 
   release:
     runs-on: ubuntu-latest
-    needs: [ prepare, test, testother, pgo ]
+    needs: [ prepare, test, testother ]
     env:
       DOCKER_CLI_EXPERIMENTAL: "enabled"
       flags: ""
