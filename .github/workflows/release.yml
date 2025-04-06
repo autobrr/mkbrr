@@ -202,7 +202,7 @@ jobs:
         with:
           distribution: goreleaser-pro
           version: latest
-          args: release --clean --split
+          args: release --split
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BUILDER: ${{ github.actor }}@github-actions
@@ -245,7 +245,7 @@ jobs:
         with:
           distribution: goreleaser-pro
           version: latest
-          args: continue --merge --skip=publish --clean
+          args: continue --merge --skip=publish
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BUILDER: ${{ github.actor }}@github-actions
@@ -257,7 +257,7 @@ jobs:
         with:
           distribution: goreleaser-pro
           version: latest
-          args: continue --merge --clean
+          args: continue --merge
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BUILDER: ${{ github.actor }}@github-actions
