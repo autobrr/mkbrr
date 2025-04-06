@@ -245,7 +245,7 @@ jobs:
         with:
           distribution: goreleaser-pro
           version: "~> v2"
-          args: release continue --merge --skip=publish
+          args: release continue --merge --skip=publish --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BUILDER: ${{ github.actor }}@github-actions
@@ -257,7 +257,7 @@ jobs:
         with:
           distribution: goreleaser-pro
           version: "~> v2"
-          args: release continue --merge
+          args: release continue --merge --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BUILDER: ${{ github.actor }}@github-actions
