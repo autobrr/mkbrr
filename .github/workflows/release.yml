@@ -167,7 +167,7 @@ jobs:
   split-build:
     name: Split Build (${{ matrix.goos }})
     runs-on: ubuntu-latest
-    needs: [ pgo ]
+    needs: [ pgo, test, testother ]
     strategy:
       matrix:
         goos: [linux, windows, darwin, freebsd]
