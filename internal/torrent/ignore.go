@@ -26,10 +26,6 @@ var ignoredPatterns = []string{
 //   - Check if the file matches any exclude pattern. If yes, IGNORE the file (return true).
 //
 // 4. If none of the above conditions cause the file to be ignored, KEEP the file (return false).
-//
-// Returns:
-//   - bool: true if the file should be ignored, false if it should be kept
-//   - error: if any pattern is malformed
 func shouldIgnoreFile(path string, excludePatterns []string, includePatterns []string) (bool, error) {
 	// 1. Check built-in patterns (always ignored)
 	lowerPath := strings.ToLower(path)
