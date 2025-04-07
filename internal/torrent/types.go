@@ -26,6 +26,7 @@ type CreateTorrentOptions struct {
 	Quiet           bool
 	SkipPrefix      bool
 	ExcludePatterns []string
+	IncludePatterns []string
 }
 
 // Torrent represents a torrent file with additional functionality

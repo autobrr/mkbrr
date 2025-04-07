@@ -32,6 +32,7 @@ var (
 	quiet             bool
 	skipPrefix        bool
 	excludePatterns   []string
+	includePatterns   []string
 )
 
 var createCmd = &cobra.Command{
@@ -104,7 +105,8 @@ func init() {
 	createCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "be verbose")
 	createCmd.Flags().BoolVar(&quiet, "quiet", false, "reduced output mode (prints only final torrent path)")
 	createCmd.Flags().BoolVarP(&skipPrefix, "skip-prefix", "", false, "don't add tracker domain prefix to output filename")
-	createCmd.Flags().StringArrayVarP(&excludePatterns, "exclude", "", nil, "exclude files matching these patterns (e.g., \"*.nfo,*.jpg\" or -e \"*.nfo\" -e \"*.jpg\")")
+	createCmd.Flags().StringArrayVarP(&excludePatterns, "exclude", "", nil, "exclude files matching these patterns (e.g., \"*.nfo,*.jpg\" or --exclude \"*.nfo\" --exclude \"*.jpg\")")
+	createCmd.Flags().StringArrayVarP(&includePatterns, "include", "", nil, "include only files matching these patterns (e.g., \"*.mkv,*.mp4\" or --include \"*.mkv\" --include \"*.mp4\")")
 
 	createCmd.Flags().String("cpuprofile", "", "write cpu profile to file (development flag)")
 
@@ -226,10 +228,14 @@ func runCreate(cmd *cobra.Command, args []string) error {
 			Entropy:         entropy,
 			Quiet:           quiet,
 			ExcludePatterns: []string{},
+			IncludePatterns: []string{},
 		}
 
 		if len(presetOpts.ExcludePatterns) > 0 {
 			opts.ExcludePatterns = slices.Clone(presetOpts.ExcludePatterns)
+		}
+		if len(presetOpts.IncludePatterns) > 0 {
+			opts.IncludePatterns = slices.Clone(presetOpts.IncludePatterns)
 		}
 
 		if presetOpts.PieceLength != 0 {
@@ -276,6 +282,9 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		if cmd.Flags().Changed("exclude") {
 			opts.ExcludePatterns = append(opts.ExcludePatterns, excludePatterns...)
 		}
+		if cmd.Flags().Changed("include") {
+			opts.IncludePatterns = append(opts.IncludePatterns, includePatterns...)
+		}
 	} else {
 		// use command line options
 		opts = torrent.CreateTorrentOptions{
@@ -295,6 +304,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 			Quiet:           quiet,
 			SkipPrefix:      skipPrefix,
 			ExcludePatterns: excludePatterns,
+			IncludePatterns: includePatterns,
 		}
 	}
 

@@ -58,6 +58,13 @@
           "items": {
             "type": "string"
           }
+        },
+        "include_patterns": {
+          "type": "array",
+          "description": "List of glob patterns to include files (e.g., \"*.mkv\", \"*video*\")",
+          "items": {
+            "type": "string"
+          }
         }
       }
     },
@@ -116,7 +123,14 @@
             "type": "array",
             "description": "List of glob patterns to exclude files (e.g., \"*.nfo\", \"*sample*\")",
             "items": {
-              "type": "string"
+            "type": "string"
+          }
+        },
+        "include_patterns": {
+          "type": "array",
+          "description": "List of glob patterns to include files (e.g., \"*.mkv\", \"*video*\")",
+          "items": {
+            "type": "string"
             }
           }
         }

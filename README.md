@@ -168,10 +168,18 @@ mkbrr create path/to/file -t https://example-tracker.com/announce -e
 
 # Create a torrent excluding specific file patterns (comma-separated)
 mkbrr create path/to/file -t https://example-tracker.com/announce --exclude "*.nfo,*.jpg"
+
+# Create a torrent including only specific file patterns (comma-separated)
+mkbrr create path/to/video-folder -t https://example-tracker.com/announce --include "*.mkv,*.mp4"
 ```
 
 > [!NOTE]
-> The exclude patterns feature supports standard glob pattern matching (like `*` for any number of characters, `?` for a single character) and is case-insensitive.
+> The exclude and include patterns feature supports standard glob pattern matching (like `*` for any number of characters, `?` for a single character) and is case-insensitive.
+> **Precedence:** Inclusion patterns (`--include`) take precedence.
+> - If `--include` is used:
+>   - A file matching an `--include` pattern is **always kept**, even if it also matches an `--exclude` pattern.
+>   - A file *not* matching any `--include` pattern is **always ignored**.
+> - If `--include` is *not* used, then only `--exclude` patterns are considered, and matching files are ignored.
 
 ### Inspecting Torrents
 
@@ -223,7 +231,7 @@ mkbrr create -P ptp --source "MySource" path/to/file
 ```
 
 > [!TIP]
-> The preset file can be placed in the current directory, `~/.config/mkbrr/`, or `~/.mkbrr/`. You can also specify a custom location with `--preset-file`. Presets support the `exclude_patterns` field, allowing you to define default or preset-specific file exclusions.
+> The preset file can be placed in the current directory, `~/.config/mkbrr/`, or `~/.mkbrr/`. You can also specify a custom location with `--preset-file`. Presets support both `exclude_patterns` and `include_patterns` fields, allowing you to define default or preset-specific file filtering.
 
 ### Batch Mode
 
@@ -236,7 +244,7 @@ mkbrr create -b batch.yaml
 See [batch example](examples/batch.yaml) here.
 
 > [!TIP]
-> Batch mode processes jobs in parallel (up to 4 at once) and shows a summary when complete. Batch mode also support the `exclude_patterns` field.
+> Batch mode processes jobs in parallel (up to 4 at once) and shows a summary when complete. Batch mode also supports both `exclude_patterns` and `include_patterns` fields.
 
 ## Tracker-Specific Features
 
