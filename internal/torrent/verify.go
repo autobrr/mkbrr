@@ -41,6 +41,7 @@ type pieceVerifier struct {
 
 	badPieceIndices []int
 	missingFiles    []string
+	missingRanges   [][2]int64 // Byte ranges [start, end) of missing/mismatched files
 
 	bytesVerified int64
 	startTime     time.Time
@@ -67,57 +68,47 @@ func VerifyData(opts VerifyOptions) (*VerificationResult, error) {
 
 	if info.IsDir() {
 		// Multi-file torrent
-		expectedFiles := make(map[string]int64) // Map relative path to expected size
+		expectedFiles := make(map[string]int64) // Map relative path (using '/') to expected size
 		for _, f := range info.Files {
-			relPath := filepath.Join(f.Path...)
-			expectedFiles[relPath] = f.Length
+			// Ensure the key uses forward slashes, consistent with torrent format
+			relPathKey := filepath.ToSlash(filepath.Join(f.Path...))
+			expectedFiles[relPathKey] = f.Length
 		}
 
 		// Walk the content directory provided by the user
 		err = filepath.Walk(baseContentPath, func(currentPath string, fileInfo os.FileInfo, walkErr error) error {
 			if walkErr != nil {
-				// Handle potential errors during walk (e.g., permission denied)
-				// We might want to report this, but for now, let's try to continue
 				fmt.Fprintf(os.Stderr, "Warning: error walking path %q: %v\n", currentPath, walkErr)
-				return nil // Continue walking if possible
+				return nil
 			}
 			if fileInfo.IsDir() {
-				// If the base path itself is walked, ignore it
 				if currentPath == baseContentPath {
 					return nil
 				}
-				// We don't need to process directories further here, only files
 				return nil
 			}
 
 			relPath, err := filepath.Rel(baseContentPath, currentPath)
 			if err != nil {
-				// Should not happen if currentPath is within baseContentPath
 				return fmt.Errorf("failed to get relative path for %q: %w", currentPath, err)
 			}
 			relPath = filepath.ToSlash(relPath) // Ensure consistent slashes
 
-			// Check if this file is expected by the torrent
 			if expectedSize, ok := expectedFiles[relPath]; ok {
 				if fileInfo.Size() != expectedSize {
-					// File exists but size mismatch - treat as missing for verification?
-					// Or should we try verifying the parts we have? For now, treat as missing.
 					missingFiles = append(missingFiles, relPath+" (size mismatch)")
-					delete(expectedFiles, relPath) // Remove from expected map
+					delete(expectedFiles, relPath)
 					return nil
 				}
 
-				// File exists and size matches
 				mappedFiles = append(mappedFiles, fileEntry{
-					path:   currentPath, // Use the actual path on disk
+					path:   currentPath,
 					length: fileInfo.Size(),
-					offset: totalSize, // Offset relative to the start of torrent data
+					offset: totalSize,
 				})
 				totalSize += fileInfo.Size()
-				delete(expectedFiles, relPath) // Remove from expected map
+				delete(expectedFiles, relPath)
 			}
-			// If the file is not in expectedFiles, it's an extra file, ignore it.
-
 			return nil
 		})
 
@@ -125,9 +116,8 @@ func VerifyData(opts VerifyOptions) (*VerificationResult, error) {
 			return nil, fmt.Errorf("error walking content path %q: %w", baseContentPath, err)
 		}
 
-		// Any files remaining in expectedFiles are missing
-		for relPath := range expectedFiles {
-			missingFiles = append(missingFiles, relPath)
+		for relPathKey := range expectedFiles {
+			missingFiles = append(missingFiles, relPathKey)
 		}
 
 	} else {
@@ -141,8 +131,6 @@ func VerifyData(opts VerifyOptions) (*VerificationResult, error) {
 			}
 		} else {
 			if contentFileInfo.IsDir() {
-				// User provided a directory for a single-file torrent
-				// Check if the file exists inside that directory
 				filePathInDir := filepath.Join(baseContentPath, info.Name)
 				contentFileInfo, err = os.Stat(filePathInDir)
 				if err != nil {
@@ -156,7 +144,6 @@ func VerifyData(opts VerifyOptions) (*VerificationResult, error) {
 				} else if contentFileInfo.Size() != info.Length {
 					missingFiles = append(missingFiles, info.Name+" (size mismatch)")
 				} else {
-					// File found inside the directory
 					mappedFiles = append(mappedFiles, fileEntry{
 						path:   filePathInDir,
 						length: contentFileInfo.Size(),
@@ -165,7 +152,6 @@ func VerifyData(opts VerifyOptions) (*VerificationResult, error) {
 					totalSize = contentFileInfo.Size()
 				}
 			} else {
-				// User provided a file path directly
 				if contentFileInfo.Size() != info.Length {
 					missingFiles = append(missingFiles, info.Name+" (size mismatch)")
 				} else {
@@ -180,13 +166,19 @@ func VerifyData(opts VerifyOptions) (*VerificationResult, error) {
 		}
 	}
 
-	// Sort mapped files for consistent processing order (important for piece hashing)
-	sort.Slice(mappedFiles, func(i, j int) bool {
-		// Determine the original order from the torrent info
-		pathI := strings.Join(info.Files[i].Path, "/")
-		pathJ := strings.Join(info.Files[j].Path, "/")
-		return pathI < pathJ
-	})
+	// Sort mapped files based on original torrent order before recalculating offsets
+	if info.IsDir() && len(info.Files) > 0 && len(mappedFiles) > 1 {
+		originalOrder := make(map[string]int)
+		for i, f := range info.Files {
+			originalOrder[filepath.ToSlash(filepath.Join(f.Path...))] = i
+		}
+		sort.SliceStable(mappedFiles, func(i, j int) bool {
+			relPathI, _ := filepath.Rel(baseContentPath, mappedFiles[i].path)
+			relPathJ, _ := filepath.Rel(baseContentPath, mappedFiles[j].path)
+			return originalOrder[filepath.ToSlash(relPathI)] < originalOrder[filepath.ToSlash(relPathJ)]
+		})
+	}
+
 	// Recalculate offsets after sorting
 	currentOffset := int64(0)
 	for i := range mappedFiles {
@@ -207,6 +199,29 @@ func VerifyData(opts VerifyOptions) (*VerificationResult, error) {
 	}
 	verifier.display.SetQuiet(opts.Quiet)
 
+	// Calculate missing ranges *before* verification starts
+	if len(verifier.missingFiles) > 0 {
+		missingFileSet := make(map[string]bool)
+		for _, mf := range verifier.missingFiles {
+			basePath := strings.TrimSuffix(mf, " (size mismatch)")
+			missingFileSet[basePath] = true
+		}
+
+		currentOffset := int64(0)
+		if info.IsDir() {
+			for _, f := range info.Files {
+				relPath := filepath.ToSlash(filepath.Join(f.Path...))
+				fileEndOffset := currentOffset + f.Length
+				if missingFileSet[relPath] {
+					verifier.missingRanges = append(verifier.missingRanges, [2]int64{currentOffset, fileEndOffset})
+				}
+				currentOffset = fileEndOffset
+			}
+		} else if len(verifier.missingFiles) > 0 { // Handle single missing file
+			verifier.missingRanges = append(verifier.missingRanges, [2]int64{0, info.Length})
+		}
+	}
+
 	// 5. Perform Verification (Hashing and Comparison)
 	err = verifier.verifyPieces()
 	if err != nil {
@@ -214,28 +229,33 @@ func VerifyData(opts VerifyOptions) (*VerificationResult, error) {
 	}
 
 	// 6. Compile and Return Results
-	completion := 0.0
-	if verifier.numPieces > 0 {
-		completion = (float64(verifier.goodPieces) / float64(verifier.numPieces)) * 100.0
-	}
-
 	result := &VerificationResult{
 		TotalPieces:     verifier.numPieces,
 		GoodPieces:      int(verifier.goodPieces),
 		BadPieces:       int(verifier.badPieces),
-		MissingPieces:   int(verifier.missingPieces), // TODO: Calculate this based on missing files
-		Completion:      completion,
+		MissingPieces:   int(verifier.missingPieces), // This is now correctly counted atomically
+		Completion:      0.0,                         // Will be calculated below
 		BadPieceIndices: verifier.badPieceIndices,
 		MissingFiles:    verifier.missingFiles,
 	}
 
-	// TODO: Calculate MissingPieces accurately based on which pieces fall within missing file ranges.
+	// Final calculation of completion percentage based on pieces that could be checked
+	checkablePieces := result.TotalPieces - result.MissingPieces
+	if checkablePieces > 0 {
+		// Base completion on pieces that were actually checked (good / checkable)
+		result.Completion = (float64(result.GoodPieces) / float64(checkablePieces)) * 100.0
+	} else if result.TotalPieces > 0 {
+		// All pieces were missing or part of missing files
+		result.Completion = 0.0
+	} else {
+		// 0 total pieces (empty torrent)
+		result.Completion = 0.0 // Verification of nothing is 0% complete
+	}
 
 	return result, nil
 }
 
 // optimizeForWorkload determines optimal read buffer size and number of worker goroutines
-// (Similar to hasher, might need adjustments for verification context)
 func (v *pieceVerifier) optimizeForWorkload() (int, int) {
 	if len(v.files) == 0 {
 		return 0, 0
@@ -281,7 +301,6 @@ func (v *pieceVerifier) optimizeForWorkload() (int, int) {
 	if numWorkers > v.numPieces {
 		numWorkers = v.numPieces
 	}
-	// Ensure at least one worker if there are pieces
 	if v.numPieces > 0 && numWorkers == 0 {
 		numWorkers = 1
 	}
@@ -292,18 +311,15 @@ func (v *pieceVerifier) optimizeForWorkload() (int, int) {
 // verifyPieces coordinates the parallel verification of pieces.
 func (v *pieceVerifier) verifyPieces() error {
 	if v.numPieces == 0 {
-		v.display.ShowProgress(0)
-		v.display.FinishProgress()
-		return nil // Nothing to verify
+		// Don't show progress for 0 pieces
+		return nil
 	}
 
-	var numWorkers int                               // Declare numWorkers
-	v.readSize, numWorkers = v.optimizeForWorkload() // Use =
+	var numWorkers int
+	v.readSize, numWorkers = v.optimizeForWorkload()
 
-	// Initialize buffer pool
 	v.bufferPool = &sync.Pool{
 		New: func() interface{} {
-			// Allocate slightly larger buffer if readSize is small to reduce pool churn
 			allocSize := v.readSize
 			if allocSize < 64<<10 {
 				allocSize = 64 << 10
@@ -319,15 +335,13 @@ func (v *pieceVerifier) verifyPieces() error {
 	v.mutex.Unlock()
 	v.bytesVerified = 0
 
-	v.display.ShowFiles(v.files)
+	v.display.ShowFiles(v.files) // Show files being checked
 
 	var completedPieces uint64
 	piecesPerWorker := (v.numPieces + numWorkers - 1) / numWorkers
 	errorsCh := make(chan error, numWorkers)
 
-	if v.numPieces > 0 {
-		v.display.ShowProgress(v.numPieces)
-	}
+	v.display.ShowProgress(v.numPieces) // Show progress bar only if numPieces > 0
 
 	var wg sync.WaitGroup
 	for i := 0; i < numWorkers; i++ {
@@ -352,39 +366,33 @@ func (v *pieceVerifier) verifyPieces() error {
 		defer ticker.Stop()
 		for range ticker.C {
 			completed := atomic.LoadUint64(&completedPieces)
-			if completed >= uint64(v.numPieces) {
-				bytesVerified := atomic.LoadInt64(&v.bytesVerified)
-				v.mutex.RLock()
-				elapsed := time.Since(v.startTime).Seconds()
-				v.mutex.RUnlock()
-				var rate float64
-				if elapsed > 0 {
-					rate = float64(bytesVerified) / elapsed
-				}
-				v.display.UpdateProgress(int(completed), rate)
-				return
-			}
-
-			bytesVerified := atomic.LoadInt64(&v.bytesVerified)
+			// Update display
+			// We might need to adjust UpdateProgress or pass different values
+			// For now, let's pass the overall completed count (good+bad+missing)
 			v.mutex.RLock()
 			elapsed := time.Since(v.startTime).Seconds()
 			v.mutex.RUnlock()
 			var rate float64
 			if elapsed > 0 {
+				bytesVerified := atomic.LoadInt64(&v.bytesVerified)
 				rate = float64(bytesVerified) / elapsed
 			}
+			// Pass total completed count and rate to UpdateProgress
+			// Note: UpdateProgress might need adjustment if it expects percentage instead of count
 			v.display.UpdateProgress(int(completed), rate)
+
+			if completed >= uint64(v.numPieces) {
+				return // Exit goroutine when all pieces are processed
+			}
 		}
 	}()
 
 	wg.Wait()
 	close(errorsCh)
 
-	// Check for errors from workers
 	for err := range errorsCh {
 		if err != nil {
-			// Log or handle the first error encountered
-			v.display.FinishProgress() // Ensure progress bar is cleaned up
+			v.display.FinishProgress()
 			return err
 		}
 	}
@@ -396,10 +404,10 @@ func (v *pieceVerifier) verifyPieces() error {
 // verifyPieceRange processes and verifies a specific range of pieces.
 func (v *pieceVerifier) verifyPieceRange(startPiece, endPiece int, completedPieces *uint64) error {
 	buf := v.bufferPool.Get().([]byte)
-	defer v.bufferPool.Put(buf) // Return buffer to pool when done
+	defer v.bufferPool.Put(buf)
 
 	hasher := sha1.New()
-	readers := make(map[string]*fileReader) // Cache file handles
+	readers := make(map[string]*fileReader)
 	defer func() {
 		for _, r := range readers {
 			if r.file != nil {
@@ -408,82 +416,87 @@ func (v *pieceVerifier) verifyPieceRange(startPiece, endPiece int, completedPiec
 		}
 	}()
 
-	currentFileIndex := 0 // Optimization: track the current file index
+	currentFileIndex := 0
 
 	for pieceIndex := startPiece; pieceIndex < endPiece; pieceIndex++ {
-		// Declare hash variables outside the scope potentially jumped over by goto
 		var expectedHash []byte
 		var actualHash []byte
 
 		pieceOffset := int64(pieceIndex) * v.pieceLen
 		pieceEndOffset := pieceOffset + v.pieceLen
+
+		// Check if this piece falls within a known missing range
+		isMissing := false
+		for _, r := range v.missingRanges {
+			if pieceOffset < r[1] && pieceEndOffset > r[0] {
+				isMissing = true
+				break
+			}
+		}
+
+		if isMissing {
+			atomic.AddUint64(&v.missingPieces, 1)
+			atomic.AddUint64(completedPieces, 1)
+			continue // Skip hashing/comparison for missing pieces
+		}
+
+		// If not missing, proceed to hash and compare
 		hasher.Reset()
 		bytesHashedThisPiece := int64(0)
 
-		// Find the starting file for this piece
-		// Optimization: Start search from currentFileIndex
 		foundStartFile := false
 		for fIdx := currentFileIndex; fIdx < len(v.files); fIdx++ {
 			file := v.files[fIdx]
 			if pieceOffset < file.offset+file.length {
-				currentFileIndex = fIdx // Update current file index
+				currentFileIndex = fIdx
 				foundStartFile = true
 				break
 			}
 		}
 		if !foundStartFile {
-			// This piece starts beyond the last file, should not happen with correct totalSize calculation
-			// Or it belongs entirely to missing files. Mark as missing?
-			// For now, let's assume an error or handle as bad/missing.
-			// If we accurately track missing files earlier, we can mark pieces here.
-			atomic.AddUint64(&v.missingPieces, 1) // Placeholder
+			// Should not happen if missingRanges logic is correct and piece is not missing
+			atomic.AddUint64(&v.badPieces, 1)
+			v.mutex.Lock()
+			v.badPieceIndices = append(v.badPieceIndices, pieceIndex)
+			v.mutex.Unlock()
 			atomic.AddUint64(completedPieces, 1)
 			continue
 		}
 
-		// Iterate through files relevant to this piece
 		for fIdx := currentFileIndex; fIdx < len(v.files); fIdx++ {
 			file := v.files[fIdx]
-
-			// If this file starts after the current piece ends, we're done with this piece
 			if file.offset >= pieceEndOffset {
 				break
 			}
 
-			// Calculate the intersection of the piece and the file
-			readStartInFile := int64(0) // Position within the file to start reading
+			readStartInFile := int64(0)
 			if pieceOffset > file.offset {
 				readStartInFile = pieceOffset - file.offset
 			}
-
-			readEndInFile := file.length // Position within the file to end reading
+			readEndInFile := file.length
 			if pieceEndOffset < file.offset+file.length {
 				readEndInFile = pieceEndOffset - file.offset
 			}
-
 			readLength := readEndInFile - readStartInFile
 			if readLength <= 0 {
-				continue // No overlap or invalid range
+				continue
 			}
 
-			// Get or open file reader
 			reader, ok := readers[file.path]
 			if !ok {
 				f, err := os.OpenFile(file.path, os.O_RDONLY, 0)
 				if err != nil {
-					// File might be missing or unreadable - treat piece as bad/missing
-					// TODO: Need a way to mark pieces from missing files specifically
-					atomic.AddUint64(&v.badPieces, 1) // Or missingPieces
+					// File became unreadable after initial check? Mark as bad.
+					atomic.AddUint64(&v.badPieces, 1)
 					v.mutex.Lock()
 					v.badPieceIndices = append(v.badPieceIndices, pieceIndex)
 					v.mutex.Unlock()
-					goto nextPiece // Skip to the next piece
+					goto nextPiece // Use goto to ensure completedPieces is incremented
 				}
-				reader = &fileReader{file: f, position: -1, length: file.length} // position -1 indicates unknown
+				reader = &fileReader{file: f, position: -1, length: file.length}
 				readers[file.path] = reader
 			}
 
-			// Seek if necessary
 			if reader.position != readStartInFile {
 				_, err := reader.file.Seek(readStartInFile, io.SeekStart)
 				if err != nil {
@@ -491,44 +504,39 @@ func (v *pieceVerifier) verifyPieceRange(startPiece, endPiece int, completedPiec
 					v.mutex.Lock()
 					v.badPieceIndices = append(v.badPieceIndices, pieceIndex)
 					v.mutex.Unlock()
-					goto nextPiece // Skip to the next piece
+					goto nextPiece
 				}
 				reader.position = readStartInFile
 			}
 
-			// Read and hash the relevant part of the file
 			bytesToRead := readLength
 			for bytesToRead > 0 {
 				readSize := int64(len(buf))
 				if bytesToRead < readSize {
 					readSize = bytesToRead
 				}
-
 				n, err := reader.file.Read(buf[:readSize])
 				if err != nil && err != io.EOF {
 					atomic.AddUint64(&v.badPieces, 1)
 					v.mutex.Lock()
 					v.badPieceIndices = append(v.badPieceIndices, pieceIndex)
 					v.mutex.Unlock()
-					goto nextPiece // Skip to the next piece
+					goto nextPiece
 				}
 				if n == 0 && err == io.EOF {
-					break // End of file reached
+					break
 				}
-
 				hasher.Write(buf[:n])
 				bytesHashedThisPiece += int64(n)
 				reader.position += int64(n)
 				bytesToRead -= int64(n)
 				atomic.AddInt64(&v.bytesVerified, int64(n))
 			}
-			// Update pieceOffset for the next file iteration within the same piece
 			pieceOffset += readLength
 		}
 
-		// Compare calculated hash with expected hash
-		expectedHash = v.torrentInfo.Pieces[pieceIndex*20 : (pieceIndex+1)*20] // Use =
-		actualHash = hasher.Sum(nil)                                           // Use =
+		expectedHash = v.torrentInfo.Pieces[pieceIndex*20 : (pieceIndex+1)*20]
+		actualHash = hasher.Sum(nil)
 
 		if bytes.Equal(actualHash, expectedHash) {
 			atomic.AddUint64(&v.goodPieces, 1)
