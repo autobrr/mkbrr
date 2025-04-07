@@ -1,6 +1,7 @@
 package torrent
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 )
@@ -25,12 +26,12 @@ var ignoredPatterns = []string{
 //   - Check if the file matches any exclude pattern. If yes, IGNORE the file (return true).
 //
 // 4. If none of the above conditions cause the file to be ignored, KEEP the file (return false).
-func shouldIgnoreFile(path string, excludePatterns []string, includePatterns []string) bool {
+func shouldIgnoreFile(path string, excludePatterns []string, includePatterns []string) (bool, error) {
 	// 1. Check built-in patterns (always ignored)
 	lowerPath := strings.ToLower(path)
 	for _, pattern := range ignoredPatterns {
 		if strings.HasSuffix(lowerPath, pattern) {
-			return true
+			return true, nil
 		}
 	}
 
@@ -47,7 +48,10 @@ func shouldIgnoreFile(path string, excludePatterns []string, includePatterns []s
 					continue
 				}
 				match, err := filepath.Match(strings.ToLower(pattern), lowerFilename)
-				if err == nil && match {
+				if err != nil {
+					return false, fmt.Errorf("invalid include pattern %q: %w", pattern, err)
+				}
+				if match {
 					matchesInclude = true
 					break
 				}
@@ -58,9 +62,9 @@ func shouldIgnoreFile(path string, excludePatterns []string, includePatterns []s
 		}
 
 		if matchesInclude {
-			return false // Keep the file because it matches an include pattern
+			return false, nil // Keep the file because it matches an include pattern
 		} else {
-			return true // Ignore the file because include patterns were given, but none matched
+			return true, nil // Ignore the file because include patterns were given, but none matched
 		}
 	}
 
@@ -73,14 +77,16 @@ func shouldIgnoreFile(path string, excludePatterns []string, includePatterns []s
 					continue
 				}
 				match, err := filepath.Match(strings.ToLower(pattern), lowerFilename)
-				// we ignore the error from filepath.Match as malformed patterns simply won't match
-				if err == nil && match {
-					return true // Ignore if it matches an exclude pattern (and no include patterns were specified)
+				if err != nil {
+					return false, fmt.Errorf("invalid exclude pattern %q: %w", pattern, err)
+				}
+				if match {
+					return true, nil // Ignore if it matches an exclude pattern (and no include patterns were specified)
 				}
 			}
 		}
 	}
 
 	// 4. Keep the file if no ignore conditions were met
-	return false
+	return false, nil
 }
