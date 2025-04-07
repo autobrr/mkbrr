@@ -118,8 +118,8 @@ func (d *Display) SetBatch(isBatch bool) {
 }
 
 var (
-	magenta    = color.New(color.FgMagenta).SprintFunc()
-	green      = color.New(color.FgGreen).SprintFunc()
+	magenta = color.New(color.FgMagenta).SprintFunc()
+	//green      = color.New(color.FgGreen).SprintFunc()
 	yellow     = color.New(color.FgYellow).SprintFunc()
 	success    = color.New(color.FgGreen).SprintFunc()
 	label      = color.New(color.FgCyan).SprintFunc()
@@ -291,11 +291,17 @@ func (d *Display) ShowSeasonPackWarnings(info *SeasonPackInfo) {
 		return
 	}
 
-	if info.IsSuspicious || len(info.MissingEpisodes) > 0 {
+	if len(info.MissingEpisodes) > 0 {
 		fmt.Fprintf(d.output, "\n%s %s\n", yellow("Warning:"), "Possible incomplete season pack detected")
 		fmt.Fprintf(d.output, "  %-13s %d\n", label("Season number:"), info.Season)
 		fmt.Fprintf(d.output, "  %-13s %d\n", label("Highest episode number found:"), info.MaxEpisode)
-		fmt.Fprintf(d.output, "  %-13s %d\n", label("Video files:"), info.VideoFileCount)
+		fmt.Fprintf(d.output, "  %-13s %d\n", label("Episodes found:"), len(info.Episodes))
+
+		missingStrs := make([]string, len(info.MissingEpisodes))
+		for i, ep := range info.MissingEpisodes {
+			missingStrs[i] = fmt.Sprintf("episode %d", ep)
+		}
+		fmt.Fprintf(d.output, "  %-13s %s\n", label("Missing:"), strings.Join(missingStrs, ", "))
 
 		fmt.Fprintln(d.output, yellow("\nThis may be an incomplete season pack. Check files before uploading."))
 	}
