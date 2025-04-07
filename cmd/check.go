@@ -3,11 +3,12 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
 
-	"github.com/autobrr/mkbrr/internal/torrent"
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+
+	"github.com/autobrr/mkbrr/internal/torrent"
 )
 
 var (
@@ -66,8 +67,13 @@ func runCheck(cmd *cobra.Command, args []string) error {
 	}
 
 	display := torrent.NewDisplay(torrent.NewFormatter(checkVerbose))
+
 	if !checkQuiet {
-		fmt.Fprintf(os.Stdout, "\nVerifying %s against %s...\n", filepath.Base(torrentPath), contentPath)
+		green := color.New(color.FgGreen).SprintFunc()
+		cyan := color.New(color.FgCyan).SprintFunc()
+		fmt.Fprintf(os.Stdout, "\n%s\n", green("Verifying:"))
+		fmt.Fprintf(os.Stdout, "  Torrent file: %s\n", cyan(torrentPath))
+		fmt.Fprintf(os.Stdout, "  Content: %s\n", cyan(contentPath))
 	}
 
 	result, err := torrent.VerifyData(opts)
