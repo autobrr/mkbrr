@@ -71,7 +71,7 @@ func AnalyzeSeasonPack(files []fileEntry) *SeasonPackInfo {
 		if videoExtensions[ext] {
 			info.VideoFileCount++
 
-			// Check for multi-episodes first
+			// check for multi-episodes first
 			multiEps := extractMultiEpisodes(filepath.Base(file.path))
 			if len(multiEps) > 0 {
 				for _, ep := range multiEps {
@@ -83,7 +83,6 @@ func AnalyzeSeasonPack(files []fileEntry) *SeasonPackInfo {
 					}
 				}
 			} else {
-				// Fall back to single episode check if no multi-episodes found
 				_, episode := extractSeasonEpisode(filepath.Base(file.path))
 				if episode > 0 {
 					episodeMap[episode] = true

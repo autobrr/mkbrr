@@ -291,14 +291,12 @@ func (d *Display) ShowSeasonPackWarnings(info *SeasonPackInfo) {
 		return
 	}
 
-	// Only show warning if we have missing episodes
 	if len(info.MissingEpisodes) > 0 {
 		fmt.Fprintf(d.output, "\n%s %s\n", yellow("Warning:"), "Possible incomplete season pack detected")
 		fmt.Fprintf(d.output, "  %-13s %d\n", label("Season number:"), info.Season)
 		fmt.Fprintf(d.output, "  %-13s %d\n", label("Highest episode number found:"), info.MaxEpisode)
-		fmt.Fprintf(d.output, "  %-13s %d\n", label("Episodes found:"), len(info.Episodes)) // Use episode count
+		fmt.Fprintf(d.output, "  %-13s %d\n", label("Episodes found:"), len(info.Episodes))
 
-		// Format missing episodes list
 		missingStrs := make([]string, len(info.MissingEpisodes))
 		for i, ep := range info.MissingEpisodes {
 			missingStrs[i] = fmt.Sprintf("episode %d", ep)
