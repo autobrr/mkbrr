@@ -1,0 +1,19 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/autobrr/mkbrr/main/schema/batch.json
+# Example batch file for use with a preset
+# Usage: mkbrr create -P ptp -b batch_with_preset.yaml
+#
+# When used with a preset, only path and output are required in the batch file
+# All other settings (trackers, private, etc.) will be inherited from the preset
+version: 1
+jobs:
+  - output: movie1.torrent
+    path: /path/to/Movie1.2023.1080p.BluRay.x264
+    # No tracker info needed - comes from preset
+
+  - output: movie2.torrent
+    path: /path/to/Movie2.2023.2160p.UHD.BluRay.x265
+    # If needed, you can still override individual settings from the preset
+    comment: "Custom comment for this specific release"
+
+  - output: movie3.torrent
+    path: /path/to/Movie3.2023.1080p.WEB-DL.x264
