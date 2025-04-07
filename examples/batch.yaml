@@ -15,3 +15,10 @@ jobs:
     private: true
     source: "anothertracker"
     no_date: true
+    exclude_patterns: # Example: exclude NFO files and samples
+      - "*.nfo"
+      - "*sample*"
+    include_patterns: # Example: include only video files
+      - "*.mkv"
+      - "*.mp4"
+      - "*.avi"

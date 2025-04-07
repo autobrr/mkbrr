@@ -31,7 +31,7 @@ var seasonPackPatterns = []*regexp.Regexp{
 }
 
 var episodePattern = regexp.MustCompile(`(?i)S\d{1,2}E(\d{1,3})`)
-var multiEpisodePattern = regexp.MustCompile(`(?i)S\d{1,2}E(\d{1,3})-?E?(\d{1,3})`)
+var multiEpisodePattern = regexp.MustCompile(`(?i)S\d{1,2}E(\d{1,3})(?:-E?|E)(\d{1,3})`)
 
 var videoExtensions = map[string]bool{
 	".mkv": true,
@@ -71,20 +71,23 @@ func AnalyzeSeasonPack(files []fileEntry) *SeasonPackInfo {
 		if videoExtensions[ext] {
 			info.VideoFileCount++
 
-			_, episode := extractSeasonEpisode(filepath.Base(file.path))
-			if episode > 0 {
-				episodeMap[episode] = true
-				if episode > info.MaxEpisode {
-					info.MaxEpisode = episode
-				}
-			}
-
+			// check for multi-episodes first
 			multiEps := extractMultiEpisodes(filepath.Base(file.path))
-			for _, ep := range multiEps {
-				if ep > 0 {
-					episodeMap[ep] = true
-					if ep > info.MaxEpisode {
-						info.MaxEpisode = ep
+			if len(multiEps) > 0 {
+				for _, ep := range multiEps {
+					if ep > 0 {
+						episodeMap[ep] = true
+						if ep > info.MaxEpisode {
+							info.MaxEpisode = ep
+						}
+					}
+				}
+			} else {
+				_, episode := extractSeasonEpisode(filepath.Base(file.path))
+				if episode > 0 {
+					episodeMap[episode] = true
+					if episode > info.MaxEpisode {
+						info.MaxEpisode = episode
 					}
 				}
 			}
@@ -154,6 +157,7 @@ func extractMultiEpisodes(filename string) []int {
 	episodes := []int{}
 
 	matches := multiEpisodePattern.FindStringSubmatch(filename)
+
 	if len(matches) > 2 {
 		start, err1 := strconv.Atoi(matches[1])
 		end, err2 := strconv.Atoi(matches[2])

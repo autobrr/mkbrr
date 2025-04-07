@@ -10,6 +10,7 @@ import (
 	"github.com/autobrr/mkbrr/internal/preset"
 	"github.com/autobrr/mkbrr/internal/torrent"
 	"github.com/spf13/cobra"
+	"golang.org/x/exp/slices"
 )
 
 var (
@@ -27,6 +28,11 @@ var (
 	batchFile         string
 	presetName        string
 	presetFile        string
+	entropy           bool
+	quiet             bool
+	skipPrefix        bool
+	excludePatterns   []string
+	includePatterns   []string
 )
 
 var createCmd = &cobra.Command{
@@ -35,7 +41,7 @@ var createCmd = &cobra.Command{
 	Long: `Create a new torrent file from a file or directory.
 Supports both single file/directory and batch mode using a YAML config file.
 Supports presets for commonly used settings.
-When a tracker URL is provided, the output filename will use the tracker domain (without TLD) as prefix, e.g. "example_filename.torrent".`,
+When a tracker URL is provided, the output filename will use the tracker domain (without TLD) as prefix by default (e.g. "example_filename.torrent"). This behavior can be disabled with --skip-prefix.`,
 	Args: func(cmd *cobra.Command, args []string) error {
 		if len(args) > 1 {
 			return fmt.Errorf("accepts at most one arg")
@@ -95,7 +101,12 @@ func init() {
 	createCmd.Flags().StringVarP(&source, "source", "s", "", "add source string")
 	createCmd.Flags().BoolVarP(&noDate, "no-date", "d", false, "don't write creation date")
 	createCmd.Flags().BoolVarP(&noCreator, "no-creator", "", false, "don't write creator")
+	createCmd.Flags().BoolVarP(&entropy, "entropy", "e", false, "randomize info hash by adding entropy field")
 	createCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "be verbose")
+	createCmd.Flags().BoolVar(&quiet, "quiet", false, "reduced output mode (prints only final torrent path)")
+	createCmd.Flags().BoolVarP(&skipPrefix, "skip-prefix", "", false, "don't add tracker domain prefix to output filename")
+	createCmd.Flags().StringArrayVarP(&excludePatterns, "exclude", "", nil, "exclude files matching these patterns (e.g., \"*.nfo,*.jpg\" or --exclude \"*.nfo\" --exclude \"*.jpg\")")
+	createCmd.Flags().StringArrayVarP(&includePatterns, "include", "", nil, "include only files matching these patterns (e.g., \"*.mkv,*.mp4\" or --include \"*.mkv\" --include \"*.mp4\")")
 
 	createCmd.Flags().String("cpuprofile", "", "write cpu profile to file (development flag)")
 
@@ -146,13 +157,22 @@ func runCreate(cmd *cobra.Command, args []string) error {
 			presetOpts = presetOptions.ToPresetOptions(version)
 		}
 
-		results, err := torrent.ProcessBatch(batchFile, presetOpts, verbose, version)
+		results, err := torrent.ProcessBatch(batchFile, presetOpts, verbose, quiet, version)
 		if err != nil {
 			return fmt.Errorf("batch processing failed: %w", err)
 		}
 
-		display := torrent.NewDisplay(torrent.NewFormatter(verbose))
-		display.ShowBatchResults(results, time.Since(start))
+		if quiet {
+			// In quiet mode, only print the paths to the created torrent files
+			for _, result := range results {
+				if result.Success {
+					fmt.Println("Wrote:", result.Info.Path)
+				}
+			}
+		} else {
+			display := torrent.NewDisplay(torrent.NewFormatter(verbose))
+			display.ShowBatchResults(results, time.Since(start))
+		}
 		return nil
 	}
 
@@ -188,16 +208,28 @@ func runCreate(cmd *cobra.Command, args []string) error {
 
 		// convert preset to options
 		opts = torrent.CreateTorrentOptions{
-			Path:       inputPath,
-			TrackerURL: presetOpts.Trackers[0],
-			WebSeeds:   presetOpts.WebSeeds,
-			IsPrivate:  *presetOpts.Private,
-			Comment:    presetOpts.Comment,
-			Source:     presetOpts.Source,
-			NoDate:     presetOpts.NoDate != nil && *presetOpts.NoDate,
-			NoCreator:  presetOpts.NoCreator != nil && *presetOpts.NoCreator,
-			Verbose:    verbose,
-			Version:    version,
+			Path:            inputPath,
+			TrackerURL:      presetOpts.Trackers[0],
+			WebSeeds:        presetOpts.WebSeeds,
+			IsPrivate:       *presetOpts.Private,
+			Comment:         presetOpts.Comment,
+			Source:          presetOpts.Source,
+			NoDate:          presetOpts.NoDate != nil && *presetOpts.NoDate,
+			NoCreator:       presetOpts.NoCreator != nil && *presetOpts.NoCreator,
+			SkipPrefix:      presetOpts.SkipPrefix != nil && *presetOpts.SkipPrefix,
+			Verbose:         verbose,
+			Version:         version,
+			Entropy:         entropy,
+			Quiet:           quiet,
+			ExcludePatterns: []string{},
+			IncludePatterns: []string{},
+		}
+
+		if len(presetOpts.ExcludePatterns) > 0 {
+			opts.ExcludePatterns = slices.Clone(presetOpts.ExcludePatterns)
+		}
+		if len(presetOpts.IncludePatterns) > 0 {
+			opts.IncludePatterns = slices.Clone(presetOpts.IncludePatterns)
 		}
 
 		if presetOpts.PieceLength != 0 {
@@ -238,21 +270,35 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		if cmd.Flags().Changed("no-creator") {
 			opts.NoCreator = noCreator
 		}
+		if cmd.Flags().Changed("skip-prefix") {
+			opts.SkipPrefix = skipPrefix
+		}
+		if cmd.Flags().Changed("exclude") {
+			opts.ExcludePatterns = append(opts.ExcludePatterns, excludePatterns...)
+		}
+		if cmd.Flags().Changed("include") {
+			opts.IncludePatterns = append(opts.IncludePatterns, includePatterns...)
+		}
 	} else {
 		// use command line options
 		opts = torrent.CreateTorrentOptions{
-			Path:           inputPath,
-			TrackerURL:     trackerURL,
-			WebSeeds:       webSeeds,
-			IsPrivate:      isPrivate,
-			Comment:        comment,
-			PieceLengthExp: pieceLengthExp,
-			MaxPieceLength: maxPieceLengthExp,
-			Source:         source,
-			NoDate:         noDate,
-			NoCreator:      noCreator,
-			Verbose:        verbose,
-			Version:        version,
+			Path:            inputPath,
+			TrackerURL:      trackerURL,
+			WebSeeds:        webSeeds,
+			IsPrivate:       isPrivate,
+			Comment:         comment,
+			PieceLengthExp:  pieceLengthExp,
+			MaxPieceLength:  maxPieceLengthExp,
+			Source:          source,
+			NoDate:          noDate,
+			NoCreator:       noCreator,
+			Verbose:         verbose,
+			Version:         version,
+			Entropy:         entropy,
+			Quiet:           quiet,
+			SkipPrefix:      skipPrefix,
+			ExcludePatterns: excludePatterns,
+			IncludePatterns: includePatterns,
 		}
 	}
 
@@ -267,9 +313,13 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// display info
-	display := torrent.NewDisplay(torrent.NewFormatter(verbose))
-	display.ShowOutputPathWithTime(torrentInfo.Path, time.Since(start))
+	// In quiet mode, only print the path to the created torrent file
+	if quiet {
+		fmt.Println("Wrote:", torrentInfo.Path)
+	} else {
+		display := torrent.NewDisplay(torrent.NewFormatter(verbose))
+		display.ShowOutputPathWithTime(torrentInfo.Path, time.Since(start))
+	}
 
 	return nil
 }

@@ -18,36 +18,43 @@ type BatchConfig struct {
 
 // BatchJob represents a single torrent creation job within a batch
 type BatchJob struct {
-	Output      string   `yaml:"output"`
-	Path        string   `yaml:"path"`
-	Name        string   `yaml:"-"`
-	Trackers    []string `yaml:"trackers"`
-	WebSeeds    []string `yaml:"webseeds"`
-	Private     bool     `yaml:"private"`
-	PieceLength uint     `yaml:"piece_length"`
-	Comment     string   `yaml:"comment"`
-	Source      string   `yaml:"source"`
-	NoDate      bool     `yaml:"no_date"`
+	Output          string   `yaml:"output"`
+	Path            string   `yaml:"path"`
+	Name            string   `yaml:"-"`
+	Trackers        []string `yaml:"trackers"`
+	WebSeeds        []string `yaml:"webseeds"`
+	Private         bool     `yaml:"private"`
+	PieceLength     uint     `yaml:"piece_length"`
+	Comment         string   `yaml:"comment"`
+	Source          string   `yaml:"source"`
+	NoDate          bool     `yaml:"no_date"`
+	SkipPrefix      bool     `yaml:"skip_prefix"`
+	ExcludePatterns []string `yaml:"exclude_patterns"`
+	IncludePatterns []string `yaml:"include_patterns"`
 }
 
 // ToCreateOptions converts a BatchJob to CreateTorrentOptions
-func (j *BatchJob) ToCreateOptions(verbose bool, version string) CreateTorrentOptions {
+func (j *BatchJob) ToCreateOptions(verbose bool, quiet bool, version string) CreateTorrentOptions {
 	var tracker string
 	if len(j.Trackers) > 0 {
 		tracker = j.Trackers[0]
 	}
 
 	opts := CreateTorrentOptions{
-		Path:       j.Path,
-		Name:       j.Name,
-		TrackerURL: tracker,
-		WebSeeds:   j.WebSeeds,
-		IsPrivate:  j.Private,
-		Comment:    j.Comment,
-		Source:     j.Source,
-		NoDate:     j.NoDate,
-		Verbose:    verbose,
-		Version:    version,
+		Path:            j.Path,
+		Name:            j.Name,
+		TrackerURL:      tracker,
+		WebSeeds:        j.WebSeeds,
+		IsPrivate:       j.Private,
+		Comment:         j.Comment,
+		Source:          j.Source,
+		NoDate:          j.NoDate,
+		Verbose:         verbose,
+		Quiet:           quiet,
+		Version:         version,
+		SkipPrefix:      j.SkipPrefix,
+		ExcludePatterns: j.ExcludePatterns,
+		IncludePatterns: j.IncludePatterns,
 	}
 
 	if j.PieceLength != 0 {
@@ -68,7 +75,7 @@ type BatchResult struct {
 }
 
 // ProcessBatch processes a batch configuration file and creates multiple torrents
-func ProcessBatch(configPath string, presetOpts *preset.Options, verbose bool, version string) ([]BatchResult, error) {
+func ProcessBatch(configPath string, presetOpts *preset.Options, verbose bool, quiet bool, version string) ([]BatchResult, error) {
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read batch config: %w", err)
@@ -116,7 +123,7 @@ func ProcessBatch(configPath string, presetOpts *preset.Options, verbose bool, v
 		go func() {
 			defer wg.Done()
 			for idx := range jobs {
-				results[idx] = processJob(config.Jobs[idx], verbose, version)
+				results[idx] = processJob(config.Jobs[idx], verbose, quiet, version)
 			}
 		}()
 	}
@@ -195,7 +202,7 @@ func applyPresetToJob(job *BatchJob, preset *preset.Options) {
 	}
 }
 
-func processJob(job BatchJob, verbose bool, version string) BatchResult {
+func processJob(job BatchJob, verbose bool, quiet bool, version string) BatchResult {
 	result := BatchResult{
 		Job:      job,
 		Trackers: job.Trackers,
@@ -210,7 +217,7 @@ func processJob(job BatchJob, verbose bool, version string) BatchResult {
 	if output == "" {
 		baseName := filepath.Base(filepath.Clean(job.Path))
 
-		if trackerURL != "" {
+		if trackerURL != "" && !job.SkipPrefix {
 			prefix := preset.GetDomainPrefix(trackerURL)
 			baseName = prefix + "_" + baseName
 		}
@@ -224,7 +231,7 @@ func processJob(job BatchJob, verbose bool, version string) BatchResult {
 	}
 
 	// convert job to CreateTorrentOptions
-	opts := job.ToCreateOptions(verbose, version)
+	opts := job.ToCreateOptions(verbose, quiet, version)
 
 	// create the torrent
 	mi, err := CreateTorrent(opts)

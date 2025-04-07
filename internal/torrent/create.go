@@ -1,6 +1,7 @@
 package torrent
 
 import (
+	"crypto/rand"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -126,6 +127,14 @@ func (t *Torrent) GetInfo() *metainfo.Info {
 	return info
 }
 
+func generateRandomString() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%x", b), nil
+}
+
 func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 	path := filepath.ToSlash(opts.Path)
 	name := opts.Name
@@ -140,7 +149,7 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 	}
 
 	if !opts.NoCreator {
-		mi.CreatedBy = fmt.Sprintf("mkbrr/%s", opts.Version)
+		mi.CreatedBy = fmt.Sprintf("mkbrr/%s (https://github.com/autobrr/mkbrr)", opts.Version)
 	}
 
 	if !opts.NoDate {
@@ -161,7 +170,11 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 			}
 			return nil
 		}
-		if shouldIgnoreFile(filePath) {
+		shouldIgnore, err := shouldIgnoreFile(filePath, opts.ExcludePatterns, opts.IncludePatterns)
+		if err != nil {
+			return fmt.Errorf("error processing file patterns: %w", err)
+		}
+		if shouldIgnore {
 			return nil
 		}
 		files = append(files, fileEntry{
@@ -187,6 +200,7 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 		numPieces := (totalSize + pieceLenInt - 1) / pieceLenInt
 
 		display := NewDisplay(NewFormatter(opts.Verbose))
+		display.SetQuiet(opts.Quiet)
 		hasher := NewPieceHasher(files, pieceLenInt, int(numPieces), display)
 
 		if err := hasher.hashPieces(1); err != nil {
@@ -244,7 +258,21 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 		if err != nil {
 			return nil, fmt.Errorf("error encoding info: %w", err)
 		}
-		mi.InfoBytes = infoBytes
+
+		// add random entropy field for cross-seeding if enabled
+		if opts.Entropy {
+			infoMap := make(map[string]interface{})
+			if err := bencode.Unmarshal(infoBytes, &infoMap); err == nil {
+				if entropy, err := generateRandomString(); err == nil {
+					infoMap["entropy"] = entropy
+					if infoBytes, err = bencode.Marshal(infoMap); err == nil {
+						mi.InfoBytes = infoBytes
+					}
+				}
+			}
+		} else {
+			mi.InfoBytes = infoBytes
+		}
 
 		if len(opts.WebSeeds) > 0 {
 			mi.UrlList = opts.WebSeeds
@@ -290,6 +318,7 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 		if exp, ok := trackers.GetTrackerPieceSizeExp(opts.TrackerURL, uint64(totalSize)); ok {
 			if opts.Verbose {
 				display := NewDisplay(NewFormatter(opts.Verbose))
+				display.SetQuiet(opts.Quiet)
 				display.ShowMessage(fmt.Sprintf("using tracker-specific range for content size: %d MiB (recommended: %s pieces)",
 					totalSize>>20, formatPieceSize(exp)))
 				if pieceLength != exp {
@@ -318,6 +347,7 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 		for uint64(len(torrentData)) > maxSize && pieceLength < 24 {
 			if opts.Verbose {
 				display := NewDisplay(NewFormatter(opts.Verbose))
+				display.SetQuiet(opts.Quiet)
 				display.ShowWarning(fmt.Sprintf("increasing piece length to reduce torrent size (current: %.1f KiB, limit: %.1f KiB)",
 					float64(len(torrentData))/(1<<10), float64(maxSize)/(1<<10)))
 			}
@@ -360,7 +390,7 @@ func Create(opts CreateTorrentOptions) (*TorrentInfo, error) {
 
 	if opts.OutputPath == "" {
 		fileName := opts.Name
-		if opts.TrackerURL != "" {
+		if opts.TrackerURL != "" && !opts.SkipPrefix {
 			fileName = preset.GetDomainPrefix(opts.TrackerURL) + "_" + opts.Name
 		}
 		opts.OutputPath = fileName + ".torrent"
