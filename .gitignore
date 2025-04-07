@@ -1,6 +1,7 @@
 *.torrent
 /build
 .DS_Store
+/dist
 
 race_report.log
 coverage.txt

@@ -17,7 +17,6 @@ var updateCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.AddCommand(updateCmd)
 	updateCmd.SetUsageTemplate(`Usage:
   {{.CommandPath}}
   
