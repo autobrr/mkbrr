@@ -201,10 +201,19 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 
 		display := NewDisplay(NewFormatter(opts.Verbose))
 		display.SetQuiet(opts.Quiet)
-		hasher := NewPieceHasher(files, pieceLenInt, int(numPieces), display)
 
-		if err := hasher.hashPieces(1); err != nil {
-			return nil, fmt.Errorf("error hashing pieces: %w", err)
+		var pieceHashes [][]byte
+		if numPieces > 0 {
+			hasher := NewPieceHasher(files, pieceLenInt, int(numPieces), display)
+			if err := hasher.hashPieces(1); err != nil { // Using 1 worker for simplicity in this context, could optimize later
+				return nil, fmt.Errorf("error hashing pieces: %w", err)
+			}
+			pieceHashes = hasher.pieces
+		} else {
+			if !opts.Quiet {
+				display.ShowFiles(files)
+			}
+			pieceHashes = make([][]byte, 0) // Empty slice for 0 pieces
 		}
 
 		info := &metainfo.Info{
@@ -217,8 +226,8 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 			info.Source = opts.Source
 		}
 
-		info.Pieces = make([]byte, len(hasher.pieces)*20)
-		for i, piece := range hasher.pieces {
+		info.Pieces = make([]byte, len(pieceHashes)*20)
+		for i, piece := range pieceHashes {
 			copy(info.Pieces[i*20:], piece)
 		}
 
