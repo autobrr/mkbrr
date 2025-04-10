@@ -73,7 +73,6 @@ jobs:
       GOCACHE: ${{ startsWith(matrix.os, 'windows') && 'D:\golang\cache' || '' }}
       GOMODCACHE: ${{ startsWith(matrix.os, 'windows') && 'D:\golang\modcache' || '' }}
       USERPROFILE: ${{ startsWith(matrix.os, 'windows') && 'D:\homedir' || '' }}
-      CGO_ENABLED: 1
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -89,13 +88,13 @@ jobs:
       - name: Run Tests (MacOS)
         if: matrix.os == 'macos-latest'
         env:
-          CGO_ENABLED: 0
+          CGO_ENABLED: 1
         run: go test ./...
 
       - name: Run Tests (Windows)
         if: matrix.os == 'windows-latest'
         env:
-          CGO_ENABLED: 0
+          CGO_ENABLED: 1
         run: go test -short ./...
 
       - name: Generate Test Summary
