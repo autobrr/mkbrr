@@ -35,11 +35,61 @@ func ValidateAgainstTrackerRules(mi *metainfo.MetaInfo, info *metainfo.Info, tra
 
 	// 1. Get Tracker Config
 	trackerConfig := trackers.FindTrackerConfig(trackerURL)
+	displayURL := trackerURL
+	parsedURL, err := url.Parse(trackerURL)
+	if err == nil {
+		displayURL = parsedURL.Scheme + "://" + parsedURL.Host + "/..."
+	} else {
+		displayURL = "the specified tracker"
+	}
+
+	announceMatch := false
+	if mi.Announce == trackerURL {
+		announceMatch = true
+	} else {
+		for _, tier := range mi.AnnounceList {
+			for _, announce := range tier {
+				if announce == trackerURL {
+					announceMatch = true
+					break
+				}
+				if trackerConfig != nil {
+					for _, baseURL := range trackerConfig.URLs {
+						if strings.Contains(announce, baseURL) {
+							announceMatch = true
+							break
+						}
+					}
+				}
+				if announceMatch {
+					break
+				}
+			}
+			if announceMatch {
+				break
+			}
+		}
+	}
+	if announceMatch {
+		results = append(results, ValidationResult{
+			Rule:    "Announce URL",
+			Status:  ValidationPass,
+			Message: "Torrent contains an announce URL matching the specified tracker/preset.",
+		})
+	} else {
+		results = append(results, ValidationResult{
+			Rule:    "Announce URL",
+			Status:  ValidationFail,
+			Message: fmt.Sprintf("Torrent does not contain an announce URL matching %s or its known aliases.", displayURL),
+		})
+	}
+
+	// If no specific config, add the skip message and return (announce check result is already included)
 	if trackerConfig == nil {
 		results = append(results, ValidationResult{
 			Rule:    "Tracker Recognition",
 			Status:  ValidationSkip,
-			Message: fmt.Sprintf("No specific rules found for tracker URL containing '%s'. Cannot perform detailed validation.", trackerURL),
+			Message: fmt.Sprintf("No specific rules found for tracker URL containing '%s'. Cannot perform detailed validation.", displayURL),
 		})
 		return results, nil
 	}
@@ -145,52 +195,7 @@ func ValidateAgainstTrackerRules(mi *metainfo.MetaInfo, info *metainfo.Info, tra
 	//		Status:  ValidationInfo,
 	//		Message: "Source tag is not present (optional for many trackers).",
 	//	})
-	//}
-	// }
-
-	announceMatch := false
-	if mi.Announce == trackerURL {
-		announceMatch = true
-	} else {
-		for _, tier := range mi.AnnounceList {
-			for _, announce := range tier {
-				for _, baseURL := range trackerConfig.URLs {
-					if strings.Contains(announce, baseURL) {
-						announceMatch = true
-						break
-					}
-				}
-				if announceMatch {
-					break
-				}
-			}
-			if announceMatch {
-				break
-			}
-		}
-	}
-	if announceMatch {
-		results = append(results, ValidationResult{
-			Rule:    "Announce URL",
-			Status:  ValidationPass,
-			Message: "Torrent contains an announce URL matching the specified tracker/preset.",
-		})
-	} else {
-		// Sanitize trackerURL for display in error message
-		displayURL := trackerURL
-		parsedURL, err := url.Parse(trackerURL)
-		if err == nil {
-			displayURL = parsedURL.Scheme + "://" + parsedURL.Host + "/..." // Show only scheme and host
-		} else {
-			displayURL = "the specified tracker" // Fallback if URL parsing fails
-		}
-
-		results = append(results, ValidationResult{
-			Rule:    "Announce URL",
-			Status:  ValidationFail, // Failing seems appropriate if validating against a specific tracker.
-			Message: fmt.Sprintf("Torrent does not contain an announce URL matching %s or its known aliases.", displayURL),
-		})
-	}
+	// The announce check logic previously here has been moved up.
 
 	if recommendedExp, ok := trackers.GetTrackerPieceSizeExp(trackerURL, uint64(info.TotalLength())); ok {
 		currentExp := uint(0)
