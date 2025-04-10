@@ -2,6 +2,7 @@
 /build
 /dist
 .DS_Store
+/dist
 
 race_report.log
 coverage.txt

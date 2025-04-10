@@ -29,7 +29,6 @@ var inspectCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.AddCommand(inspectCmd)
 	inspectCmd.Flags().SortFlags = false
 	inspectCmd.Flags().BoolP("help", "h", false, "help for inspect")
 	inspectCmd.Flags().BoolVarP(&inspectVerbose, "verbose", "v", false, "show all metadata fields")

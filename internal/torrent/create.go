@@ -171,7 +171,11 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 			}
 			return nil
 		}
-		if shouldIgnoreFile(filePath, opts.ExcludePatterns, opts.IncludePatterns) {
+		shouldIgnore, err := shouldIgnoreFile(filePath, opts.ExcludePatterns, opts.IncludePatterns)
+		if err != nil {
+			return fmt.Errorf("error processing file patterns: %w", err)
+		}
+		if shouldIgnore {
 			return nil
 		}
 		files = append(files, fileEntry{
@@ -204,11 +208,30 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 		pieceLenInt := int64(1) << pieceLength
 		numPieces := (totalSize + pieceLenInt - 1) / pieceLenInt
 
-		// Use the displayer (either from opts or the default CLI one)
-		hasher := NewPieceHasher(files, pieceLenInt, int(numPieces), displayer)
+		display := NewDisplay(NewBytesFormatter(opts.Verbose))
+		display.SetQuiet(opts.Quiet)
 
-		if err := hasher.hashPieces(1); err != nil { // TODO: Consider using optimized numWorkers here?
-			return nil, fmt.Errorf("error hashing pieces: %w", err)
+		var pieceHashes [][]byte
+		if numPieces > 0 {
+			hasher := NewPieceHasher(files, pieceLenInt, int(numPieces), display)
+			if err := hasher.hashPieces(1); err != nil { // Using 1 worker for simplicity in this context, could optimize later
+				return nil, fmt.Errorf("error hashing pieces: %w", err)
+			}
+			pieceHashes = hasher.pieces
+		} else {
+			if !opts.Quiet {
+				// Convert internal fileEntry slice to exported FileEntry slice for displayer
+				exportedFiles := make([]FileEntry, len(files))
+				for i, f := range files {
+					exportedFiles[i] = FileEntry{
+						Path: f.path,
+						Size: f.length,
+						Name: filepath.Base(f.path),
+					}
+				}
+				display.ShowFiles(exportedFiles)
+			}
+			pieceHashes = make([][]byte, 0) // Empty slice for 0 pieces
 		}
 
 		info := &metainfo.Info{
@@ -221,8 +244,8 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 			info.Source = opts.Source
 		}
 
-		info.Pieces = make([]byte, len(hasher.pieces)*20)
-		for i, piece := range hasher.pieces {
+		info.Pieces = make([]byte, len(pieceHashes)*20)
+		for i, piece := range pieceHashes {
 			copy(info.Pieces[i*20:], piece)
 		}
 
