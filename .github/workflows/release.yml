@@ -35,6 +35,8 @@ jobs:
         os: [ ubuntu-latest ]
     name: Test ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    env:
+      CGO_ENABLED: 1
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -71,6 +73,7 @@ jobs:
       GOCACHE: ${{ startsWith(matrix.os, 'windows') && 'D:\golang\cache' || '' }}
       GOMODCACHE: ${{ startsWith(matrix.os, 'windows') && 'D:\golang\modcache' || '' }}
       USERPROFILE: ${{ startsWith(matrix.os, 'windows') && 'D:\homedir' || '' }}
+      CGO_ENABLED: 1
     steps:
       - name: Checkout
         uses: actions/checkout@v4
