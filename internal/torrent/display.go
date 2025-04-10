@@ -350,3 +350,37 @@ func (d *Display) ShowVerificationResult(result *VerificationResult, duration ti
 
 	fmt.Fprintf(d.output, "  %-15s %s\n", label("Check time:"), d.formatter.FormatDuration(duration))
 }
+
+// ShowValidationResults displays the results of tracker rule validation.
+func (d *Display) ShowValidationResults(results []ValidationResult) {
+	if d.quiet {
+		return
+	}
+
+	if len(results) == 1 && results[0].Status == ValidationSkip && results[0].Rule == "Tracker Recognition" {
+		fmt.Fprintf(d.output, "  %s %s\n", label("Info:"), results[0].Message)
+		return
+	}
+
+	for _, result := range results {
+		var statusColor func(...interface{}) string
+		switch result.Status {
+		case ValidationPass:
+			statusColor = success
+		case ValidationFail:
+			statusColor = errorColor
+		case ValidationWarn:
+			statusColor = yellow
+		case ValidationInfo, ValidationSkip:
+			statusColor = label
+		default:
+			statusColor = white
+		}
+
+		fmt.Fprintf(d.output, "  [%s] %s: %s\n",
+			statusColor(string(result.Status)),
+			highlight(result.Rule),
+			result.Message,
+		)
+	}
+}

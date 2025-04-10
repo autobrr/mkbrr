@@ -196,6 +196,20 @@ This shows:
 - Creation date
 - File list (for multi-file torrents)
 
+You can also validate the torrent against known tracker rules and/or output the information in JSON format:
+
+```bash
+# Validate against tracker rules (using URL or preset name)
+mkbrr inspect my-torrent.torrent -T https://tracker.example.com/announce
+mkbrr inspect my-torrent.torrent -T mypreset
+
+# Output inspection results as JSON
+mkbrr inspect my-torrent.torrent -f json
+
+# Combine validation and JSON output
+mkbrr inspect my-torrent.torrent -T mypreset -f json
+```
+
 ### Modifying Torrents
 
 Update metadata in existing torrent files without access to the original content:
@@ -264,7 +278,7 @@ Some trackers limit the size of the .torrent file itself:
 - GazelleGames: 1 MB
 
 > [!INFO]
-> When creating torrents for these trackers, mkbrr automatically adjusts piece sizes to meet requirements, so you don't have to.
+> When creating torrents for these trackers, mkbrr automatically adjusts piece sizes to meet requirements, so you don't have to. The `inspect` command with the `--validate-tracker` flag can also check if an existing torrent complies with these rules.
 
 A full overview over tracker-specific limits can be seen in [trackers.go](internal/trackers/trackers.go)
 
