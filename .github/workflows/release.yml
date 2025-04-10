@@ -21,11 +21,11 @@ env:
   REGISTRY: ghcr.io
   REGISTRY_IMAGE: ghcr.io/${{ github.repository }}
   GO_VERSION: "1.23.4"
+  GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
 
 permissions:
   contents: write
   packages: write
-  # id-token: write # Only needed for keyless signing, not used here yet
 
 jobs:
   test:
@@ -51,8 +51,7 @@ jobs:
         run: make test-race
 
       - name: Generate Test Summary
-        # Explicitly list non-GUI packages for test summary generation
-        run: go run gotest.tools/gotestsum@latest --junitfile unit-tests.xml --format pkgname -- github.com/autobrr/mkbrr/cmd github.com/autobrr/mkbrr/internal/...
+        run: go run gotest.tools/gotestsum@latest --junitfile unit-tests.xml --format pkgname
 
       - name: Test Summary
         uses: test-summary/action@v2
@@ -88,13 +87,13 @@ jobs:
         if: matrix.os == 'macos-latest'
         env:
           CGO_ENABLED: 0
-        run: go test github.com/autobrr/mkbrr/cmd github.com/autobrr/mkbrr/internal/... # Explicitly list non-GUI packages to test
+        run: go test ./...
 
       - name: Run Tests (Windows)
         if: matrix.os == 'windows-latest'
         env:
           CGO_ENABLED: 0
-        run: go test -short github.com/autobrr/mkbrr/cmd github.com/autobrr/mkbrr/internal/...
+        run: go test -short ./...
 
       - name: Generate Test Summary
         if: matrix.os != 'windows-latest'
@@ -136,8 +135,7 @@ jobs:
           CGO_ENABLED: 0
         run: |
           # Build initial binary
-          # Build from the correct main package path
-          go build -o mkbrr ./cmd/mkbrr/
+          go build -o mkbrr
 
           # Run different workload scenarios
           ./mkbrr create test_data/test1.bin --cpuprofile=cpu1.pprof
@@ -167,154 +165,147 @@ jobs:
           path: cpu.pprof
 
   prepare:
-    name: Prepare release (${{ matrix.os }})
-    needs: [ pgo ]
+    name: Split builds
     strategy:
-      fail-fast: false # Allow other jobs to finish even if one fails
       matrix:
-        os: [ ubuntu-latest, macos-latest, windows-latest ]
-    runs-on: ${{ matrix.os }}
+        goos: [linux, windows, darwin, freebsd]
+    runs-on: ubuntu-latest
+    needs: [ pgo ]
+    env:
+      DOCKER_CLI_EXPERIMENTAL: "enabled"
+      flags: ""
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Ensure tags are fetched
+          fetch-depth: 0
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - name: ghcr-login
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
 
-      - name: Download pprof artifact
+      - name: Download pprof
         uses: actions/download-artifact@v4
         with:
           name: pprof
           path: .
 
-      - name: Get short SHA
-        id: sha
-        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-
-      - name: Set target flags based on OS (Linux/macOS)
-        if: runner.os != 'Windows'
-        id: set_targets_nix
-        run: |
-          if [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
-            # Build linux amd64, arm64, armv6
-            echo "targets=--target=linux_amd64 --target=linux_arm64" >> $GITHUB_OUTPUT
-          elif [ "${{ matrix.os }}" == "macos-latest" ]; then
-            # Build darwin amd64, arm64
-            echo "targets=--target=darwin_amd64 --target=darwin_arm64" >> $GITHUB_OUTPUT
-          fi
+      - if: ${{ github.event_name == 'workflow_dispatch' }}
         shell: bash
-
-      - name: Set target flags based on OS (Windows)
-        if: runner.os == 'Windows'
-        id: set_targets_win
         run: |
-          # Build windows amd64 only
-          echo "targets=--target=windows_amd64" >> $env:GITHUB_OUTPUT
-        shell: pwsh
+          echo "flags=--nightly" >> $GITHUB_ENV
 
-      # Cache dist directory per OS based on commit SHA
-      - name: Cache GoReleaser dist directory (Linux)
-        uses: actions/cache@v4
-        if: matrix.os == 'ubuntu-latest'
+      - shell: bash
+        run: |
+          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+
+      - uses: actions/cache@v4
         with:
-          path: dist/linux* # Cache linux specific dist outputs
-          key: goreleaser-dist-linux-${{ steps.sha.outputs.sha_short }}-${{ github.ref }}
-          restore-keys: |
-            goreleaser-dist-linux-${{ steps.sha.outputs.sha_short }}-
+          path: dist/${{ matrix.goos }}
+          key: ${{ matrix.goos }}-${{ env.sha_short }}${{ env.flags }}
+          enableCrossOsArchive: ${{ matrix.goos == 'windows' }}
 
-      - name: Cache GoReleaser dist directory (macOS)
-        uses: actions/cache@v4
-        if: matrix.os == 'macos-latest'
-        with:
-          path: dist/darwin* # Cache darwin specific dist outputs
-          key: goreleaser-dist-darwin-${{ steps.sha.outputs.sha_short }}-${{ github.ref }}
-          restore-keys: |
-            goreleaser-dist-darwin-${{ steps.sha.outputs.sha_short }}-
-
-      - name: Cache GoReleaser dist directory (Windows)
-        uses: actions/cache@v4
-        if: matrix.os == 'windows-latest'
-        with:
-          path: dist/windows* # Cache windows specific dist outputs
-          key: goreleaser-dist-windows-${{ steps.sha.outputs.sha_short }}-${{ github.ref }}
-          restore-keys: |
-            goreleaser-dist-windows-${{ steps.sha.outputs.sha_short }}-
-          # enableCrossOsArchive: true # Might not be needed if only caching native builds
-
-      # Run GoReleaser build/split phase with specific targets
-      # Only use --split for actual tag releases
-      - name: Run GoReleaser Prepare Phase
-        id: goreleaser-prepare
-        uses: goreleaser/goreleaser-action@v6
-        # TODO: Refine cache hit check logic if needed, referencing cache step IDs correctly
-        # if: steps.cache-??? .outputs.cache-hit != 'true'
+      - uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser-pro
-          version: "~> v2"
-          # Combine base command with OS-specific targets
-          args: >
-            ${{ startsWith(github.ref, 'refs/tags/') && 'release --clean --split' || 'build --snapshot --clean' }}
-            ${{ steps.set_targets_nix.outputs.targets || steps.set_targets_win.outputs.targets }}
+          version: ~> v2
+          args: release --clean --split ${{ env.flags }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
-          BUILDER: ${{ github.actor }}@github-actions-${{ matrix.os }}
+          GGOOS: ${{ matrix.goos }}
+          BUILDER: ${{ github.actor }}@github-actions
 
   release:
-    name: Merge and Publish Release
-    needs: [ prepare ]
-    runs-on: ubuntu-latest # Merge step typically runs on a single runner
-    # Only run the merge/publish job for tag pushes
-    if: startsWith(github.ref, 'refs/tags/')
+    name: Merge builds and release
+    runs-on: ubuntu-latest
+    needs: [ prepare, test, testother ]
+    env:
+      DOCKER_CLI_EXPERIMENTAL: "enabled"
+      flags: ""
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: sigstore/cosign-installer@v3.8.1
+      - uses: anchore/sbom-action/download-syft@v0.18.0
+
+      - name: ghcr-login
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
-          cache: true # Cache Go modules
+          cache: true
 
-      - name: Get short SHA
-        id: sha
-        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+      - if: ${{ github.event_name == 'workflow_dispatch' }}
+        shell: bash
+        run: |
+          echo "flags=--nightly" >> $GITHUB_ENV
 
-      # Restore all cached dist directories from prepare jobs
-      - name: Restore GoReleaser dist cache (Linux)
+      - shell: bash
+        run: |
+          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+
+      - id: cache-linux
         uses: actions/cache@v4
         with:
-          path: dist/linux*
-          key: goreleaser-dist-linux-${{ steps.sha.outputs.sha_short }}-${{ github.ref }}
-          # No restore-keys needed here, we need the exact cache from prepare
+          path: dist/linux
+          key: linux-${{ env.sha_short }}${{ env.flags }}
 
-      - name: Restore GoReleaser dist cache (macOS)
+      - id: cache-darwin
         uses: actions/cache@v4
         with:
-          path: dist/darwin*
-          key: goreleaser-dist-darwin-${{ steps.sha.outputs.sha_short }}-${{ github.ref }}
+          path: dist/darwin
+          key: darwin-${{ env.sha_short }}${{ env.flags }}
 
-      - name: Restore GoReleaser dist cache (Windows)
+      - id: cache-windows
         uses: actions/cache@v4
         with:
-          path: dist/windows*
-          key: goreleaser-dist-windows-${{ steps.sha.outputs.sha_short }}-${{ github.ref }}
+          path: dist/windows
+          key: windows-${{ env.sha_short }}${{ env.flags }}
+          enableCrossOsArchive: true
 
-      # Run GoReleaser merge/publish phase
-      - name: Run GoReleaser Merge Phase
+      - id: cache-freebsd
+        uses: actions/cache@v4
+        with:
+          path: dist/freebsd
+          key: freebsd-${{ env.sha_short }}${{ env.flags }}
+
+      - name: Run GoReleaser Merge
+        if: steps.cache-linux.outputs.cache-hit == 'true' && steps.cache-darwin.outputs.cache-hit == 'true' && steps.cache-windows.outputs.cache-hit == 'true' && steps.cache-freebsd.outputs.cache-hit == 'true'
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser-pro
-          version: "~> v2"
-          args: release --merge
+          version: ~> v2
+          args: continue --merge ${{ github.event_name == 'pull_request' && '--skip=publish' || '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
-          BUILDER: ${{ github.actor }}@github-actions-release-job # Different builder ID for merge job
+
+      - name: Upload final assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: mkbrr
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/*.deb
+            dist/*.rpm

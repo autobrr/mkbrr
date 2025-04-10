@@ -1,8 +1,7 @@
 version: 2
 
-# Using single-runner strategy, remove partial config
-# partial:
-#   by: target
+partial:
+  by: target
 
 before:
   hooks:
@@ -35,7 +34,7 @@ builds:
 archives:
   - format_overrides:
       - goos: windows
-        format: zip
+        formats: [ 'zip' ]
     name_template: >-
       {{ .ProjectName }}_
       {{- .Version }}_
