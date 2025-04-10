@@ -49,7 +49,7 @@ jobs:
 
       - name: Run Tests with Race Detection
         env:
-          CGO_ENABLED: 0
+          CGO_ENABLED: 1
         run: make test-race
 
   testother:

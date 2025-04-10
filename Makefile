@@ -109,7 +109,7 @@ test-race-short:
 .PHONY: test-race
 test-race:
 	@echo "Running tests with race detector (excluding GUI)..."
-	CGO_ENABLED=0
+	CGO_ENABLED=1
 	GORACE="$(GORACE)" $(GO) test -race ./cmd/... ./internal/... -v
 	@if [ -f "./race_report.log" ]; then \
 		echo "Race conditions detected! Check race_report.log"; \
