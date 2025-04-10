@@ -25,6 +25,9 @@ builds:
     env:
       - CGO_ENABLED=1 # CGO is needed for GUI
       - BUILDER
+    goos:
+      - darwin
+      - windows
     main: ./cmd/mkbrr-gui/
     binary: mkbrr-gui
     ldflags:
