@@ -146,7 +146,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 				}
 			}
 		} else {
-			display := torrent.NewDisplay(torrent.NewFormatter(verbose))
+			display := torrent.NewDisplay(torrent.NewBytesFormatter(verbose))
 			display.ShowBatchResults(results, time.Since(start))
 		}
 		return nil
@@ -222,6 +222,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 			SkipPrefix:      presetOpts.SkipPrefix != nil && *presetOpts.SkipPrefix,
 			Verbose:         verbose,
 			Version:         version,
+			AppName:         GetAppName(),
 			Entropy:         entropy,
 			Quiet:           quiet,
 			ExcludePatterns: []string{},
@@ -297,6 +298,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 			NoCreator:       noCreator,
 			Verbose:         verbose,
 			Version:         version,
+			AppName:         GetAppName(),
 			Entropy:         entropy,
 			Quiet:           quiet,
 			SkipPrefix:      skipPrefix,
@@ -320,7 +322,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	if quiet {
 		fmt.Println("Wrote:", torrentInfo.Path)
 	} else {
-		display := torrent.NewDisplay(torrent.NewFormatter(verbose))
+		display := torrent.NewDisplay(torrent.NewBytesFormatter(verbose))
 		display.ShowOutputPathWithTime(torrentInfo.Path, time.Since(start))
 	}
 

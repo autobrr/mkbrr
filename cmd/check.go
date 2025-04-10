@@ -66,7 +66,7 @@ func runCheck(cmd *cobra.Command, args []string) error {
 		Quiet:       checkQuiet,
 	}
 
-	display := torrent.NewDisplay(torrent.NewFormatter(checkVerbose))
+	display := torrent.NewDisplay(torrent.NewBytesFormatter(checkVerbose))
 
 	if !checkQuiet {
 		green := color.New(color.FgGreen).SprintFunc()

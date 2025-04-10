@@ -48,16 +48,9 @@ jobs:
           cache: true
 
       - name: Run Tests with Race Detection
+        env:
+          CGO_ENABLED: 1
         run: make test-race
-
-      - name: Generate Test Summary
-        run: go run gotest.tools/gotestsum@latest --junitfile unit-tests.xml --format pkgname
-
-      - name: Test Summary
-        uses: test-summary/action@v2
-        with:
-          paths: "unit-tests.xml"
-        if: always()
 
   testother:
     strategy:
@@ -86,13 +79,13 @@ jobs:
       - name: Run Tests (MacOS)
         if: matrix.os == 'macos-latest'
         env:
-          CGO_ENABLED: 0
+          CGO_ENABLED: 1
         run: go test ./...
 
       - name: Run Tests (Windows)
         if: matrix.os == 'windows-latest'
         env:
-          CGO_ENABLED: 0
+          CGO_ENABLED: 1
         run: go test -short ./...
 
       - name: Generate Test Summary
@@ -135,7 +128,7 @@ jobs:
           CGO_ENABLED: 0
         run: |
           # Build initial binary
-          go build -o mkbrr
+          go build -o mkbrr ./cmd/mkbrr/
 
           # Run different workload scenarios
           ./mkbrr create test_data/test1.bin --cpuprofile=cpu1.pprof

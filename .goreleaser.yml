@@ -12,43 +12,45 @@ builds:
     env:
       - CGO_ENABLED=0
       - BUILDER
-    flags:
-      - -pgo=cpu.pprof
-    goos:
-      - linux
-      - windows
-      - darwin
-      - freebsd
-    goarch:
-      - amd64
-      - arm
-      - arm64
-    goarm:
-      - 6
-    ignore:
-      - goos: windows
-        goarch: arm
-      - goos: windows
-        goarch: arm64
-      - goos: darwin
-        goarch: arm
-      - goos: freebsd
-        goarch: arm
-      - goos: freebsd
-        goarch: arm64
-    main: ./main.go
+    # flags: # PGO flag removed during simplification, can be re-added if needed
+    #   - -pgo=cpu.pprof
+    main: ./cmd/mkbrr/
     binary: mkbrr
     ldflags:
       - -s -w
       - -X main.version={{.Version}}
       - -X main.buildTime={{.CommitDate}}
 
+  - id: mkbrr-gui
+    env:
+      - CGO_ENABLED=1 # CGO is needed for GUI
+      - BUILDER
+    goos:
+      - darwin
+      - windows
+    main: ./cmd/mkbrr-gui/
+    binary: mkbrr-gui
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.buildTime={{.CommitDate}}
 archives:
   - format_overrides:
       - goos: windows
         formats: [ 'zip' ]
     name_template: >-
       {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else }}{{ .Arch }}{{ end }}
+  - id: mkbrr-gui
+    builds: [mkbrr-gui]
+    format_overrides:
+      - goos: windows
+        format: zip
+    name_template: >-
+      {{ .ProjectName }}-gui_
       {{- .Version }}_
       {{- .Os }}_
       {{- if eq .Arch "amd64" }}x86_64
@@ -90,3 +92,5 @@ nfpms:
       - deb
       - rpm
       - archlinux
+
+# TODO: Add nfpms config for mkbrr-gui if desired

@@ -27,11 +27,7 @@ func init() {
 	rootCmd.AddCommand(versionCmd)
 }
 
-func Execute() error {
-	rootCmd.CompletionOptions.DisableDefaultCmd = true
-	rootCmd.SilenceUsage = false
-
-	rootCmd.SetUsageTemplate(`Usage:
+const commonUsageTemplate = `Usage:
   {{.CommandPath}} [command]
 
 Available Commands:{{range .Commands}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
@@ -41,7 +37,29 @@ Flags:
 {{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}
 
 Use "{{.CommandPath}} [command] --help" for more information about a command.
-`)
+`
 
+// setupCommon prepares the rootCmd with common settings.
+func setupCommon() {
+	rootCmd.CompletionOptions.DisableDefaultCmd = true
+	rootCmd.SilenceUsage = false
+	rootCmd.SetUsageTemplate(commonUsageTemplate)
+}
+
+// ExecuteCLI configures and executes the root command for CLI mode.
+func ExecuteCLI() error {
+	setupCommon() // Call setup first
+	// Add commands that should be available in CLI mode
+	rootCmd.AddCommand(createCmd)
+	rootCmd.AddCommand(checkCmd)
+	rootCmd.AddCommand(inspectCmd)
+	rootCmd.AddCommand(modifyCmd)
+	rootCmd.AddCommand(updateCmd)
 	return rootCmd.Execute()
+}
+
+// Execute remains for potential backward compatibility or internal use, defaulting to CLI.
+// It's generally better to call ExecuteCLI directly.
+func Execute() error {
+	return ExecuteCLI()
 }

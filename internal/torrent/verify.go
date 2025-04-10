@@ -194,7 +194,7 @@ func VerifyData(opts VerifyOptions) (*VerificationResult, error) {
 		pieceLen:     info.PieceLength,
 		numPieces:    numPieces,
 		files:        mappedFiles,
-		display:      NewDisplay(NewFormatter(opts.Verbose)),
+		display:      NewDisplay(NewBytesFormatter(opts.Verbose)), // Use NewBytesFormatter
 		missingFiles: missingFiles,
 	}
 	verifier.display.SetQuiet(opts.Quiet)
@@ -335,7 +335,16 @@ func (v *pieceVerifier) verifyPieces() error {
 	v.mutex.Unlock()
 	v.bytesVerified = 0
 
-	v.display.ShowFiles(v.files) // Show files being checked
+	// Convert internal fileEntry slice to exported FileEntry slice for displayer
+	exportedFiles := make([]FileEntry, len(v.files))
+	for i, f := range v.files {
+		exportedFiles[i] = FileEntry{
+			Path: f.path,
+			Size: f.length,
+			Name: filepath.Base(f.path),
+		}
+	}
+	v.display.ShowFiles(exportedFiles) // Show files being checked
 
 	var completedPieces uint64
 	piecesPerWorker := (v.numPieces + numWorkers - 1) / numWorkers
