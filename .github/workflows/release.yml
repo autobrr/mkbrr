@@ -137,7 +137,7 @@ jobs:
           CGO_ENABLED: 0
         run: |
           # Build initial binary
-          go build -o mkbrr
+          go build -o mkbrr ./cmd/mkbrr/
 
           # Run different workload scenarios
           ./mkbrr create test_data/test1.bin --cpuprofile=cpu1.pprof
