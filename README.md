@@ -171,6 +171,17 @@ mkbrr create path/to/file -t https://example-tracker.com/announce --exclude "*.n
 
 # Create a torrent including only specific file patterns (comma-separated)
 mkbrr create path/to/video-folder -t https://example-tracker.com/announce --include "*.mkv,*.mp4"
+
+# Create with a specific piece size (e.g., 4 MiB) - alternative to -l/--piece-length
+mkbrr create path/to/file -t https://example-tracker.com/announce --piece-size 4MiB
+
+# Create limiting max piece size (e.g., 8 MiB) - alternative to -m/--max-piece-length
+mkbrr create path/to/file -t https://example-tracker.com/announce --max-piece-size 8MiB
+
+# Note on --piece-size:
+# The specified size is rounded up to the nearest power of 2 (e.g., 14k becomes 16KiB).
+# The final piece size is then clamped between 64 KiB (minimum) and 128 MiB (maximum).
+# So, --piece-size 14k will result in 64 KiB pieces due to the minimum limit.
 ```
 
 > [!NOTE]

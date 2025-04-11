@@ -16,6 +16,8 @@ type CreateTorrentOptions struct {
 	Comment         string
 	PieceLengthExp  *uint
 	MaxPieceLength  *uint
+	PieceSize       *uint64
+	MaxPieceSize    *uint64
 	Source          string
 	NoDate          bool
 	NoCreator       bool

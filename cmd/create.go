@@ -7,33 +7,36 @@ import (
 	"runtime/pprof"
 	"time"
 
-	"github.com/autobrr/mkbrr/internal/preset"
-	"github.com/autobrr/mkbrr/internal/torrent"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
+
+	"github.com/autobrr/mkbrr/internal/preset"
+	"github.com/autobrr/mkbrr/internal/torrent"
 )
 
 var (
-	trackerURL        string
-	isPrivate         bool
-	comment           string
-	pieceLengthExp    *uint // for 2^n piece length, nil means automatic
-	maxPieceLengthExp *uint // for maximum 2^n piece length, nil means no limit
-	outputPath        string
-	webSeeds          []string
-	noDate            bool
-	noCreator         bool
-	source            string
-	verbose           bool
-	batchFile         string
-	presetName        string
-	presetFile        string
-	entropy           bool
-	quiet             bool
-	skipPrefix        bool
-	excludePatterns   []string
-	includePatterns   []string
+	trackerURL      string
+	isPrivate       bool
+	comment         string
+	pieceSizeStr    string
+	maxPieceSizeStr string
+	outputPath      string
+	webSeeds        []string
+	noDate          bool
+	noCreator       bool
+	source          string
+	verbose         bool
+	batchFile       string
+	presetName      string
+	presetFile      string
+	entropy         bool
+	quiet           bool
+	skipPrefix      bool
+	excludePatterns []string
+	includePatterns []string
 )
+
+var defaultPieceLength, defaultMaxPieceLength uint
 
 var createCmd = &cobra.Command{
 	Use:   "create [path]",
@@ -82,18 +85,10 @@ func init() {
 
 	// piece length flag allows setting a fixed piece size of 2^n bytes
 	// if not specified, piece length is calculated automatically based on total size
-	var defaultPieceLength, defaultMaxPieceLength uint
-	createCmd.Flags().UintVarP(&defaultPieceLength, "piece-length", "l", 0, "set piece length to 2^n bytes (16-27, automatic if not specified)")
-	createCmd.Flags().UintVarP(&defaultMaxPieceLength, "max-piece-length", "m", 0, "limit maximum piece length to 2^n bytes (16-27, unlimited if not specified)")
-	createCmd.PreRun = func(cmd *cobra.Command, args []string) {
-		if cmd.Flags().Changed("piece-length") {
-			pieceLengthExp = &defaultPieceLength
-		}
-		if cmd.Flags().Changed("max-piece-length") {
-			maxPieceLengthExp = &defaultMaxPieceLength
-		}
-	}
-
+	createCmd.Flags().UintVarP(&defaultPieceLength, "piece-length", "l", 0, "set piece length to 2^n bytes (16-27, alternative to --piece-size)")
+	createCmd.Flags().StringVar(&pieceSizeStr, "piece-size", "", "set piece size (e.g., \"4M\", \"8192k\", alternative to --piece-length). Value is rounded up to the nearest power of 2 and clamped between 64KiB-128MiB.")
+	createCmd.Flags().UintVarP(&defaultMaxPieceLength, "max-piece-length", "m", 0, "limit maximum piece length to 2^n bytes (16-27, alternative to --max-piece-size)")
+	createCmd.Flags().StringVar(&maxPieceSizeStr, "max-piece-size", "", "limit maximum piece size (e.g., \"16M\", \"16384k\", alternative to --max-piece-length)")
 	createCmd.Flags().StringVarP(&outputPath, "output", "o", "", "set output path (default: <name>.torrent)")
 	createCmd.Flags().StringVarP(&source, "source", "s", "", "add source string")
 	createCmd.Flags().BoolVarP(&noDate, "no-date", "d", false, "don't write creation date")
@@ -116,6 +111,43 @@ Flags:
 }
 
 func runCreate(cmd *cobra.Command, args []string) error {
+	pieceLengthChanged := cmd.Flags().Changed("piece-length")
+	pieceSizeChanged := cmd.Flags().Changed("piece-size")
+	maxPieceLengthChanged := cmd.Flags().Changed("max-piece-length")
+	maxPieceSizeChanged := cmd.Flags().Changed("max-piece-size")
+
+	if pieceLengthChanged && pieceSizeChanged {
+		return fmt.Errorf("cannot use both --piece-length and --piece-size")
+	}
+	if maxPieceLengthChanged && maxPieceSizeChanged {
+		return fmt.Errorf("cannot use both --max-piece-length and --max-piece-size")
+	}
+
+	var userPieceLengthExp *uint
+	var userMaxPieceLengthExp *uint
+	var userPieceSize *uint64
+	var userMaxPieceSize *uint64
+
+	if pieceLengthChanged {
+		userPieceLengthExp = &defaultPieceLength
+	} else if pieceSizeChanged {
+		parsedSize, err := torrent.ParseSize(pieceSizeStr)
+		if err != nil {
+			return fmt.Errorf("invalid --piece-size value: %w", err)
+		}
+		userPieceSize = &parsedSize
+	}
+
+	if maxPieceLengthChanged {
+		userMaxPieceLengthExp = &defaultMaxPieceLength
+	} else if maxPieceSizeChanged {
+		parsedMaxSize, err := torrent.ParseSize(maxPieceSizeStr)
+		if err != nil {
+			return fmt.Errorf("invalid --max-piece-size value: %w", err)
+		}
+		userMaxPieceSize = &parsedMaxSize
+	}
+
 	if cpuprofile, _ := cmd.Flags().GetString("cpuprofile"); cpuprofile != "" {
 		f, err := os.Create(cpuprofile)
 		if err != nil {
@@ -258,12 +290,26 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		if cmd.Flags().Changed("comment") {
 			opts.Comment = comment
 		}
-		if cmd.Flags().Changed("piece-length") {
-			opts.PieceLengthExp = pieceLengthExp
+		opts.PieceLengthExp = userPieceLengthExp
+		opts.MaxPieceLength = userMaxPieceLengthExp
+		opts.PieceSize = userPieceSize
+		opts.MaxPieceSize = userMaxPieceSize
+
+		if pieceLengthChanged || pieceSizeChanged {
+			if pieceLengthChanged {
+				opts.PieceSize = nil
+			} else {
+				opts.PieceLengthExp = nil
+			}
 		}
-		if cmd.Flags().Changed("max-piece-length") {
-			opts.MaxPieceLength = maxPieceLengthExp
+		if maxPieceLengthChanged || maxPieceSizeChanged {
+			if maxPieceLengthChanged {
+				opts.MaxPieceSize = nil
+			} else {
+				opts.MaxPieceLength = nil
+			}
 		}
+
 		if cmd.Flags().Changed("source") {
 			opts.Source = source
 		}
@@ -290,8 +336,10 @@ func runCreate(cmd *cobra.Command, args []string) error {
 			WebSeeds:        webSeeds,
 			IsPrivate:       isPrivate,
 			Comment:         comment,
-			PieceLengthExp:  pieceLengthExp,
-			MaxPieceLength:  maxPieceLengthExp,
+			PieceLengthExp:  userPieceLengthExp,
+			MaxPieceLength:  userMaxPieceLengthExp,
+			PieceSize:       userPieceSize,
+			MaxPieceSize:    userMaxPieceSize,
 			Source:          source,
 			NoDate:          noDate,
 			NoCreator:       noCreator,

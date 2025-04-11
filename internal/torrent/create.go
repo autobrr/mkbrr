@@ -2,6 +2,7 @@ package torrent
 
 import (
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,6 +12,8 @@ import (
 
 	"github.com/anacrolix/torrent/bencode"
 	"github.com/anacrolix/torrent/metainfo"
+	"github.com/dustin/go-humanize"
+
 	"github.com/autobrr/mkbrr/internal/preset"
 	"github.com/autobrr/mkbrr/internal/trackers"
 )
@@ -32,7 +35,47 @@ func formatPieceSize(exp uint) string {
 	return fmt.Sprintf("%d KiB", size)
 }
 
-// calculatePieceLength calculates the optimal piece length based on total size.
+// ParseSize parses a human-readable size string (e.g., "4M", "8192k", "2GiB")
+func ParseSize(sizeStr string) (uint64, error) {
+	bytes, err := humanize.ParseBytes(sizeStr)
+	if err != nil {
+		return 0, err
+	}
+	return bytes, nil
+}
+
+// bytesToExponent finds the smallest power of 2 (exponent) such that 2^exponent >= sizeBytes.
+// Clamps the result between minExp and maxExp.
+func bytesToExponent(sizeBytes uint64, minExp, maxExp uint) (uint, error) {
+	if sizeBytes == 0 {
+		return 0, errors.New("piece size cannot be zero")
+	}
+
+	exp := uint(0)
+	val := uint64(1)
+	for val < sizeBytes {
+		val <<= 1
+		exp++
+		// Prevent potential infinite loop if sizeBytes is extremely large, though overflow check in ParseSize should help
+		if exp > 63 {
+			break
+		}
+	}
+
+	// Clamp the exponent
+	if exp < minExp {
+		exp = minExp
+	}
+	if exp > maxExp {
+		exp = maxExp
+	}
+
+	return exp, nil
+}
+
+// calculatePieceLength calculates the optimal piece length exponent based on total size,
+// respecting tracker constraints and a potential maximum exponent.
+// Assumes user-provided exact exponent is handled elsewhere.
 // The min/max bounds (2^16 to 2^24) take precedence over other constraints
 func calculatePieceLength(totalSize int64, maxPieceLength *uint, trackerURL string, verbose bool) uint {
 	minExp := uint(16)
@@ -119,6 +162,104 @@ func calculatePieceLength(totalSize int64, maxPieceLength *uint, trackerURL stri
 	}
 
 	return exp
+}
+
+// determinePieceLengthExp decides the final piece length exponent based on user options.
+// It prioritizes exact size/length flags, converts size to exponent if needed,
+// then falls back to automatic calculation respecting max size/length and tracker rules.
+func determinePieceLengthExp(opts CreateTorrentOptions, totalSize int64) (uint, error) {
+	const absoluteMinExp = 16 // 64 KiB
+	const absoluteMaxExp = 27 // 128 MiB
+
+	var finalPieceLengthExp *uint
+	var finalMaxPieceLengthExp *uint
+
+	if opts.PieceLengthExp != nil {
+		exp := *opts.PieceLengthExp
+		if exp < absoluteMinExp || exp > absoluteMaxExp {
+			return 0, fmt.Errorf("piece length exponent must be between %d (%s) and %d (%s), got: %d",
+				absoluteMinExp, formatPieceSize(absoluteMinExp), absoluteMaxExp, formatPieceSize(absoluteMaxExp), exp)
+		}
+		finalPieceLengthExp = &exp
+	} else if opts.PieceSize != nil {
+		exp, err := bytesToExponent(*opts.PieceSize, absoluteMinExp, absoluteMaxExp)
+		if err != nil {
+			return 0, fmt.Errorf("invalid piece size value: %w", err)
+		}
+		finalPieceLengthExp = &exp
+	}
+
+	if opts.MaxPieceLength != nil {
+		exp := *opts.MaxPieceLength
+		if exp < 14 || exp > absoluteMaxExp {
+			return 0, fmt.Errorf("max piece length exponent must be between 14 (%s) and %d (%s), got: %d",
+				formatPieceSize(14), absoluteMaxExp, formatPieceSize(absoluteMaxExp), exp)
+		}
+		finalMaxPieceLengthExp = &exp
+	} else if opts.MaxPieceSize != nil {
+		maxSizeBytes := *opts.MaxPieceSize
+		exp := uint(absoluteMaxExp)
+		for exp > 14 { // Check down to 16KiB exponent
+			if (uint64(1) << exp) <= maxSizeBytes {
+				break // Found the largest valid exponent
+			}
+			exp--
+		}
+		if exp < 14 {
+			exp = 14
+		}
+		finalMaxPieceLengthExp = &exp
+	}
+
+	if finalPieceLengthExp != nil {
+		pieceLength := *finalPieceLengthExp
+
+		// Check against tracker max limit if applicable
+		if trackerMaxExp, ok := trackers.GetTrackerMaxPieceLength(opts.TrackerURL); ok {
+			if pieceLength > trackerMaxExp {
+				// This overrides user's choice if tracker requires smaller
+				if opts.Verbose {
+					display := NewDisplay(NewFormatter(opts.Verbose))
+					display.SetQuiet(opts.Quiet)
+					display.ShowWarning(fmt.Sprintf("overriding piece length %s with tracker limit %s for %s",
+						formatPieceSize(pieceLength), formatPieceSize(trackerMaxExp), opts.TrackerURL))
+				}
+				pieceLength = trackerMaxExp
+			}
+		}
+
+		// Also check against user's max limit if provided and smaller than tracker limit
+		if finalMaxPieceLengthExp != nil && pieceLength > *finalMaxPieceLengthExp {
+			pieceLength = *finalMaxPieceLengthExp
+		}
+
+		// Final sanity check against absolute bounds
+		if pieceLength < absoluteMinExp {
+			pieceLength = absoluteMinExp
+		}
+		if pieceLength > absoluteMaxExp {
+			pieceLength = absoluteMaxExp
+		}
+
+		// If we have a tracker with specific ranges, show that we're using them and check if piece length matches
+		if exp, ok := trackers.GetTrackerPieceSizeExp(opts.TrackerURL, uint64(totalSize)); ok {
+			if opts.Verbose {
+				display := NewDisplay(NewFormatter(opts.Verbose))
+				display.SetQuiet(opts.Quiet)
+				display.ShowMessage(fmt.Sprintf("using tracker-specific range for content size: %d MiB (recommended: %s pieces)",
+					totalSize>>20, formatPieceSize(exp)))
+				if pieceLength != exp {
+					display.ShowWarning(fmt.Sprintf("custom piece length %s differs from recommendation",
+						formatPieceSize(pieceLength)))
+				}
+			}
+		}
+
+		return pieceLength, nil
+	}
+
+	// No exact piece length specified, calculate automatically using max limit (if any) and tracker rules
+	return calculatePieceLength(totalSize, finalMaxPieceLengthExp, opts.TrackerURL, opts.Verbose), nil
 }
 
 func (t *Torrent) GetInfo() *metainfo.Info {
@@ -290,52 +431,10 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 		return &Torrent{mi}, nil
 	}
 
-	var pieceLength uint
-	if opts.PieceLengthExp == nil {
-		if opts.MaxPieceLength != nil {
-			// Get tracker's max piece length if available
-			maxExp := uint(27) // absolute max 128 MiB
-			if trackerMaxExp, ok := trackers.GetTrackerMaxPieceLength(opts.TrackerURL); ok {
-				maxExp = trackerMaxExp
-			}
-
-			if *opts.MaxPieceLength < 14 || *opts.MaxPieceLength > maxExp {
-				return nil, fmt.Errorf("max piece length exponent must be between 14 (16 KiB) and %d (%d MiB), got: %d",
-					maxExp, 1<<(maxExp-20), *opts.MaxPieceLength)
-			}
-		}
-		pieceLength = calculatePieceLength(totalSize, opts.MaxPieceLength, opts.TrackerURL, opts.Verbose)
-	} else {
-		pieceLength = *opts.PieceLengthExp
-
-		// Get tracker's max piece length if available
-		maxExp := uint(27) // absolute max 128 MiB
-		if trackerMaxExp, ok := trackers.GetTrackerMaxPieceLength(opts.TrackerURL); ok {
-			maxExp = trackerMaxExp
-		}
-
-		if pieceLength < 16 || pieceLength > maxExp {
-			if opts.TrackerURL != "" {
-				return nil, fmt.Errorf("piece length exponent must be between 16 (64 KiB) and %d (%d MiB) for %s, got: %d",
-					maxExp, 1<<(maxExp-20), opts.TrackerURL, pieceLength)
-			}
-			return nil, fmt.Errorf("piece length exponent must be between 16 (64 KiB) and %d (%d MiB), got: %d",
-				maxExp, 1<<(maxExp-20), pieceLength)
-		}
-
-		// If we have a tracker with specific ranges, show that we're using them and check if piece length matches
-		if exp, ok := trackers.GetTrackerPieceSizeExp(opts.TrackerURL, uint64(totalSize)); ok {
-			if opts.Verbose {
-				display := NewDisplay(NewFormatter(opts.Verbose))
-				display.SetQuiet(opts.Quiet)
-				display.ShowMessage(fmt.Sprintf("using tracker-specific range for content size: %d MiB (recommended: %s pieces)",
-					totalSize>>20, formatPieceSize(exp)))
-				if pieceLength != exp {
-					display.ShowWarning(fmt.Sprintf("custom piece length %s differs from recommendation",
-						formatPieceSize(pieceLength)))
-				}
-			}
-		}
+	// Determine the final piece length exponent using the new helper function
+	pieceLength, err := determinePieceLengthExp(opts, totalSize)
+	if err != nil {
+		return nil, err // Return error from determination logic (e.g., invalid exponent)
 	}
 
 	// Check for tracker size limits and adjust piece length if needed
