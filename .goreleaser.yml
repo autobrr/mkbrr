@@ -1,8 +1,5 @@
 version: 2
 
-partial:
-  by: target
-
 before:
   hooks:
     - go mod tidy
@@ -48,7 +45,7 @@ archives:
     builds: [mkbrr-gui]
     format_overrides:
       - goos: windows
-        format: zip
+        formats: [ 'zip' ]
     name_template: >-
       {{ .ProjectName }}-gui_
       {{- .Version }}_
