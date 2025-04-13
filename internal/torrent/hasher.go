@@ -274,11 +274,6 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 				reader.position = readStart
 			}
 
-			// sync file state before reading, potentially helping with cache consistency
-			if err := reader.file.Sync(); err != nil {
-				return fmt.Errorf("failed to sync file %s before reading: %w", file.path, err)
-			}
-
 			// read file data in chunks to avoid large memory allocations
 			remaining := readLength
 			for remaining > 0 {

@@ -11,6 +11,7 @@ import (
 
 	"github.com/anacrolix/torrent/bencode"
 	"github.com/anacrolix/torrent/metainfo"
+
 	"github.com/autobrr/mkbrr/internal/preset"
 	"github.com/autobrr/mkbrr/internal/trackers"
 )
@@ -193,6 +194,14 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 	sort.Slice(files, func(i, j int) bool {
 		return files[i].path < files[j].path
 	})
+
+	// Recalculate offsets based on the sorted file order
+	// Context: https://github.com/autobrr/mkbrr/issues/64
+	var currentOffset int64 = 0
+	for i := range files {
+		files[i].offset = currentOffset
+		currentOffset += files[i].length
+	}
 
 	// Function to create torrent with given piece length
 	createWithPieceLength := func(pieceLength uint) (*Torrent, error) {
