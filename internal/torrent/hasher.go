@@ -13,17 +13,17 @@ import (
 )
 
 type pieceHasher struct {
-	pieces     [][]byte
-	pieceLen   int64
-	numPieces  int
-	files      []fileEntry
+	startTime  time.Time
+	lastUpdate time.Time
 	display    Displayer
 	bufferPool *sync.Pool
+	pieces     [][]byte
+	files      []fileEntry
+	pieceLen   int64
+	numPieces  int
 	readSize   int
 
 	bytesProcessed int64
-	startTime      time.Time
-	lastUpdate     time.Time
 	mutex          sync.RWMutex
 }
 

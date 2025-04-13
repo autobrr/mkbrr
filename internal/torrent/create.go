@@ -603,9 +603,9 @@ func Create(opts CreateTorrentOptions) (*TorrentInfo, error) {
 	if opts.Verbose {
 		display := NewDisplay(NewFormatter(opts.Verbose))
 		display.ShowTorrentInfo(t, info)
-		if len(info.Files) > 0 {
-			display.ShowFileTree(info)
-		}
+		//if len(info.Files) > 0 {
+		//display.ShowFileTree(info)
+		//}
 	}
 
 	return torrentInfo, nil
