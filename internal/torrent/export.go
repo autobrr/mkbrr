@@ -11,30 +11,30 @@ import (
 // FileDetail holds structured information about a single file within a torrent.
 type FileDetail struct {
 	Path            string `json:"path"`
-	Length          int64  `json:"length"`
 	LengthFormatted string `json:"lengthFormatted"`
+	Length          int64  `json:"length"`
 }
 
 // TorrentInspectJSON holds all the structured information for JSON output.
 type TorrentInspectJSON struct {
+	IsPrivate            *bool                  `json:"isPrivate,omitempty"`
+	CreationDate         *int64                 `json:"creationDate,omitempty"`
+	AdditionalRootMeta   map[string]interface{} `json:"additionalRootMeta,omitempty"`
+	AdditionalInfoMeta   map[string]interface{} `json:"additionalInfoMeta,omitempty"`
 	Name                 string                 `json:"name"`
 	InfoHash             string                 `json:"infoHash"`
-	Size                 int64                  `json:"size"`
 	SizeFormatted        string                 `json:"sizeFormatted"`
-	PieceLength          int64                  `json:"pieceLength"`
 	PieceLengthFormatted string                 `json:"pieceLengthFormatted"`
-	NumPieces            int                    `json:"numPieces"`
-	IsPrivate            *bool                  `json:"isPrivate,omitempty"`
 	Source               string                 `json:"source,omitempty"`
 	Comment              string                 `json:"comment,omitempty"`
 	CreatedBy            string                 `json:"createdBy,omitempty"`
-	CreationDate         *int64                 `json:"creationDate,omitempty"`
 	Trackers             [][]string             `json:"trackers,omitempty"`
 	WebSeeds             []string               `json:"webSeeds,omitempty"`
 	Files                []FileDetail           `json:"files,omitempty"`
-	AdditionalRootMeta   map[string]interface{} `json:"additionalRootMeta,omitempty"`
-	AdditionalInfoMeta   map[string]interface{} `json:"additionalInfoMeta,omitempty"`
 	ValidationResults    []ValidationResult     `json:"validationResults,omitempty"`
+	Size                 int64                  `json:"size"`
+	PieceLength          int64                  `json:"pieceLength"`
+	NumPieces            int                    `json:"numPieces"`
 }
 
 // GenerateInspectJSON gathers torrent information and populates the TorrentInspectJSON struct.
