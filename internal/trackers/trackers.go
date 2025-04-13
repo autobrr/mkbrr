@@ -5,10 +5,10 @@ import "strings"
 // TrackerConfig holds tracker-specific configuration
 type TrackerConfig struct {
 	URLs             []string         // list of tracker URLs that share this config
-	MaxPieceLength   uint             // maximum piece length exponent (2^n)
 	PieceSizeRanges  []PieceSizeRange // custom piece size ranges for specific content sizes
-	UseDefaultRanges bool             // whether to use default piece size ranges when content size is outside custom ranges
+	MaxPieceLength   uint             // maximum piece length exponent (2^n)
 	MaxTorrentSize   uint64           // maximum .torrent file size in bytes (0 means no limit)
+	UseDefaultRanges bool             // whether to use default piece size ranges when content size is outside custom ranges
 }
 
 // PieceSizeRange defines a range of content sizes and their corresponding piece size exponent
@@ -82,6 +82,28 @@ var trackerConfigs = []TrackerConfig{
 		},
 		UseDefaultRanges: false,
 		MaxTorrentSize:   1 << 20, // 1 MB torrent file size limit
+	},
+	{
+		URLs: []string{
+			"seedpool.org",
+		},
+		MaxPieceLength: 27, // max 128 MiB pieces (2^27)
+		PieceSizeRanges: []PieceSizeRange{ // Mirror default calculation logic from create.go
+			{MaxSize: 64 << 20, PieceExp: 15},     // 32 KiB for <= 64 MB
+			{MaxSize: 128 << 20, PieceExp: 16},    // 64 KiB for 64-128 MB
+			{MaxSize: 256 << 20, PieceExp: 17},    // 128 KiB for 128-256 MB
+			{MaxSize: 512 << 20, PieceExp: 18},    // 256 KiB for 256-512 MB
+			{MaxSize: 1024 << 20, PieceExp: 19},   // 512 KiB for 512 MB-1 GB
+			{MaxSize: 2048 << 20, PieceExp: 20},   // 1 MiB for 1-2 GB
+			{MaxSize: 4096 << 20, PieceExp: 21},   // 2 MiB for 2-4 GB
+			{MaxSize: 8192 << 20, PieceExp: 22},   // 4 MiB for 4-8 GB
+			{MaxSize: 16384 << 20, PieceExp: 23},  // 8 MiB for 8-16 GB
+			{MaxSize: 32768 << 20, PieceExp: 24},  // 16 MiB for 16-32 GB
+			{MaxSize: 65536 << 20, PieceExp: 25},  // 32 MiB for 32-64 GB
+			{MaxSize: 131072 << 20, PieceExp: 26}, // 64 MiB for 64-128 GB
+			{MaxSize: ^uint64(0), PieceExp: 27},   // 128 MiB for > 128 GB
+		},
+		UseDefaultRanges: false,
 	},
 	{
 		URLs: []string{
