@@ -42,8 +42,6 @@ Note: All unnecessary metadata will be stripped.`,
 }
 
 func init() {
-	rootCmd.AddCommand(modifyCmd)
-
 	modifyCmd.Flags().SortFlags = false
 	modifyCmd.Flags().BoolP("help", "h", false, "help for modify")
 	if err := modifyCmd.Flags().MarkHidden("help"); err != nil {

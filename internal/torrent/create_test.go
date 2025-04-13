@@ -1,7 +1,15 @@
 package torrent
 
 import (
+	"bytes"
+	"crypto/sha1"
+	"os"
+	"path/filepath"
+	"reflect"
+	"runtime"
 	"testing"
+
+	"github.com/anacrolix/torrent/metainfo"
 )
 
 func Test_calculatePieceLength(t *testing.T) {
@@ -108,4 +116,110 @@ func Test_calculatePieceLength(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCreateTorrent_Symlink(t *testing.T) {
+	// Skip symlink tests on Windows as it requires special privileges
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping symlink test on Windows")
+	}
+
+	// 1. Setup temporary directory structure
+	tmpDir, err := os.MkdirTemp("", "mkbrr-symlink-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Create real content directory and file
+	realContentDir := filepath.Join(tmpDir, "real_content")
+	if err := os.Mkdir(realContentDir, 0755); err != nil {
+		t.Fatalf("Failed to create real_content dir: %v", err)
+	}
+	realFilePath := filepath.Join(realContentDir, "file.txt")
+	fileContent := []byte("This is the actual content of the file.")
+	if err := os.WriteFile(realFilePath, fileContent, 0644); err != nil {
+		t.Fatalf("Failed to write real file: %v", err)
+	}
+	realFileInfo, _ := os.Stat(realFilePath) // Get real file size
+
+	// Create directory to contain the symlink
+	linkDir := filepath.Join(tmpDir, "link_dir")
+	if err := os.Mkdir(linkDir, 0755); err != nil {
+		t.Fatalf("Failed to create link_dir: %v", err)
+	}
+
+	// Create the symlink pointing to the real file (relative path)
+	linkPath := filepath.Join(linkDir, "link_to_file.txt")
+	linkTarget := "../real_content/file.txt"
+	if err := os.Symlink(linkTarget, linkPath); err != nil {
+		t.Fatalf("Failed to create symlink: %v", err)
+	}
+
+	// 2. Create Torrent Options
+	pieceLenExp := uint(16) // 64 KiB pieces
+	opts := CreateTorrentOptions{
+		Path:           linkDir, // Create torrent from the directory containing the link
+		OutputPath:     filepath.Join(tmpDir, "symlink_test.torrent"),
+		IsPrivate:      true,
+		NoCreator:      true,
+		NoDate:         true,
+		PieceLengthExp: &pieceLenExp,
+	}
+
+	// 3. Create the torrent
+	createdTorrentInfo, err := Create(opts)
+	if err != nil {
+		t.Fatalf("Create() failed: %v", err)
+	}
+
+	// 4. Verification
+	// Load the created torrent file
+	mi, err := metainfo.LoadFromFile(createdTorrentInfo.Path)
+	if err != nil {
+		t.Fatalf("Failed to load created torrent file %q: %v", createdTorrentInfo.Path, err)
+	}
+
+	info, err := mi.UnmarshalInfo()
+	if err != nil {
+		t.Fatalf("Failed to unmarshal info from created torrent: %v", err)
+	}
+
+	// Verify torrent structure (should contain the link name, not the target name)
+	if len(info.Files) != 1 {
+		t.Fatalf("Expected 1 file in torrent info, got %d", len(info.Files))
+	}
+	expectedPathInTorrent := []string{"link_to_file.txt"}
+	if !reflect.DeepEqual(info.Files[0].Path, expectedPathInTorrent) {
+		t.Errorf("Expected file path in torrent %v, got %v", expectedPathInTorrent, info.Files[0].Path)
+	}
+
+	// Verify file length matches the *target* file's length
+	if info.Files[0].Length != realFileInfo.Size() {
+		t.Errorf("Expected file length %d (target size), got %d", realFileInfo.Size(), info.Files[0].Length)
+	}
+
+	// Verify piece hash matches the *target* file's content
+	pieceLen := int64(1 << pieceLenExp)
+	numPieces := (realFileInfo.Size() + pieceLen - 1) / pieceLen
+	if int(numPieces) != len(info.Pieces)/20 {
+		t.Fatalf("Piece count mismatch: expected %d, got %d pieces in torrent", numPieces, len(info.Pieces)/20)
+	}
+
+	// Since the content is smaller than the piece size, the hash is just the hash of the content
+	// padded with zeros to the piece length if necessary (though CreateTorrent handles this internally).
+	// For simplicity here, we hash just the content as it fits in one piece.
+	hasher := sha1.New()
+	hasher.Write(fileContent)
+	expectedHash := hasher.Sum(nil)
+
+	// The actual piece hash in the torrent might be padded if piece length > content length.
+	// We need to compare against the actual hash stored.
+	actualPieceHash := info.Pieces[:20] // Get the first (and only) piece hash
+
+	if !bytes.Equal(actualPieceHash, expectedHash) {
+		t.Errorf("Piece hash mismatch:\nExpected: %x\nGot:      %x", expectedHash, actualPieceHash)
+	}
+
+	t.Logf("Symlink test successful: Torrent created from %q, correctly referencing content from %q", linkDir, realFilePath)
 }

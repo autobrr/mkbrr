@@ -1,13 +1,13 @@
 *.torrent
 /build
 .DS_Store
+/dist
 
 race_report.log
 coverage.txt
 coverage.html
 test.sh
 .idea
-*.png
 *.pprof
 test_ant/*
 .pgo_profiles/
