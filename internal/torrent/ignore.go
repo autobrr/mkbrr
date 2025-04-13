@@ -12,6 +12,7 @@ var ignoredPatterns = []string{
 	".ds_store",
 	"thumbs.db",
 	"desktop.ini",
+	"zone.identifier", // https://superuser.com/questions/1692240/auto-generated-zone-identity-files-can-should-i-delete
 }
 
 // shouldIgnoreFile checks if a file should be ignored based on predefined patterns,
