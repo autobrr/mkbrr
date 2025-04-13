@@ -394,6 +394,7 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 				display.SetQuiet(opts.Quiet)
 				display.ShowMessage(fmt.Sprintf("using tracker-specific range for content size: %d MiB (recommended: %s pieces)",
 					totalSize>>20, formatPieceSize(exp)))
+				fmt.Fprintln(display.output)
 				if pieceLength != exp {
 					display.ShowWarning(fmt.Sprintf("custom piece length %s differs from recommendation",
 						formatPieceSize(pieceLength)))

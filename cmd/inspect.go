@@ -6,9 +6,10 @@ import (
 
 	"github.com/anacrolix/torrent/bencode"
 	"github.com/anacrolix/torrent/metainfo"
-	"github.com/autobrr/mkbrr/internal/torrent"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+
+	"github.com/autobrr/mkbrr/internal/torrent"
 )
 
 var (
@@ -57,7 +58,7 @@ func runInspect(cmd *cobra.Command, args []string) error {
 	}
 
 	t := &torrent.Torrent{MetaInfo: mi}
-	display := torrent.NewDisplay(torrent.NewFormatter(true))
+	display := torrent.NewDisplay(torrent.NewFormatter(inspectVerbose))
 	display.ShowTorrentInfo(t, &info)
 
 	if inspectVerbose {
@@ -93,7 +94,6 @@ func runInspect(cmd *cobra.Command, args []string) error {
 				}
 			}
 		}
-		fmt.Println()
 	}
 
 	if info.IsDir() {

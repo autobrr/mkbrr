@@ -92,7 +92,6 @@ func (d *Display) ShowFiles(files []fileEntry) {
 			success(filepath.Base(file.path)),
 			label(d.formatter.FormatBytes(file.length)))
 	}
-	fmt.Fprintln(d.output)
 }
 
 func (d *Display) FinishProgress() {
@@ -190,9 +189,15 @@ func (d *Display) ShowTorrentInfo(t *Torrent, info *metainfo.Info) {
 	if len(info.Files) > 0 {
 		fmt.Fprintf(d.output, "  %-13s %d\n", label("Files:"), len(info.Files))
 	}
+	if !d.formatter.verbose {
+		fmt.Fprintln(d.output)
+	}
 }
 
 func (d *Display) ShowFileTree(info *metainfo.Info) {
+	if !d.formatter.verbose {
+		return
+	}
 	fmt.Fprintf(d.output, "\n%s\n", magenta("File tree:"))
 	fmt.Fprintf(d.output, "%s %s\n", "└─", success(info.Name))
 	for i, file := range info.Files {
@@ -205,16 +210,20 @@ func (d *Display) ShowFileTree(info *metainfo.Info) {
 			success(filepath.Join(file.Path...)),
 			label(d.formatter.FormatBytes(file.Length)))
 	}
+	fmt.Fprintln(d.output)
 }
 
 func (d *Display) ShowOutputPathWithTime(path string, duration time.Duration) {
+	if !d.formatter.verbose {
+		fmt.Fprintln(d.output)
+	}
 	if duration < time.Second {
-		fmt.Fprintf(d.output, "\n%s %s (%s)\n",
+		fmt.Fprintf(d.output, "%s %s (%s)\n",
 			success("Wrote"),
 			white(path),
 			magenta(fmt.Sprintf("elapsed %dms", duration.Milliseconds())))
 	} else {
-		fmt.Fprintf(d.output, "\n%s %s (%s)\n",
+		fmt.Fprintf(d.output, "%s %s (%s)\n",
 			success("Wrote"),
 			white(path),
 			magenta(fmt.Sprintf("elapsed %.2fs", duration.Seconds())))
