@@ -5,10 +5,10 @@ import "strings"
 // TrackerConfig holds tracker-specific configuration
 type TrackerConfig struct {
 	URLs             []string         // list of tracker URLs that share this config
-	MaxPieceLength   uint             // maximum piece length exponent (2^n)
 	PieceSizeRanges  []PieceSizeRange // custom piece size ranges for specific content sizes
-	UseDefaultRanges bool             // whether to use default piece size ranges when content size is outside custom ranges
+	MaxPieceLength   uint             // maximum piece length exponent (2^n)
 	MaxTorrentSize   uint64           // maximum .torrent file size in bytes (0 means no limit)
+	UseDefaultRanges bool             // whether to use default piece size ranges when content size is outside custom ranges
 }
 
 // PieceSizeRange defines a range of content sizes and their corresponding piece size exponent

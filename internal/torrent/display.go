@@ -16,11 +16,11 @@ import (
 )
 
 type Display struct {
+	output    io.Writer
 	formatter *Formatter
 	bar       *progressbar.ProgressBar
 	isBatch   bool
 	quiet     bool
-	output    io.Writer
 }
 
 func NewDisplay(formatter *Formatter) *Display {

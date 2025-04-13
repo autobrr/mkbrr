@@ -13,32 +13,32 @@ import (
 // Options represents the options for modifying a torrent,
 // including both preset-related options and flag-based overrides.
 type Options struct {
+	IsPrivate      *bool
+	PieceLengthExp *uint
+	MaxPieceLength *uint
 	PresetName     string
 	PresetFile     string
 	OutputDir      string
 	OutputPattern  string
+	TrackerURL     string
+	Comment        string
+	Source         string
+	Version        string
+	WebSeeds       []string
 	NoDate         bool
 	NoCreator      bool
 	DryRun         bool
 	Verbose        bool
 	Quiet          bool
-	TrackerURL     string
-	WebSeeds       []string
-	IsPrivate      *bool
-	Comment        string
-	PieceLengthExp *uint
-	MaxPieceLength *uint
-	Source         string
-	Version        string
 	Entropy        bool
 }
 
 // Result represents the result of modifying a torrent
 type Result struct {
+	Error       error
 	Path        string
 	OutputPath  string
 	WasModified bool
-	Error       error
 }
 
 // LoadFromFile loads a torrent file and returns a Torrent
