@@ -78,3 +78,14 @@ type PresetOptions struct {
 	NoCreator      *bool
 	Version        string
 }
+
+// VerificationResult holds the outcome of a torrent data verification check
+type VerificationResult struct {
+	TotalPieces     int
+	GoodPieces      int
+	BadPieces       int
+	MissingPieces   int
+	Completion      float64
+	BadPieceIndices []int
+	MissingFiles    []string
+}

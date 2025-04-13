@@ -17,11 +17,19 @@ var rootCmd = &cobra.Command{
 	Long:  banner + "\n\nmkbrr is a tool to create and inspect torrent files.",
 }
 
+func init() {
+	cobra.EnableCommandSorting = false
+	rootCmd.AddCommand(createCmd)
+	rootCmd.AddCommand(checkCmd)
+	rootCmd.AddCommand(inspectCmd)
+	rootCmd.AddCommand(modifyCmd)
+	rootCmd.AddCommand(updateCmd)
+	rootCmd.AddCommand(versionCmd)
+}
+
 func Execute() error {
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
 	rootCmd.SilenceUsage = false
-
-	rootCmd.AddCommand(versionCmd)
 
 	rootCmd.SetUsageTemplate(`Usage:
   {{.CommandPath}} [command]

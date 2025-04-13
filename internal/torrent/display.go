@@ -306,3 +306,47 @@ func (d *Display) ShowSeasonPackWarnings(info *SeasonPackInfo) {
 		fmt.Fprintln(d.output, yellow("\nThis may be an incomplete season pack. Check files before uploading."))
 	}
 }
+
+// ShowVerificationResult displays the results of a torrent verification check
+func (d *Display) ShowVerificationResult(result *VerificationResult, duration time.Duration) {
+	fmt.Fprintf(d.output, "\n%s\n", magenta("Verification results:"))
+
+	completionStr := fmt.Sprintf("%.2f%%", result.Completion)
+	fmt.Fprintf(d.output, "  %-15s %s (%d/%d pieces)\n", label("Completion:"), success(completionStr), result.GoodPieces, result.TotalPieces)
+
+	if result.BadPieces > 0 {
+		fmt.Fprintf(d.output, "  %-15s %s\n", label("Bad pieces:"), errorColor(result.BadPieces))
+		if d.formatter.verbose && len(result.BadPieceIndices) > 0 {
+			maxIndicesToShow := 20
+			indicesStr := make([]string, 0, len(result.BadPieceIndices))
+			for i, idx := range result.BadPieceIndices {
+				if i >= maxIndicesToShow {
+					indicesStr = append(indicesStr, "...")
+					break
+				}
+				indicesStr = append(indicesStr, fmt.Sprintf("%d", idx))
+			}
+			fmt.Fprintf(d.output, "    %s %s\n", label("Indices:"), strings.Join(indicesStr, ", "))
+		}
+	}
+
+	if len(result.MissingFiles) > 0 {
+		fmt.Fprintf(d.output, "  %-15s %s\n", label("Missing files:"), errorColor(len(result.MissingFiles)))
+		if d.formatter.verbose {
+			maxFilesToShow := 10
+			for i, file := range result.MissingFiles {
+				if i >= maxFilesToShow {
+					fmt.Fprintf(d.output, "    %s ...and %d more\n", errorColor("└─"), len(result.MissingFiles)-maxFilesToShow)
+					break
+				}
+				prefix := "    ├─"
+				if i == len(result.MissingFiles)-1 || i == maxFilesToShow-1 {
+					prefix = "    └─"
+				}
+				fmt.Fprintf(d.output, "    %s %s\n", errorColor(prefix), file)
+			}
+		}
+	}
+
+	fmt.Fprintf(d.output, "  %-15s %s\n", label("Check time:"), d.formatter.FormatDuration(duration))
+}

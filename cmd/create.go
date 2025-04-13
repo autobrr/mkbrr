@@ -65,9 +65,6 @@ When a tracker URL is provided, the output filename will use the tracker domain 
 }
 
 func init() {
-	rootCmd.AddCommand(createCmd)
-
-	// hide help flag
 	createCmd.Flags().SortFlags = false
 	createCmd.Flags().BoolP("help", "h", false, "help for create")
 	if err := createCmd.Flags().MarkHidden("help"); err != nil {
