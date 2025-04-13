@@ -169,6 +169,74 @@ func createTestFilesFast(t *testing.T, numFiles int, fileSize, pieceLen int64) (
 	return files, expectedHashes
 }
 
+// createTestFilesWithPattern creates test files filled with a deterministic pattern.
+func createTestFilesWithPattern(t *testing.T, tempDir string, fileSizes []int64, pieceLen int64) ([]fileEntry, [][]byte) {
+	t.Helper()
+
+	var files []fileEntry
+	var allExpectedHashes [][]byte
+	var offset int64
+	var globalBuffer bytes.Buffer
+
+	// create a repeatable pattern that's more representative of real data
+	pattern := make([]byte, pieceLen)
+	for i := range pattern {
+		pattern[i] = byte((i*11 + 17) % 253) // different primes for variety
+	}
+
+	for i, fileSize := range fileSizes {
+		path := filepath.Join(tempDir, fmt.Sprintf("boundary_test_file_%d", i))
+		f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0644)
+		if err != nil {
+			t.Fatalf("failed to create file %s: %v", path, err)
+		}
+
+		// write the pattern repeatedly to fill the file
+		written := int64(0)
+		for written < fileSize {
+			toWrite := pieceLen
+			if written+toWrite > fileSize {
+				toWrite = fileSize - written
+			}
+			n, err := f.Write(pattern[:toWrite])
+			if err != nil {
+				f.Close()
+				t.Fatalf("failed to write pattern to %s: %v", path, err)
+			}
+			// also write to global buffer for hash calculation
+			globalBuffer.Write(pattern[:toWrite])
+			written += int64(n)
+		}
+		f.Close()
+
+		files = append(files, fileEntry{
+			path:   path,
+			length: fileSize,
+			offset: offset,
+		})
+		offset += fileSize
+	}
+
+	// calculate expected hashes from the global buffer
+	globalData := globalBuffer.Bytes()
+	totalSize := int64(len(globalData))
+	numPieces := (totalSize + pieceLen - 1) / pieceLen
+
+	h := sha1.New()
+	for i := int64(0); i < numPieces; i++ {
+		start := i * pieceLen
+		end := start + pieceLen
+		if end > totalSize {
+			end = totalSize
+		}
+		h.Reset()
+		h.Write(globalData[start:end])
+		allExpectedHashes = append(allExpectedHashes, h.Sum(nil))
+	}
+
+	return files, allExpectedHashes
+}
+
 func verifyHashes(t *testing.T, got, want [][]byte) {
 	t.Helper()
 
@@ -366,6 +434,73 @@ func TestPieceHasher_CorruptedData(t *testing.T) {
 
 	if bytes.Equal(hasher.pieces[0], expectedHashes[0]) {
 		t.Errorf("expected hash mismatch due to corrupted data, but hashes matched")
+	}
+}
+
+// TestPieceHasher_BoundaryConditions tests scenarios where file boundaries
+// align exactly with piece boundaries.
+func TestPieceHasher_BoundaryConditions(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "hasher_boundary_test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	pieceLen := int64(1 << 16) // 64KB
+
+	tests := []struct {
+		name      string
+		fileSizes []int64 // Sizes of consecutive files
+	}{
+		{
+			name:      "Exact Piece Boundary",
+			fileSizes: []int64{pieceLen, pieceLen * 2, pieceLen}, // Files end exactly on piece boundaries
+		},
+		{
+			name:      "Mid-Piece Boundary",
+			fileSizes: []int64{pieceLen / 2, pieceLen, pieceLen * 2, pieceLen / 3}, // Boundaries within pieces
+		},
+		{
+			name:      "Multiple Small Files within One Piece",
+			fileSizes: []int64{pieceLen / 4, pieceLen / 4, pieceLen / 4, pieceLen / 4},
+		},
+		{
+			name:      "Large File Followed By Small",
+			fileSizes: []int64{pieceLen * 3, pieceLen / 2},
+		},
+		{
+			name:      "Small File Followed By Large",
+			fileSizes: []int64{pieceLen / 2, pieceLen * 3},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			files, expectedHashes := createTestFilesWithPattern(t, tempDir, tt.fileSizes, pieceLen)
+
+			var totalSize int64
+			for _, size := range tt.fileSizes {
+				totalSize += size
+			}
+			numPieces := (totalSize + pieceLen - 1) / pieceLen
+
+			// Test with 1 and multiple workers
+			workerCounts := []int{1, 4}
+			for _, workers := range workerCounts {
+				t.Run(fmt.Sprintf("workers_%d", workers), func(t *testing.T) {
+					// Need to create a new hasher instance for each run if pieces are modified in place
+					currentHasher := NewPieceHasher(files, pieceLen, int(numPieces), &mockDisplay{})
+					if err := currentHasher.hashPieces(workers); err != nil {
+						t.Fatalf("hashPieces failed with %d workers: %v", workers, err)
+					}
+					verifyHashes(t, currentHasher.pieces, expectedHashes)
+				})
+			}
+			// Clean up files for this subtest run
+			for _, f := range files {
+				os.Remove(f.path)
+			}
+		})
 	}
 }
 
