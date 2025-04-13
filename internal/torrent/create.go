@@ -160,43 +160,88 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 	files := make([]fileEntry, 0, 1)
 	var totalSize int64
 	var baseDir string
+	originalPaths := make(map[string]string) // map resolved path -> original path for metainfo
 
-	err := filepath.Walk(path, func(filePath string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
+	err := filepath.Walk(path, func(currentPath string, walkInfo os.FileInfo, walkErr error) error {
+		if walkErr != nil {
+			// check if the error is due to a broken symlink during walk
+			// if lstat works but stat fails, it's likely a broken link we might handle later
+			if _, lerr := os.Lstat(currentPath); lerr == nil {
+				// we can lstat it, maybe it's a broken link we can ignore?
+				// for now, let's return the original error to maintain behavior.
+				// consider adding verbose logging here if needed.
+			}
+			return walkErr
 		}
-		if info.IsDir() {
-			if baseDir == "" {
-				baseDir = filePath
+
+		lstatInfo, err := os.Lstat(currentPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: could not lstat %q: %v\n", currentPath, err)
+			return nil
+		}
+
+		resolvedPath := currentPath
+		resolvedInfo := lstatInfo
+
+		// check if it's a symlink
+		if lstatInfo.Mode()&os.ModeSymlink != 0 {
+			linkTarget, err := os.Readlink(currentPath)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: could not readlink %q: %v\n", currentPath, err)
+				return nil
+			}
+			// if link is relative, resolve it based on the link's directory
+			if !filepath.IsAbs(linkTarget) {
+				linkTarget = filepath.Join(filepath.Dir(currentPath), linkTarget)
+			}
+			resolvedPath = filepath.Clean(linkTarget)
+
+			// stat target
+			statInfo, err := os.Stat(resolvedPath)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: could not stat symlink target %q for link %q: %v\n", resolvedPath, currentPath, err)
+				return nil // skip broken link or inaccessible target
+			}
+			resolvedInfo = statInfo
+		}
+
+		if resolvedInfo.IsDir() {
+			if baseDir == "" && currentPath == path { // only set baseDir for the initial path if it's a dir
+				baseDir = currentPath
 			}
 			return nil
 		}
-		shouldIgnore, err := shouldIgnoreFile(filePath, opts.ExcludePatterns, opts.IncludePatterns)
+
+		// it's a file (or a link pointing to one)
+		shouldIgnore, err := shouldIgnoreFile(currentPath, opts.ExcludePatterns, opts.IncludePatterns) // ignore based on original path
 		if err != nil {
-			return fmt.Errorf("error processing file patterns: %w", err)
+			return fmt.Errorf("error processing file patterns for %q: %w", currentPath, err)
 		}
 		if shouldIgnore {
 			return nil
 		}
+
+		// add the file using the resolved path for hashing, but store the original path for metainfo
 		files = append(files, fileEntry{
-			path:   filePath,
-			length: info.Size(),
+			path:   resolvedPath, // use the actual content path for hashing
+			length: resolvedInfo.Size(),
 			offset: totalSize,
 		})
-		totalSize += info.Size()
+		originalPaths[resolvedPath] = currentPath
+		totalSize += resolvedInfo.Size()
 		return nil
 	})
 	if err != nil {
 		return nil, fmt.Errorf("error walking path: %w", err)
 	}
 
-	// Sort files to ensure consistent order
+	// sort files to ensure consistent order
 	sort.Slice(files, func(i, j int) bool {
 		return files[i].path < files[j].path
 	})
 
-	// Recalculate offsets based on the sorted file order
-	// Context: https://github.com/autobrr/mkbrr/issues/64
+	// recalculate offsets based on the sorted file order
+	// context: https://github.com/autobrr/mkbrr/issues/64
 	var currentOffset int64 = 0
 	for i := range files {
 		files[i].offset = currentOffset
@@ -250,11 +295,16 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 			if pathInfo.IsDir() {
 				// if it's a directory, use the folder structure even for single files
 				info.Files = make([]metainfo.FileInfo, 1)
-				relPath, _ := filepath.Rel(baseDir, files[0].path)
-				pathComponents := strings.Split(relPath, string(filepath.Separator))
+				// Use the original path for calculating relative path in metainfo
+				originalFilepath := originalPaths[files[0].path]
+				if originalFilepath == "" {
+					originalFilepath = files[0].path // Fallback if mapping missing
+				}
+				relPath, _ := filepath.Rel(baseDir, originalFilepath)
+				pathComponents := strings.Split(filepath.ToSlash(relPath), "/") // Ensure forward slashes
 				info.Files[0] = metainfo.FileInfo{
 					Path:   pathComponents,
-					Length: files[0].length,
+					Length: files[0].length, // Length comes from resolved file
 				}
 			} else {
 				// if it's a single file directly, use the simple format
@@ -263,11 +313,16 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 		} else {
 			info.Files = make([]metainfo.FileInfo, len(files))
 			for i, f := range files {
-				relPath, _ := filepath.Rel(baseDir, f.path)
-				pathComponents := strings.Split(relPath, string(filepath.Separator))
+				// Use the original path for calculating relative path in metainfo
+				originalFilepath := originalPaths[f.path]
+				if originalFilepath == "" {
+					originalFilepath = f.path // Fallback if mapping missing
+				}
+				relPath, _ := filepath.Rel(baseDir, originalFilepath)
+				pathComponents := strings.Split(filepath.ToSlash(relPath), "/") // Ensure forward slashes
 				info.Files[i] = metainfo.FileInfo{
 					Path:   pathComponents,
-					Length: f.length,
+					Length: f.length, // Length comes from resolved file
 				}
 			}
 		}
