@@ -62,7 +62,7 @@ func runInspect(cmd *cobra.Command, args []string) error {
 	display.ShowTorrentInfo(t, &info)
 
 	if inspectVerbose {
-		fmt.Printf("\n%s\n", cyan("Additional metadata:"))
+		fmt.Printf("%s\n", cyan("Additional metadata:"))
 
 		rootMap := make(map[string]interface{})
 		if err := bencode.Unmarshal(rawBytes, &rootMap); err == nil {

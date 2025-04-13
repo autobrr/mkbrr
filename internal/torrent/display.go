@@ -192,9 +192,9 @@ func (d *Display) ShowTorrentInfo(t *Torrent, info *metainfo.Info) {
 	if len(info.Files) > 0 {
 		fmt.Fprintf(d.output, "  %-13s %d\n", label("Files:"), len(info.Files))
 	}
-	if !d.formatter.verbose {
-		fmt.Fprintln(d.output)
-	}
+
+	fmt.Fprintln(d.output)
+
 }
 
 func (d *Display) ShowFileTree(info *metainfo.Info) {
