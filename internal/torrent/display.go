@@ -81,6 +81,9 @@ func (d *Display) UpdateProgress(completed int, hashrate float64) {
 }
 
 func (d *Display) ShowFiles(files []fileEntry) {
+	if !d.formatter.verbose {
+		return
+	}
 	fmt.Fprintf(d.output, "\n%s\n", magenta("Files being hashed:"))
 	for i, file := range files {
 		prefix := "  ├─"
