@@ -26,26 +26,27 @@ type VerifyOptions struct {
 }
 
 type pieceVerifier struct {
+	startTime   time.Time
+	lastUpdate  time.Time
 	torrentInfo *metainfo.Info
-	contentPath string
-	pieceLen    int64
-	numPieces   int
-	files       []fileEntry // Mapped files based on contentPath
-	display     *Display    // Changed to concrete type
+	display     *Display // Changed to concrete type
 	bufferPool  *sync.Pool
-	readSize    int
-
-	goodPieces    uint64
-	badPieces     uint64
-	missingPieces uint64 // Pieces belonging to missing files
+	contentPath string
+	files       []fileEntry // Mapped files based on contentPath
 
 	badPieceIndices []int
 	missingFiles    []string
 	missingRanges   [][2]int64 // Byte ranges [start, end) of missing/mismatched files
 
+	pieceLen  int64
+	numPieces int
+	readSize  int
+
+	goodPieces    uint64
+	badPieces     uint64
+	missingPieces uint64 // Pieces belonging to missing files
+
 	bytesVerified int64
-	startTime     time.Time
-	lastUpdate    time.Time
 	mutex         sync.RWMutex
 }
 
