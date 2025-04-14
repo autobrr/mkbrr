@@ -30,68 +30,136 @@ func New(size int) *RingBuffer {
 }
 
 func (r *RingBuffer) Read(p []byte) (int, error) {
-	n, err := r.genericIO(r.writeWake, r.readWake, r.isClosed, r.isEmpty, func(offset int64) (int64, error) {
-		n, err := r.read(p, offset)
-		if int(n+offset) == len(p) {
-			return n, io.EOF
-		}
-
-		return n, err
-	})
-
-	return int(n), err
-}
-
-func (r *RingBuffer) Write(p []byte) (int, error) {
-	n, err := r.genericIO(r.readWake, r.writeWake, r.isClosedRead, r.isFull, func(offset int64) (int64, error) {
-		n, err := r.write(p, offset)
-		if int(n+offset) == len(p) {
-			return n, io.EOF
-		}
-
-		return n, err
-	})
-
-	return int(n), err
-}
-
-func (r *RingBuffer) ReadFrom(rio io.Reader) (int64, error) {
-	return r.genericIO(r.writeWake, r.readWake, r.isClosed, r.isFull, func(offset int64) (int64, error) {
-		return r.copyfrom(rio)
-	})
-}
-
-func (r *RingBuffer) WriteTo(wio io.Writer) (int64, error) {
-	return r.genericIO(r.readWake, r.writeWake, r.isClosedRead, r.isEmpty, func(offset int64) (int64, error) {
-		return r.copyto(wio)
-	})
-}
-
-func (r *RingBuffer) genericIO(local *sync.Cond, remote *sync.Cond, closed func() bool, state func() bool, handler func(int64) (int64, error)) (int64, error) {
-	if closed() {
+	if r.isClosedRead() {
 		return 0, r.returnState()
 	}
 
-	var w int64
-	local.L.Lock()
-	defer local.L.Unlock()
-	for {
+	w := 0
+	r.readWake.L.Lock()
+	defer r.readWake.L.Unlock()
+	for w < len(p) {
 		if r.isShutdown() {
 			return w, io.ErrUnexpectedEOF
-		} else if closed() {
+		} else if r.isClosedRead() {
 			break
-		} else if state() {
-			local.Wait()
+		} else if r.isEmpty() {
+			if w != 0 {
+				break
+			}
+			r.readWake.Wait()
 			continue
 		}
 
 		r.m.Lock()
-		nn, e := handler(w)
+		if n := r.read(p[w:]); n != 0 {
+			r.writeWake.Signal()
+			w += n
+		}
+		r.m.Unlock()
+	}
+
+	return w, nil
+}
+
+func (r *RingBuffer) Write(p []byte) (int, error) {
+	if r.isClosed() {
+		return 0, r.returnState()
+	}
+
+	w := 0
+	r.writeWake.L.Lock()
+	defer r.writeWake.L.Unlock()
+	for w < len(p) {
+		if r.isShutdown() {
+			return w, io.ErrUnexpectedEOF
+		} else if r.isClosed() {
+			break
+		} else if r.isFull() {
+			r.writeWake.Wait()
+			continue
+		}
+
+		r.m.Lock()
+		if n := r.write(p[w:]); n != 0 {
+			r.readWake.Signal()
+			w += n
+		}
+		r.m.Unlock()
+	}
+
+	var err error = nil
+	if w != len(p) {
+		err = io.ErrShortWrite
+	}
+	return w, err
+}
+
+func (r *RingBuffer) ReadFrom(rio io.Reader) (int64, error) {
+	if r.isClosed() {
+		return 0, r.returnState()
+	}
+
+	var w int64
+	r.writeWake.L.Lock()
+	defer r.writeWake.L.Unlock()
+	for {
+		if r.isShutdown() {
+			return w, io.ErrUnexpectedEOF
+		} else if r.isClosed() {
+			break
+		} else if r.isFull() {
+			r.writeWake.Wait()
+			continue
+		}
+
+		r.m.Lock()
+		nn, e := r.copyfrom(rio)
 		r.m.Unlock()
 
 		if nn > 0 {
-			remote.Signal()
-			w += nn
+			r.readWake.Signal()
+			w += int64(nn)
+		}
+
+		if e != nil {
+			if e == io.EOF {
+				break
+			}
+			return w, e
+		}
+	}
+
+	//fmt.Printf("ReadFrom Done: W %d | Buf: %q | start %d | end %d | full %v\n", w, r.bytes(), r.start, r.end, r.full)
+	return w, nil
+}
+
+func (r *RingBuffer) WriteTo(wio io.Writer) (int64, error) {
+	if r.isClosedRead() {
+		return 0, r.returnState()
+	}
+
+	var w int64
+	r.readWake.L.Lock()
+	defer r.readWake.L.Unlock()
+	for {
+		if r.isShutdown() {
+			return w, io.ErrUnexpectedEOF
+		} else if r.isClosedRead() {
+			break
+		} else if r.isEmpty() {
+			r.readWake.Wait()
+			continue
+		}
+
+		r.m.Lock()
+		nn, e := r.copyto(wio)
+		r.m.Unlock()
+
+		if nn > 0 {
+			r.writeWake.Signal()
+			w += int64(nn)
+		} else if nn == 0 && e == nil {
+			break
 		}
 
 		if e != nil {
@@ -231,42 +299,41 @@ func processWrite[T any](p []T, src []T, start, end int) int {
 	return n
 }
 
-func (r *RingBuffer) read(p []byte, offset int64) (int64, error) {
-	w := int64(processRead(p[offset:], r.buf, r.start, r.end))
-	r.recalculateRead(int(w))
-	return w, nil
+func (r *RingBuffer) read(p []byte) int {
+	w := processRead(p, r.buf, r.start, r.end)
+	r.recalculateRead(w)
+	return w
 }
 
-func (r *RingBuffer) write(p []byte, offset int64) (int64, error) {
-	w := int64(processWrite(r.buf, p[offset:], r.end, r.start))
-	r.recalculateWrite(int(w))
-	return w, nil
+func (r *RingBuffer) write(p []byte) int {
+	w := processWrite(r.buf, p, r.end, r.start)
+	r.recalculateWrite(w)
+	return w
 }
 
-func processIO(buf []byte, start, end int, handler func([]byte) (int, error)) (int64, error) {
+func processIO(buf []byte, start, end int, handler func([]byte) (int, error)) (int, error) {
 	if start < end {
-		n, err := handler(buf[start:end])
-		return int64(n), err
+		return handler(buf[start:end])
 	}
 
 	n, err := handler(buf[start:])
 	if err != nil || n == len(buf)-start {
-		return int64(n), err
+		return n, err
 	}
 
 	m, err := handler(buf[:end])
-	return int64(n + m), err
+	return n + m, err
 }
 
-func (r *RingBuffer) copyfrom(rio io.Reader) (int64, error) {
+func (r *RingBuffer) copyfrom(rio io.Reader) (int, error) {
 	w, err := processIO(r.buf, r.end, r.start, rio.Read)
-	r.recalculateWrite(int(w))
+	r.recalculateWrite(w)
 	return w, err
 }
 
-func (r *RingBuffer) copyto(wio io.Writer) (int64, error) {
+func (r *RingBuffer) copyto(wio io.Writer) (int, error) {
 	w, err := processIO(r.buf, r.start, r.end, wio.Write)
-	r.recalculateRead(int(w))
+	r.recalculateRead(w)
 	return w, err
 }
 
