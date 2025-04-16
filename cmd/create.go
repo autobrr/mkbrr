@@ -305,7 +305,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 			NoCreator:       noCreator,
 			Verbose:         verbose,
 			Version:         version,
-			Entropy:         false,
+			Entropy:         entropy,
 			Quiet:           quiet,
 			SkipPrefix:      skipPrefix,
 			ExcludePatterns: excludePatterns,
