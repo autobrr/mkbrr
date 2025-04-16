@@ -27,6 +27,7 @@ presets:
     include_patterns: # Example: include only video files
       - "*.mkv"
       - "*.mp4"
+    # entropy: true # randomize the hash, useful for cross-seeded torrents
 
   # Public tracker preset with all options shown
   public:

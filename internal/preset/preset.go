@@ -34,6 +34,7 @@ type Options struct {
 	IncludePatterns []string `yaml:"include_patterns"`
 	PieceLength     uint     `yaml:"piece_length"`
 	MaxPieceLength  uint     `yaml:"max_piece_length"`
+	Entropy         *bool    `yaml:"entropy"`
 }
 
 // FindPresetFile searches for a preset file in known locations
@@ -131,6 +132,9 @@ func (c *Config) GetPreset(name string) (*Options, error) {
 		if len(c.Default.IncludePatterns) > 0 {
 			merged.IncludePatterns = c.Default.IncludePatterns
 		}
+		if c.Default.Entropy != nil {
+			merged.Entropy = c.Default.Entropy
+		}
 	}
 
 	// override with preset values if they are set
@@ -169,6 +173,9 @@ func (c *Config) GetPreset(name string) (*Options, error) {
 	}
 	if len(preset.IncludePatterns) > 0 {
 		merged.IncludePatterns = preset.IncludePatterns
+	}
+	if preset.Entropy != nil {
+		merged.Entropy = preset.Entropy
 	}
 
 	return &merged, nil
