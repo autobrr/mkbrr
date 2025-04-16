@@ -15,7 +15,9 @@ if [ ! -d "$FILE_PATH" ]; then
     exit 1
 fi
 
-WORKER_COUNTS=(0 1 2 3 4 5 6 7 8 9 10) # 0 means auto
+# Should be set to test the amount of cores on the machine 
+# Generate sequence from 0 to 32 (0 will use the built-in worker count logic)
+WORKER_COUNTS=(0 $(seq 1 32))
 
 HYPERFINE_CMD="hyperfine --warmup 1 --runs 10"
 
