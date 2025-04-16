@@ -12,8 +12,8 @@ import (
 
 // BatchConfig represents the YAML configuration for batch torrent creation
 type BatchConfig struct {
-	Version int        `yaml:"version"`
 	Jobs    []BatchJob `yaml:"jobs"`
+	Version int        `yaml:"version"`
 }
 
 // BatchJob represents a single torrent creation job within a batch
@@ -21,16 +21,16 @@ type BatchJob struct {
 	Output          string   `yaml:"output"`
 	Path            string   `yaml:"path"`
 	Name            string   `yaml:"-"`
-	Trackers        []string `yaml:"trackers"`
-	WebSeeds        []string `yaml:"webseeds"`
-	Private         bool     `yaml:"private"`
-	PieceLength     uint     `yaml:"piece_length"`
 	Comment         string   `yaml:"comment"`
 	Source          string   `yaml:"source"`
-	NoDate          bool     `yaml:"no_date"`
-	SkipPrefix      bool     `yaml:"skip_prefix"`
+	Trackers        []string `yaml:"trackers"`
+	WebSeeds        []string `yaml:"webseeds"`
 	ExcludePatterns []string `yaml:"exclude_patterns"`
 	IncludePatterns []string `yaml:"include_patterns"`
+	PieceLength     uint     `yaml:"piece_length"`
+	Private         bool     `yaml:"private"`
+	NoDate          bool     `yaml:"no_date"`
+	SkipPrefix      bool     `yaml:"skip_prefix"`
 }
 
 // ToCreateOptions converts a BatchJob to CreateTorrentOptions
@@ -67,11 +67,11 @@ func (j *BatchJob) ToCreateOptions(verbose bool, quiet bool, version string) Cre
 
 // BatchResult represents the result of a single job in the batch
 type BatchResult struct {
-	Job      BatchJob
-	Success  bool
 	Error    error
 	Info     *TorrentInfo
+	Job      BatchJob
 	Trackers []string
+	Success  bool
 }
 
 // ProcessBatch processes a batch configuration file and creates multiple torrents

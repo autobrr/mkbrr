@@ -9,12 +9,12 @@ import (
 )
 
 type SeasonPackInfo struct {
-	IsSeasonPack    bool
-	Season          int
 	Episodes        []int
 	MissingEpisodes []int
+	Season          int
 	MaxEpisode      int
 	VideoFileCount  int
+	IsSeasonPack    bool
 	IsSuspicious    bool
 }
 
