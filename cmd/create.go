@@ -254,7 +254,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 			SkipPrefix:      presetOpts.SkipPrefix != nil && *presetOpts.SkipPrefix,
 			Verbose:         verbose,
 			Version:         version,
-			Entropy:         entropy,
+			Entropy:         false,
 			Quiet:           quiet,
 			ExcludePatterns: []string{},
 			IncludePatterns: []string{},
@@ -328,6 +328,13 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		if cmd.Flags().Changed("include") {
 			opts.IncludePatterns = append(opts.IncludePatterns, includePatterns...)
 		}
+		if cmd.Flags().Changed("entropy") {
+			opts.Entropy = entropy
+		} else if presetOpts.Entropy != nil {
+			opts.Entropy = *presetOpts.Entropy
+		} else {
+			opts.Entropy = false
+		}
 	} else {
 		// use command line options
 		opts = torrent.CreateTorrentOptions{
@@ -345,7 +352,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 			NoCreator:       noCreator,
 			Verbose:         verbose,
 			Version:         version,
-			Entropy:         entropy,
+			Entropy:         false,
 			Quiet:           quiet,
 			SkipPrefix:      skipPrefix,
 			ExcludePatterns: excludePatterns,
