@@ -81,7 +81,8 @@ func (d *Display) UpdateProgress(completed int, hashrate float64) {
 }
 
 func (d *Display) ShowFiles(files []fileEntry) {
-	if !d.formatter.verbose {
+	if !d.formatter.verbose && len(files) > 20 {
+		fmt.Fprintf(d.output, "\n%s suppressed file output (limit 20, found %d), use --verbose to show all\n", yellow("Note:"), len(files))
 		return
 	}
 	fmt.Fprintf(d.output, "\n%s\n", magenta("Files being hashed:"))
@@ -197,11 +198,11 @@ func (d *Display) ShowTorrentInfo(t *Torrent, info *metainfo.Info) {
 
 }
 
+// ShowFileTree displays the file structure of a multi-file torrent
+// The decision to show the tree is now handled in cmd/inspect.go
 func (d *Display) ShowFileTree(info *metainfo.Info) {
-	if !d.formatter.verbose {
-		return
-	}
-	fmt.Fprintf(d.output, "\n%s\n", magenta("File tree:"))
+	// Removed verbose check: if !d.formatter.verbose { return }
+	fmt.Fprintf(d.output, "%s\n", magenta("File tree:"))
 	fmt.Fprintf(d.output, "%s %s\n", "└─", success(info.Name))
 	for i, file := range info.Files {
 		prefix := "  ├─"
