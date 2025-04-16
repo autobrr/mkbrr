@@ -259,7 +259,8 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 		var pieceHashes [][]byte
 		if numPieces > 0 {
 			hasher := NewPieceHasher(files, pieceLenInt, int(numPieces), display)
-			if err := hasher.hashPieces(1); err != nil { // Using 1 worker for simplicity in this context, could optimize later
+			// Pass the specified or default worker count from opts
+			if err := hasher.hashPieces(opts.Workers); err != nil {
 				return nil, fmt.Errorf("error hashing pieces: %w", err)
 			}
 			pieceHashes = hasher.pieces

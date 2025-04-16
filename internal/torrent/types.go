@@ -27,6 +27,7 @@ type CreateTorrentOptions struct {
 	Entropy         bool
 	Quiet           bool
 	SkipPrefix      bool
+	Workers         int // Number of worker goroutines for hashing
 }
 
 // Torrent represents a torrent file with additional functionality

@@ -171,6 +171,9 @@ mkbrr create path/to/file -t https://example-tracker.com/announce --exclude "*.n
 
 # Create a torrent including only specific file patterns (comma-separated)
 mkbrr create path/to/video-folder -t https://example-tracker.com/announce --include "*.mkv,*.mp4"
+
+# Create using a specific number of worker threads for hashing (e.g., 8)
+mkbrr create path/to/large-file -t https://example-tracker.com/announce --workers 8
 ```
 
 > [!NOTE]
@@ -187,6 +190,17 @@ View detailed information about a torrent:
 
 ```bash
 mkbrr inspect my-torrent.torrent
+```
+
+### Checking Torrents (Verifying Data)
+
+Verify the integrity of local data against a torrent file:
+
+```bash
+mkbrr check my-torrent.torrent /path/to/downloaded/content
+
+# Verify using a specific number of worker threads (e.g., 4)
+mkbrr check my-torrent.torrent /path/to/downloaded/content --workers 4
 ```
 
 This shows:

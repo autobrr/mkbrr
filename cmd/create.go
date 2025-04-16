@@ -34,6 +34,7 @@ var (
 	skipPrefix        bool
 	excludePatterns   []string
 	includePatterns   []string
+	createWorkers     int // Number of worker goroutines for hashing
 )
 
 var createCmd = &cobra.Command{
@@ -105,6 +106,7 @@ func init() {
 	createCmd.Flags().BoolVarP(&skipPrefix, "skip-prefix", "", false, "don't add tracker domain prefix to output filename")
 	createCmd.Flags().StringArrayVarP(&excludePatterns, "exclude", "", nil, "exclude files matching these patterns (e.g., \"*.nfo,*.jpg\" or --exclude \"*.nfo\" --exclude \"*.jpg\")")
 	createCmd.Flags().StringArrayVarP(&includePatterns, "include", "", nil, "include only files matching these patterns (e.g., \"*.mkv,*.mp4\" or --include \"*.mkv\" --include \"*.mp4\")")
+	createCmd.Flags().IntVar(&createWorkers, "workers", 0, "number of worker goroutines for hashing (0 for automatic)")
 
 	createCmd.Flags().String("cpuprofile", "", "write cpu profile to file (development flag)")
 
@@ -290,6 +292,10 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		} else {
 			opts.Entropy = false
 		}
+		// Add workers override for presets
+		if cmd.Flags().Changed("workers") {
+			opts.Workers = createWorkers
+		}
 	} else {
 		// use command line options
 		opts = torrent.CreateTorrentOptions{
@@ -310,6 +316,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 			SkipPrefix:      skipPrefix,
 			ExcludePatterns: excludePatterns,
 			IncludePatterns: includePatterns,
+			Workers:         createWorkers, // Add workers for direct flags
 		}
 	}
 

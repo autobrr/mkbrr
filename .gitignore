@@ -12,3 +12,6 @@ test.sh
 test_ant/*
 .pgo_profiles/
 .pgo_test_data/
+.repomixignore
+repomix-mkbrr.xml
+repomix.config.json
