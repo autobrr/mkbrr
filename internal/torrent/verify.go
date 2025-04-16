@@ -358,7 +358,7 @@ func (v *pieceVerifier) verifyPieces(numWorkersOverride int) error {
 	v.mutex.Unlock()
 	v.bytesVerified = 0
 
-	v.display.ShowFiles(v.files) // Show files being checked
+	v.display.ShowFiles(v.files, numWorkers)
 
 	var completedPieces uint64
 	piecesPerWorker := (v.numPieces + numWorkers - 1) / numWorkers

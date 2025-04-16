@@ -131,7 +131,7 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 	h.mutex.Unlock()
 	h.bytesProcessed = 0
 
-	h.display.ShowFiles(h.files)
+	h.display.ShowFiles(h.files, numWorkers)
 
 	seasonInfo := AnalyzeSeasonPack(h.files)
 

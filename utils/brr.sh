@@ -15,15 +15,14 @@ if [ ! -d "$FILE_PATH" ]; then
     exit 1
 fi
 
-WORKER_COUNTS=(1 2 3 4 5 6 7 8)
+WORKER_COUNTS=(0 1 2 3 4 5 6 7 8 9 10) # 0 means auto
 
-COMMANDS=("hyperfine" "--warmup" "1" "--runs" "5")
+HYPERFINE_CMD="hyperfine --warmup 1 --runs 10"
 
 for WORKERS in "${WORKER_COUNTS[@]}"; do
-  COMMAND="mkbrr create '$FILE_PATH' --workers $WORKERS"
-  COMMANDS+=("$COMMAND")
+    HYPERFINE_CMD+=" 'mkbrr create \"$FILE_PATH\" --workers $WORKERS'"
 done
 
-"${COMMANDS[@]}"
+eval "$HYPERFINE_CMD"
 
 echo "Benchmarking complete."
