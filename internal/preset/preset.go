@@ -35,6 +35,7 @@ type Options struct {
 	PieceLength     uint     `yaml:"piece_length"`
 	MaxPieceLength  uint     `yaml:"max_piece_length"`
 	Entropy         *bool    `yaml:"entropy"`
+	Workers         int      `yaml:"workers"`
 }
 
 // FindPresetFile searches for a preset file in known locations
@@ -98,12 +99,14 @@ func (c *Config) GetPreset(name string) (*Options, error) {
 	defaultNoDate := false
 	defaultNoCreator := false
 	defaultSkipPrefix := false
+	defaultWorkers := 0 // auto
 
 	merged := Options{
 		Private:    &defaultPrivate,
 		NoDate:     &defaultNoDate,
 		NoCreator:  &defaultNoCreator,
 		SkipPrefix: &defaultSkipPrefix,
+		Workers:    defaultWorkers,
 	}
 
 	// if we have defaults in config, use those instead
@@ -126,6 +129,7 @@ func (c *Config) GetPreset(name string) (*Options, error) {
 		merged.Source = c.Default.Source
 		merged.PieceLength = c.Default.PieceLength
 		merged.MaxPieceLength = c.Default.MaxPieceLength
+		merged.Workers = c.Default.Workers
 		if len(c.Default.ExcludePatterns) > 0 {
 			merged.ExcludePatterns = c.Default.ExcludePatterns
 		}
@@ -176,6 +180,9 @@ func (c *Config) GetPreset(name string) (*Options, error) {
 	}
 	if preset.Entropy != nil {
 		merged.Entropy = preset.Entropy
+	}
+	if preset.Workers != 0 {
+		merged.Workers = preset.Workers
 	}
 
 	return &merged, nil

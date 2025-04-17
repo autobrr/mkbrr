@@ -292,9 +292,12 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		} else {
 			opts.Entropy = false
 		}
-		// Add workers override for presets
 		if cmd.Flags().Changed("workers") {
 			opts.Workers = createWorkers
+		} else if presetOpts.Workers != 0 {
+			opts.Workers = presetOpts.Workers
+		} else {
+			opts.Workers = 0 // automatic mode
 		}
 	} else {
 		// use command line options
@@ -316,7 +319,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 			SkipPrefix:      skipPrefix,
 			ExcludePatterns: excludePatterns,
 			IncludePatterns: includePatterns,
-			Workers:         createWorkers, // Add workers for direct flags
+			Workers:         createWorkers,
 		}
 	}
 
