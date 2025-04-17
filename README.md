@@ -1,12 +1,21 @@
-# mkbrr
 
-<img src=".github/assets/mkbrr-dark.png" alt="mkbrr gopher" width="200" style="float:right;"/>
+<h1 align="center">⚡ mkbrr</h1> 
+<p align="center"> 
+  <strong>Simple. Smart. Fast.</strong><br> 
+  A powerful CLI tool to create, inspect, and modify torrent files. Private by default. Tracker aware.
+</p> 
+<p align="center"> 
+  <img src="https://img.shields.io/badge/Go-1.23-blue?logo=go" alt="Go version">
+  <img src="https://img.shields.io/badge/build-passing-brightgreen" alt="Build Status">
+  <img src="https://img.shields.io/github/v/release/autobrr/mkbrr" alt="Latest Release">
+  <img src="https://img.shields.io/discord/881212911849209957?label=discord&logo=discord" alt="Discord">
+</p>
 
-**A fast and powerful tool for creating, inspecting, and modifying torrent files**
-
-[Website](https://mkbrr.com) | [Releases](https://github.com/autobrr/mkbrr/releases)
+<img src=".github/assets/mkbrr-dark.png" alt="mkbrr gopher" width="60" align="right"/>
 
 ## Overview
+
+[Website](https://mkbrr.com) | [Releases](https://github.com/autobrr/mkbrr/releases)
 
 **mkbrr** (pronounced "make-burr") is a simple yet powerful tool for:
 - Creating torrent files
