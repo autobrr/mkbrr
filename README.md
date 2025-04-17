@@ -2,13 +2,20 @@
 <p align="center"> 
   <strong>Simple. Smart. Fast.</strong><br> 
   A powerful CLI tool to create, inspect, and modify torrent files. Private by default. Tracker aware.
-</p> 
+</p>
+<div align="center">
 <p align="center"> 
   <img src="https://img.shields.io/badge/Go-1.23-blue?logo=go" alt="Go version">
   <img src="https://img.shields.io/badge/build-passing-brightgreen" alt="Build Status">
   <img src="https://img.shields.io/github/v/release/autobrr/mkbrr" alt="Latest Release">
-  <img src="https://img.shields.io/discord/881212911849209957?label=discord&logo=discord" alt="Discord">
+  </a>
+    <a href="https://mkbrr.com">
+    <img src="https://img.shields.io/badge/%F0%9F%92%A1%20mkbrr-docs-00ACD7.svg?style=flat-square">
+  </a>
 </p>
+
+[![Discord](https://img.shields.io/discord/881212911849209957.svg?label=&logo=discord&logoColor=ffffff&color=7389D8&labelColor=6A7EC2)](https://discord.gg/refine)
+</div>
 
 <img src=".github/assets/mkbrr-dark.png" alt="mkbrr gopher" width="100" align="right"/>
 
