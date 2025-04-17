@@ -11,7 +11,7 @@
   <img src="https://img.shields.io/discord/881212911849209957?label=discord&logo=discord" alt="Discord">
 </p>
 
-<img src=".github/assets/mkbrr-dark.png" alt="mkbrr gopher" width="60" align="right"/>
+<img src=".github/assets/mkbrr-dark.png" alt="mkbrr gopher" width="100" align="right"/>
 
 ## Overview
 
