@@ -15,11 +15,11 @@ if [ ! -d "$FILE_PATH" ]; then
     exit 1
 fi
 
-# Should be set to test the amount of cores on the machine 
-# Generate sequence from 0 to 32 (0 will use the built-in worker count logic)
-WORKER_COUNTS=(0 $(seq 1 32))
+WORKER_COUNTS=(0 4 8 16 32 64) # 0 means auto
 
 HYPERFINE_CMD="hyperfine --warmup 1 --runs 10"
+HYPERFINE_CMD+=" --setup 'sudo sync && sudo sh -c \"echo 3 > /proc/sys/vm/drop_caches\"'"
+HYPERFINE_CMD+=" --prepare 'sudo sync && sudo sh -c \"echo 3 > /proc/sys/vm/drop_caches\"'"
 
 for WORKERS in "${WORKER_COUNTS[@]}"; do
     HYPERFINE_CMD+=" 'mkbrr create \"$FILE_PATH\" --workers $WORKERS'"
