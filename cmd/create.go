@@ -7,10 +7,11 @@ import (
 	"runtime/pprof"
 	"time"
 
-	"github.com/autobrr/mkbrr/internal/preset"
-	"github.com/autobrr/mkbrr/internal/torrent"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
+
+	"github.com/autobrr/mkbrr/internal/preset"
+	"github.com/autobrr/mkbrr/internal/torrent"
 )
 
 var (
@@ -282,6 +283,13 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		}
 		if cmd.Flags().Changed("include") {
 			opts.IncludePatterns = append(opts.IncludePatterns, includePatterns...)
+		}
+		if cmd.Flags().Changed("entropy") {
+			opts.Entropy = entropy
+		} else if presetOpts.Entropy != nil {
+			opts.Entropy = *presetOpts.Entropy
+		} else {
+			opts.Entropy = false
 		}
 	} else {
 		// use command line options

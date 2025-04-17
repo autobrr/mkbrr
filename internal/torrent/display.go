@@ -16,11 +16,11 @@ import (
 )
 
 type Display struct {
+	output    io.Writer
 	formatter *BytesFormatter
 	bar       *progressbar.ProgressBar
 	isBatch   bool
 	quiet     bool
-	output    io.Writer
 }
 
 func NewDisplay(formatter *BytesFormatter) *Display {
@@ -80,8 +80,16 @@ func (d *Display) UpdateProgress(completed int, hashrate float64) {
 	}
 }
 
-func (d *Display) ShowFiles(files []FileEntry) { // Changed to exported FileEntry
+func (d *Display) ShowFiles(files []FileEntry) {
+	if !d.formatter.verbose && len(files) > 20 {
+		fmt.Fprintf(d.output, "\n%s suppressed file output (limit 20, found %d), use --verbose to show all\n", yellow("Note:"), len(files))
+		return
+	}
 	fmt.Fprintf(d.output, "\n%s\n", magenta("Files being hashed:"))
+	if len(files) > 0 {
+		topDir := filepath.Dir(files[0].Path)
+		fmt.Fprintf(d.output, "%s %s\n", "└─", success(filepath.Base(topDir)))
+	}
 	for i, file := range files {
 		prefix := "  ├─"
 		if i == len(files)-1 {
@@ -93,7 +101,6 @@ func (d *Display) ShowFiles(files []FileEntry) { // Changed to exported FileEntr
 			success(file.Name),
 			label(d.formatter.FormatBytes(file.Size)))
 	}
-	fmt.Fprintln(d.output)
 }
 
 func (d *Display) FinishProgress() {
@@ -191,10 +198,15 @@ func (d *Display) ShowTorrentInfo(t *Torrent, info *metainfo.Info) {
 	if len(info.Files) > 0 {
 		fmt.Fprintf(d.output, "  %-13s %d\n", label("Files:"), len(info.Files))
 	}
+
+	fmt.Fprintln(d.output)
+
 }
 
+// ShowFileTree displays the file structure of a multi-file torrent
+// The decision to show the tree is now handled in cmd/inspect.go
 func (d *Display) ShowFileTree(info *metainfo.Info) {
-	fmt.Fprintf(d.output, "\n%s\n", magenta("File tree:"))
+	fmt.Fprintf(d.output, "%s\n", magenta("File tree:"))
 	fmt.Fprintf(d.output, "%s %s\n", "└─", success(info.Name))
 	for i, file := range info.Files {
 		prefix := "  ├─"
@@ -206,16 +218,20 @@ func (d *Display) ShowFileTree(info *metainfo.Info) {
 			success(filepath.Join(file.Path...)),
 			label(d.formatter.FormatBytes(file.Length)))
 	}
+	fmt.Fprintln(d.output)
 }
 
 func (d *Display) ShowOutputPathWithTime(path string, duration time.Duration) {
+	if !d.formatter.verbose {
+		fmt.Fprintln(d.output)
+	}
 	if duration < time.Second {
-		fmt.Fprintf(d.output, "\n%s %s (%s)\n",
+		fmt.Fprintf(d.output, "%s %s (%s)\n",
 			success("Wrote"),
 			white(path),
 			magenta(fmt.Sprintf("elapsed %dms", duration.Milliseconds())))
 	} else {
-		fmt.Fprintf(d.output, "\n%s %s (%s)\n",
+		fmt.Fprintf(d.output, "%s %s (%s)\n",
 			success("Wrote"),
 			white(path),
 			magenta(fmt.Sprintf("elapsed %.2fs", duration.Seconds())))

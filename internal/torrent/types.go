@@ -8,27 +8,27 @@ import (
 
 // CreateTorrentOptions contains all options for creating a torrent
 type CreateTorrentOptions struct {
+	Displayer       Displayer
+	PieceLengthExp  *uint
+	MaxPieceLength  *uint
 	Path            string
 	Name            string
 	TrackerURL      string
-	WebSeeds        []string
-	IsPrivate       bool
 	Comment         string
-	PieceLengthExp  *uint
-	MaxPieceLength  *uint
 	Source          string
-	NoDate          bool
-	NoCreator       bool
-	Verbose         bool
 	Version         string
 	AppName         string
 	OutputPath      string
+	WebSeeds        []string
+	ExcludePatterns []string
+	IncludePatterns []string
+	IsPrivate       bool
+	NoDate          bool
+	NoCreator       bool
+	Verbose         bool
 	Entropy         bool
 	Quiet           bool
 	SkipPrefix      bool
-	ExcludePatterns []string
-	IncludePatterns []string
-	Displayer       Displayer
 }
 
 // Torrent represents a torrent file with additional functionality
@@ -39,8 +39,8 @@ type Torrent struct {
 // FileEntry represents a file in the torrent
 type FileEntry struct {
 	Name string
-	Size int64
 	Path string
+	Size int64
 }
 
 // internal file entry for processing
@@ -59,21 +59,21 @@ type fileReader struct {
 
 // TorrentInfo contains summary information about the created torrent
 type TorrentInfo struct {
-	Path     string
-	Size     int64
-	InfoHash string
-	Files    int
-	Announce string
 	MetaInfo *metainfo.MetaInfo
+	Path     string
+	InfoHash string
+	Announce string
+	Size     int64
+	Files    int
 }
 
 // VerificationResult holds the outcome of a torrent data verification check
 type VerificationResult struct {
+	BadPieceIndices []int
+	MissingFiles    []string
 	TotalPieces     int
 	GoodPieces      int
 	BadPieces       int
 	MissingPieces   int
 	Completion      float64
-	BadPieceIndices []int
-	MissingFiles    []string
 }

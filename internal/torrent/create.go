@@ -411,6 +411,7 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 				display.SetQuiet(opts.Quiet)
 				display.ShowMessage(fmt.Sprintf("using tracker-specific range for content size: %d MiB (recommended: %s pieces)",
 					totalSize>>20, formatPieceSize(exp)))
+				fmt.Fprintln(display.output)
 				if pieceLength != exp {
 					display.ShowWarning(fmt.Sprintf("custom piece length %s differs from recommendation",
 						formatPieceSize(pieceLength)))
@@ -518,19 +519,18 @@ func Create(opts CreateTorrentOptions) (*TorrentInfo, error) {
 		Announce: opts.TrackerURL,
 	}
 
-	// display info if verbose using the appropriate displayer
-	// (No need to create a new one here, CreateTorrent handles that)
+	// display info if verbose
 	if opts.Displayer != nil && opts.Verbose {
 		opts.Displayer.ShowTorrentInfo(t, info)
 		if len(info.Files) > 0 {
 			opts.Displayer.ShowFileTree(info)
 		}
-	} else if opts.Verbose { // Fallback to CLI displayer if opts.Displayer is nil but verbose is true
+	} else if opts.Verbose {
 		cliDisplayer := NewDisplay(NewBytesFormatter(opts.Verbose))
 		cliDisplayer.ShowTorrentInfo(t, info)
-		if len(info.Files) > 0 {
-			cliDisplayer.ShowFileTree(info)
-		}
+		//if len(info.Files) > 0 {
+		//cliDisplayer.ShowFileTree(info)
+		//}
 	}
 
 	return torrentInfo, nil
