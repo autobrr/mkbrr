@@ -14,7 +14,7 @@
   </a>
 </p>
 
-[![Discord](https://img.shields.io/discord/881212911849209957.svg?label=&logo=discord&logoColor=ffffff&color=7389D8&labelColor=6A7EC2)](https://discord.gg/refine)
+[![Discord](https://img.shields.io/discord/881212911849209957.svg?label=&logo=discord&logoColor=ffffff&color=7389D8&labelColor=6A7EC2)](https://discord.gg/WehFCZxq5B)
 </div>
 
 <img src=".github/assets/mkbrr-dark.png" alt="mkbrr gopher" width="100" align="right"/>
