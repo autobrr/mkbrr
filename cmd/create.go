@@ -34,7 +34,7 @@ var (
 	skipPrefix        bool
 	excludePatterns   []string
 	includePatterns   []string
-	createWorkers     int // Number of worker goroutines for hashing
+	createWorkers     int
 )
 
 var createCmd = &cobra.Command{

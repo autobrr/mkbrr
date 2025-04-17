@@ -14,7 +14,7 @@ import (
 var (
 	checkVerbose bool
 	checkQuiet   bool
-	checkWorkers int // Number of worker goroutines for verification
+	checkWorkers int
 )
 
 var checkCmd = &cobra.Command{
@@ -66,7 +66,7 @@ func runCheck(cmd *cobra.Command, args []string) error {
 		ContentPath: contentPath,
 		Verbose:     checkVerbose,
 		Quiet:       checkQuiet,
-		Workers:     checkWorkers, // Pass workers flag value
+		Workers:     checkWorkers,
 	}
 
 	display := torrent.NewDisplay(torrent.NewFormatter(checkVerbose))
