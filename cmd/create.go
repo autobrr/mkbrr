@@ -122,59 +122,69 @@ Flags:
 `)
 }
 
-func runCreate(cmd *cobra.Command, args []string) error {
-	if cpuprofile, _ := cmd.Flags().GetString("cpuprofile"); cpuprofile != "" {
-		f, err := os.Create(cpuprofile)
-		if err != nil {
-			return fmt.Errorf("could not create CPU profile: %w", err)
-		}
-		defer f.Close()
-
-		if err := pprof.StartCPUProfile(f); err != nil {
-			return fmt.Errorf("could not start CPU profile: %w", err)
-		}
-		defer pprof.StopCPUProfile()
+// setupProfiling sets up CPU profiling if the --cpuprofile flag is set
+// It returns a cleanup function that should be deferred by the caller
+func setupProfiling(cmd *cobra.Command) (cleanup func(), err error) {
+	cpuprofile, _ := cmd.Flags().GetString("cpuprofile")
+	if cpuprofile == "" {
+		return func() {}, nil
 	}
 
-	start := time.Now()
+	f, err := os.Create(cpuprofile)
+	if err != nil {
+		return nil, fmt.Errorf("could not create CPU profile: %w", err)
+	}
 
-	// batch mode
-	if options.batchFile != "" {
-		results, err := torrent.ProcessBatch(options.batchFile, options.verbose, options.quiet, version)
-		if err != nil {
-			return fmt.Errorf("batch processing failed: %w", err)
-		}
+	if err := pprof.StartCPUProfile(f); err != nil {
+		f.Close()
+		return nil, fmt.Errorf("could not start CPU profile: %w", err)
+	}
 
-		if options.quiet {
-			// In quiet mode, only print the paths to the created torrent files
-			for _, result := range results {
-				if result.Success {
-					fmt.Println("Wrote:", result.Info.Path)
-				}
+	return func() {
+		pprof.StopCPUProfile()
+		f.Close()
+	}, nil
+}
+
+// processBatchMode handles processing multiple torrents using a batch configuration file
+func processBatchMode(opts createOptions, version string, startTime time.Time) error {
+	results, err := torrent.ProcessBatch(opts.batchFile, opts.verbose, opts.quiet, version)
+	if err != nil {
+		return fmt.Errorf("batch processing failed: %w", err)
+	}
+
+	if opts.quiet {
+		// In quiet mode, only print the paths to the created torrent files
+		for _, result := range results {
+			if result.Success {
+				fmt.Println("Wrote:", result.Info.Path)
 			}
-		} else {
-			display := torrent.NewDisplay(torrent.NewFormatter(options.verbose))
-			display.ShowBatchResults(results, time.Since(start))
 		}
-		return nil
+	} else {
+		display := torrent.NewDisplay(torrent.NewFormatter(opts.verbose))
+		display.ShowBatchResults(results, time.Since(startTime))
 	}
+	return nil
+}
 
+// createSingleTorrent handles creating a single torrent file
+func createSingleTorrent(cmd *cobra.Command, args []string, opts createOptions, version string, startTime time.Time) error {
 	// get input path from args
 	inputPath := args[0]
 
 	// load preset if specified
-	var opts torrent.CreateTorrentOptions
-	if options.presetName != "" {
+	var createOpts torrent.CreateTorrentOptions
+	if opts.presetName != "" {
 		// determine preset file path
 		var presetFilePath string
-		if options.presetFile != "" {
+		if opts.presetFile != "" {
 			// if preset file is explicitly specified, use that
-			presetFilePath = options.presetFile
+			presetFilePath = opts.presetFile
 		} else {
 			// check known locations in order
 			locations := []string{
-				options.presetFile, // explicitly specified file
-				"presets.yaml",     // current directory
+				opts.presetFile, // explicitly specified file
+				"presets.yaml",  // current directory
 			}
 
 			// add user home directory locations
@@ -211,13 +221,13 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		}
 
 		// get preset
-		presetOpts, err := presets.GetPreset(options.presetName)
+		presetOpts, err := presets.GetPreset(opts.presetName)
 		if err != nil {
 			return fmt.Errorf("could not get preset: %w", err)
 		}
 
 		// convert preset to options
-		opts = torrent.CreateTorrentOptions{
+		createOpts = torrent.CreateTorrentOptions{
 			Path:            inputPath,
 			TrackerURL:      presetOpts.Trackers[0],
 			WebSeeds:        presetOpts.WebSeeds,
@@ -227,116 +237,134 @@ func runCreate(cmd *cobra.Command, args []string) error {
 			NoDate:          presetOpts.NoDate != nil && *presetOpts.NoDate,
 			NoCreator:       presetOpts.NoCreator != nil && *presetOpts.NoCreator,
 			SkipPrefix:      presetOpts.SkipPrefix != nil && *presetOpts.SkipPrefix,
-			Verbose:         options.verbose,
+			Verbose:         opts.verbose,
 			Version:         version,
 			Entropy:         false,
-			Quiet:           options.quiet,
+			Quiet:           opts.quiet,
 			ExcludePatterns: []string{},
 			IncludePatterns: []string{},
 		}
 
 		if len(presetOpts.ExcludePatterns) > 0 {
-			opts.ExcludePatterns = slices.Clone(presetOpts.ExcludePatterns)
+			createOpts.ExcludePatterns = slices.Clone(presetOpts.ExcludePatterns)
 		}
 		if len(presetOpts.IncludePatterns) > 0 {
-			opts.IncludePatterns = slices.Clone(presetOpts.IncludePatterns)
+			createOpts.IncludePatterns = slices.Clone(presetOpts.IncludePatterns)
 		}
 
 		if presetOpts.PieceLength != 0 {
 			pieceLen := presetOpts.PieceLength
-			opts.PieceLengthExp = &pieceLen
+			createOpts.PieceLengthExp = &pieceLen
 		}
 
 		if presetOpts.MaxPieceLength != 0 {
 			maxPieceLen := presetOpts.MaxPieceLength
-			opts.MaxPieceLength = &maxPieceLen
+			createOpts.MaxPieceLength = &maxPieceLen
 		}
 
 		// override preset options with command line flags if specified
 		if cmd.Flags().Changed("tracker") {
-			opts.TrackerURL = options.trackerURL
+			createOpts.TrackerURL = opts.trackerURL
 		}
 		if cmd.Flags().Changed("web-seed") {
-			opts.WebSeeds = options.webSeeds
+			createOpts.WebSeeds = opts.webSeeds
 		}
 		if cmd.Flags().Changed("private") {
-			opts.IsPrivate = options.isPrivate
+			createOpts.IsPrivate = opts.isPrivate
 		}
 		if cmd.Flags().Changed("comment") {
-			opts.Comment = options.comment
+			createOpts.Comment = opts.comment
 		}
 		if cmd.Flags().Changed("piece-length") {
-			opts.PieceLengthExp = options.pieceLengthExp
+			createOpts.PieceLengthExp = opts.pieceLengthExp
 		}
 		if cmd.Flags().Changed("max-piece-length") {
-			opts.MaxPieceLength = options.maxPieceLengthExp
+			createOpts.MaxPieceLength = opts.maxPieceLengthExp
 		}
 		if cmd.Flags().Changed("source") {
-			opts.Source = options.source
+			createOpts.Source = opts.source
 		}
 		if cmd.Flags().Changed("no-date") {
-			opts.NoDate = options.noDate
+			createOpts.NoDate = opts.noDate
 		}
 		if cmd.Flags().Changed("no-creator") {
-			opts.NoCreator = options.noCreator
+			createOpts.NoCreator = opts.noCreator
 		}
 		if cmd.Flags().Changed("skip-prefix") {
-			opts.SkipPrefix = options.skipPrefix
+			createOpts.SkipPrefix = opts.skipPrefix
 		}
 		if cmd.Flags().Changed("exclude") {
-			opts.ExcludePatterns = append(opts.ExcludePatterns, options.excludePatterns...)
+			createOpts.ExcludePatterns = append(createOpts.ExcludePatterns, opts.excludePatterns...)
 		}
 		if cmd.Flags().Changed("include") {
-			opts.IncludePatterns = append(opts.IncludePatterns, options.includePatterns...)
+			createOpts.IncludePatterns = append(createOpts.IncludePatterns, opts.includePatterns...)
 		}
 		if cmd.Flags().Changed("entropy") {
-			opts.Entropy = options.entropy
+			createOpts.Entropy = opts.entropy
 		} else if presetOpts.Entropy != nil {
-			opts.Entropy = *presetOpts.Entropy
+			createOpts.Entropy = *presetOpts.Entropy
 		} else {
-			opts.Entropy = false
+			createOpts.Entropy = false
 		}
 	} else {
 		// use command line options
-		opts = torrent.CreateTorrentOptions{
+		createOpts = torrent.CreateTorrentOptions{
 			Path:            inputPath,
-			TrackerURL:      options.trackerURL,
-			WebSeeds:        options.webSeeds,
-			IsPrivate:       options.isPrivate,
-			Comment:         options.comment,
-			PieceLengthExp:  options.pieceLengthExp,
-			MaxPieceLength:  options.maxPieceLengthExp,
-			Source:          options.source,
-			NoDate:          options.noDate,
-			NoCreator:       options.noCreator,
-			Verbose:         options.verbose,
+			TrackerURL:      opts.trackerURL,
+			WebSeeds:        opts.webSeeds,
+			IsPrivate:       opts.isPrivate,
+			Comment:         opts.comment,
+			PieceLengthExp:  opts.pieceLengthExp,
+			MaxPieceLength:  opts.maxPieceLengthExp,
+			Source:          opts.source,
+			NoDate:          opts.noDate,
+			NoCreator:       opts.noCreator,
+			Verbose:         opts.verbose,
 			Version:         version,
-			Entropy:         options.entropy,
-			Quiet:           options.quiet,
-			SkipPrefix:      options.skipPrefix,
-			ExcludePatterns: options.excludePatterns,
-			IncludePatterns: options.includePatterns,
+			Entropy:         opts.entropy,
+			Quiet:           opts.quiet,
+			SkipPrefix:      opts.skipPrefix,
+			ExcludePatterns: opts.excludePatterns,
+			IncludePatterns: opts.includePatterns,
 		}
 	}
 
 	// set output path if specified
-	if options.outputPath != "" {
-		opts.OutputPath = options.outputPath
+	if opts.outputPath != "" {
+		createOpts.OutputPath = opts.outputPath
 	}
 
 	// create torrent
-	torrentInfo, err := torrent.Create(opts)
+	torrentInfo, err := torrent.Create(createOpts)
 	if err != nil {
 		return err
 	}
 
 	// In quiet mode, only print the path to the created torrent file
-	if options.quiet {
+	if opts.quiet {
 		fmt.Println("Wrote:", torrentInfo.Path)
 	} else {
-		display := torrent.NewDisplay(torrent.NewFormatter(options.verbose))
-		display.ShowOutputPathWithTime(torrentInfo.Path, time.Since(start))
+		display := torrent.NewDisplay(torrent.NewFormatter(opts.verbose))
+		display.ShowOutputPathWithTime(torrentInfo.Path, time.Since(startTime))
 	}
 
 	return nil
+}
+
+func runCreate(cmd *cobra.Command, args []string) error {
+	// Set up profiling if configured
+	cleanup, err := setupProfiling(cmd)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+
+	start := time.Now()
+
+	// Handle batch or single torrent mode
+	if options.batchFile != "" {
+		return processBatchMode(options, version, start)
+	}
+
+	return createSingleTorrent(cmd, args, options, version, start)
 }
