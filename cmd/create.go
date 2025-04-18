@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"runtime/pprof"
 	"time"
 
@@ -175,55 +174,16 @@ func createSingleTorrent(cmd *cobra.Command, args []string, opts createOptions, 
 	// load preset if specified
 	var createOpts torrent.CreateTorrentOptions
 	if opts.presetName != "" {
-		// determine preset file path
-		var presetFilePath string
-		if opts.presetFile != "" {
-			// if preset file is explicitly specified, use that
-			presetFilePath = opts.presetFile
-		} else {
-			// check known locations in order
-			locations := []string{
-				opts.presetFile, // explicitly specified file
-				"presets.yaml",  // current directory
-			}
-
-			// add user home directory locations
-			if home, err := os.UserHomeDir(); err == nil {
-				locations = append(locations,
-					filepath.Join(home, ".config", "mkbrr", "presets.yaml"), // ~/.config/mkbrr/
-					filepath.Join(home, ".mkbrr", "presets.yaml"),           // ~/.mkbrr/
-				)
-			}
-
-			// find first existing preset file
-			for _, loc := range locations {
-				if _, err := os.Stat(loc); err == nil {
-					presetFilePath = loc
-					break
-				}
-			}
-
-			if presetFilePath == "" {
-				return fmt.Errorf("no preset file found in known locations, create one or specify with --preset-file")
-			}
-		}
-
 		// find preset file
-		presetPath, err := preset.FindPresetFile(presetFilePath)
+		presetFilePath, err := preset.FindPresetFile(opts.presetFile)
 		if err != nil {
 			return fmt.Errorf("could not find preset file: %w", err)
 		}
 
-		// load presets
-		presets, err := preset.Load(presetPath)
+		// load preset options
+		presetOpts, err := preset.LoadPresetOptions(presetFilePath, opts.presetName)
 		if err != nil {
-			return fmt.Errorf("could not load presets: %w", err)
-		}
-
-		// get preset
-		presetOpts, err := presets.GetPreset(opts.presetName)
-		if err != nil {
-			return fmt.Errorf("could not get preset: %w", err)
+			return fmt.Errorf("could not load preset options: %w", err)
 		}
 
 		// convert preset to options

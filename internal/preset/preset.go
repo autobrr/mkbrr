@@ -325,6 +325,25 @@ func GenerateOutputPath(originalPath, outputDir, presetName string, outputPatter
 	return filepath.Join(dir, prefix+"_"+name+ext)
 }
 
+// LoadPresetOptions loads and returns preset options from a file by name.
+// It handles the full process of loading the presets file and resolving the named preset,
+// including applying any default settings.
+func LoadPresetOptions(presetFilePath string, presetName string) (*Options, error) {
+	// Load the presets from the file
+	config, err := Load(presetFilePath)
+	if err != nil {
+		return nil, fmt.Errorf("could not load presets: %w", err)
+	}
+
+	// Get the specific preset with default settings applied
+	presetOpts, err := config.GetPreset(presetName)
+	if err != nil {
+		return nil, fmt.Errorf("could not get preset: %w", err)
+	}
+
+	return presetOpts, nil
+}
+
 // sanitizeFilename removes characters that are invalid in filenames
 func sanitizeFilename(input string) string {
 	// replace characters that are problematic in filenames
