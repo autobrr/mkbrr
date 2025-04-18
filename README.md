@@ -1,60 +1,47 @@
-# mkbrr
+<h1 align="center">⚡ mkbrr</h1> 
+<p align="center"> 
+  <strong>Simple. Smart. Fast.</strong><br> 
+  A powerful CLI tool to create, inspect, and modify torrent files. Private by default. Tracker aware.
+</p>
+<div align="center">
+<p align="center"> 
+  <img src="https://img.shields.io/badge/Go-1.23-blue?logo=go" alt="Go version">
+  <img src="https://img.shields.io/badge/build-passing-brightgreen" alt="Build Status">
+  <img src="https://img.shields.io/github/v/release/autobrr/mkbrr" alt="Latest Release">
+  </a>
+    <a href="https://mkbrr.com">
+    <img src="https://img.shields.io/badge/%F0%9F%92%A1%20mkbrr-docs-00ACD7.svg?style=flat-square">
+  </a>
+</p>
 
-```
-         __   ___.                 
-  _____ |  | _\_ |________________ 
- /     \|  |/ /| __ \_  __ \_  __ \
-|  Y Y  \    < | \_\ \  | \/|  | \/
-|__|_|  /__|_ \|___  /__|   |__|   
-      \/     \/    \/              
+[![Discord](https://img.shields.io/discord/881212911849209957.svg?label=&logo=discord&logoColor=ffffff&color=7389D8&labelColor=6A7EC2)](https://discord.gg/WehFCZxq5B)
+</div>
 
-mkbrr is a tool to create and inspect torrent files.
+<img src=".github/assets/mkbrr-dark.png" alt="mkbrr gopher" width="100" align="right"/>
 
-Usage:
-  mkbrr [command]
+## Overview
 
-Available Commands:
-  create      Create a new torrent file
-  inspect     Inspect a torrent file
-  modify      Modify existing torrent files using a preset
-  update      Update mkbrr
-  version     Print version information
-  help        Help about any command
-
-Flags:
-  -h, --help   help for mkbrr
-
-Use "mkbrr [command] --help" for more information about a command.
-```
-
-## What is mkbrr?
+[Website](https://mkbrr.com) | [Releases](https://github.com/autobrr/mkbrr/releases)
 
 **mkbrr** (pronounced "make-burr") is a simple yet powerful tool for:
 - Creating torrent files
 - Inspecting torrent files
 - Modifying torrent metadata
-- Supports tracker-specific requirements automatically
+- Supporting tracker-specific requirements automatically
 
-**Why use mkbrr?**
-- 🚀 **Fast**: Blazingly fast hashing beating the competition
-- 🔧 **Simple**: Easy to use CLI
-- 📦 **Portable**: Single binary with no dependencies
-- 💡 **Smart**: Will attempt to detect possible missing files when creating torrents for season packs
+**Key Features:**
+- **Fast**: Blazingly fast hashing beating the competition
+- **Simple**: Easy to use CLI
+- **Portable**: Single binary with no dependencies
+- **Smart**: Detects possible missing files when creating torrents for season packs
+
+For detailed documentation and guides, visit [mkbrr.com](https://mkbrr.com).
 
 ## Quick Start
 
 ### Install
 
-#### Pre-built binaries
-
-Download a ready-to-use binary for your platform from the [releases page](https://github.com/autobrr/mkbrr/releases).
-
-#### Homebrew
-
-```bash
-brew tap autobrr/mkbrr
-brew install mkbrr
-```
+For detailed installation instructions, please refer to the [Installation](#installation) section.
 
 ### Creating a Torrent
 
@@ -280,7 +267,7 @@ Some trackers limit the size of the .torrent file itself:
 > [!INFO]
 > When creating torrents for these trackers, mkbrr automatically adjusts piece sizes to meet requirements, so you don't have to. The `inspect` command with the `--validate-tracker` flag can also check if an existing torrent complies with these rules.
 
-A full overview over tracker-specific limits can be seen in [trackers.go](internal/trackers/trackers.go)
+A full overview over tracker-specific limits can be seen in the [documentation](https://mkbrr.com/features/tracker-rules).
 
 ## Incomplete Season Pack Detection
 

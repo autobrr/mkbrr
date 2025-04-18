@@ -86,6 +86,10 @@ func (d *Display) ShowFiles(files []fileEntry) {
 		return
 	}
 	fmt.Fprintf(d.output, "\n%s\n", magenta("Files being hashed:"))
+	if len(files) > 0 {
+		topDir := filepath.Dir(files[0].path)
+		fmt.Fprintf(d.output, "%s %s\n", "└─", success(filepath.Base(topDir)))
+	}
 	for i, file := range files {
 		prefix := "  ├─"
 		if i == len(files)-1 {
@@ -201,7 +205,6 @@ func (d *Display) ShowTorrentInfo(t *Torrent, info *metainfo.Info) {
 // ShowFileTree displays the file structure of a multi-file torrent
 // The decision to show the tree is now handled in cmd/inspect.go
 func (d *Display) ShowFileTree(info *metainfo.Info) {
-	// Removed verbose check: if !d.formatter.verbose { return }
 	fmt.Fprintf(d.output, "%s\n", magenta("File tree:"))
 	fmt.Fprintf(d.output, "%s %s\n", "└─", success(info.Name))
 	for i, file := range info.Files {
