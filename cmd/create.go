@@ -15,8 +15,8 @@ import (
 
 // createOptions encapsulates all command-line flag values for the create command
 type createOptions struct {
-	pieceLengthExp    *uint // for 2^n piece length, nil means automatic
-	maxPieceLengthExp *uint // for maximum 2^n piece length, nil means no limit
+	pieceLengthExp    *uint
+	maxPieceLengthExp *uint
 	trackerURL        string
 	comment           string
 	outputPath        string
@@ -36,9 +36,8 @@ type createOptions struct {
 	skipPrefix        bool
 }
 
-// options instance holds all flag values for the create command
 var options = createOptions{
-	isPrivate: true, // default value for private flag
+	isPrivate: true,
 }
 
 var createCmd = &cobra.Command{
@@ -74,7 +73,6 @@ func init() {
 	createCmd.Flags().SortFlags = false
 	createCmd.Flags().BoolP("help", "h", false, "help for create")
 	if err := createCmd.Flags().MarkHidden("help"); err != nil {
-		// This is initialization code, so we should panic
 		panic(fmt.Errorf("failed to mark help flag as hidden: %w", err))
 	}
 
@@ -86,8 +84,6 @@ func init() {
 	createCmd.Flags().BoolVarP(&options.isPrivate, "private", "p", true, "make torrent private")
 	createCmd.Flags().StringVarP(&options.comment, "comment", "c", "", "add comment")
 
-	// piece length flag allows setting a fixed piece size of 2^n bytes
-	// if not specified, piece length is calculated automatically based on total size
 	var defaultPieceLength, defaultMaxPieceLength uint
 	createCmd.Flags().UintVarP(&defaultPieceLength, "piece-length", "l", 0, "set piece length to 2^n bytes (16-27, automatic if not specified)")
 	createCmd.Flags().UintVarP(&defaultMaxPieceLength, "max-piece-length", "m", 0, "limit maximum piece length to 2^n bytes (16-27, unlimited if not specified)")
@@ -153,7 +149,6 @@ func processBatchMode(opts createOptions, version string, startTime time.Time) e
 	}
 
 	if opts.quiet {
-		// In quiet mode, only print the paths to the created torrent files
 		for _, result := range results {
 			if result.Success {
 				fmt.Println("Wrote:", result.Info.Path)
@@ -191,19 +186,16 @@ func buildCreateOptions(cmd *cobra.Command, inputPath string, opts createOptions
 
 	// If a preset is specified, load the preset options and merge with command-line flags
 	if opts.presetName != "" {
-		// Find preset file
 		presetFilePath, err := preset.FindPresetFile(opts.presetFile)
 		if err != nil {
 			return createOpts, fmt.Errorf("could not find preset file: %w", err)
 		}
 
-		// Load preset options
 		presetOpts, err := preset.LoadPresetOptions(presetFilePath, opts.presetName)
 		if err != nil {
 			return createOpts, fmt.Errorf("could not load preset options: %w", err)
 		}
 
-		// Apply preset values to createOpts
 		if len(presetOpts.Trackers) > 0 && !cmd.Flags().Changed("tracker") {
 			createOpts.TrackerURL = presetOpts.Trackers[0]
 		}
@@ -246,12 +238,10 @@ func buildCreateOptions(cmd *cobra.Command, inputPath string, opts createOptions
 			createOpts.MaxPieceLength = &maxPieceLen
 		}
 
-		// Handle entropy specially - use preset value if flag not specified
 		if !cmd.Flags().Changed("entropy") && presetOpts.Entropy != nil {
 			createOpts.Entropy = *presetOpts.Entropy
 		}
 
-		// Handle exclude and include patterns specially - append preset values if flag not specified
 		if len(presetOpts.ExcludePatterns) > 0 {
 			if !cmd.Flags().Changed("exclude") {
 				createOpts.ExcludePatterns = slices.Clone(presetOpts.ExcludePatterns)
@@ -269,7 +259,6 @@ func buildCreateOptions(cmd *cobra.Command, inputPath string, opts createOptions
 		}
 	}
 
-	// Always set output path if specified in command-line flags
 	if opts.outputPath != "" {
 		createOpts.OutputPath = opts.outputPath
 	}
@@ -279,22 +268,18 @@ func buildCreateOptions(cmd *cobra.Command, inputPath string, opts createOptions
 
 // createSingleTorrent handles creating a single torrent file
 func createSingleTorrent(cmd *cobra.Command, args []string, opts createOptions, version string, startTime time.Time) error {
-	// Get input path from args
 	inputPath := args[0]
 
-	// Build create options, merging preset values with command-line flags
 	createOpts, err := buildCreateOptions(cmd, inputPath, opts, version)
 	if err != nil {
 		return err
 	}
 
-	// create torrent
 	torrentInfo, err := torrent.Create(createOpts)
 	if err != nil {
 		return err
 	}
 
-	// In quiet mode, only print the path to the created torrent file
 	if opts.quiet {
 		fmt.Println("Wrote:", torrentInfo.Path)
 	} else {
@@ -306,7 +291,6 @@ func createSingleTorrent(cmd *cobra.Command, args []string, opts createOptions, 
 }
 
 func runCreate(cmd *cobra.Command, args []string) error {
-	// Set up profiling if configured
 	cleanup, err := setupProfiling(cmd)
 	if err != nil {
 		return err
@@ -315,7 +299,6 @@ func runCreate(cmd *cobra.Command, args []string) error {
 
 	start := time.Now()
 
-	// Handle batch or single torrent mode
 	if options.batchFile != "" {
 		return processBatchMode(options, version, start)
 	}
