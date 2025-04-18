@@ -35,7 +35,7 @@
 - **Portable**: Single binary with no dependencies
 - **Smart**: Detects possible missing files when creating torrents for season packs
 
-For comprehensive documentation and guides, visit [mkbrr.com](https://mkbrr.com).
+For detailed documentation and guides, visit [mkbrr.com](https://mkbrr.com).
 
 ## Quick Start
 
