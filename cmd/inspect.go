@@ -94,10 +94,13 @@ func runInspect(cmd *cobra.Command, args []string) error {
 				}
 			}
 		}
+		fmt.Println()
 	}
 
 	if info.IsDir() {
-		display.ShowFileTree(&info)
+		if inspectVerbose {
+			display.ShowFileTree(&info)
+		}
 	}
 
 	return nil
