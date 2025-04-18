@@ -25,6 +25,7 @@ type Options struct {
 	NoDate          *bool    `yaml:"no_date"`
 	NoCreator       *bool    `yaml:"no_creator"`
 	SkipPrefix      *bool    `yaml:"skip_prefix"`
+	Entropy         *bool    `yaml:"entropy"`
 	Comment         string   `yaml:"comment"`
 	Source          string   `yaml:"source"`
 	Version         string   // used for creator string
@@ -34,7 +35,6 @@ type Options struct {
 	IncludePatterns []string `yaml:"include_patterns"`
 	PieceLength     uint     `yaml:"piece_length"`
 	MaxPieceLength  uint     `yaml:"max_piece_length"`
-	Entropy         *bool    `yaml:"entropy"`
 }
 
 // FindPresetFile searches for a preset file in known locations
