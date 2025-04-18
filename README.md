@@ -41,16 +41,7 @@ For comprehensive documentation and guides, visit [mkbrr.com](https://mkbrr.com)
 
 ### Install
 
-#### Pre-built binaries
-
-Download a ready-to-use binary for your platform from the [releases page](https://github.com/autobrr/mkbrr/releases).
-
-#### Homebrew
-
-```bash
-brew tap autobrr/mkbrr
-brew install mkbrr
-```
+For detailed installation instructions, please refer to the [Installation](#installation) section.
 
 ### Creating a Torrent
 
@@ -262,7 +253,7 @@ Some trackers limit the size of the .torrent file itself:
 > [!INFO]
 > When creating torrents for these trackers, mkbrr automatically adjusts piece sizes to meet requirements, so you don't have to.
 
-A full overview over tracker-specific limits can be seen in [trackers.go](internal/trackers/trackers.go)
+A full overview over tracker-specific limits can be seen in the [documentation](https://mkbrr.com/features/tracker-rules).
 
 ## Incomplete Season Pack Detection
 
