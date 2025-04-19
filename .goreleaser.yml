@@ -43,7 +43,7 @@ archives:
       {{- .Os }}_
       universal
     files:
-      - src: dist/darwin/mkbrr-gui-darwin-universal.zip
+      - src: macos-artifact/mkbrr-gui-darwin-universal.zip
         dst: . # Include the zip in the archive root
 
   # Windows amd64 GUI Archive

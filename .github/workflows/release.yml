@@ -225,12 +225,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: darwin-gui-artifact
-          path: ./dist/darwin/
+          path: ./macos-artifact/
           
-      - name: Debug - List dist directory contents
+      - name: Debug - List downloaded artifact
         run: |
-          echo "Listing dist/darwin directory:"
-          ls -la dist/darwin/ || echo "Directory not found"
+          echo "Listing macos-artifact directory:"
+          ls -la macos-artifact/ || echo "Directory macos-artifact not found or empty"
           echo ""
           echo "Listing full dist directory recursively:"
           find dist -type f -ls 2>/dev/null || echo "No files found in dist/"
