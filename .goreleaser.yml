@@ -45,10 +45,12 @@ archives:
     files:
       - src: macos-artifact/mkbrr-gui-darwin-universal.zip
         dst: . # Include the zip in the archive root
-    # Explicitly ignore non-darwin platforms
-    ignore:
+    # Disable for non-macOS platforms
+    overrides:
       - goos: linux
+        enabled: false
       - goos: windows
+        enabled: false
 
   # Windows amd64 GUI Archive
   - id: mkbrr-gui-windows-amd64
@@ -63,12 +65,15 @@ archives:
     files:
       - src: dist/windows/amd64/mkbrr-gui.exe
         dst: mkbrr-gui.exe
-    # Explicitly ignore non-windows-amd64 platforms
-    ignore:
+    # Disable for non-Windows or non-amd64 platforms
+    overrides:
       - goos: linux
+        enabled: false
       - goos: darwin
+        enabled: false
       - goos: windows
         goarch: arm64
+        enabled: false
 
   # Windows arm64 GUI Archive
   - id: mkbrr-gui-windows-arm64
@@ -83,12 +88,15 @@ archives:
     files:
       - src: dist/windows/arm64/mkbrr-gui.exe
         dst: mkbrr-gui.exe
-    # Explicitly ignore non-windows-arm64 platforms
-    ignore:
+    # Disable for non-Windows or non-arm64 platforms
+    overrides:
       - goos: linux
+        enabled: false
       - goos: darwin
+        enabled: false
       - goos: windows
         goarch: amd64
+        enabled: false
 
 release:
   prerelease: auto
