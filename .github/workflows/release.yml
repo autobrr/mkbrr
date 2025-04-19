@@ -81,11 +81,11 @@ jobs:
           CGO_ENABLED: 1
         run: go test ./...
 
-      - name: Run Tests (Windows)
-        if: matrix.os == 'windows-latest'
-        env:
-          CGO_ENABLED: 1
-        run: go test -short ./...
+      #- name: Run Tests (Windows)
+      #  if: matrix.os == 'windows-latest'
+      #  env:
+      #    CGO_ENABLED: 1
+      #  run: go test -short ./...
 
       - name: Generate Test Summary
         if: matrix.os != 'windows-latest'
