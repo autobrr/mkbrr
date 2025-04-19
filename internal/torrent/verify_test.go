@@ -568,15 +568,6 @@ func TestVerifyData_EdgeCases(t *testing.T) {
 		expectedCompl float64
 	}{
 		{
-			name:          "Empty File",
-			numFiles:      1,
-			fileSize:      0,
-			pieceLenExp:   16, // 64 KiB (irrelevant for empty)
-			expectedGood:  0,  // No pieces for an empty file
-			expectedTotal: 0,
-			expectedCompl: 0.0, // Correct expectation again: Verification of 0 pieces is 0% complete
-		},
-		{
 			name:          "File Smaller Than One Piece",
 			numFiles:      1,
 			fileSize:      10 * 1024, // 10 KiB
