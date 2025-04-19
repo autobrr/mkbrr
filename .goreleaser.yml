@@ -24,7 +24,6 @@ builds:
     binary: ignored-darwin
     goos: [darwin]
     goarch: [amd64, arm64]
-    skip: true  # Don't actually build this
 
   # Dummy build for Windows amd64 GUI target
   - id: mkbrr-gui-windows-amd64-target
@@ -32,7 +31,6 @@ builds:
     binary: ignored-win-amd64
     goos: [windows]
     goarch: [amd64]
-    skip: true  # Don't actually build this
 
   # Dummy build for Windows arm64 GUI target
   - id: mkbrr-gui-windows-arm64-target
@@ -40,7 +38,6 @@ builds:
     binary: ignored-win-arm64
     goos: [windows]
     goarch: [arm64]
-    skip: true  # Don't actually build this
 
   # mkbrr-gui is built separately:
   # - macOS: using 'fyne package' on macOS runner (universal binary)
