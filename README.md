@@ -1,7 +1,7 @@
 <h1 align="center">⚡ mkbrr</h1> 
 <p align="center"> 
   <strong>Simple. Smart. Fast.</strong><br> 
-  A powerful CLI tool to create, inspect, and modify torrent files. Private by default. Tracker aware.
+  A powerful CLI/GUI tool to create, inspect, and modify torrent files. Private by default. Tracker aware.
 </p>
 <div align="center">
 <p align="center"> 
@@ -31,11 +31,23 @@
 
 **Key Features:**
 - **Fast**: Blazingly fast hashing beating the competition
-- **Simple**: Easy to use CLI
-- **Portable**: Single binary with no dependencies
+- **Simple**: Easy to use via both CLI and a cross-platform GUI
+- **Portable**: Single binary with no dependencies (for both CLI and GUI)
 - **Smart**: Detects possible missing files when creating torrents for season packs
 
-For detailed documentation and guides, visit [mkbrr.com](https://mkbrr.com).
+<details>
+<summary>Screenshots (Click to expand)</summary>
+
+**GUI:**
+![mkbrr GUI Screenshot](.github/assets/gui.png)
+
+**CLI (Example Usage):**
+![mkbrr CLI Screenshot](.github/assets/cli.png)
+
+</details>
+<br>
+
+For detailed documentation and guides, please visit [mkbrr.com](https://mkbrr.com).
 
 ## Quick Start
 
@@ -82,7 +94,7 @@ Choose the method that works best for you:
 
 ### Prebuilt Binaries
 
-Download a ready-to-use binary for your platform from the [releases page](https://github.com/autobrr/mkbrr/releases).
+Download ready-to-use binaries for both the CLI (`mkbrr`) and GUI (`mkbrr-gui`) versions for your platform from the [releases page](https://github.com/autobrr/mkbrr/releases).
 
 ### Homebrew (macOS and Linux)
 
