@@ -14,6 +14,8 @@ type CreateTorrentOptions struct {
 	Name            string
 	TrackerURL      string
 	Comment         string
+	PieceSize       *uint64
+	MaxPieceSize    *uint64
 	Source          string
 	Version         string
 	OutputPath      string

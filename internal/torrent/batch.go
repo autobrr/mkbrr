@@ -69,8 +69,8 @@ func (j *BatchJob) ToCreateOptions(verbose bool, quiet bool, version string) Cre
 type BatchResult struct {
 	Error    error
 	Info     *TorrentInfo
-	Job      BatchJob
 	Trackers []string
+	Job      BatchJob
 	Success  bool
 }
 
