@@ -17,6 +17,30 @@ builds:
       - -s -w
       - -X main.version={{.Version}}
       - -X main.buildTime={{.CommitDate}}
+      
+  # Dummy build for macOS GUI target
+  - id: mkbrr-gui-darwin-target
+    main: ./cmd/mkbrr-gui/
+    binary: ignored-darwin
+    goos: [darwin]
+    goarch: [amd64, arm64]
+    skip: true  # Don't actually build this
+
+  # Dummy build for Windows amd64 GUI target
+  - id: mkbrr-gui-windows-amd64-target
+    main: ./cmd/mkbrr-gui/
+    binary: ignored-win-amd64
+    goos: [windows]
+    goarch: [amd64]
+    skip: true  # Don't actually build this
+
+  # Dummy build for Windows arm64 GUI target
+  - id: mkbrr-gui-windows-arm64-target
+    main: ./cmd/mkbrr-gui/
+    binary: ignored-win-arm64
+    goos: [windows]
+    goarch: [arm64]
+    skip: true  # Don't actually build this
 
   # mkbrr-gui is built separately:
   # - macOS: using 'fyne package' on macOS runner (universal binary)
@@ -24,6 +48,9 @@ builds:
 archives:
   # CLI tool archive (Targets all platforms defined in builds)
   - id: mkbrr
+    # Only include the CLI tool build, not the dummy GUI builds
+    ids:
+      - mkbrr
     format_overrides:
       - goos: windows
         formats: [ 'zip' ]
@@ -36,7 +63,9 @@ archives:
 
   # macOS GUI Archive (Only applies to darwin platforms)
   - id: mkbrr-gui-darwin
-    # No 'builds' key - only includes files listed below
+    # Link to the macOS dummy build
+    ids:
+      - mkbrr-gui-darwin-target
     name_template: >-
       {{ .ProjectName }}-gui_
       {{- .Version }}_
@@ -45,15 +74,12 @@ archives:
     files:
       - src: macos-artifact/mkbrr-gui-darwin-universal.zip
         dst: . # Include the zip in the archive root
-    # Disable for non-macOS platforms
-    overrides:
-      - goos: linux
-        enabled: false
-      - goos: windows
-        enabled: false
 
   # Windows amd64 GUI Archive
   - id: mkbrr-gui-windows-amd64
+    # Link to the Windows amd64 dummy build
+    ids:
+      - mkbrr-gui-windows-amd64-target
     format_overrides:
       - goos: windows
         formats: [ 'zip' ]
@@ -65,18 +91,12 @@ archives:
     files:
       - src: dist/windows/amd64/mkbrr-gui.exe
         dst: mkbrr-gui.exe
-    # Disable for non-Windows or non-amd64 platforms
-    overrides:
-      - goos: linux
-        enabled: false
-      - goos: darwin
-        enabled: false
-      - goos: windows
-        goarch: arm64
-        enabled: false
 
   # Windows arm64 GUI Archive
   - id: mkbrr-gui-windows-arm64
+    # Link to the Windows arm64 dummy build
+    ids:
+      - mkbrr-gui-windows-arm64-target
     format_overrides:
       - goos: windows
         formats: [ 'zip' ]
@@ -88,15 +108,6 @@ archives:
     files:
       - src: dist/windows/arm64/mkbrr-gui.exe
         dst: mkbrr-gui.exe
-    # Disable for non-Windows or non-arm64 platforms
-    overrides:
-      - goos: linux
-        enabled: false
-      - goos: darwin
-        enabled: false
-      - goos: windows
-        goarch: amd64
-        enabled: false
 
 release:
   prerelease: auto
