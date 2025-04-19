@@ -243,11 +243,7 @@ jobs:
         run: |
           fyne-cross windows -arch=amd64,arm64 -app-id=com.autobrr.mkbrr --icon logo.png -output=mkbrr-gui ./cmd/mkbrr-gui/
           ls -la fyne-cross/bin/
-          # Copy Windows binaries to a known location for GoReleaser
-          mkdir -p dist/windows/amd64
-          mkdir -p dist/windows/arm64
-          cp fyne-cross/bin/windows-amd64/mkbrr-gui.exe dist/windows/amd64/
-          cp fyne-cross/bin/windows-arm64/mkbrr-gui.exe dist/windows/arm64/ || echo "ARM64 Windows build may not be available"
+          # Note: GoReleaser now pulls directly from fyne-cross/bin/ directories
       
       - name: Run GoReleaser build
         if: github.event_name == 'pull_request'

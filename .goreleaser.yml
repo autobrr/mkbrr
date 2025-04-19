@@ -59,7 +59,7 @@ archives:
       windows_x86_64
     meta: true # Create archive without binaries, just pre-built files
     files:
-      - src: dist/windows/amd64/mkbrr-gui.exe
+      - src: fyne-cross/bin/windows-amd64/mkbrr-gui.exe
         dst: mkbrr-gui.exe
 
   # Windows arm64 GUI Archive - using meta mode
@@ -73,7 +73,7 @@ archives:
       windows_arm64
     meta: true # Create archive without binaries, just pre-built files
     files:
-      - src: dist/windows/arm64/mkbrr-gui.exe
+      - src: fyne-cross/bin/windows-arm64/mkbrr-gui.exe
         dst: mkbrr-gui.exe
 
 release:
