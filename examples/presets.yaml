@@ -7,6 +7,7 @@ default:
   no_date: true
   no_creator: false
   skip_prefix: false
+  # workers: 2 # override built-in calculation
   # comment: "Default comment for all torrents"  # Torrent comment
   # source: "DEFAULT"                           # Source tag
   # exclude_patterns:                           # Default list of glob patterns to exclude files
@@ -28,6 +29,7 @@ presets:
       - "*.mkv"
       - "*.mp4"
     # entropy: true # randomize the hash, useful for cross-seeded torrents
+    #workers: 1 # override built-in calculation
 
   # Public tracker preset with all options shown
   public:
@@ -36,4 +38,3 @@ presets:
     no_creator: true
     trackers:
       - "udp://tracker.opentrackr.org:1337/announce"
-

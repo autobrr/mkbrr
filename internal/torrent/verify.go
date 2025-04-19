@@ -23,6 +23,7 @@ type VerifyOptions struct {
 	ContentPath string
 	Verbose     bool
 	Quiet       bool
+	Workers     int // Number of worker goroutines for verification
 }
 
 type pieceVerifier struct {
@@ -224,7 +225,8 @@ func VerifyData(opts VerifyOptions) (*VerificationResult, error) {
 	}
 
 	// 5. Perform Verification (Hashing and Comparison)
-	err = verifier.verifyPieces()
+	// Pass opts.Workers to verifyPieces
+	err = verifier.verifyPieces(opts.Workers) // Pass workers from options
 	if err != nil {
 		return nil, fmt.Errorf("verification failed: %w", err)
 	}
@@ -310,14 +312,34 @@ func (v *pieceVerifier) optimizeForWorkload() (int, int) {
 }
 
 // verifyPieces coordinates the parallel verification of pieces.
-func (v *pieceVerifier) verifyPieces() error {
+// Accepts numWorkersOverride: if > 0, uses this value; otherwise, optimizes automatically.
+func (v *pieceVerifier) verifyPieces(numWorkersOverride int) error {
 	if v.numPieces == 0 {
 		// Don't show progress for 0 pieces
 		return nil
 	}
 
 	var numWorkers int
-	v.readSize, numWorkers = v.optimizeForWorkload()
+	// Use override if provided, otherwise optimize
+	if numWorkersOverride > 0 {
+		numWorkers = numWorkersOverride
+		// Still need readSize if workers are specified
+		v.readSize, _ = v.optimizeForWorkload() // Only need readSize
+		// Ensure specified workers don't exceed pieces or minimum of 1
+		if numWorkers > v.numPieces {
+			numWorkers = v.numPieces
+		}
+		if v.numPieces > 0 && numWorkers <= 0 { // Safety check
+			numWorkers = 1
+		}
+	} else {
+		v.readSize, numWorkers = v.optimizeForWorkload() // Optimize both
+	}
+
+	// Final safeguard: Ensure at least one worker if there are pieces
+	if v.numPieces > 0 && numWorkers <= 0 {
+		numWorkers = 1
+	}
 
 	v.bufferPool = &sync.Pool{
 		New: func() interface{} {
@@ -336,7 +358,7 @@ func (v *pieceVerifier) verifyPieces() error {
 	v.mutex.Unlock()
 	v.bytesVerified = 0
 
-	v.display.ShowFiles(v.files) // Show files being checked
+	v.display.ShowFiles(v.files, numWorkers)
 
 	var completedPieces uint64
 	piecesPerWorker := (v.numPieces + numWorkers - 1) / numWorkers

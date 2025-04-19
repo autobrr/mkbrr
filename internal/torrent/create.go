@@ -259,13 +259,26 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 		var pieceHashes [][]byte
 		if numPieces > 0 {
 			hasher := NewPieceHasher(files, pieceLenInt, int(numPieces), display)
-			if err := hasher.hashPieces(1); err != nil { // Using 1 worker for simplicity in this context, could optimize later
+			// Pass the specified or default worker count from opts
+			if err := hasher.hashPieces(opts.Workers); err != nil {
 				return nil, fmt.Errorf("error hashing pieces: %w", err)
 			}
 			pieceHashes = hasher.pieces
 		} else {
+			// Determine the worker count that would be used (even if 0 pieces)
+			// This is slightly redundant but ensures we pass *something* consistent.
+			// If numPieces is 0, hashPieces won't run, but we still call ShowFiles if not quiet.
+			workersToDisplay := opts.Workers
+			if workersToDisplay <= 0 {
+				_, workersToDisplay = NewPieceHasher(files, pieceLenInt, 0, display).optimizeForWorkload()
+				// Ensure at least 1 worker is displayed if files exist, mirroring the safeguard
+				if len(files) > 0 && workersToDisplay <= 0 {
+					workersToDisplay = 1
+				}
+			}
+
 			if !opts.Quiet {
-				display.ShowFiles(files)
+				display.ShowFiles(files, workersToDisplay)
 			}
 			pieceHashes = make([][]byte, 0) // Empty slice for 0 pieces
 		}

@@ -158,6 +158,10 @@ mkbrr create path/to/file -t https://example-tracker.com/announce --exclude "*.n
 
 # Create a torrent including only specific file patterns (comma-separated)
 mkbrr create path/to/video-folder -t https://example-tracker.com/announce --include "*.mkv,*.mp4"
+
+# Create using a specific number of worker threads for hashing (e.g., 8)
+# Experimenting with different values might yield better performance than the default automatic setting.
+mkbrr create path/to/large-file -t https://example-tracker.com/announce --workers 8
 ```
 
 > [!NOTE]
@@ -167,6 +171,10 @@ mkbrr create path/to/video-folder -t https://example-tracker.com/announce --incl
 >   - A file matching an `--include` pattern is **always kept**, even if it also matches an `--exclude` pattern.
 >   - A file *not* matching any `--include` pattern is **always ignored**.
 > - If `--include` is *not* used, then only `--exclude` patterns are considered, and matching files are ignored.
+>
+> The `--workers` flag controls the number of concurrent threads used for hashing.
+> - `--workers 0` (or omitting the flag) uses automatic logic to determine the optimal number based on your system.
+> - `--workers N` (where N > 0) uses exactly N threads. While the automatic setting is generally good, you might achieve slightly better performance by manually testing different values for N on your specific hardware and workload.
 
 ### Inspecting Torrents
 
@@ -174,6 +182,17 @@ View detailed information about a torrent:
 
 ```bash
 mkbrr inspect my-torrent.torrent
+```
+
+### Checking Torrents (Verifying Data)
+
+Verify the integrity of local data against a torrent file:
+
+```bash
+mkbrr check my-torrent.torrent /path/to/downloaded/content
+
+# Verify using a specific number of worker threads (e.g., 4)
+mkbrr check my-torrent.torrent /path/to/downloaded/content --workers 4
 ```
 
 This shows:
@@ -215,6 +234,9 @@ mkbrr create -P ptp path/to/file
 
 # Override some preset values
 mkbrr create -P ptp --source "MySource" path/to/file
+
+# Override workers count
+mkbrr create -P ptp --workers 4 path/to/file
 ```
 
 > [!TIP]

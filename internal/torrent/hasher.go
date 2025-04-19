@@ -2,7 +2,6 @@ package torrent
 
 import (
 	"crypto/sha1"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -90,11 +89,26 @@ func (h *pieceHasher) optimizeForWorkload() (int, int) {
 // The pieces are distributed evenly across the specified number of workers.
 // Returns an error if any worker encounters issues during hashing.
 func (h *pieceHasher) hashPieces(numWorkers int) error {
-	if numWorkers <= 0 && len(h.files) > 0 {
-		return errors.New("number of workers must be greater than zero when files are present")
+	// Determine readSize and numWorkers. Use optimizeForWorkload if numWorkers isn't specified.
+	if numWorkers <= 0 {
+		h.readSize, numWorkers = h.optimizeForWorkload()
+	} else {
+		// If workers are specified, still need to determine readSize
+		h.readSize, _ = h.optimizeForWorkload() // Only need readSize here
+		// Ensure specified workers don't exceed pieces or minimum of 1
+		if numWorkers > h.numPieces {
+			numWorkers = h.numPieces
+		}
+		// Ensure at least 1 worker if pieces exist, even if user specified 0 somehow
+		if h.numPieces > 0 && numWorkers <= 0 {
+			numWorkers = 1
+		}
 	}
 
-	h.readSize, numWorkers = h.optimizeForWorkload()
+	// Final safeguard: Ensure at least one worker if there are pieces
+	if h.numPieces > 0 && numWorkers <= 0 {
+		numWorkers = 1
+	}
 
 	if numWorkers == 0 {
 		// no workers needed, possibly no pieces to hash
@@ -117,7 +131,7 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 	h.mutex.Unlock()
 	h.bytesProcessed = 0
 
-	h.display.ShowFiles(h.files)
+	h.display.ShowFiles(h.files, numWorkers)
 
 	seasonInfo := AnalyzeSeasonPack(h.files)
 

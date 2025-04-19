@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"os"
 	"runtime/pprof"
+	"slices"
 	"time"
 
 	"github.com/spf13/cobra"
-	"golang.org/x/exp/slices"
 
 	"github.com/autobrr/mkbrr/internal/preset"
 	"github.com/autobrr/mkbrr/internal/torrent"
@@ -34,6 +34,7 @@ type createOptions struct {
 	entropy           bool
 	quiet             bool
 	skipPrefix        bool
+	createWorkers     int
 }
 
 var options = createOptions{
@@ -106,6 +107,7 @@ func init() {
 	createCmd.Flags().BoolVarP(&options.skipPrefix, "skip-prefix", "", false, "don't add tracker domain prefix to output filename")
 	createCmd.Flags().StringArrayVarP(&options.excludePatterns, "exclude", "", nil, "exclude files matching these patterns (e.g., \"*.nfo,*.jpg\" or --exclude \"*.nfo\" --exclude \"*.jpg\")")
 	createCmd.Flags().StringArrayVarP(&options.includePatterns, "include", "", nil, "include only files matching these patterns (e.g., \"*.mkv,*.mp4\" or --include \"*.mkv\" --include \"*.mp4\")")
+	createCmd.Flags().IntVar(&options.createWorkers, "workers", 0, "number of worker goroutines for hashing (0 for automatic)")
 
 	createCmd.Flags().String("cpuprofile", "", "write cpu profile to file (development flag)")
 
@@ -163,7 +165,6 @@ func processBatchMode(opts createOptions, version string, startTime time.Time) e
 
 // buildCreateOptions creates a torrent.CreateTorrentOptions struct from command-line options and presets
 func buildCreateOptions(cmd *cobra.Command, inputPath string, opts createOptions, version string) (torrent.CreateTorrentOptions, error) {
-	// Initialize the options struct with defaults from command-line flags
 	createOpts := torrent.CreateTorrentOptions{
 		Path:            inputPath,
 		TrackerURL:      opts.trackerURL,

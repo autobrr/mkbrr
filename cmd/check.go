@@ -14,6 +14,7 @@ import (
 var (
 	checkVerbose bool
 	checkQuiet   bool
+	checkWorkers int
 )
 
 var checkCmd = &cobra.Command{
@@ -34,6 +35,7 @@ func init() {
 	checkCmd.Flags().BoolP("help", "h", false, "help for check")
 	checkCmd.Flags().BoolVarP(&checkVerbose, "verbose", "v", false, "show list of bad piece indices")
 	checkCmd.Flags().BoolVar(&checkQuiet, "quiet", false, "reduced output mode (prints only completion percentage)")
+	checkCmd.Flags().IntVar(&checkWorkers, "workers", 0, "number of worker goroutines for verification (0 for automatic)")
 	checkCmd.SetUsageTemplate(`Usage:
   {{.CommandPath}} <torrent-file> <content-path> [flags]
 
@@ -64,6 +66,7 @@ func runCheck(cmd *cobra.Command, args []string) error {
 		ContentPath: contentPath,
 		Verbose:     checkVerbose,
 		Quiet:       checkQuiet,
+		Workers:     checkWorkers,
 	}
 
 	display := torrent.NewDisplay(torrent.NewFormatter(checkVerbose))
