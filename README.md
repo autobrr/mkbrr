@@ -41,7 +41,7 @@
 **GUI:**
 ![mkbrr GUI Screenshot](.github/assets/gui.png)
 
-**CLI (Example Usage):**
+**CLI:**
 ![mkbrr CLI Screenshot](.github/assets/cli.png)
 
 </details>
