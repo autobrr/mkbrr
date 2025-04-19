@@ -45,8 +45,8 @@ archives:
       darwin_universal
     meta: true # Create archive without binaries, just pre-built files
     files:
-      - src: macos-artifact/mkbrr-gui-darwin-universal.zip
-        dst: . # Include the zip in the archive root
+      - src: macos-artifact/mkbrr-gui.app
+        dst: mkbrr-gui.app
 
   # Windows amd64 GUI Archive
   - id: mkbrr-gui-windows-amd64
