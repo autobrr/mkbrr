@@ -89,6 +89,22 @@ install-gui: build-gui
 		install -m 755 ${BUILD_DIR}/${BINARY_NAME}-gui ${GOBIN}/${BINARY_NAME}-gui; \
 	fi
 
+# install binary with PGO optimization
+.PHONY: install-pgo
+install-pgo:
+	@echo "Installing ${BINARY_NAME} with PGO..."
+	@if [ ! -f "cpu.pprof" ]; then \
+		echo "No PGO profile found. Run 'make profile' first."; \
+		exit 1; \
+	fi
+	@mkdir -p ${BUILD_DIR}
+	CGO_ENABLED=0 $(GO) build -pgo=cpu.pprof ${LDFLAGS} -o ${BUILD_DIR}/${BINARY_NAME}
+	@if [ "$$(id -u)" = "0" ]; then \
+		install -m 755 ${BUILD_DIR}/${BINARY_NAME} /usr/local/bin/; \
+	else \
+		install -m 755 ${BUILD_DIR}/${BINARY_NAME} ${GOBIN}/; \
+	fi
+
 # run all tests (excluding large tests)
 .PHONY: test
 test:
@@ -161,8 +177,10 @@ help:
 	@echo "  all            - Clean, build (CLI), and install the binary"
 	@echo "  build          - Build the standard CLI binary (${BUILD_DIR}/${BINARY_NAME})"
 	@echo "  build-gui      - Build the GUI binary (${BUILD_DIR}/${BINARY_NAME}-gui)"
+	@echo "  build-pgo      - Build the binary with PGO optimization"
 	@echo "  install        - Install the CLI binary (to $$GOPATH/bin or /usr/local/bin)"
 	@echo "  install-gui    - Install the GUI binary (to $$GOPATH/bin or /usr/local/bin)"
+	@echo "  install-pgo    - Install the binary with PGO optimization"
 	@echo "  test           - Run tests (excluding large tests)"
 	@echo "  test-race-short- Run quick tests with race detector"
 	@echo "  test-race      - Run all tests with race detector (excluding large tests)"

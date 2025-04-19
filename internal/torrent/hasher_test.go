@@ -10,27 +10,28 @@ import (
 	"runtime"
 	"sync"
 	"testing"
-	"time" // Add time import
+	"time"
 
-	"github.com/anacrolix/torrent/metainfo" // Add metainfo import
+	"github.com/anacrolix/torrent/metainfo"
+
 	"github.com/autobrr/mkbrr/internal/trackers"
 )
 
 // mockDisplay implements Displayer interface for testing
 type mockDisplay struct{}
 
-func (m *mockDisplay) ShowProgress(total int)                                          {}
-func (m *mockDisplay) UpdateProgress(count int, hashrate float64)                      {}
-func (m *mockDisplay) ShowFiles(files []FileEntry)                                     {} // Changed to exported FileEntry
-func (m *mockDisplay) ShowSeasonPackWarnings(info *SeasonPackInfo)                     {}
-func (m *mockDisplay) FinishProgress()                                                 {}
-func (m *mockDisplay) IsBatch() bool                                                   { return true }
-func (m *mockDisplay) ShowMessage(msg string)                                          {} // Added missing method
-func (m *mockDisplay) ShowWarning(msg string)                                          {} // Added missing method
-func (m *mockDisplay) ShowOutputPathWithTime(path string, t time.Duration)             {} // Added missing method
-func (m *mockDisplay) ShowTorrentInfo(t *Torrent, info *metainfo.Info)                 {} // Added missing method
-func (m *mockDisplay) ShowFileTree(info *metainfo.Info)                                {} // Added missing method
-func (m *mockDisplay) ShowBatchResults(results []BatchResult, totalTime time.Duration) {} // Added missing method
+func (m *mockDisplay) ShowProgress(total int)                                  {}
+func (m *mockDisplay) UpdateProgress(count int, hashrate float64)              {}
+func (m *mockDisplay) ShowFiles(files []FileEntry, numWorkers int)             {} // Updated to use exported FileEntry type
+func (m *mockDisplay) ShowSeasonPackWarnings(info *SeasonPackInfo)             {}
+func (m *mockDisplay) FinishProgress()                                         {}
+func (m *mockDisplay) IsBatch() bool                                           { return true }
+func (m *mockDisplay) ShowBatchResults(results []BatchResult, d time.Duration) {}
+func (m *mockDisplay) ShowFileTree(info *metainfo.Info)                        {}
+func (m *mockDisplay) ShowMessage(msg string)                                  {}
+func (m *mockDisplay) ShowWarning(msg string)                                  {}
+func (m *mockDisplay) ShowOutputPathWithTime(path string, t time.Duration)     {}
+func (m *mockDisplay) ShowTorrentInfo(t *Torrent, info *metainfo.Info)         {}
 
 // TestPieceHasher_Concurrent tests the hasher with various real-world scenarios.
 // Test cases are designed to cover common torrent types and sizes:
@@ -402,16 +403,27 @@ func TestPieceHasher_ZeroWorkers(t *testing.T) {
 		length: 1 << 16,
 		offset: 0,
 	}}
+
+	// Create the actual test file
+	filePath := files[0].path
+	fileSize := files[0].length
+	f, err := os.Create(filePath)
+	if err != nil {
+		t.Fatalf("failed to create test file %s: %v", filePath, err)
+	}
+	if err := f.Truncate(fileSize); err != nil {
+		f.Close()
+		t.Fatalf("failed to truncate test file %s: %v", filePath, err)
+	}
+	f.Close()
+
 	hasher := NewPieceHasher(files, 1<<16, 1, &mockDisplay{})
 
+	// Calling with 0 workers should now trigger automatic optimization or default to 1 worker,
+	// so it should NOT return an error in this case.
 	err = hasher.hashPieces(0)
-	if err == nil {
-		t.Errorf("expected error when using zero workers, got nil")
-	} else {
-		expectedErrMsg := "number of workers must be greater than zero when files are present"
-		if err.Error() != expectedErrMsg {
-			t.Errorf("unexpected error message: got '%v', want '%v'", err.Error(), expectedErrMsg)
-		}
+	if err != nil {
+		t.Errorf("hashPieces(0) should not return an error (should optimize or default to 1 worker), but got: %v", err)
 	}
 }
 

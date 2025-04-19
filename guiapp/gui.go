@@ -18,6 +18,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 	"github.com/anacrolix/torrent/bencode"
 	mi "github.com/anacrolix/torrent/metainfo"
+
 	"github.com/autobrr/mkbrr/internal/preset"
 	"github.com/autobrr/mkbrr/internal/torrent"
 )
@@ -83,7 +84,7 @@ func (d *fyneDisplayer) FinishProgress() {
 		d.progressDialog.Hide()
 	}
 }
-func (d *fyneDisplayer) ShowFiles(files []torrent.FileEntry)                                     {}
+func (d *fyneDisplayer) ShowFiles(files []torrent.FileEntry, numWorkers int)                     {} // Signature updated to match interface
 func (d *fyneDisplayer) ShowSeasonPackWarnings(info *torrent.SeasonPackInfo)                     {}
 func (d *fyneDisplayer) IsBatch() bool                                                           { return false }
 func (d *fyneDisplayer) ShowMessage(msg string)                                                  {}

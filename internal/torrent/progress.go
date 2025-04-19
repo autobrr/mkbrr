@@ -11,7 +11,7 @@ import (
 type Displayer interface {
 	ShowProgress(total int)
 	UpdateProgress(completed int, hashrate float64)
-	ShowFiles(files []FileEntry) // Changed to exported FileEntry
+	ShowFiles(files []FileEntry, numWorkers int) // Use exported FileEntry type
 	ShowSeasonPackWarnings(info *SeasonPackInfo)
 	FinishProgress()
 	IsBatch() bool

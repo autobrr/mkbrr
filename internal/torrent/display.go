@@ -80,9 +80,21 @@ func (d *Display) UpdateProgress(completed int, hashrate float64) {
 	}
 }
 
-func (d *Display) ShowFiles(files []FileEntry) {
+// ShowFiles displays the list of files being processed and the number of workers used.
+func (d *Display) ShowFiles(files []FileEntry, numWorkers int) {
+	if d.quiet {
+		return
+	}
+
+	workerMsg := fmt.Sprintf("Using %d worker(s)", numWorkers)
+	if numWorkers == 0 {
+		workerMsg = "Using automatic worker count"
+	}
+	fmt.Fprintf(d.output, "\n%s %s\n", label("Concurrency:"), workerMsg)
+
 	if !d.formatter.verbose && len(files) > 20 {
-		fmt.Fprintf(d.output, "\n%s suppressed file output (limit 20, found %d), use --verbose to show all\n", yellow("Note:"), len(files))
+		fmt.Fprintf(d.output, "%s suppressed file output (limit 20, found %d), use --verbose to show all\n", yellow("Note:"), len(files))
+		fmt.Fprintf(d.output, "%s\n", magenta("Files being processed:"))
 		return
 	}
 	fmt.Fprintf(d.output, "\n%s\n", magenta("Files being hashed:"))
@@ -95,10 +107,10 @@ func (d *Display) ShowFiles(files []FileEntry) {
 		if i == len(files)-1 {
 			prefix = "  └─"
 		}
-		// Use exported fields Name and Size
+		// Use exported fields Path and Size
 		fmt.Fprintf(d.output, "%s %s (%s)\n",
 			prefix,
-			success(file.Name),
+			success(filepath.Base(file.Path)),
 			label(d.formatter.FormatBytes(file.Size)))
 	}
 }
