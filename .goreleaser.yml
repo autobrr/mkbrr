@@ -36,7 +36,6 @@ archives:
 
   # macOS GUI Archive (Only applies to darwin platforms)
   - id: mkbrr-gui-darwin
-    goos: [darwin] # Apply only to darwin
     # No 'builds' key - only includes files listed below
     name_template: >-
       {{ .ProjectName }}-gui_
@@ -49,8 +48,6 @@ archives:
 
   # Windows amd64 GUI Archive
   - id: mkbrr-gui-windows-amd64
-    goos: [windows]
-    goarch: [amd64]
     format_overrides:
       - goos: windows
         formats: [ 'zip' ]
@@ -65,8 +62,6 @@ archives:
 
   # Windows arm64 GUI Archive
   - id: mkbrr-gui-windows-arm64
-    goos: [windows]
-    goarch: [arm64]
     format_overrides:
       - goos: windows
         formats: [ 'zip' ]
