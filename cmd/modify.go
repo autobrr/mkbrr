@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/autobrr/mkbrr/internal/torrent"
 	"github.com/spf13/cobra"
+
+	"github.com/autobrr/mkbrr/internal/torrent"
 )
 
 var (
@@ -18,6 +19,7 @@ var (
 	modifyNoCreator  bool
 	modifyVerbose    bool
 	modifyQuiet      bool
+	modifySkipPrefix bool
 	modifyTracker    string
 	modifyWebSeeds   []string
 	modifyPrivate    bool = true // default to true like create
@@ -62,6 +64,7 @@ func init() {
 	modifyCmd.Flags().BoolVarP(&modifyEntropy, "entropy", "e", false, "randomize info hash by adding entropy field")
 	modifyCmd.Flags().BoolVarP(&modifyVerbose, "verbose", "v", false, "be verbose")
 	modifyCmd.Flags().BoolVar(&modifyQuiet, "quiet", false, "reduced output mode (prints only final torrent paths)")
+	modifyCmd.Flags().BoolVarP(&modifySkipPrefix, "skip-prefix", "", false, "don't add tracker domain prefix to output filename")
 	modifyCmd.Flags().BoolVarP(&modifyDryRun, "dry-run", "n", false, "show what would be modified without making changes")
 
 	modifyCmd.SetUsageTemplate(`Usage:
@@ -96,6 +99,7 @@ func runModify(cmd *cobra.Command, args []string) error {
 		Source:        modifySource,
 		Version:       version,
 		Entropy:       modifyEntropy,
+		SkipPrefix:    modifySkipPrefix,
 	}
 
 	if cmd.Flags().Changed("private") {
