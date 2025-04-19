@@ -8,6 +8,7 @@ import (
 
 // CreateTorrentOptions contains all options for creating a torrent
 type CreateTorrentOptions struct {
+	Displayer       Displayer
 	PieceLengthExp  *uint
 	MaxPieceLength  *uint
 	Path            string
@@ -16,6 +17,7 @@ type CreateTorrentOptions struct {
 	Comment         string
 	Source          string
 	Version         string
+	AppName         string
 	OutputPath      string
 	WebSeeds        []string
 	ExcludePatterns []string

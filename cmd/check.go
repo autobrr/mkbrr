@@ -97,7 +97,7 @@ func runCheck(cmd *cobra.Command, args []string) error {
 	start := time.Now()
 
 	verifyOpts := buildVerifyOptions(checkOpts, torrentPath, contentPath)
-	display := torrent.NewDisplay(torrent.NewFormatter(checkOpts.Verbose))
+	display := torrent.NewDisplay(torrent.NewBytesFormatter(checkOpts.Verbose))
 
 	if !checkOpts.Quiet {
 		green := color.New(color.FgGreen).SprintFunc()
