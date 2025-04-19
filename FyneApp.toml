@@ -1,0 +1,8 @@
+Website = "https://github.com/autobrr/mkbrr"
+
+[Details]
+  Icon = "logo.png"
+  Name = "mkbrr-gui"
+  ID = "com.autobrr.mkbrr"
+  Version = "1.0.0"
+  Build = 6

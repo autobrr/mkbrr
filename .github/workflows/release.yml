@@ -173,7 +173,7 @@ jobs:
           cache: true
           
       - name: Install Fyne CLI
-        run: go install fyne.io/fyne/v2/cmd/fyne@latest
+        run: go install fyne.io/tools/cmd/fyne@latest
         
       # Build GUI for macOS - two-step process for reliability
       - name: Build macOS GUI executable
@@ -181,7 +181,7 @@ jobs:
 
       - name: Package macOS GUI app bundle
         run: |
-          fyne package --executable build/mkbrr-gui --os darwin --name mkbrr-gui --app-id com.autobrr.mkbrr --icon logo.png
+          fyne package --executable build/mkbrr-gui --os darwin --name mkbrr-gui --id com.autobrr.mkbrr --icon logo.png
           ls -la
           
       - name: Zip macOS app bundle
