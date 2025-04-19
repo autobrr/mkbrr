@@ -183,6 +183,7 @@ func buildCreateOptions(cmd *cobra.Command, inputPath string, opts createOptions
 		SkipPrefix:      opts.skipPrefix,
 		ExcludePatterns: opts.excludePatterns,
 		IncludePatterns: opts.includePatterns,
+		Workers:         opts.createWorkers,
 	}
 
 	// If a preset is specified, load the preset options and merge with command-line flags
