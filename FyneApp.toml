@@ -4,5 +4,5 @@ Website = "https://github.com/autobrr/mkbrr"
   Icon = "logo.png"
   Name = "mkbrr-gui"
   ID = "com.autobrr.mkbrr"
-  Version = "1.0.0"
+  Version = "1.10.0"
   Build = 1
