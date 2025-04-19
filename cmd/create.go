@@ -72,12 +72,8 @@ When a tracker URL is provided, the output filename will use the tracker domain 
 
 func init() {
 	createCmd.Flags().SortFlags = false
-	createCmd.Flags().BoolP("help", "h", false, "help for create")
-	if err := createCmd.Flags().MarkHidden("help"); err != nil {
-		panic(fmt.Errorf("failed to mark help flag as hidden: %w", err))
-	}
-
 	createCmd.Flags().StringVarP(&options.batchFile, "batch", "b", "", "batch config file (YAML)")
+
 	createCmd.Flags().StringVarP(&options.presetName, "preset", "P", "", "use preset from config")
 	createCmd.Flags().StringVar(&options.presetFile, "preset-file", "", "preset config file (default ~/.config/mkbrr/presets.yaml)")
 	createCmd.Flags().StringVarP(&options.trackerURL, "tracker", "t", "", "tracker URL")

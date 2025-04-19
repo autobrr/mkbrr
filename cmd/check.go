@@ -35,7 +35,6 @@ or checking data integrity after moving files.`,
 
 func init() {
 	checkCmd.Flags().SortFlags = false
-	checkCmd.Flags().BoolP("help", "h", false, "help for check")
 	checkCmd.Flags().BoolVarP(&checkOpts.Verbose, "verbose", "v", false, "show list of bad piece indices")
 	checkCmd.Flags().BoolVar(&checkOpts.Quiet, "quiet", false, "reduced output mode (prints only completion percentage)")
 	checkCmd.Flags().IntVar(&checkOpts.Workers, "workers", 0, "number of worker goroutines for verification (0 for automatic)")

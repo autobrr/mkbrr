@@ -9,24 +9,29 @@ import (
 	"github.com/autobrr/mkbrr/internal/torrent"
 )
 
-var (
-	modifyPresetName string
-	modifyPresetFile string
-	modifyOutputDir  string
-	modifyOutput     string
-	modifyDryRun     bool
-	modifyNoDate     bool
-	modifyNoCreator  bool
-	modifyVerbose    bool
-	modifyQuiet      bool
-	modifySkipPrefix bool
-	modifyTracker    string
-	modifyWebSeeds   []string
-	modifyPrivate    bool = true // default to true like create
-	modifyComment    string
-	modifySource     string
-	modifyEntropy    bool
-)
+// modifyOptions encapsulates command-line flag values for the modify command
+type modifyOptions struct {
+	PresetName string
+	PresetFile string
+	OutputDir  string
+	Output     string
+	Tracker    string
+	Comment    string
+	Source     string
+	WebSeeds   []string
+	DryRun     bool
+	NoDate     bool
+	NoCreator  bool
+	Verbose    bool
+	Quiet      bool
+	SkipPrefix bool
+	Private    bool
+	Entropy    bool
+}
+
+var modifyOpts = modifyOptions{
+	Private: true,
+}
 
 var modifyCmd = &cobra.Command{
 	Use:   "modify [torrent files...]",
@@ -45,27 +50,22 @@ Note: All unnecessary metadata will be stripped.`,
 
 func init() {
 	modifyCmd.Flags().SortFlags = false
-	modifyCmd.Flags().BoolP("help", "h", false, "help for modify")
-	if err := modifyCmd.Flags().MarkHidden("help"); err != nil {
-		panic(fmt.Errorf("could not mark help flag as hidden: %w", err))
-	}
-
-	modifyCmd.Flags().StringVarP(&modifyPresetName, "preset", "P", "", "use preset from config")
-	modifyCmd.Flags().StringVar(&modifyPresetFile, "preset-file", "", "preset config file (default: ~/.config/mkbrr/presets.yaml)")
-	modifyCmd.Flags().StringVar(&modifyOutputDir, "output-dir", "", "output directory for modified files")
-	modifyCmd.Flags().StringVarP(&modifyOutput, "output", "o", "", "custom output filename (without extension)")
-	modifyCmd.Flags().BoolVarP(&modifyNoDate, "no-date", "d", false, "don't update creation date")
-	modifyCmd.Flags().BoolVarP(&modifyNoCreator, "no-creator", "", false, "don't write creator")
-	modifyCmd.Flags().StringVarP(&modifyTracker, "tracker", "t", "", "tracker URL")
-	modifyCmd.Flags().StringArrayVarP(&modifyWebSeeds, "web-seed", "w", nil, "add web seed URLs")
-	modifyCmd.Flags().BoolVarP(&modifyPrivate, "private", "p", true, "make torrent private (default: true)")
-	modifyCmd.Flags().StringVarP(&modifyComment, "comment", "c", "", "add comment")
-	modifyCmd.Flags().StringVarP(&modifySource, "source", "s", "", "add source string")
-	modifyCmd.Flags().BoolVarP(&modifyEntropy, "entropy", "e", false, "randomize info hash by adding entropy field")
-	modifyCmd.Flags().BoolVarP(&modifyVerbose, "verbose", "v", false, "be verbose")
-	modifyCmd.Flags().BoolVar(&modifyQuiet, "quiet", false, "reduced output mode (prints only final torrent paths)")
-	modifyCmd.Flags().BoolVarP(&modifySkipPrefix, "skip-prefix", "", false, "don't add tracker domain prefix to output filename")
-	modifyCmd.Flags().BoolVarP(&modifyDryRun, "dry-run", "n", false, "show what would be modified without making changes")
+	modifyCmd.Flags().StringVarP(&modifyOpts.PresetName, "preset", "P", "", "use preset from config")
+	modifyCmd.Flags().StringVar(&modifyOpts.PresetFile, "preset-file", "", "preset config file (default: ~/.config/mkbrr/presets.yaml)")
+	modifyCmd.Flags().StringVar(&modifyOpts.OutputDir, "output-dir", "", "output directory for modified files")
+	modifyCmd.Flags().StringVarP(&modifyOpts.Output, "output", "o", "", "custom output filename (without extension)")
+	modifyCmd.Flags().BoolVarP(&modifyOpts.NoDate, "no-date", "d", false, "don't update creation date")
+	modifyCmd.Flags().BoolVarP(&modifyOpts.NoCreator, "no-creator", "", false, "don't write creator")
+	modifyCmd.Flags().StringVarP(&modifyOpts.Tracker, "tracker", "t", "", "tracker URL")
+	modifyCmd.Flags().StringArrayVarP(&modifyOpts.WebSeeds, "web-seed", "w", nil, "add web seed URLs")
+	modifyCmd.Flags().BoolVarP(&modifyOpts.Private, "private", "p", true, "make torrent private (default: true)")
+	modifyCmd.Flags().StringVarP(&modifyOpts.Comment, "comment", "c", "", "add comment")
+	modifyCmd.Flags().StringVarP(&modifyOpts.Source, "source", "s", "", "add source string")
+	modifyCmd.Flags().BoolVarP(&modifyOpts.Entropy, "entropy", "e", false, "randomize info hash by adding entropy field")
+	modifyCmd.Flags().BoolVarP(&modifyOpts.Verbose, "verbose", "v", false, "be verbose")
+	modifyCmd.Flags().BoolVar(&modifyOpts.Quiet, "quiet", false, "reduced output mode (prints only final torrent paths)")
+	modifyCmd.Flags().BoolVarP(&modifyOpts.SkipPrefix, "skip-prefix", "", false, "don't add tracker domain prefix to output filename")
+	modifyCmd.Flags().BoolVarP(&modifyOpts.DryRun, "dry-run", "n", false, "show what would be modified without making changes")
 
 	modifyCmd.SetUsageTemplate(`Usage:
   {{.CommandPath}} [flags] [torrent files...]
@@ -75,44 +75,38 @@ Flags:
 `)
 }
 
-func runModify(cmd *cobra.Command, args []string) error {
-	start := time.Now()
-
-	display := torrent.NewDisplay(torrent.NewFormatter(modifyVerbose))
-	display.SetQuiet(modifyQuiet)
-	display.ShowMessage(fmt.Sprintf("Modifying %d torrent files...", len(args)))
-
-	// build opts, including our override flags defined above
-	opts := torrent.Options{
-		PresetName:    modifyPresetName,
-		PresetFile:    modifyPresetFile,
-		OutputDir:     modifyOutputDir,
-		OutputPattern: modifyOutput,
-		NoDate:        modifyNoDate,
-		NoCreator:     modifyNoCreator,
-		DryRun:        modifyDryRun,
-		Verbose:       modifyVerbose,
-		Quiet:         modifyQuiet,
-		TrackerURL:    modifyTracker,
-		WebSeeds:      modifyWebSeeds,
-		Comment:       modifyComment,
-		Source:        modifySource,
+// buildTorrentOptions creates a torrent.Options struct from command-line flags
+func buildTorrentOptions(cmd *cobra.Command, opts modifyOptions) torrent.Options {
+	torrentOpts := torrent.Options{
+		PresetName:    opts.PresetName,
+		PresetFile:    opts.PresetFile,
+		OutputDir:     opts.OutputDir,
+		OutputPattern: opts.Output,
+		NoDate:        opts.NoDate,
+		NoCreator:     opts.NoCreator,
+		DryRun:        opts.DryRun,
+		Verbose:       opts.Verbose,
+		Quiet:         opts.Quiet,
+		TrackerURL:    opts.Tracker,
+		WebSeeds:      opts.WebSeeds,
+		Comment:       opts.Comment,
+		Source:        opts.Source,
 		Version:       version,
-		Entropy:       modifyEntropy,
-		SkipPrefix:    modifySkipPrefix,
+		Entropy:       opts.Entropy,
+		SkipPrefix:    opts.SkipPrefix,
 	}
 
 	if cmd.Flags().Changed("private") {
-		opts.IsPrivate = &modifyPrivate
+		torrentOpts.IsPrivate = &opts.Private
 	}
 
-	results, err := torrent.ProcessTorrents(args, opts)
-	if err != nil {
-		return fmt.Errorf("could not process torrent files: %w", err)
-	}
+	return torrentOpts
+}
 
-	// display results
+// displayModifyResults handles showing the results of torrent modification
+func displayModifyResults(results []*torrent.Result, opts modifyOptions, display *torrent.Display, startTime time.Time) int {
 	successCount := 0
+
 	for _, result := range results {
 		if result.Error != nil {
 			display.ShowError(fmt.Sprintf("Error processing %s: %v", result.Path, result.Error))
@@ -140,13 +134,35 @@ func runModify(cmd *cobra.Command, args []string) error {
 			}
 		}
 
-		if modifyQuiet {
+		if opts.Quiet {
 			fmt.Println("Wrote:", result.OutputPath)
 		} else {
-			display.ShowOutputPathWithTime(result.OutputPath, time.Since(start))
+			display.ShowOutputPathWithTime(result.OutputPath, time.Since(startTime))
 		}
 		successCount++
 	}
+
+	return successCount
+}
+
+func runModify(cmd *cobra.Command, args []string) error {
+	start := time.Now()
+
+	display := torrent.NewDisplay(torrent.NewFormatter(modifyOpts.Verbose))
+	display.SetQuiet(modifyOpts.Quiet)
+	display.ShowMessage(fmt.Sprintf("Modifying %d torrent files...", len(args)))
+
+	// Build torrent options from command-line flags
+	torrentOpts := buildTorrentOptions(cmd, modifyOpts)
+
+	// Process the torrent files
+	results, err := torrent.ProcessTorrents(args, torrentOpts)
+	if err != nil {
+		return fmt.Errorf("could not process torrent files: %w", err)
+	}
+
+	// Display the results
+	displayModifyResults(results, modifyOpts, display, start)
 
 	return nil
 }

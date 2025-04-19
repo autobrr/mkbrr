@@ -37,7 +37,6 @@ var inspectCmd = &cobra.Command{
 func init() {
 	inspectCmd.Flags().SortFlags = false
 	inspectCmd.Flags().BoolVarP(&inspectOpts.verbose, "verbose", "v", false, "show all metadata fields")
-	inspectCmd.Flags().BoolP("help", "h", false, "help for inspect")
 	inspectCmd.SetUsageTemplate(`Usage:
   {{.CommandPath}} <torrent-file>
 
