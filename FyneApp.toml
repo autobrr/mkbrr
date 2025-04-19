@@ -1,7 +1,7 @@
 Website = "https://github.com/autobrr/mkbrr"
 
 [Details]
-  Icon = "logo.png"
+  Icon = ".github/assets/logo.png"
   Name = "mkbrr-gui"
   ID = "com.autobrr.mkbrr"
   Version = "1.10.0"

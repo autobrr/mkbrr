@@ -180,7 +180,7 @@ jobs:
 
       - name: Package macOS GUI app bundle
         run: |
-          fyne package --executable build/mkbrr-gui --os darwin --name mkbrr-gui --id com.autobrr.mkbrr --icon logo.png
+          fyne package --executable build/mkbrr-gui --os darwin --name mkbrr-gui --id com.autobrr.mkbrr --icon .github/assets/logo.png
           ls -la
           
       - name: Zip macOS app bundle
@@ -246,9 +246,9 @@ jobs:
       - name: Build GUI for Windows and Linux
         run: |
           # Build Windows GUI binaries
-          fyne-cross windows -arch=amd64,arm64 -app-id=com.autobrr.mkbrr --icon logo.png -output=mkbrr-gui ./cmd/mkbrr-gui/
+          fyne-cross windows -arch=amd64,arm64 -app-id=com.autobrr.mkbrr --icon .github/assets/logo.png -output=mkbrr-gui ./cmd/mkbrr-gui/
           # Build Linux GUI binaries
-          fyne-cross linux -arch=amd64,arm64 -app-id=com.autobrr.mkbrr --icon logo.png -output=mkbrr-gui ./cmd/mkbrr-gui/
+          fyne-cross linux -arch=amd64,arm64 -app-id=com.autobrr.mkbrr --icon .github/assets/logo.png -output=mkbrr-gui ./cmd/mkbrr-gui/
           ls -la fyne-cross/bin/
           # Note: GoReleaser pulls directly from fyne-cross/bin/ directories
       
