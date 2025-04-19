@@ -1,5 +1,8 @@
 version: 2
 
+partial:
+  by: target
+
 before:
   hooks:
     - go mod tidy
@@ -43,7 +46,7 @@ builds:
 archives:
   - format_overrides:
       - goos: windows
-        format: zip
+        formats: [ 'zip' ]
     name_template: >-
       {{ .ProjectName }}_
       {{- .Version }}_

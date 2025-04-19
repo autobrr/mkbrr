@@ -21,6 +21,7 @@ env:
   REGISTRY: ghcr.io
   REGISTRY_IMAGE: ghcr.io/${{ github.repository }}
   GO_VERSION: "1.23.4"
+  GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
 
 permissions:
   contents: write
@@ -107,7 +108,7 @@ jobs:
   pgo:
     name: Generate PGO Profile
     runs-on: ubuntu-latest
-    needs: [ test, testother ]
+    #needs: [ test, testother ]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -163,18 +164,32 @@ jobs:
           name: pprof
           path: cpu.pprof
 
-  goreleaserbuild:
-    name: Build distribution binaries
+  prepare:
+    name: Split builds
+    strategy:
+      matrix:
+        goos: [linux, windows, darwin, freebsd]
     runs-on: ubuntu-latest
     needs: [ pgo ]
+    env:
+      DOCKER_CLI_EXPERIMENTAL: "enabled"
+      flags: ""
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - name: ghcr-login
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
@@ -185,29 +200,107 @@ jobs:
           name: pprof
           path: .
 
-      - name: Run GoReleaser build
-        if: github.event_name == 'pull_request'
-        uses: goreleaser/goreleaser-action@v6
+      - if: ${{ github.event_name == 'workflow_dispatch' }}
+        shell: bash
+        run: |
+          echo "flags=--nightly" >> $GITHUB_ENV
+
+      - shell: bash
+        run: |
+          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+
+      - uses: actions/cache@v4
         with:
-          distribution: goreleaser
-          version: "~> v2"
-          args: release --clean --skip=validate,publish --parallelism 5
+          path: dist/${{ matrix.goos }}
+          key: ${{ matrix.goos }}-${{ env.sha_short }}${{ env.flags }}
+          enableCrossOsArchive: ${{ matrix.goos == 'windows' }}
+
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser-pro
+          version: ~> v2
+          args: release --clean --split ${{ env.flags }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
+          GGOOS: ${{ matrix.goos }}
           BUILDER: ${{ github.actor }}@github-actions
 
-      - name: Run GoReleaser build and publish tags
-        if: startsWith(github.ref, 'refs/tags/')
+  release:
+    name: Merge builds and release
+    runs-on: ubuntu-latest
+    needs: [ prepare, test, testother ]
+    env:
+      DOCKER_CLI_EXPERIMENTAL: "enabled"
+      flags: ""
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: sigstore/cosign-installer@v3.8.1
+      - uses: anchore/sbom-action/download-syft@v0.18.0
+
+      - name: ghcr-login
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - if: ${{ github.event_name == 'workflow_dispatch' }}
+        shell: bash
+        run: |
+          echo "flags=--nightly" >> $GITHUB_ENV
+
+      - shell: bash
+        run: |
+          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+
+      - id: cache-linux
+        uses: actions/cache@v4
+        with:
+          path: dist/linux
+          key: linux-${{ env.sha_short }}${{ env.flags }}
+
+      - id: cache-darwin
+        uses: actions/cache@v4
+        with:
+          path: dist/darwin
+          key: darwin-${{ env.sha_short }}${{ env.flags }}
+
+      - id: cache-windows
+        uses: actions/cache@v4
+        with:
+          path: dist/windows
+          key: windows-${{ env.sha_short }}${{ env.flags }}
+          enableCrossOsArchive: true
+
+      - id: cache-freebsd
+        uses: actions/cache@v4
+        with:
+          path: dist/freebsd
+          key: freebsd-${{ env.sha_short }}${{ env.flags }}
+
+      - name: Run GoReleaser Merge
+        if: steps.cache-linux.outputs.cache-hit == 'true' && steps.cache-darwin.outputs.cache-hit == 'true' && steps.cache-windows.outputs.cache-hit == 'true' && steps.cache-freebsd.outputs.cache-hit == 'true'
         uses: goreleaser/goreleaser-action@v6
         with:
-          distribution: goreleaser
-          version: "~> v2"
-          args: release --clean
+          distribution: goreleaser-pro
+          version: ~> v2
+          args: continue --merge ${{ github.event_name == 'pull_request' && '--skip=publish' || '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BUILDER: ${{ github.actor }}@github-actions
+          GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
 
-      - name: Upload assets
+      - name: Upload final assets
         uses: actions/upload-artifact@v4
         with:
           name: mkbrr
