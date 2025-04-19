@@ -22,7 +22,9 @@ builds:
   # - macOS: using 'fyne package' on macOS runner (universal binary)
   # - Windows: using 'fyne-cross' on Linux runner
 archives:
-  - format_overrides:
+  # CLI tool archive
+  - id: mkbrr
+    format_overrides:
       - goos: windows
         formats: [ 'zip' ]
     name_template: >-
@@ -31,51 +33,50 @@ archives:
       {{- .Os }}_
       {{- if eq .Arch "amd64" }}x86_64
       {{- else }}{{ .Arch }}{{ end }}
-  # macOS GUI Archive (Universal)
-  - id: mkbrr-gui-darwin
-    goos: [darwin]
-    goarch: [amd64, arm64] # Apply this rule for both darwin targets
-    # No format override needed, tar.gz is default for darwin
-    name_template: >-
-      {{ .ProjectName }}-gui_
-      {{- .Version }}_
-      {{- .Os }}_
-      universal # Explicitly name the universal archive
-    files:
-      - src: dist/darwin/mkbrr-gui-darwin-universal.zip # The zip created by the workflow
-        dst: mkbrr-gui-darwin-universal.zip # Include the zip itself in the final release archive
-
-  # Windows amd64 GUI Archive
-  - id: mkbrr-gui-windows-amd64
-    goos: [windows]
-    goarch: [amd64]
+  
+  # GUI Archive (Handles macOS and Windows pre-built binaries)
+  - id: mkbrr-gui
+    # No top-level 'builds' reference as mkbrr-gui is built externally
     format_overrides:
       - goos: windows
         formats: [ 'zip' ]
+      - goos: darwin
+        formats: [ 'tar.gz' ]
     name_template: >-
       {{ .ProjectName }}-gui_
       {{- .Version }}_
       {{- .Os }}_
-      x86_64
-    files:
-      - src: dist/windows/amd64/mkbrr-gui.exe
-        dst: mkbrr-gui.exe
-
-  # Windows arm64 GUI Archive
-  - id: mkbrr-gui-windows-arm64
-    goos: [windows]
-    goarch: [arm64]
-    format_overrides:
+      {{- if eq .Os "darwin" }}universal
+      {{- else if eq .Arch "amd64" }}x86_64
+      {{- else }}{{ .Arch }}{{ end }}
+    
+    # Define overrides for specific platforms to include the correct files
+    overrides:
+      # macOS universal build (applies to darwin/amd64 and darwin/arm64)
+      - goos: darwin
+        files:
+          - src: dist/darwin/mkbrr-gui-darwin-universal.zip
+            dst: . # Include the zip file itself in the archive root
+      
+      # Windows amd64 build
       - goos: windows
-        formats: [ 'zip' ]
-    name_template: >-
-      {{ .ProjectName }}-gui_
-      {{- .Version }}_
-      {{- .Os }}_
-      arm64
-    files:
-      - src: dist/windows/arm64/mkbrr-gui.exe
-        dst: mkbrr-gui.exe
+        goarch: amd64
+        files:
+          - src: dist/windows/amd64/mkbrr-gui.exe
+            dst: mkbrr-gui.exe
+      
+      # Windows arm64 build
+      - goos: windows
+        goarch: arm64
+        files:
+          - src: dist/windows/arm64/mkbrr-gui.exe
+            dst: mkbrr-gui.exe # Using same name as amd64 for simplicity
+    
+    # Ignore platforms for which we don't have pre-built GUI binaries
+    ignore:
+      - goos: linux # Ignore all linux targets
+      - goos: windows
+        goarch: '386' # Ignore windows 386
 
 release:
   prerelease: auto
