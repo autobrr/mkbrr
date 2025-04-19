@@ -183,11 +183,15 @@ jobs:
           fyne package --executable build/mkbrr-gui --os darwin --name mkbrr-gui --id com.autobrr.mkbrr --icon logo.png
           ls -la
           
+      - name: Zip macOS app bundle
+        run: |
+          zip -r mkbrr-gui-darwin-universal.zip mkbrr-gui.app
+          
       - name: Upload macOS GUI bundle
         uses: actions/upload-artifact@v4
         with:
           name: darwin-gui-artifact
-          path: mkbrr-gui.app
+          path: mkbrr-gui-darwin-universal.zip
 
   goreleaserbuild:
     name: Build distribution binaries
@@ -221,6 +225,12 @@ jobs:
         with:
           name: darwin-gui-artifact
           path: ./macos-artifact/
+          
+      - name: Unzip macOS GUI bundle
+        run: |
+          unzip ./macos-artifact/mkbrr-gui-darwin-universal.zip -d ./macos-artifact/
+          # Verify the .app directory exists after unzipping
+          ls -la ./macos-artifact/mkbrr-gui.app || (echo "Error: mkbrr-gui.app not found after unzip" && exit 1)
           
       - name: Debug - List downloaded artifact
         run: |
