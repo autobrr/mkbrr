@@ -18,19 +18,7 @@ builds:
       - -X main.version={{.Version}}
       - -X main.buildTime={{.CommitDate}}
 
-  - id: mkbrr-gui
-    env:
-      - CGO_ENABLED=1 # CGO is needed for GUI
-      - BUILDER
-    goos:
-      - darwin
-      - windows
-    main: ./cmd/mkbrr-gui/
-    binary: mkbrr-gui
-    ldflags:
-      - -s -w
-      - -X main.version={{.Version}}
-      - -X main.buildTime={{.CommitDate}}
+  # mkbrr-gui is now built by fyne-cross instead of GoReleaser
 archives:
   - format_overrides:
       - goos: windows
@@ -42,7 +30,7 @@ archives:
       {{- if eq .Arch "amd64" }}x86_64
       {{- else }}{{ .Arch }}{{ end }}
   - id: mkbrr-gui
-    builds: [mkbrr-gui]
+    # No 'builds' reference as mkbrr-gui is built by fyne-cross
     format_overrides:
       - goos: windows
         formats: [ 'zip' ]
@@ -52,6 +40,14 @@ archives:
       {{- .Os }}_
       {{- if eq .Arch "amd64" }}x86_64
       {{- else }}{{ .Arch }}{{ end }}
+    files:
+      # Include binaries built by fyne-cross
+      - src: fyne-cross/bin/darwin-amd64/mkbrr-gui
+        dst: mkbrr-gui
+      - src: fyne-cross/bin/darwin-arm64/mkbrr-gui
+        dst: mkbrr-gui
+      - src: fyne-cross/bin/windows-amd64/mkbrr-gui.exe
+        dst: mkbrr-gui.exe
 
 release:
   prerelease: auto

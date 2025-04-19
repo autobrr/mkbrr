@@ -178,6 +178,21 @@ jobs:
           name: pprof
           path: .
 
+      - name: Install fyne-cross
+        run: go install github.com/fyne-io/fyne-cross@latest
+        
+      # Build GUI for macOS
+      - name: Build GUI for macOS
+        run: |
+          fyne-cross darwin -arch=amd64,arm64 -app-id=com.mkbrr.app -output=mkbrr-gui ./cmd/mkbrr-gui/
+          ls -la fyne-cross/bin/
+          
+      # Build GUI for Windows
+      - name: Build GUI for Windows
+        run: |
+          fyne-cross windows -arch=amd64,arm64 -app-id=com.mkbrr.app -output=mkbrr-gui ./cmd/mkbrr-gui/
+          ls -la fyne-cross/bin/
+      
       - name: Run GoReleaser build
         if: github.event_name == 'pull_request'
         uses: goreleaser/goreleaser-action@v6
