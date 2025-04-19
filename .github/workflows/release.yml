@@ -155,11 +155,49 @@ jobs:
         with:
           name: pprof
           path: cpu.pprof
+          
+  build-gui-darwin:
+    name: Build GUI for Darwin
+    runs-on: macos-latest
+    needs: [ test, testother ]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          
+      - name: Install Fyne CLI
+        run: go install fyne.io/fyne/v2/cmd/fyne@latest
+        
+      # Build GUI for macOS - two-step process for reliability
+      - name: Build macOS GUI executable
+        run: make build-gui
+
+      - name: Package macOS GUI app bundle
+        run: |
+          fyne package --executable build/mkbrr-gui --os darwin --name mkbrr-gui --app-id com.autobrr.mkbrr --icon logo.png
+          ls -la
+          
+      - name: Zip macOS app bundle
+        run: |
+          zip -r mkbrr-gui-darwin-universal.zip mkbrr-gui.app
+          
+      - name: Upload macOS GUI bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: darwin-gui-artifact
+          path: mkbrr-gui-darwin-universal.zip
 
   goreleaserbuild:
     name: Build distribution binaries
     runs-on: ubuntu-latest
-    needs: [ pgo ]
+    needs: [ pgo, build-gui-darwin ]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -177,21 +215,31 @@ jobs:
         with:
           name: pprof
           path: .
+          
+      - name: Download macOS GUI bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: darwin-gui-artifact
+          path: ./dist/darwin/
+          
+      - name: Create destination directories
+        run: |
+          mkdir -p dist/darwin
+          mkdir -p dist/windows
 
       - name: Install fyne-cross
         run: go install github.com/fyne-io/fyne-cross@latest
-        
-      # Build GUI for macOS
-      - name: Build GUI for macOS
-        run: |
-          fyne-cross darwin -arch=amd64,arm64 -app-id=com.mkbrr.app -output=mkbrr-gui ./cmd/mkbrr-gui/
-          ls -la fyne-cross/bin/
           
-      # Build GUI for Windows
+      # Build GUI for Windows only
       - name: Build GUI for Windows
         run: |
-          fyne-cross windows -arch=amd64,arm64 -app-id=com.mkbrr.app -output=mkbrr-gui ./cmd/mkbrr-gui/
+          fyne-cross windows -arch=amd64,arm64 -app-id=com.autobrr.mkbrr -output=mkbrr-gui ./cmd/mkbrr-gui/
           ls -la fyne-cross/bin/
+          # Copy Windows binaries to a known location for GoReleaser
+          mkdir -p dist/windows/amd64
+          mkdir -p dist/windows/arm64
+          cp fyne-cross/bin/windows-amd64/mkbrr-gui.exe dist/windows/amd64/
+          cp fyne-cross/bin/windows-arm64/mkbrr-gui.exe dist/windows/arm64/ || echo "ARM64 Windows build may not be available"
       
       - name: Run GoReleaser build
         if: github.event_name == 'pull_request'
