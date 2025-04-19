@@ -46,15 +46,8 @@ func setupCommon() {
 	rootCmd.SetUsageTemplate(commonUsageTemplate)
 }
 
-// ExecuteCLI configures and executes the root command for CLI mode.
 func ExecuteCLI() error {
-	setupCommon() // Call setup first
-	// Add commands that should be available in CLI mode
-	rootCmd.AddCommand(createCmd)
-	rootCmd.AddCommand(checkCmd)
-	rootCmd.AddCommand(inspectCmd)
-	rootCmd.AddCommand(modifyCmd)
-	rootCmd.AddCommand(updateCmd)
+	setupCommon()
 	return rootCmd.Execute()
 }
 
