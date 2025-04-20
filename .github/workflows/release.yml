@@ -182,16 +182,58 @@ jobs:
         run: |
           fyne package --executable build/mkbrr-gui --os darwin --name mkbrr-gui --id com.autobrr.mkbrr --icon .github/assets/logo.png
           ls -la
-          
-      - name: Archive macOS app bundle
+
+      - name: Create DMG for macOS app bundle
         run: |
-          tar czf mkbrr-gui-darwin-universal.tar.gz mkbrr-gui.app
+          # Define variables
+          APP_NAME="mkbrr-gui"
+          APP_BUNDLE="$APP_NAME.app"
+          VOL_NAME="$APP_NAME" # Volume name inside the DMG
+          DMG_NAME="$APP_NAME-darwin-universal.dmg"
+          TEMP_DMG="temp_$DMG_NAME"
           
-      - name: Upload macOS GUI bundle
+          # Check if app bundle exists
+          if [ ! -d "$APP_BUNDLE" ]; then
+            echo "Error: $APP_BUNDLE not found!"
+            exit 1
+          fi
+          
+          echo "Creating temporary DMG..."
+          # Estimate size needed (add some buffer)
+          APP_SIZE=$(du -sm "$APP_BUNDLE" | awk '{print $1}')
+          DMG_SIZE=$((APP_SIZE + 50)) # Add 50MB buffer
+          
+          hdiutil create -srcfolder "$APP_BUNDLE" -volname "$VOL_NAME" -fs HFS+ -fsargs "-c c=64,a=16,e=16" -format UDRW -size ${DMG_SIZE}m "$TEMP_DMG"
+          
+          echo "Mounting temporary DMG..."
+          MOUNT_DIR=$(hdiutil attach "$TEMP_DMG" -nobrowse -noverify -noautoopen | grep Volumes | sed 's/.*\/Volumes\///')
+          if [ -z "$MOUNT_DIR" ]; then
+            echo "Error: Failed to mount temporary DMG"
+            exit 1
+          fi
+          VOLUME_PATH="/Volumes/$MOUNT_DIR"
+          
+          echo "Mounted at $VOLUME_PATH"
+          # Optional: Add symlink to Applications folder, background image, etc. here if desired
+          # Example: ln -s /Applications "$VOLUME_PATH/Applications"
+          
+          echo "Unmounting DMG..."
+          hdiutil detach "$VOLUME_PATH"
+          
+          echo "Converting to final compressed DMG..."
+          hdiutil convert "$TEMP_DMG" -format UDZO -imagekey zlib-level=9 -o "$DMG_NAME"
+          
+          echo "Cleaning up temporary DMG..."
+          rm "$TEMP_DMG"
+          
+          echo "DMG created: $DMG_NAME"
+          ls -lh "$DMG_NAME"
+
+      - name: Upload macOS DMG
         uses: actions/upload-artifact@v4
         with:
-          name: darwin-gui-artifact
-          path: mkbrr-gui-darwin-universal.tar.gz
+          name: darwin-gui-artifact-dmg # Use a distinct name for the DMG artifact
+          path: mkbrr-gui-darwin-universal.dmg # Path to the DMG file
 
   goreleaserbuild:
     name: Build distribution binaries
@@ -220,34 +262,18 @@ jobs:
           name: pprof
           path: .
           
-      - name: Download macOS GUI bundle
+      - name: Download macOS DMG
         uses: actions/download-artifact@v4
         with:
-          name: darwin-gui-artifact
-          path: ./macos-artifact/
+          name: darwin-gui-artifact-dmg # Match the uploaded artifact name
+          path: dist/ # Download directly into the dist directory where GoReleaser looks
           
-      - name: Extract macOS GUI bundle (tar.gz)
-        run: |
-          # The download action places the artifact content (the .tar.gz file) inside the specified path
-          # Find the tar.gz file within the download directory
-          TARBALL_PATH=$(find ./macos-artifact/ -name '*.tar.gz' -print -quit)
-          if [ -z "$TARBALL_PATH" ]; then
-            echo "Error: Downloaded tarball not found in ./macos-artifact/"
-            ls -la ./macos-artifact/
-            exit 1
-          fi
-          echo "Extracting $TARBALL_PATH"
-          # Extract into the parent directory (macos-artifact)
-          tar xzf "$TARBALL_PATH" -C ./macos-artifact/
-          # Optional: Remove the tarball after extraction
-          # rm "$TARBALL_PATH"
-          # Verify the .app directory exists after extraction
-          ls -la ./macos-artifact/mkbrr-gui.app || (echo "Error: mkbrr-gui.app not found after extraction" && exit 1)
+      # No extraction needed for DMG
           
       - name: Debug - List downloaded artifact
         run: |
-          echo "Listing macos-artifact directory:"
-          ls -la macos-artifact/ || echo "Directory macos-artifact not found or empty"
+          echo "Listing dist directory after DMG download:"
+          ls -la dist/ || echo "Directory dist not found or empty"
           echo ""
           echo "Listing full dist directory recursively:"
           find dist -type f -ls 2>/dev/null || echo "No files found in dist/"

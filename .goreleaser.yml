@@ -37,16 +37,17 @@ archives:
       {{- if eq .Arch "amd64" }}x86_64
       {{- else }}{{ .Arch }}{{ end }}
 
-  # macOS GUI Archive
-  - id: mkbrr-gui-darwin
+  # macOS GUI DMG (Pre-built)
+  - id: mkbrr-gui-darwin-dmg # Changed ID for clarity
     name_template: >-
       {{ .ProjectName }}-gui_
       {{- .Version }}_
-      darwin_universal
-    meta: true # Create archive without binaries, just pre-built files
+      darwin_universal.dmg # Updated extension to .dmg
+    meta: true # Indicates using pre-built files
     files:
-      - src: macos-artifact/mkbrr-gui.app
-        dst: mkbrr-gui.app
+      # Point to the DMG file downloaded into dist/ by the workflow
+      - src: dist/mkbrr-gui-darwin-universal.dmg 
+        # dst is not needed here as meta:true + single src file implies using src as the asset
 
   # Windows amd64 GUI Archive
   - id: mkbrr-gui-windows-amd64
