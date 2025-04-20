@@ -170,6 +170,8 @@ func createTorrentTab(w fyne.Window, version, appName string) fyne.CanvasObject 
 	pieceSizeSelect.SetSelectedIndex(0)
 	privateCheck := widget.NewCheck("Private", nil)
 	privateCheck.SetChecked(true)
+	noDateCheck := widget.NewCheck("Remove Creation Date", nil)
+	noCreatorCheck := widget.NewCheck("Remove Creator", nil)
 	sourceEntry := widget.NewEntry()
 	commentEntry := widget.NewEntry()
 	commentEntry.MultiLine = true
@@ -259,6 +261,14 @@ func createTorrentTab(w fyne.Window, version, appName string) fyne.CanvasObject 
 		commentEntry.SetText(opts.Comment)
 		excludeEntry.SetText(strings.Join(opts.ExcludePatterns, ", "))
 		includeEntry.SetText(strings.Join(opts.IncludePatterns, ", "))
+
+		// Handle NoDate and NoCreator options from preset
+		if opts.NoDate != nil {
+			noDateCheck.SetChecked(*opts.NoDate)
+		}
+		if opts.NoCreator != nil {
+			noCreatorCheck.SetChecked(*opts.NoCreator)
+		}
 	})
 	presetSelect.PlaceHolder = "Select Preset (Optional)"
 
@@ -353,6 +363,8 @@ func createTorrentTab(w fyne.Window, version, appName string) fyne.CanvasObject 
 			Entropy:         randomizeCheck.Checked,
 			ExcludePatterns: parseExcludePatterns(excludeEntry.Text),
 			IncludePatterns: parseIncludePatterns(includeEntry.Text),
+			NoDate:          noDateCheck.Checked,
+			NoCreator:       noCreatorCheck.Checked,
 		}
 		if pieceSize > 0 {
 			options.PieceLengthExp = &pieceSize
@@ -372,6 +384,9 @@ func createTorrentTab(w fyne.Window, version, appName string) fyne.CanvasObject 
 			excludeEntry.SetText("")
 			includeEntry.SetText("")
 			outputEntry.SetText("")
+			noDateCheck.SetChecked(false)
+			noCreatorCheck.SetChecked(false)
+			randomizeCheck.SetChecked(false)
 			if presetConfig != nil {
 				presetSelect.SetSelectedIndex(0)
 			}
@@ -390,6 +405,8 @@ func createTorrentTab(w fyne.Window, version, appName string) fyne.CanvasObject 
 		&widget.FormItem{Text: "Tracker URL", Widget: trackerEntry},
 		&widget.FormItem{Text: "Piece Size", Widget: pieceSizeSelect},
 		&widget.FormItem{Text: "Private", Widget: privateCheck},
+		&widget.FormItem{Text: "Remove Date", Widget: noDateCheck},
+		&widget.FormItem{Text: "Remove Creator", Widget: noCreatorCheck},
 		&widget.FormItem{Text: "Source", Widget: sourceEntry},
 		&widget.FormItem{Text: "Comment", Widget: commentEntry},
 		&widget.FormItem{Text: "Exclude Patterns", Widget: excludeEntry},
