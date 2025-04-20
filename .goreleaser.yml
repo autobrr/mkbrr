@@ -91,8 +91,8 @@ release:
   prerelease: auto
   # Attach the pre-built DMG directly as an extra file
   extra_files:
-    - glob: ./dist/mkbrr-gui-darwin-universal.dmg
-      name_template: "{{ .ProjectName }}-gui_{{ .Version }}_darwin_universal.dmg"
+    - glob: ./dist/mkbrr-gui-darwin-universal.DMG
+      name_template: "{{ .ProjectName }}-gui_{{ .Version }}_darwin_universal.DMG"
   footer: |
     **Full Changelog**: https://github.com/autobrr/mkbrr/compare/{{ .PreviousTag }}...{{ .Tag }}
 

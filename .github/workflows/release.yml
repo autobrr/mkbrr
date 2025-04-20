@@ -189,7 +189,7 @@ jobs:
           APP_NAME="mkbrr-gui"
           APP_BUNDLE="$APP_NAME.app"
           VOL_NAME="$APP_NAME" # Volume name inside the DMG
-          DMG_NAME="$APP_NAME-darwin-universal.dmg"
+          DMG_NAME="$APP_NAME-darwin-universal.DMG"
           TEMP_DMG="temp_$DMG_NAME"
           
           # Check if app bundle exists
@@ -214,8 +214,8 @@ jobs:
           VOLUME_PATH="/Volumes/$MOUNT_DIR"
           
           echo "Mounted at $VOLUME_PATH"
-          # Optional: Add symlink to Applications folder, background image, etc. here if desired
-          # Example: ln -s /Applications "$VOLUME_PATH/Applications"
+          # Add symlink to Applications folder
+          ln -s /Applications "$VOLUME_PATH/Applications"
           
           echo "Unmounting DMG..."
           hdiutil detach "$VOLUME_PATH"
@@ -232,8 +232,8 @@ jobs:
       - name: Upload macOS DMG
         uses: actions/upload-artifact@v4
         with:
-          name: darwin-gui-artifact-dmg # Use a distinct name for the DMG artifact
-          path: mkbrr-gui-darwin-universal.dmg # Path to the DMG file
+          name: darwin-gui-artifact-DMG # Use a distinct name for the DMG artifact
+          path: mkbrr-gui-darwin-universal.DMG # Path to the DMG file
 
   goreleaserbuild:
     name: Build distribution binaries
@@ -265,7 +265,7 @@ jobs:
       - name: Download macOS DMG
         uses: actions/download-artifact@v4
         with:
-          name: darwin-gui-artifact-dmg # Match the uploaded artifact name
+          name: darwin-gui-artifact-DMG # Match the uploaded artifact name
           path: dist/ # Download directly into the dist directory where GoReleaser looks
           
       # No extraction needed for DMG
