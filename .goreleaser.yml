@@ -37,18 +37,6 @@ archives:
       {{- if eq .Arch "amd64" }}x86_64
       {{- else }}{{ .Arch }}{{ end }}
 
-  # macOS GUI DMG (Pre-built)
-  - id: mkbrr-gui-darwin-dmg # Changed ID for clarity
-    name_template: >-
-      {{ .ProjectName }}-gui_
-      {{- .Version }}_
-      darwin_universal.dmg # Updated extension to .dmg
-    meta: true # Indicates using pre-built files
-    files:
-      # Point to the DMG file downloaded into dist/ by the workflow
-      - src: dist/mkbrr-gui-darwin-universal.dmg 
-        # dst is not needed here as meta:true + single src file implies using src as the asset
-
   # Windows amd64 GUI Archive
   - id: mkbrr-gui-windows-amd64
     format_overrides:
@@ -101,6 +89,10 @@ archives:
 
 release:
   prerelease: auto
+  # Attach the pre-built DMG directly as an extra file
+  extra_files:
+    - glob: ./dist/mkbrr-gui-darwin-universal.dmg
+      name_template: "{{ .ProjectName }}-gui_{{ .Version }}_darwin_universal.dmg"
   footer: |
     **Full Changelog**: https://github.com/autobrr/mkbrr/compare/{{ .PreviousTag }}...{{ .Tag }}
 
