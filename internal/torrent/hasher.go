@@ -150,6 +150,8 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 		}
 	}
 
+	h.display.ShowSeasonPackWarnings(seasonInfo)
+
 	var completedPieces uint64
 	piecesPerWorker := (h.numPieces + numWorkers - 1) / numWorkers
 	errorsCh := make(chan error, numWorkers)
