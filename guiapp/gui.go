@@ -1,6 +1,7 @@
 package guiapp
 
 import (
+	"fmt"
 	"log"
 
 	"fyne.io/fyne/v2"
@@ -12,7 +13,7 @@ import (
 
 func Run(version, buildTime, appName string) {
 	a := app.NewWithID("com.autobrr.mkbrr")
-	w := a.NewWindow(appName)
+	w := a.NewWindow(fmt.Sprintf("%s v%s", appName, version))
 	w.Resize(fyne.NewSize(800, 600))
 	w.SetMaster()
 
