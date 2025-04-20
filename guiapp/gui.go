@@ -13,7 +13,7 @@ import (
 
 func Run(version, buildTime, appName string) {
 	a := app.NewWithID("com.autobrr.mkbrr")
-	w := a.NewWindow(fmt.Sprintf("%s v%s", appName, version))
+	w := a.NewWindow(fmt.Sprintf("%s %s", appName, version))
 	w.Resize(fyne.NewSize(800, 600))
 	w.SetMaster()
 
