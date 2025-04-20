@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -237,6 +238,9 @@ func createTorrentTab(w fyne.Window, version, appName string) fyne.CanvasObject 
 	outputContainer := container.NewBorder(nil, nil, nil, outputBrowseButton, outputEntry)
 	randomizeCheck := widget.NewCheck("Randomize Info Hash", nil)
 
+	workersEntry := widget.NewEntry()
+	workersEntry.SetPlaceHolder("Choose number of workers or leave blank for automatic")
+
 	presetSelect := widget.NewSelect([]string{"Manual"}, func(selectedName string) {
 		if presetConfig == nil || selectedName == "Manual" {
 			return
@@ -366,6 +370,16 @@ func createTorrentTab(w fyne.Window, version, appName string) fyne.CanvasObject 
 			NoDate:          noDateCheck.Checked,
 			NoCreator:       noCreatorCheck.Checked,
 		}
+
+		// Handle workers setting
+		if workersEntry.Text != "" {
+			workers, err := strconv.Atoi(workersEntry.Text)
+			if err != nil || workers < 0 {
+				dialog.ShowError(fmt.Errorf("invalid workers value: must be a non-negative integer"), w)
+				return
+			}
+			options.Workers = workers
+		}
 		if pieceSize > 0 {
 			options.PieceLengthExp = &pieceSize
 		}
@@ -387,6 +401,7 @@ func createTorrentTab(w fyne.Window, version, appName string) fyne.CanvasObject 
 			noDateCheck.SetChecked(false)
 			noCreatorCheck.SetChecked(false)
 			randomizeCheck.SetChecked(false)
+			workersEntry.SetText("")
 			if presetConfig != nil {
 				presetSelect.SetSelectedIndex(0)
 			}
@@ -413,6 +428,7 @@ func createTorrentTab(w fyne.Window, version, appName string) fyne.CanvasObject 
 		&widget.FormItem{Text: "Include Patterns", Widget: includeEntry},
 		&widget.FormItem{Text: "Output File", Widget: outputContainer},
 		&widget.FormItem{Text: "Randomize Hash", Widget: randomizeCheck},
+		&widget.FormItem{Text: "Workers", Widget: workersEntry},
 	)
 
 	form := &widget.Form{
