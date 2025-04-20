@@ -94,6 +94,25 @@ func (d *fyneDisplayer) ShowTorrentInfo(t *torrent.Torrent, info *mi.Info)      
 func (d *fyneDisplayer) ShowFileTree(info *mi.Info)                                              {}
 func (d *fyneDisplayer) ShowBatchResults(results []torrent.BatchResult, totalTime time.Duration) {}
 
+// getDefaultSaveDirectory attempts to find the best default directory for saving torrent files.
+// It prioritizes Desktop, then Home, and returns an error if Home cannot be determined.
+func getDefaultSaveDirectory() (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("could not get user home directory: %w", err)
+	}
+
+	desktopPath := filepath.Join(homeDir, "Desktop")
+	info, err := os.Stat(desktopPath)
+	if err == nil && info.IsDir() {
+		// Desktop exists and is a directory
+		return desktopPath, nil
+	}
+
+	// Desktop doesn't exist or isn't a directory, fall back to home
+	return homeDir, nil
+}
+
 func createTorrentTab(w fyne.Window, version, appName string) fyne.CanvasObject {
 	var presetConfig *preset.Config
 	presetPath, err := preset.FindPresetFile("")
@@ -167,22 +186,43 @@ func createTorrentTab(w fyne.Window, version, appName string) fyne.CanvasObject 
 			}
 			outputEntry.SetText(uri.URI().Path())
 		}, w)
+
+		defaultFilename := "new.torrent"
+		inputPath := selectedPathLabel.Text
+		if inputPath != "No path selected" {
+			defaultFilename = filepath.Base(filepath.Clean(inputPath)) + ".torrent"
+		}
+
 		currentOutput := outputEntry.Text
-		if currentOutput == "" {
-			inputPath := selectedPathLabel.Text
-			if inputPath != "No path selected" {
-				currentOutput = filepath.Base(filepath.Clean(inputPath)) + ".torrent"
-			} else {
-				currentOutput = "new.torrent"
+		if currentOutput != "" {
+			// If user already typed something, use that directory and filename
+			saveDialog.SetFileName(filepath.Base(currentOutput))
+			if dir := filepath.Dir(currentOutput); dir != "." && dir != "/" {
+				listableURI, err := storage.ListerForURI(storage.NewFileURI(dir))
+				if err == nil {
+					saveDialog.SetLocation(listableURI)
+				} else {
+					log.Printf("Warning: Could not create URI for directory %s: %v", dir, err)
+				}
 			}
-		}
-		saveDialog.SetFileName(currentOutput)
-		if dir := filepath.Dir(currentOutput); dir != "." && dir != "/" {
-			listableURI, err := storage.ListerForURI(storage.NewFileURI(dir))
+		} else {
+			// User hasn't typed anything, determine default location
+			saveDialog.SetFileName(defaultFilename)
+			defaultDir, err := getDefaultSaveDirectory()
 			if err == nil {
-				saveDialog.SetLocation(listableURI)
+				listableURI, err := storage.ListerForURI(storage.NewFileURI(defaultDir))
+				if err == nil {
+					saveDialog.SetLocation(listableURI)
+				} else {
+					log.Printf("Warning: Could not create URI for default directory %s: %v", defaultDir, err)
+					// Fallback: Don't set location, let Fyne decide
+				}
+			} else {
+				log.Printf("Warning: Could not get default save directory: %v", err)
+				// Fallback: Don't set location, let Fyne decide
 			}
 		}
+
 		saveDialog.SetFilter(storage.NewExtensionFileFilter([]string{".torrent"}))
 		saveDialog.Resize(fyne.NewSize(700, 500))
 		saveDialog.Show()
@@ -242,11 +282,19 @@ func createTorrentTab(w fyne.Window, version, appName string) fyne.CanvasObject 
 			dialog.ShowError(fmt.Errorf("tracker URL is required"), w)
 			return
 		}
+
 		outputPath := outputEntry.Text
 		if outputPath == "" {
-			baseName := filepath.Base(path)
-			outputPath = baseName + ".torrent"
-			outputEntry.SetText(outputPath)
+			baseName := filepath.Base(path) + ".torrent"
+			defaultDir, err := getDefaultSaveDirectory()
+			if err == nil {
+				outputPath = filepath.Join(defaultDir, baseName)
+			} else {
+				log.Printf("Warning: Could not get default save directory: %v. Saving to current directory.", err)
+				// Fallback to current working directory
+				outputPath = baseName
+			}
+			outputEntry.SetText(outputPath) // Update the UI field
 		}
 
 		var pieceSize uint
