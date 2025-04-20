@@ -45,8 +45,8 @@ func modifyTorrentTab(w fyne.Window, presetConfig *preset.Config) fyne.CanvasObj
 	commentEntry := widget.NewEntry()
 	commentEntry.MultiLine = true
 	commentEntry.Wrapping = fyne.TextWrapBreak
-	noDateCheck := widget.NewCheck("Remove Creation Date", nil)
-	noCreatorCheck := widget.NewCheck("Remove Creator", nil)
+	noDateCheck := widget.NewCheck("", nil)
+	noCreatorCheck := widget.NewCheck("", nil)
 	outputEntry := widget.NewEntry()
 	outputEntry.SetPlaceHolder("Same as input (will overwrite)")
 	outputBrowseButton := widget.NewButton("Browse...", func() {
@@ -81,7 +81,7 @@ func modifyTorrentTab(w fyne.Window, presetConfig *preset.Config) fyne.CanvasObj
 		saveDialog.Show()
 	})
 	outputContainer := container.NewBorder(nil, nil, nil, outputBrowseButton, outputEntry)
-	randomizeCheck := widget.NewCheck("Randomize Info Hash", nil)
+	randomizeCheck := widget.NewCheck("", nil)
 
 	presetSelect := widget.NewSelect([]string{"Manual"}, func(selectedName string) {
 		if presetConfig == nil || selectedName == "Manual" {

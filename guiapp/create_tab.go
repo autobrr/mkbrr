@@ -56,10 +56,10 @@ func createTorrentTab(w fyne.Window, version, appName string, presetConfig *pres
 	pieceSizeOptions := []string{"Auto", "16 KiB", "32 KiB", "64 KiB", "128 KiB", "256 KiB", "512 KiB", "1 MiB", "2 MiB", "4 MiB", "8 MiB", "16 MiB", "32 MiB", "64 MiB", "128 MiB"}
 	pieceSizeSelect := widget.NewSelect(pieceSizeOptions, func(value string) {})
 	pieceSizeSelect.SetSelectedIndex(0)
-	privateCheck := widget.NewCheck("Private", nil)
+	privateCheck := widget.NewCheck("", nil)
 	privateCheck.SetChecked(true)
-	noDateCheck := widget.NewCheck("Remove Creation Date", nil)
-	noCreatorCheck := widget.NewCheck("Remove Creator", nil)
+	noDateCheck := widget.NewCheck("", nil)
+	noCreatorCheck := widget.NewCheck("", nil)
 	sourceEntry := widget.NewEntry()
 	commentEntry := widget.NewEntry()
 	commentEntry.MultiLine = true
@@ -121,7 +121,7 @@ func createTorrentTab(w fyne.Window, version, appName string, presetConfig *pres
 		saveDialog.Show()
 	})
 	outputContainer := container.NewBorder(nil, nil, nil, outputBrowseButton, outputEntry)
-	randomizeCheck := widget.NewCheck("Randomize Info Hash", nil)
+	randomizeCheck := widget.NewCheck("", nil)
 
 	workersEntry := widget.NewEntry()
 	workersEntry.SetPlaceHolder("Choose number of workers or leave blank for automatic")
