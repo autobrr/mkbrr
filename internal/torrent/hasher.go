@@ -135,12 +135,7 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 
 	seasonInfo := AnalyzeSeasonPack(h.files)
 
-	if seasonInfo.IsSeasonPack && seasonInfo.VideoFileCount > 1 {
-		if seasonInfo.MaxEpisode > seasonInfo.VideoFileCount {
-			seasonInfo.IsSuspicious = true
-			h.display.ShowSeasonPackWarnings(seasonInfo)
-		}
-	}
+	h.display.ShowSeasonPackWarnings(seasonInfo)
 
 	var completedPieces uint64
 	piecesPerWorker := (h.numPieces + numWorkers - 1) / numWorkers
