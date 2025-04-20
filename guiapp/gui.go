@@ -48,6 +48,7 @@ type fyneDisplayer struct {
 	progressDialog dialog.Dialog
 	progressBar    *widget.ProgressBar
 	totalPieces    int
+	window         fyne.Window
 }
 
 func newFyneDisplayer(w fyne.Window, title, message string) *fyneDisplayer {
@@ -56,10 +57,12 @@ func newFyneDisplayer(w fyne.Window, title, message string) *fyneDisplayer {
 	return &fyneDisplayer{
 		progressDialog: progressDialog,
 		progressBar:    progressBar,
+		window:         w,
 	}
 }
 func (d *fyneDisplayer) ShowProgress(total int) {
 	d.totalPieces = total
+	// Fyne widgets should be thread-safe, updating directly
 	if total == 0 {
 		d.progressBar.Max = 1
 		d.progressBar.SetValue(1)
@@ -71,11 +74,13 @@ func (d *fyneDisplayer) ShowProgress(total int) {
 }
 func (d *fyneDisplayer) UpdateProgress(completed int, hashrate float64) {
 	if d.totalPieces > 0 {
+		// Fyne widgets should be thread-safe, updating directly
 		d.progressBar.SetValue(float64(completed))
 	}
 }
 func (d *fyneDisplayer) FinishProgress() {
 	if d.progressDialog != nil {
+		// Fyne widgets should be thread-safe, updating directly
 		if d.totalPieces > 0 {
 			d.progressBar.SetValue(float64(d.totalPieces))
 		} else {
@@ -591,14 +596,24 @@ func modifyTorrentTab(w fyne.Window) fyne.CanvasObject {
 			dialog.ShowError(fmt.Errorf("please select a torrent file"), w)
 			return
 		}
-		progress := dialog.NewCustomWithoutButtons("Modifying Torrent", container.NewVBox(widget.NewLabel("Processing..."), widget.NewProgressBar()), w)
-		progress.Show()
+
 		outputPath := outputEntry.Text
 		if outputPath == "" {
 			outputPath = path
 		}
+
+		// Define a function to clear fields after successful modification
+		clearFields := func() {
+			selectedFileLabel.SetText("No torrent file selected")
+			trackerEntry.SetText("")
+			sourceEntry.SetText("")
+			commentEntry.SetText("")
+			outputEntry.SetText("")
+			privateCheck.SetChecked(true)
+			randomizeCheck.SetChecked(false)
+		}
+
 		go func() {
-			defer progress.Hide()
 			t, err := torrent.LoadFromFile(path)
 			if err != nil {
 				dialog.ShowError(err, w)
@@ -671,7 +686,11 @@ func modifyTorrentTab(w fyne.Window) fyne.CanvasObject {
 				dialog.ShowError(fmt.Errorf("failed to write torrent: %w", err), w)
 				return
 			}
-			dialog.ShowInformation("Torrent Modified", fmt.Sprintf("Successfully modified and saved to: %s", outputPath), w)
+
+			// Show success dialog with callback to clear fields
+			successDialog := dialog.NewInformation("Torrent Modified", fmt.Sprintf("Successfully modified and saved to: %s", outputPath), w)
+			successDialog.SetOnClosed(clearFields)
+			successDialog.Show()
 		}()
 	})
 	form := &widget.Form{

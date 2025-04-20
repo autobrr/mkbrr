@@ -265,15 +265,15 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 		pieceLenInt := int64(1) << pieceLength
 		numPieces := (totalSize + pieceLenInt - 1) / pieceLenInt
 
-		display := NewDisplay(NewBytesFormatter(opts.Verbose))
-		display.SetQuiet(opts.Quiet)
-
+		// Use the displayer from outer scope instead of creating a new one
 		var pieceHashes [][]byte
-		hasher := NewPieceHasher(files, pieceLenInt, int(numPieces), display)
+		hasher := NewPieceHasher(files, pieceLenInt, int(numPieces), displayer)
 		// Pass the specified or default worker count from opts
 		if err := hasher.hashPieces(opts.Workers); err != nil {
 			return nil, fmt.Errorf("error hashing pieces: %w", err)
 		}
+		// Ensure the progress dialog is properly closed
+		displayer.FinishProgress()
 		pieceHashes = hasher.pieces
 
 		info := &metainfo.Info{
