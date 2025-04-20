@@ -96,6 +96,12 @@ Choose the method that works best for you:
 
 Download ready-to-use binaries for both the CLI (`mkbrr`) and GUI (`mkbrr-gui`) versions for your platform from the [releases page](https://github.com/autobrr/mkbrr/releases).
 
+> [!NOTE]
+> **macOS Users**: Since the application is not signed/notarized by Apple, you might see a warning that the app is damaged when first opening it. To fix this, run:
+> ```bash
+> sudo xattr -dr com.apple.quarantine /Applications/mkbrr-gui.app
+> ```
+
 ### Homebrew (macOS and Linux)
 
 ```bash
