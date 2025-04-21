@@ -1,13 +1,13 @@
 %global go_version 1.23
 
 Name:           mkbrr
-Version:        0.0.0
+Version:        1.9.0
 Release:        1%{?dist}
 Summary:        Tool for creating, inspecting and modifying .torrent files
 
 License:        GPLv2
 URL:            https://github.com/autobrr/mkbrr
-Source0:        %{name}-%{version}.tar.gz
+Source0:        %{url}/archive/v%{version}/%{name}-%{version}.tar.gz
 
 BuildRequires:  golang >= %{go_version}
 
@@ -31,3 +31,5 @@ install -D -m 644 LICENSE %{buildroot}%{_licensedir}/%{name}/LICENSE
 %license %{_licensedir}/%{name}/LICENSE
 
 %changelog
+* Mon Apr 21 2025 soup <soup@mkbrr.com> - 1.9.0
+- Initial package
