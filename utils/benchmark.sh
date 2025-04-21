@@ -132,6 +132,25 @@ echo "Results will be saved in: $RESULTS_DIR"
 for WORKERS in "${WORKER_COUNTS[@]}"; do
     echo "Testing with $WORKERS workers..."
 
+    # --- Clear Cache on Linux ---
+    if [[ "$OS_TYPE" == "Linux" ]]; then
+        echo "Clearing Linux page cache (requires sudo)..."
+        # Sync filesystem buffers first
+        sync
+        # Drop caches (requires sudo privileges)
+        sudo sh -c 'echo 3 > /proc/sys/vm/drop_caches'
+        if [ $? -ne 0 ]; then
+            echo "Warning: Failed to clear cache. sudo permission might be needed or the command failed."
+            echo "Results might be affected by caching."
+            # Optionally exit if cache clearing is critical: exit 1
+        else
+            echo "Cache cleared."
+        fi
+        # Add a small delay to allow the system to stabilize if needed
+        # sleep 1
+    fi
+    # --- End Clear Cache ---
+
     # Start the process in background
     # Ensure mkbrr command exists or is in PATH
     if ! command -v mkbrr &>/dev/null; then
