@@ -1,7 +1,7 @@
 %global go_version 1.23
 
 Name:           mkbrr
-Version:        0.0.0 # this will be automatically replaced by COPR based on the git tag
+Version:        0.0.0
 Release:        1%{?dist}
 Summary:        Tool for creating, inspecting and modifying .torrent files
 
