@@ -39,7 +39,6 @@ Flags:
 Use "{{.CommandPath}} [command] --help" for more information about a command.
 `
 
-// setupCommon prepares the rootCmd with common settings.
 func setupCommon() {
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
 	rootCmd.SilenceUsage = false
@@ -51,8 +50,6 @@ func ExecuteCLI() error {
 	return rootCmd.Execute()
 }
 
-// Execute remains for potential backward compatibility or internal use, defaulting to CLI.
-// It's generally better to call ExecuteCLI directly.
 func Execute() error {
 	return ExecuteCLI()
 }
