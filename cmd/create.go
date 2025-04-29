@@ -183,7 +183,6 @@ func buildCreateOptions(cmd *cobra.Command, inputPath string, opts createOptions
 		Workers:         opts.createWorkers,
 	}
 
-	// Apply tracker default comment if flag is not set
 	if !cmd.Flags().Changed("comment") {
 		if trackerComment, ok := trackers.GetTrackerDefaultComment(createOpts.TrackerURL); ok {
 			createOpts.Comment = trackerComment
