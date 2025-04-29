@@ -11,6 +11,7 @@ import (
 
 	"github.com/autobrr/mkbrr/internal/preset"
 	"github.com/autobrr/mkbrr/internal/torrent"
+	"github.com/autobrr/mkbrr/internal/trackers"
 )
 
 // createOptions encapsulates all command-line flag values for the create command
@@ -254,6 +255,13 @@ func buildCreateOptions(cmd *cobra.Command, inputPath string, opts createOptions
 			} else {
 				createOpts.IncludePatterns = append(slices.Clone(presetOpts.IncludePatterns), createOpts.IncludePatterns...)
 			}
+		}
+	}
+
+	// Check for tracker's default source only if no source is set by flag or preset
+	if createOpts.Source == "" && !cmd.Flags().Changed("source") {
+		if trackerSource, ok := trackers.GetTrackerDefaultSource(createOpts.TrackerURL); ok {
+			createOpts.Source = trackerSource
 		}
 	}
 

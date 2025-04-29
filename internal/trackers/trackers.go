@@ -9,6 +9,7 @@ type TrackerConfig struct {
 	MaxPieceLength   uint             // maximum piece length exponent (2^n)
 	MaxTorrentSize   uint64           // maximum .torrent file size in bytes (0 means no limit)
 	UseDefaultRanges bool             // whether to use default piece size ranges when content size is outside custom ranges
+	DefaultSource    string           // default source to use for this tracker
 }
 
 // PieceSizeRange defines a range of content sizes and their corresponding piece size exponent
@@ -82,6 +83,7 @@ var trackerConfigs = []TrackerConfig{
 		},
 		UseDefaultRanges: false,
 		MaxTorrentSize:   1 << 20, // 1 MB torrent file size limit
+		DefaultSource:    "GGn",
 	},
 	{
 		URLs: []string{
@@ -203,4 +205,12 @@ func GetTrackerMaxTorrentSize(trackerURL string) (uint64, bool) {
 		return config.MaxTorrentSize, config.MaxTorrentSize > 0
 	}
 	return 0, false
+}
+
+// GetTrackerDefaultSource returns the default source for a tracker if defined
+func GetTrackerDefaultSource(trackerURL string) (string, bool) {
+	if config := findTrackerConfig(trackerURL); config != nil && config.DefaultSource != "" {
+		return config.DefaultSource, true
+	}
+	return "", false
 }
