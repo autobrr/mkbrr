@@ -183,9 +183,9 @@ func buildCreateOptions(cmd *cobra.Command, inputPath string, opts createOptions
 		Workers:         opts.createWorkers,
 	}
 
-	if !cmd.Flags().Changed("comment") {
-		if trackerComment, ok := trackers.GetTrackerDefaultComment(createOpts.TrackerURL); ok {
-			createOpts.Comment = trackerComment
+	if !cmd.Flags().Changed("source") {
+		if trackerSource, ok := trackers.GetTrackerDefaultSource(createOpts.TrackerURL); ok {
+			createOpts.Source = trackerSource
 		}
 	}
 
