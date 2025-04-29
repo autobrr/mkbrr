@@ -11,6 +11,7 @@ import (
 
 	"github.com/autobrr/mkbrr/internal/preset"
 	"github.com/autobrr/mkbrr/internal/torrent"
+	"github.com/autobrr/mkbrr/internal/trackers"
 )
 
 // createOptions encapsulates all command-line flag values for the create command
@@ -180,6 +181,13 @@ func buildCreateOptions(cmd *cobra.Command, inputPath string, opts createOptions
 		ExcludePatterns: opts.excludePatterns,
 		IncludePatterns: opts.includePatterns,
 		Workers:         opts.createWorkers,
+	}
+
+	// Apply tracker default comment if flag is not set
+	if !cmd.Flags().Changed("comment") {
+		if trackerComment, ok := trackers.GetTrackerDefaultComment(createOpts.TrackerURL); ok {
+			createOpts.Comment = trackerComment
+		}
 	}
 
 	// If a preset is specified, load the preset options and merge with command-line flags
