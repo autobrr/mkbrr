@@ -183,12 +183,6 @@ func buildCreateOptions(cmd *cobra.Command, inputPath string, opts createOptions
 		Workers:         opts.createWorkers,
 	}
 
-	if !cmd.Flags().Changed("source") {
-		if trackerSource, ok := trackers.GetTrackerDefaultSource(createOpts.TrackerURL); ok {
-			createOpts.Source = trackerSource
-		}
-	}
-
 	// If a preset is specified, load the preset options and merge with command-line flags
 	if opts.presetName != "" {
 		presetFilePath, err := preset.FindPresetFile(opts.presetFile)
@@ -261,6 +255,13 @@ func buildCreateOptions(cmd *cobra.Command, inputPath string, opts createOptions
 			} else {
 				createOpts.IncludePatterns = append(slices.Clone(presetOpts.IncludePatterns), createOpts.IncludePatterns...)
 			}
+		}
+	}
+
+	// Check for tracker's default source only if no source is set by flag or preset
+	if createOpts.Source == "" && !cmd.Flags().Changed("source") {
+		if trackerSource, ok := trackers.GetTrackerDefaultSource(createOpts.TrackerURL); ok {
+			createOpts.Source = trackerSource
 		}
 	}
 
