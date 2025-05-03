@@ -460,14 +460,23 @@ func Create(opts CreateTorrentOptions) (*TorrentInfo, error) {
 		opts.Name = filepath.Base(filepath.Clean(opts.Path))
 	}
 
-	if opts.OutputPath == "" {
-		fileName := opts.Name
-		if opts.TrackerURL != "" && !opts.SkipPrefix {
-			fileName = preset.GetDomainPrefix(opts.TrackerURL) + "_" + opts.Name
-		}
+	fileName := opts.Name
+	if opts.TrackerURL != "" && !opts.SkipPrefix {
+		fileName = preset.GetDomainPrefix(opts.TrackerURL) + "_" + opts.Name
+	}
+
+	if opts.OutputDir != "" {
+		opts.OutputPath = filepath.Join(opts.OutputDir, fileName+".torrent")
+	} else if opts.OutputPath == "" {
 		opts.OutputPath = fileName + ".torrent"
 	} else if !strings.HasSuffix(opts.OutputPath, ".torrent") {
 		opts.OutputPath = opts.OutputPath + ".torrent"
+	}
+
+	if opts.OutputDir != "" {
+		if err := os.MkdirAll(opts.OutputDir, 0755); err != nil {
+			return nil, fmt.Errorf("error creating output directory %q: %w", opts.OutputDir, err)
+		}
 	}
 
 	// create torrent

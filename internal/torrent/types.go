@@ -17,9 +17,11 @@ type CreateTorrentOptions struct {
 	Source          string
 	Version         string
 	OutputPath      string
+	OutputDir       string
 	WebSeeds        []string
 	ExcludePatterns []string
 	IncludePatterns []string
+	Workers         int
 	IsPrivate       bool
 	NoDate          bool
 	NoCreator       bool
@@ -27,7 +29,6 @@ type CreateTorrentOptions struct {
 	Entropy         bool
 	Quiet           bool
 	SkipPrefix      bool
-	Workers         int
 }
 
 // Torrent represents a torrent file with additional functionality
