@@ -192,8 +192,13 @@ func ModifyTorrent(path string, opts Options) (*Result, error) {
 		metaInfoName = info.Name
 	}
 
+	basePath := path
+	if opts.OutputPattern == "" && metaInfoName != "" {
+		basePath = metaInfoName + ".torrent"
+	}
+
 	// generate output path using the preset generating helper
-	outPath := preset.GenerateOutputPath(path, opts.OutputDir, opts.PresetName, opts.OutputPattern, opts.TrackerURL, metaInfoName, opts.SkipPrefix)
+	outPath := preset.GenerateOutputPath(basePath, opts.OutputDir, opts.PresetName, opts.OutputPattern, opts.TrackerURL, metaInfoName, opts.SkipPrefix)
 	result.OutputPath = outPath
 
 	// ensure output directory exists if specified
