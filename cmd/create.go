@@ -21,6 +21,7 @@ type createOptions struct {
 	trackerURL        string
 	comment           string
 	outputPath        string
+	outputDir         string
 	source            string
 	batchFile         string
 	presetName        string
@@ -28,6 +29,7 @@ type createOptions struct {
 	webSeeds          []string
 	excludePatterns   []string
 	includePatterns   []string
+	createWorkers     int
 	isPrivate         bool
 	noDate            bool
 	noCreator         bool
@@ -35,7 +37,6 @@ type createOptions struct {
 	entropy           bool
 	quiet             bool
 	skipPrefix        bool
-	createWorkers     int
 }
 
 var options = createOptions{
@@ -95,6 +96,7 @@ func init() {
 	}
 
 	createCmd.Flags().StringVarP(&options.outputPath, "output", "o", "", "set output path (default: <name>.torrent)")
+	createCmd.Flags().StringVar(&options.outputDir, "output-dir", "", "output directory for created torrent")
 	createCmd.Flags().StringVarP(&options.source, "source", "s", "", "add source string")
 	createCmd.Flags().BoolVarP(&options.noDate, "no-date", "d", false, "don't write creation date")
 	createCmd.Flags().BoolVarP(&options.noCreator, "no-creator", "", false, "don't write creator")
@@ -181,6 +183,7 @@ func buildCreateOptions(cmd *cobra.Command, inputPath string, opts createOptions
 		ExcludePatterns: opts.excludePatterns,
 		IncludePatterns: opts.includePatterns,
 		Workers:         opts.createWorkers,
+		OutputDir:       opts.outputDir,
 	}
 
 	// If a preset is specified, load the preset options and merge with command-line flags
