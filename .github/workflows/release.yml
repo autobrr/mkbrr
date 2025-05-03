@@ -8,14 +8,20 @@ on:
     tags:
       - "v*"
     paths-ignore:
-      - ".github/ISSUE_TEMPLATE/**"
-      - ".github/images/**"
-      - "**.md"
+        - '.github/ISSUE_TEMPLATE/**'
+        - '.github/images/**'
+        - 'config.toml'
+        - 'docker-compose.yml'
+        - 'Makefile'
+        - '**.md'
   pull_request:
     paths-ignore:
-      - ".github/ISSUE_TEMPLATE/**"
-      - ".github/images/**"
-      - "**.md"
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/images/**'
+      - 'config.toml'
+      - 'docker-compose.yml'
+      - 'Makefile'
+      - '**.md'
 
 env:
   REGISTRY: ghcr.io
@@ -217,148 +223,148 @@ jobs:
             dist/*.deb
             dist/*.rpm
 
-            docker:
-              name: Build Docker images
-              runs-on: ubuntu-latest
-              strategy:
-                fail-fast: true
-                matrix:
-                  platform:
-                    - linux/386
-                    - linux/amd64
-                    - linux/amd64/v2
-                    - linux/amd64/v3
-                    - linux/arm/v6
-                    - linux/arm/v7
-                    - linux/arm64
-                    # - linux/mips64le
-                    # - linux/mips64
-                    - linux/ppc64le
-                    # - linux/riscv64
-                    - linux/s390x
-                    - windows/amd64
-              needs: [ web, goprofilecombine ]
-              steps:
-                - name: Checkout
-                  uses: actions/checkout@v4
-                  with:
-                    fetch-depth: 0
-          
-                - name: Download web production build
-                  uses: actions/download-artifact@v4
-                  with:
-                    name: web-dist
-                    path: web/dist
-          
-                - name: Download pprof profile
-                  uses: actions/download-artifact@v4
-                  with:
-                    name: pprof
-          
-                - name: Login to GitHub Container Registry
-                  uses: docker/login-action@v3
-                  with:
-                    registry: ${{ env.REGISTRY }}
-                    username: ${{ github.repository_owner }}
-                    password: ${{ secrets.GITHUB_TOKEN }}
-          
-                - name: Extract metadata
-                  id: meta
-                  uses: docker/metadata-action@v5
-                  with:
-                    images: ${{ env.REGISTRY_IMAGE }}
-                    tags: |
-                      type=semver,pattern={{version}},prefix=v
-                      type=semver,pattern={{major}}.{{minor}},prefix=v
-                      type=ref,event=branch
-                      type=ref,event=pr
-                    flavor: |
-                      latest=auto
-          
-                - name: Set up QEMU
-                  uses: docker/setup-qemu-action@v3
-          
-                - name: Set up Docker Buildx
-                  uses: docker/setup-buildx-action@v3
-          
-                - name: Supported Architectures
-                  run: docker buildx ls
-          
-                - name: Build and publish image
-                  id: docker_build
-                  uses: docker/build-push-action@v6
-                  with:
-                    context: .
-                    file: './ci.Dockerfile'
-                    platforms: ${{ matrix.platform }}
-                    outputs: type=image,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true,push=${{ (github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request') && 'true' || 'false' }}
-                    labels: ${{ steps.meta.outputs.labels }}
-                    build-args: |
-                      BUILDTIME=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
-                      VERSION=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.version'] }}
-                      REVISION=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.revision'] }}
-                    cache-from: type=gha
-                    cache-to: type=gha,mode=max
-                    provenance: false
-          
-                - name: Export image digest
-                  id: digest-prep
-                  run: |
-                    mkdir -p /tmp/digests
-                    digest="${{ steps.docker_build.outputs.digest }}"
-                    echo "manifest-hash=${digest#sha256:}" >> "$GITHUB_OUTPUT"
-                    touch "/tmp/digests/${digest#sha256:}"
-          
-                - name: Upload image digest
-                  uses: actions/upload-artifact@v4
-                  with:
-                    name: docker-digests-${{ steps.digest-prep.outputs.manifest-hash }}
-                    path: /tmp/digests/*
-                    if-no-files-found: error
-                    retention-days: 1
-          
-            docker-merge:
-              name: Publish Docker multi-arch manifest
-              if: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request' }}
-              runs-on: ubuntu-latest
-              needs: [ docker ]
-              steps:
-                - name: Download image digests
-                  uses: actions/download-artifact@v4
-                  with:
-                    path: /tmp/digests
-                    pattern: docker-digests-*
-                    merge-multiple: true
-          
-                - name: Set up Docker Buildx
-                  uses: docker/setup-buildx-action@v3
-          
-                - name: Login to GitHub Container Registry
-                  uses: docker/login-action@v3
-                  with:
-                    registry: ${{ env.REGISTRY }}
-                    username: ${{ github.repository_owner }}
-                    password: ${{ secrets.GITHUB_TOKEN }}
-          
-                - name: Extract metadata
-                  id: meta
-                  uses: docker/metadata-action@v5
-                  with:
-                    images: ${{ env.REGISTRY_IMAGE }}
-                    tags: |
-                      type=semver,pattern={{version}},prefix=v
-                      type=semver,pattern={{major}}.{{minor}},prefix=v
-                      type=ref,event=branch
-                      type=ref,event=pr
-                    flavor: |
-                      latest=auto
-          
-                - name: Create manifest list and push
-                  working-directory: /tmp/digests
-                  run: |
-                    docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-                      $(printf '${{ env.REGISTRY_IMAGE }}@sha256:%s ' *)
-          
-                - name: Inspect image
-                  run: |
-                    docker buildx imagetools inspect ${{ env.REGISTRY_IMAGE }}:${{ steps.meta.outputs.version }}
+  docker:
+    name: Build Docker images
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        platform:
+          - linux/386
+          - linux/amd64
+          - linux/amd64/v2
+          - linux/amd64/v3
+          - linux/arm/v6
+          - linux/arm/v7
+          - linux/arm64
+          # - linux/mips64le
+          # - linux/mips64
+          - linux/ppc64le
+          # - linux/riscv64
+          - linux/s390x
+          - windows/amd64
+    needs: [ pgo ]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download web production build
+        uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist
+
+      - name: Download pprof profile
+        uses: actions/download-artifact@v4
+        with:
+          name: pprof
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY_IMAGE }}
+          tags: |
+            type=semver,pattern={{version}},prefix=v
+            type=semver,pattern={{major}}.{{minor}},prefix=v
+            type=ref,event=branch
+            type=ref,event=pr
+          flavor: |
+            latest=auto
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Supported Architectures
+        run: docker buildx ls
+
+      - name: Build and publish image
+        id: docker_build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: './ci.Dockerfile'
+          platforms: ${{ matrix.platform }}
+          outputs: type=image,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true,push=${{ (github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request') && 'true' || 'false' }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            BUILDTIME=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
+            VERSION=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.version'] }}
+            REVISION=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.revision'] }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: false
+
+      - name: Export image digest
+        id: digest-prep
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.docker_build.outputs.digest }}"
+          echo "manifest-hash=${digest#sha256:}" >> "$GITHUB_OUTPUT"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload image digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-digests-${{ steps.digest-prep.outputs.manifest-hash }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  docker-merge:
+    name: Publish Docker multi-arch manifest
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request' }}
+    runs-on: ubuntu-latest
+    needs: [ docker ]
+    steps:
+      - name: Download image digests
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: docker-digests-*
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY_IMAGE }}
+          tags: |
+            type=semver,pattern={{version}},prefix=v
+            type=semver,pattern={{major}}.{{minor}},prefix=v
+            type=ref,event=branch
+            type=ref,event=pr
+          flavor: |
+            latest=auto
+
+      - name: Create manifest list and push
+        working-directory: /tmp/digests
+        run: |
+          docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf '${{ env.REGISTRY_IMAGE }}@sha256:%s ' *)
+
+      - name: Inspect image
+        run: |
+          docker buildx imagetools inspect ${{ env.REGISTRY_IMAGE }}:${{ steps.meta.outputs.version }}
