@@ -1,7 +1,0 @@
-services:
-  mkbrr:
-    image: ghcr.io/autobrr/mkbrr:latest
-    container_name: mkbrr
-    volumes:
-      - ./mkbrr:/config
-    restart: unless-stopped

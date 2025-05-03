@@ -119,6 +119,25 @@ go install github.com/autobrr/mkbrr@latest
 export PATH=$PATH:$(go env GOPATH)/bin
 ```
 
+### Docker
+
+```bash
+# Pull the image
+docker pull ghcr.io/autobrr/mkbrr
+
+# Tag it for easier use
+docker tag ghcr.io/autobrr/mkbrr mkbrr
+
+# Run with volume mounts for input/output
+docker run -v ~/Downloads:/downloads mkbrr mkbrr create /downloads/your-file --output-dir /downloads
+```
+
+For convenience, you can add an alias to your shell configuration:
+```bash
+# Add to your .zshrc or .bashrc
+alias mkbrr='docker run -v ~/Downloads:/downloads mkbrr mkbrr'
+```
+
 ## Usage
 
 ### Creating Torrents
