@@ -6,14 +6,14 @@ on:
       - "main"
       - "develop"
     tags:
-      - "v*"
+      - 'v*'
     paths-ignore:
-        - '.github/ISSUE_TEMPLATE/**'
-        - '.github/images/**'
-        - 'config.toml'
-        - 'docker-compose.yml'
-        - 'Makefile'
-        - '**.md'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/images/**'
+      - 'config.toml'
+      - 'docker-compose.yml'
+      - 'Makefile'
+      - '**.md'
   pull_request:
     paths-ignore:
       - '.github/ISSUE_TEMPLATE/**'
