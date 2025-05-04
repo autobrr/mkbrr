@@ -5,7 +5,7 @@
 </p>
 <div align="center">
 <p align="center"> 
-  <img src="https://img.shields.io/badge/Go-1.23-blue?logo=go" alt="Go version">
+  <img src="https://img.shields.io/badge/Go-1.24-blue?logo=go" alt="Go version">
   <img src="https://img.shields.io/badge/build-passing-brightgreen" alt="Build Status">
   <img src="https://img.shields.io/github/v/release/autobrr/mkbrr" alt="Latest Release">
   </a>
