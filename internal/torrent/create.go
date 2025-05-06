@@ -248,6 +248,10 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 		currentOffset += files[i].length
 	}
 
+	if totalSize == 0 {
+		return nil, fmt.Errorf("input path %q contains no files or only empty files, cannot create torrent", path)
+	}
+
 	// Function to create torrent with given piece length
 	createWithPieceLength := func(pieceLength uint) (*Torrent, error) {
 		pieceLenInt := int64(1) << pieceLength
@@ -257,18 +261,12 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 		display.SetQuiet(opts.Quiet)
 
 		var pieceHashes [][]byte
-		if numPieces > 0 {
-			hasher := NewPieceHasher(files, pieceLenInt, int(numPieces), display)
-			if err := hasher.hashPieces(1); err != nil { // Using 1 worker for simplicity in this context, could optimize later
-				return nil, fmt.Errorf("error hashing pieces: %w", err)
-			}
-			pieceHashes = hasher.pieces
-		} else {
-			if !opts.Quiet {
-				display.ShowFiles(files)
-			}
-			pieceHashes = make([][]byte, 0) // Empty slice for 0 pieces
+		hasher := NewPieceHasher(files, pieceLenInt, int(numPieces), display)
+		// Pass the specified or default worker count from opts
+		if err := hasher.hashPieces(opts.Workers); err != nil {
+			return nil, fmt.Errorf("error hashing pieces: %w", err)
 		}
+		pieceHashes = hasher.pieces
 
 		info := &metainfo.Info{
 			Name:        name,
@@ -462,14 +460,23 @@ func Create(opts CreateTorrentOptions) (*TorrentInfo, error) {
 		opts.Name = filepath.Base(filepath.Clean(opts.Path))
 	}
 
-	if opts.OutputPath == "" {
-		fileName := opts.Name
-		if opts.TrackerURL != "" && !opts.SkipPrefix {
-			fileName = preset.GetDomainPrefix(opts.TrackerURL) + "_" + opts.Name
-		}
+	fileName := opts.Name
+	if opts.TrackerURL != "" && !opts.SkipPrefix {
+		fileName = preset.GetDomainPrefix(opts.TrackerURL) + "_" + opts.Name
+	}
+
+	if opts.OutputDir != "" {
+		opts.OutputPath = filepath.Join(opts.OutputDir, fileName+".torrent")
+	} else if opts.OutputPath == "" {
 		opts.OutputPath = fileName + ".torrent"
 	} else if !strings.HasSuffix(opts.OutputPath, ".torrent") {
 		opts.OutputPath = opts.OutputPath + ".torrent"
+	}
+
+	if opts.OutputDir != "" {
+		if err := os.MkdirAll(opts.OutputDir, 0755); err != nil {
+			return nil, fmt.Errorf("error creating output directory %q: %w", opts.OutputDir, err)
+		}
 	}
 
 	// create torrent

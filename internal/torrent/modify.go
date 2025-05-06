@@ -7,6 +7,7 @@ import (
 
 	"github.com/anacrolix/torrent/bencode"
 	"github.com/anacrolix/torrent/metainfo"
+
 	"github.com/autobrr/mkbrr/internal/preset"
 )
 
@@ -31,6 +32,7 @@ type Options struct {
 	Verbose        bool
 	Quiet          bool
 	Entropy        bool
+	SkipPrefix     bool
 }
 
 // Result represents the result of modifying a torrent
@@ -190,8 +192,13 @@ func ModifyTorrent(path string, opts Options) (*Result, error) {
 		metaInfoName = info.Name
 	}
 
+	basePath := path
+	if opts.OutputPattern == "" && metaInfoName != "" {
+		basePath = metaInfoName + ".torrent"
+	}
+
 	// generate output path using the preset generating helper
-	outPath := preset.GenerateOutputPath(path, opts.OutputDir, opts.PresetName, opts.OutputPattern, opts.TrackerURL, metaInfoName)
+	outPath := preset.GenerateOutputPath(basePath, opts.OutputDir, opts.PresetName, opts.OutputPattern, opts.TrackerURL, metaInfoName, opts.SkipPrefix)
 	result.OutputPath = outPath
 
 	// ensure output directory exists if specified

@@ -80,9 +80,21 @@ func (d *Display) UpdateProgress(completed int, hashrate float64) {
 	}
 }
 
-func (d *Display) ShowFiles(files []fileEntry) {
+// ShowFiles displays the list of files being processed and the number of workers used.
+func (d *Display) ShowFiles(files []fileEntry, numWorkers int) {
+	if d.quiet {
+		return
+	}
+
+	workerMsg := fmt.Sprintf("Using %d worker(s)", numWorkers)
+	if numWorkers == 0 {
+		workerMsg = "Using automatic worker count"
+	}
+	fmt.Fprintf(d.output, "\n%s %s\n", label("Concurrency:"), workerMsg)
+
 	if !d.formatter.verbose && len(files) > 20 {
-		fmt.Fprintf(d.output, "\n%s suppressed file output (limit 20, found %d), use --verbose to show all\n", yellow("Note:"), len(files))
+		fmt.Fprintf(d.output, "%s suppressed file output (limit 20, found %d), use --verbose to show all\n", yellow("Note:"), len(files))
+		fmt.Fprintf(d.output, "%s\n", magenta("Files being processed:"))
 		return
 	}
 	fmt.Fprintf(d.output, "\n%s\n", magenta("Files being hashed:"))
