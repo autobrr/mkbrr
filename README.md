@@ -5,7 +5,7 @@
 </p>
 <div align="center">
 <p align="center"> 
-  <img src="https://img.shields.io/badge/Go-1.23-blue?logo=go" alt="Go version">
+  <img src="https://img.shields.io/badge/Go-1.24-blue?logo=go" alt="Go version">
   <img src="https://img.shields.io/badge/build-passing-brightgreen" alt="Build Status">
   <img src="https://img.shields.io/github/v/release/autobrr/mkbrr" alt="Latest Release">
   </a>
@@ -154,6 +154,25 @@ After installation, ensure `$GOPATH/bin` is in your system's `PATH`:
 ```bash
 # Example for bash/zsh
 export PATH="$PATH:$(go env GOPATH)/bin"
+```
+
+### Docker
+
+```bash
+# Pull the image
+docker pull ghcr.io/autobrr/mkbrr
+
+# Tag it for easier use
+docker tag ghcr.io/autobrr/mkbrr mkbrr
+
+# Run with volume mounts for input/output
+docker run -v ~/Downloads:/downloads mkbrr mkbrr create /downloads/your-file --output-dir /downloads
+```
+
+For convenience, you can add an alias to your shell configuration:
+```bash
+# Add to your .zshrc or .bashrc
+alias mkbrr='docker run -v ~/Downloads:/downloads mkbrr mkbrr'
 ```
 
 ## Usage
