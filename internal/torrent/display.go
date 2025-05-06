@@ -17,13 +17,13 @@ import (
 
 type Display struct {
 	output    io.Writer
-	formatter *Formatter
+	formatter *BytesFormatter
 	bar       *progressbar.ProgressBar
 	isBatch   bool
 	quiet     bool
 }
 
-func NewDisplay(formatter *Formatter) *Display {
+func NewDisplay(formatter *BytesFormatter) *Display {
 	return &Display{
 		formatter: formatter,
 		quiet:     false,
@@ -81,7 +81,7 @@ func (d *Display) UpdateProgress(completed int, hashrate float64) {
 }
 
 // ShowFiles displays the list of files being processed and the number of workers used.
-func (d *Display) ShowFiles(files []fileEntry, numWorkers int) {
+func (d *Display) ShowFiles(files []FileEntry, numWorkers int) {
 	if d.quiet {
 		return
 	}
@@ -99,7 +99,7 @@ func (d *Display) ShowFiles(files []fileEntry, numWorkers int) {
 	}
 	fmt.Fprintf(d.output, "\n%s\n", magenta("Files being hashed:"))
 	if len(files) > 0 {
-		topDir := filepath.Dir(files[0].path)
+		topDir := filepath.Dir(files[0].Path)
 		fmt.Fprintf(d.output, "%s %s\n", "└─", success(filepath.Base(topDir)))
 	}
 	for i, file := range files {
@@ -107,10 +107,11 @@ func (d *Display) ShowFiles(files []fileEntry, numWorkers int) {
 		if i == len(files)-1 {
 			prefix = "  └─"
 		}
+		// Use exported fields Path and Size
 		fmt.Fprintf(d.output, "%s %s (%s)\n",
 			prefix,
-			success(filepath.Base(file.path)),
-			label(d.formatter.FormatBytes(file.length)))
+			success(filepath.Base(file.Path)),
+			label(d.formatter.FormatBytes(file.Size)))
 	}
 }
 
@@ -295,19 +296,19 @@ func (d *Display) ShowBatchResults(results []BatchResult, duration time.Duration
 	}
 }
 
-type Formatter struct {
+type BytesFormatter struct {
 	verbose bool
 }
 
-func NewFormatter(verbose bool) *Formatter {
-	return &Formatter{verbose: verbose}
+func NewBytesFormatter(verbose bool) *BytesFormatter {
+	return &BytesFormatter{verbose: verbose}
 }
 
-func (f *Formatter) FormatBytes(bytes int64) string {
+func (f *BytesFormatter) FormatBytes(bytes int64) string {
 	return humanize.IBytes(uint64(bytes))
 }
 
-func (f *Formatter) FormatDuration(dur time.Duration) string {
+func (f *BytesFormatter) FormatDuration(dur time.Duration) string {
 	if dur < time.Second {
 		return fmt.Sprintf("%dms", dur.Milliseconds())
 	}

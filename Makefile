@@ -10,6 +10,7 @@ BUILD_DIR=build
 VERSION=$(shell git describe --tags 2>/dev/null || echo "dev")
 BUILD_TIME=$(shell date +%FT%T%z)
 LDFLAGS=-ldflags "-X main.version=${VERSION} -X main.buildTime=${BUILD_TIME}"
+LDFLAGS_GUI=-ldflags "-X main.version=${VERSION} -X main.buildTime=${BUILD_TIME}"
 
 # race detector settings
 GORACE=log_path=./race_report.log \
@@ -26,8 +27,14 @@ all: clean build install
 build:
 	@echo "Building ${BINARY_NAME}..."
 	@mkdir -p ${BUILD_DIR}
-	CGO_ENABLED=0 $(GO) build ${LDFLAGS} -o ${BUILD_DIR}/${BINARY_NAME}
+	CGO_ENABLED=0 $(GO) build ${LDFLAGS} -o ${BUILD_DIR}/${BINARY_NAME} ./cmd/mkbrr/
 
+# build GUI binary (suppresses console window)
+.PHONY: build-gui
+build-gui:
+	@echo "Building ${BINARY_NAME} (GUI)..."
+	@mkdir -p ${BUILD_DIR}
+	CGO_ENABLED=1 $(GO) build ${LDFLAGS_GUI} -o ${BUILD_DIR}/${BINARY_NAME}-gui ./cmd/mkbrr-gui/
 # build with PGO
 .PHONY: build-pgo
 build-pgo:
@@ -37,7 +44,7 @@ build-pgo:
 		exit 1; \
 	fi
 	@mkdir -p ${BUILD_DIR}
-	CGO_ENABLED=0 $(GO) build -pgo=cpu.pprof ${LDFLAGS} -o ${BUILD_DIR}/${BINARY_NAME}
+	CGO_ENABLED=0 $(GO) build -pgo=cpu.pprof ${LDFLAGS} -o ${BUILD_DIR}/${BINARY_NAME} ./cmd/mkbrr/
 
 # generate PGO profile with various workloads
 .PHONY: profile
@@ -46,7 +53,7 @@ profile:
 	@mkdir -p test_data
 	@dd if=/dev/urandom of=test_data/test1.bin bs=1M count=100
 	@dd if=/dev/urandom of=test_data/test2.bin bs=1M count=100
-	@go build -o ${BUILD_DIR}/${BINARY_NAME}
+	@go build -o ${BUILD_DIR}/${BINARY_NAME} ./cmd/mkbrr/
 	@echo "Running profile workload 1: Large file..."
 	@${BUILD_DIR}/${BINARY_NAME} create test_data/test1.bin --cpuprofile=./cpu1.pprof
 	@echo "Running profile workload 2: Multiple files..."
@@ -62,14 +69,24 @@ profile:
 	fi
 	@rm -rf test_data
 
-# install binary in system path
+# install CLI binary in system path
 .PHONY: install
 install: build
-	@echo "Installing ${BINARY_NAME}..."
+	@echo "Installing ${BINARY_NAME} (CLI)..."
 	@if [ "$$(id -u)" = "0" ]; then \
-		install -m 755 ${BUILD_DIR}/${BINARY_NAME} /usr/local/bin/; \
+		install -m 755 ${BUILD_DIR}/${BINARY_NAME} /usr/local/bin/${BINARY_NAME}; \
 	else \
-		install -m 755 ${BUILD_DIR}/${BINARY_NAME} ${GOBIN}/; \
+		install -m 755 ${BUILD_DIR}/${BINARY_NAME} ${GOBIN}/${BINARY_NAME}; \
+	fi
+
+# install GUI binary in system path
+.PHONY: install-gui
+install-gui: build-gui
+	@echo "Installing ${BINARY_NAME}-gui (GUI)..."
+	@if [ "$$(id -u)" = "0" ]; then \
+		install -m 755 ${BUILD_DIR}/${BINARY_NAME}-gui /usr/local/bin/${BINARY_NAME}-gui; \
+	else \
+		install -m 755 ${BUILD_DIR}/${BINARY_NAME}-gui ${GOBIN}/${BINARY_NAME}-gui; \
 	fi
 
 # install binary with PGO optimization
@@ -104,11 +121,12 @@ test-race-short:
 		cat "./race_report.log"; \
 	fi
 
-# run all tests with race detector (excluding large tests)
+# run all tests with race detector (excluding large tests and GUI)
 .PHONY: test-race
 test-race:
-	@echo "Running tests with race detector..."
-	GORACE="$(GORACE)" $(GO) test -race ./internal/torrent -v
+	@echo "Running tests with race detector (excluding GUI)..."
+	CGO_ENABLED=1
+	GORACE="$(GORACE)" $(GO) test -race ./cmd/mkbrr ./internal/... -v
 	@if [ -f "./race_report.log" ]; then \
 		echo "Race conditions detected! Check race_report.log"; \
 		cat "./race_report.log"; \
@@ -156,10 +174,12 @@ clean:
 .PHONY: help
 help:
 	@echo "Available targets:"
-	@echo "  all            - Clean, build, and install the binary"
-	@echo "  build          - Build the binary"
+	@echo "  all            - Clean, build (CLI), and install the binary"
+	@echo "  build          - Build the standard CLI binary (${BUILD_DIR}/${BINARY_NAME})"
+	@echo "  build-gui      - Build the GUI binary (${BUILD_DIR}/${BINARY_NAME}-gui)"
 	@echo "  build-pgo      - Build the binary with PGO optimization"
-	@echo "  install        - Install the binary in GOPATH"
+	@echo "  install        - Install the CLI binary (to $$GOPATH/bin or /usr/local/bin)"
+	@echo "  install-gui    - Install the GUI binary (to $$GOPATH/bin or /usr/local/bin)"
 	@echo "  install-pgo    - Install the binary with PGO optimization"
 	@echo "  test           - Run tests (excluding large tests)"
 	@echo "  test-race-short- Run quick tests with race detector"
