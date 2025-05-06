@@ -159,8 +159,8 @@ var trackerConfigs = []TrackerConfig{
 	},
 }
 
-// findTrackerConfig returns the config for a given tracker URL
-func findTrackerConfig(trackerURL string) *TrackerConfig {
+// FindTrackerConfig returns the config for a given tracker URL
+func FindTrackerConfig(trackerURL string) *TrackerConfig {
 	for i := range trackerConfigs {
 		for _, url := range trackerConfigs[i].URLs {
 			if strings.Contains(trackerURL, url) {
@@ -174,7 +174,7 @@ func findTrackerConfig(trackerURL string) *TrackerConfig {
 // GetTrackerMaxPieceLength returns the maximum piece length exponent for a tracker if known.
 // This is a hard limit that will not be exceeded.
 func GetTrackerMaxPieceLength(trackerURL string) (uint, bool) {
-	if config := findTrackerConfig(trackerURL); config != nil {
+	if config := FindTrackerConfig(trackerURL); config != nil {
 		return config.MaxPieceLength, config.MaxPieceLength > 0
 	}
 	return 0, false
@@ -182,7 +182,7 @@ func GetTrackerMaxPieceLength(trackerURL string) (uint, bool) {
 
 // GetTrackerPieceSizeExp returns the recommended piece size exponent for a given content size and tracker
 func GetTrackerPieceSizeExp(trackerURL string, contentSize uint64) (uint, bool) {
-	if config := findTrackerConfig(trackerURL); config != nil {
+	if config := FindTrackerConfig(trackerURL); config != nil {
 		if len(config.PieceSizeRanges) > 0 {
 			for _, r := range config.PieceSizeRanges {
 				if contentSize <= r.MaxSize {
@@ -201,7 +201,7 @@ func GetTrackerPieceSizeExp(trackerURL string, contentSize uint64) (uint, bool) 
 
 // GetTrackerMaxTorrentSize returns the maximum allowed .torrent file size for a tracker if known
 func GetTrackerMaxTorrentSize(trackerURL string) (uint64, bool) {
-	if config := findTrackerConfig(trackerURL); config != nil {
+	if config := FindTrackerConfig(trackerURL); config != nil {
 		return config.MaxTorrentSize, config.MaxTorrentSize > 0
 	}
 	return 0, false
@@ -209,7 +209,7 @@ func GetTrackerMaxTorrentSize(trackerURL string) (uint64, bool) {
 
 // GetTrackerDefaultSource returns the default source for a tracker if defined
 func GetTrackerDefaultSource(trackerURL string) (string, bool) {
-	if config := findTrackerConfig(trackerURL); config != nil && config.DefaultSource != "" {
+	if config := FindTrackerConfig(trackerURL); config != nil && config.DefaultSource != "" {
 		return config.DefaultSource, true
 	}
 	return "", false
