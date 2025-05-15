@@ -148,7 +148,7 @@ func displayModifyResults(results []*torrent.Result, opts modifyOptions, display
 func runModify(cmd *cobra.Command, args []string) error {
 	start := time.Now()
 
-	display := torrent.NewDisplay(torrent.NewFormatter(modifyOpts.Verbose))
+	display := torrent.NewDisplay(torrent.NewBytesFormatter(modifyOpts.Verbose))
 	display.SetQuiet(modifyOpts.Quiet)
 	display.ShowMessage(fmt.Sprintf("Modifying %d torrent files...", len(args)))
 

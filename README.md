@@ -1,7 +1,7 @@
 <h1 align="center">⚡ mkbrr</h1> 
 <p align="center"> 
   <strong>Simple. Smart. Fast.</strong><br> 
-  A powerful CLI tool to create, inspect, and modify torrent files. Private by default. Tracker aware.
+  A powerful CLI/GUI tool to create, inspect, and modify torrent files. Private by default. Tracker aware.
 </p>
 <div align="center">
 <p align="center"> 
@@ -31,11 +31,23 @@
 
 **Key Features:**
 - **Fast**: Blazingly fast hashing beating the competition
-- **Simple**: Easy to use CLI
-- **Portable**: Single binary with no dependencies
+- **Simple**: Easy to use via both CLI and a cross-platform GUI
+- **Portable**: Single binary with no dependencies (for both CLI and GUI)
 - **Smart**: Detects possible missing files when creating torrents for season packs
 
-For detailed documentation and guides, visit [mkbrr.com](https://mkbrr.com).
+<details>
+<summary>Screenshots (Click to expand)</summary>
+
+**GUI:**
+![mkbrr GUI Screenshot](.github/assets/gui.png)
+
+**CLI:**
+![mkbrr CLI Screenshot](.github/assets/cli.png)
+
+</details>
+<br>
+
+For detailed documentation and guides, please visit [mkbrr.com](https://mkbrr.com).
 
 ## Quick Start
 
@@ -82,7 +94,13 @@ Choose the method that works best for you:
 
 ### Prebuilt Binaries
 
-Download a ready-to-use binary for your platform from the [releases page](https://github.com/autobrr/mkbrr/releases).
+Download ready-to-use binaries for both the CLI (`mkbrr`) and GUI (`mkbrr-gui`) versions for your platform from the [releases page](https://github.com/autobrr/mkbrr/releases).
+
+> [!NOTE]
+> **macOS Users**: Since the application is not signed/notarized by Apple, you might see a warning that the app is damaged when first opening it. To fix this, run:
+> ```bash
+> sudo xattr -dr com.apple.quarantine /Applications/mkbrr-gui.app
+> ```
 
 ### Homebrew (macOS and Linux)
 
@@ -101,22 +119,41 @@ See [go.mod](https://github.com/autobrr/mkbrr/blob/main/go.mod#L3) for Go versio
 git clone https://github.com/autobrr/mkbrr.git
 cd mkbrr
 
-# Install the binary to $GOPATH/bin
+# Build the CLI binary (output: ./build/mkbrr)
+make build
+
+# Build the GUI binary (output: ./build/mkbrr-gui)
+make build-gui
+
+# Install the CLI binary (to $GOPATH/bin or /usr/local/bin)
 make install
 
-# Or install system-wide (requires sudo)
-sudo make install    # installs to /usr/local/bin
+# Install the GUI binary (to $GOPATH/bin or /usr/local/bin)
+make install-gui
+
+# Use sudo for system-wide installation (e.g., /usr/local/bin)
+# sudo make install
+# sudo make install-gui
 ```
 
 ### Go Install
 
-If you have Go installed:
+If you have Go installed, you can install the CLI or GUI version directly:
 
+**CLI Version:**
 ```bash
-go install github.com/autobrr/mkbrr@latest
+go install github.com/autobrr/mkbrr/cmd/mkbrr@latest
+```
 
-# make sure its in your PATH
-export PATH=$PATH:$(go env GOPATH)/bin
+**GUI Version:**
+```bash
+go install github.com/autobrr/mkbrr/cmd/mkbrr-gui@latest
+```
+
+After installation, ensure `$GOPATH/bin` is in your system's `PATH`:
+```bash
+# Example for bash/zsh
+export PATH="$PATH:$(go env GOPATH)/bin"
 ```
 
 ### Docker
