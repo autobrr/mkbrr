@@ -41,7 +41,7 @@ func TestModifyTorrent_OutputDirPriority(t *testing.T) {
 	presetConfig := `version: 1
 presets:
   test:
-    output_dir: "` + filepath.Join(tmpDir, "preset_output") + `"
+    output_dir: "` + filepath.ToSlash(filepath.Join(tmpDir, "preset_output")) + `"
     private: true
     source: "TEST"
 `
