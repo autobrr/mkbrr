@@ -197,13 +197,19 @@ func ModifyTorrent(path string, opts Options) (*Result, error) {
 		basePath = metaInfoName + ".torrent"
 	}
 
+	// determine output directory: command-line flag takes precedence over preset
+	outputDir := opts.OutputDir
+	if outputDir == "" && presetOpts != nil && presetOpts.OutputDir != "" {
+		outputDir = presetOpts.OutputDir
+	}
+
 	// generate output path using the preset generating helper
-	outPath := preset.GenerateOutputPath(basePath, opts.OutputDir, opts.PresetName, opts.OutputPattern, opts.TrackerURL, metaInfoName, opts.SkipPrefix)
+	outPath := preset.GenerateOutputPath(basePath, outputDir, opts.PresetName, opts.OutputPattern, opts.TrackerURL, metaInfoName, opts.SkipPrefix)
 	result.OutputPath = outPath
 
 	// ensure output directory exists if specified
-	if opts.OutputDir != "" {
-		if err := os.MkdirAll(opts.OutputDir, 0755); err != nil {
+	if outputDir != "" {
+		if err := os.MkdirAll(outputDir, 0755); err != nil {
 			result.Error = fmt.Errorf("could not create output directory: %w", err)
 			return result, result.Error
 		}

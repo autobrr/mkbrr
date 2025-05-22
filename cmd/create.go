@@ -218,6 +218,10 @@ func buildCreateOptions(cmd *cobra.Command, inputPath string, opts createOptions
 			createOpts.Source = presetOpts.Source
 		}
 
+		if presetOpts.OutputDir != "" && !cmd.Flags().Changed("output-dir") {
+			createOpts.OutputDir = presetOpts.OutputDir
+		}
+
 		if presetOpts.NoDate != nil && !cmd.Flags().Changed("no-date") {
 			createOpts.NoDate = *presetOpts.NoDate
 		}

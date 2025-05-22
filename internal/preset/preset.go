@@ -28,6 +28,7 @@ type Options struct {
 	Entropy         *bool    `yaml:"entropy"`
 	Comment         string   `yaml:"comment"`
 	Source          string   `yaml:"source"`
+	OutputDir       string   `yaml:"output_dir"`
 	Version         string   // used for creator string
 	Trackers        []string `yaml:"trackers"`
 	WebSeeds        []string `yaml:"webseeds"`
@@ -127,6 +128,7 @@ func (c *Config) GetPreset(name string) (*Options, error) {
 		merged.WebSeeds = c.Default.WebSeeds
 		merged.Comment = c.Default.Comment
 		merged.Source = c.Default.Source
+		merged.OutputDir = c.Default.OutputDir
 		merged.PieceLength = c.Default.PieceLength
 		merged.MaxPieceLength = c.Default.MaxPieceLength
 		merged.Workers = c.Default.Workers
@@ -153,6 +155,9 @@ func (c *Config) GetPreset(name string) (*Options, error) {
 	}
 	if preset.Source != "" {
 		merged.Source = preset.Source
+	}
+	if preset.OutputDir != "" {
+		merged.OutputDir = preset.OutputDir
 	}
 	if preset.PieceLength != 0 {
 		merged.PieceLength = preset.PieceLength

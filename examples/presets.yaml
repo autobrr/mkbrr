@@ -7,6 +7,7 @@ default:
   no_date: true
   no_creator: false
   skip_prefix: false
+  output_dir: "~/torrents"
   # workers: 2 # override built-in calculation
   # comment: "Default comment for all torrents"  # Torrent comment
   # source: "DEFAULT"                           # Source tag
@@ -20,6 +21,7 @@ default:
 presets:
   ptp:
     source: "PTP"
+    output_dir: "~/torrents/ptp"
     trackers:
       - "https://please.passthe.tea/announce"
     exclude_patterns: # Example: exclude NFO files and samples
@@ -33,6 +35,7 @@ presets:
 
   # Public tracker preset with all options shown
   public:
+    output_dir: "~/torrents/public"
     private: false  # overrides default preset
     no_date: false
     no_creator: true
