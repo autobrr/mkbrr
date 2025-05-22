@@ -19,7 +19,7 @@ COPY . ./
 #ENV GOOS=linux
 #ENV CGO_ENABLED=0
 
-RUN go build -ldflags "-s -w -X main.version=${VERSION} -X main.commit=${REVISION} -X main.date=${BUILDTIME}" -o bin/mkbrr main.go
+RUN go build -ldflags "-s -w -X main.version=${VERSION} -X main.commit=${REVISION} -X main.date=${BUILDTIME}" -o bin/mkbrr cmd/mkbrr/main.go
 
 # build runner
 FROM alpine:latest

@@ -156,7 +156,7 @@ func processBatchMode(opts createOptions, version string, startTime time.Time) e
 			}
 		}
 	} else {
-		display := torrent.NewDisplay(torrent.NewFormatter(opts.verbose))
+		display := torrent.NewDisplay(torrent.NewBytesFormatter(opts.verbose))
 		display.ShowBatchResults(results, time.Since(startTime))
 	}
 	return nil
@@ -296,7 +296,7 @@ func createSingleTorrent(cmd *cobra.Command, args []string, opts createOptions, 
 	if opts.quiet {
 		fmt.Println("Wrote:", torrentInfo.Path)
 	} else {
-		display := torrent.NewDisplay(torrent.NewFormatter(opts.verbose))
+		display := torrent.NewDisplay(torrent.NewBytesFormatter(opts.verbose))
 		display.ShowOutputPathWithTime(torrentInfo.Path, time.Since(startTime))
 	}
 
