@@ -15,7 +15,7 @@ type modifyOptions struct {
 	PresetFile string
 	OutputDir  string
 	Output     string
-	Tracker    string
+	Trackers   []string
 	Comment    string
 	Source     string
 	WebSeeds   []string
@@ -56,7 +56,7 @@ func init() {
 	modifyCmd.Flags().StringVarP(&modifyOpts.Output, "output", "o", "", "custom output filename (without extension)")
 	modifyCmd.Flags().BoolVarP(&modifyOpts.NoDate, "no-date", "d", false, "don't update creation date")
 	modifyCmd.Flags().BoolVarP(&modifyOpts.NoCreator, "no-creator", "", false, "don't write creator")
-	modifyCmd.Flags().StringVarP(&modifyOpts.Tracker, "tracker", "t", "", "tracker URL")
+	modifyCmd.Flags().StringArrayVarP(&modifyOpts.Trackers, "tracker", "t", nil, "tracker URLs (can be specified multiple times)")
 	modifyCmd.Flags().StringArrayVarP(&modifyOpts.WebSeeds, "web-seed", "w", nil, "add web seed URLs")
 	modifyCmd.Flags().BoolVarP(&modifyOpts.Private, "private", "p", true, "make torrent private (default: true)")
 	modifyCmd.Flags().StringVarP(&modifyOpts.Comment, "comment", "c", "", "add comment")
@@ -87,7 +87,7 @@ func buildTorrentOptions(cmd *cobra.Command, opts modifyOptions) torrent.Options
 		DryRun:        opts.DryRun,
 		Verbose:       opts.Verbose,
 		Quiet:         opts.Quiet,
-		TrackerURL:    opts.Tracker,
+		TrackerURLs:   opts.Trackers,
 		WebSeeds:      opts.WebSeeds,
 		Comment:       opts.Comment,
 		Source:        opts.Source,
