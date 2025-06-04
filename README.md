@@ -1,10 +1,10 @@
-<h1 align="center">⚡ mkbrr</h1> 
-<p align="center"> 
-  <strong>Simple. Smart. Fast.</strong><br> 
+<h1 align="center">⚡ mkbrr</h1>
+<p align="center">
+  <strong>Simple. Smart. Fast.</strong><br>
   A powerful CLI tool to create, inspect, and modify torrent files. Private by default. Tracker aware.
 </p>
 <div align="center">
-<p align="center"> 
+<p align="center">
   <img src="https://img.shields.io/badge/Go-1.24-blue?logo=go" alt="Go version">
   <img src="https://img.shields.io/badge/build-passing-brightgreen" alt="Build Status">
   <img src="https://img.shields.io/github/v/release/autobrr/mkbrr" alt="Latest Release">
@@ -234,6 +234,9 @@ mkbrr modify *.torrent --private=false
 
 # See what would be changed without making actual changes
 mkbrr modify original.torrent --tracker https://new-tracker.com --dry-run
+
+# Modifying the torrent to contain multiple trackers
+mkbrr modify original.torrent -t https://first.com -t https://second.com -t https://third.com
 
 # Randomize info hash
 mkbrr modify original.torrent -e
