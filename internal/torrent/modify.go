@@ -21,7 +21,7 @@ type Options struct {
 	PresetFile     string
 	OutputDir      string
 	OutputPattern  string
-	TrackerURL     string
+	TrackerURLs    []string
 	Comment        string
 	Source         string
 	Version        string
@@ -101,10 +101,14 @@ func ModifyTorrent(path string, opts Options) (*Result, error) {
 
 	// apply flag-based overrides:
 	// update tracker if flag provided
-	if opts.TrackerURL != "" {
-		mi.Announce = opts.TrackerURL
-		mi.AnnounceList = [][]string{{opts.TrackerURL}}
+	if len(opts.TrackerURLs) > 0 {
+		mi.Announce = opts.TrackerURLs[0] // Primary announce is the first one
+		announceList := make([][]string, 1)
+		announceList[0] = make([]string, len(opts.TrackerURLs))
+		copy(announceList[0], opts.TrackerURLs)
+		mi.AnnounceList = announceList
 		wasModified = true
+		// Note: This overrides any trackers set by a preset
 	}
 
 	// update web seeds if provided via flag
@@ -204,7 +208,7 @@ func ModifyTorrent(path string, opts Options) (*Result, error) {
 	}
 
 	// generate output path using the preset generating helper
-	outPath := preset.GenerateOutputPath(basePath, outputDir, opts.PresetName, opts.OutputPattern, opts.TrackerURL, metaInfoName, opts.SkipPrefix)
+	outPath := preset.GenerateOutputPath(basePath, outputDir, opts.PresetName, opts.OutputPattern, opts.TrackerURLs[0], metaInfoName, opts.SkipPrefix)
 	result.OutputPath = outPath
 
 	// ensure output directory exists if specified
