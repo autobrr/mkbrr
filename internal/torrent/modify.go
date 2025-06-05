@@ -208,7 +208,13 @@ func ModifyTorrent(path string, opts Options) (*Result, error) {
 	}
 
 	// generate output path using the preset generating helper
-	outPath := preset.GenerateOutputPath(basePath, outputDir, opts.PresetName, opts.OutputPattern, opts.TrackerURLs[0], metaInfoName, opts.SkipPrefix)
+	var trackerForOutput string
+	if len(opts.TrackerURLs) > 0 {
+		trackerForOutput = opts.TrackerURLs[0]
+	} else {
+		trackerForOutput = ""
+	}
+	outPath := preset.GenerateOutputPath(basePath, outputDir, opts.PresetName, opts.OutputPattern, trackerForOutput, metaInfoName, opts.SkipPrefix)
 	result.OutputPath = outPath
 
 	// ensure output directory exists if specified

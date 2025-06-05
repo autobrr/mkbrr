@@ -107,3 +107,86 @@ presets:
 		})
 	}
 }
+
+func TestModifyTorrent_MultipleAndNoTrackers(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "mkbrr-modify-multitracker-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	dummyFilePath := filepath.Join(tmpDir, "dummy.txt")
+	if err := os.WriteFile(dummyFilePath, []byte("test content"), 0644); err != nil {
+		t.Fatalf("Failed to create dummy file: %v", err)
+	}
+
+	torrentPath := filepath.Join(tmpDir, "test.torrent")
+	torrent, err := Create(CreateTorrentOptions{
+		Path:       tmpDir,
+		OutputPath: torrentPath,
+		IsPrivate:  true,
+		NoDate:     true,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create test torrent: %v", err)
+	}
+
+	t.Run("Multiple trackers", func(t *testing.T) {
+		opts := Options{
+			OutputDir: tmpDir,
+			TrackerURLs: []string{
+				"https://tracker1.com/announce",
+				"https://tracker2.com/announce",
+				"https://tracker3.com/announce",
+			},
+			Version: "test",
+		}
+		result, err := ModifyTorrent(torrent.Path, opts)
+		if err != nil {
+			t.Fatalf("ModifyTorrent failed: %v", err)
+		}
+		if result.OutputPath == "" {
+			t.Errorf("Expected output path to be set")
+		}
+		mi, err := LoadFromFile(result.OutputPath)
+		if err != nil {
+			t.Fatalf("Failed to load modified torrent: %v", err)
+		}
+		if mi.Announce != opts.TrackerURLs[0] {
+			t.Errorf("Announce not set to first tracker, got %q", mi.Announce)
+		}
+		if mi.AnnounceList == nil || len(mi.AnnounceList) != 1 || len(mi.AnnounceList[0]) != 3 {
+			t.Errorf("AnnounceList not set correctly: %#v", mi.AnnounceList)
+		}
+		for i, tracker := range opts.TrackerURLs {
+			if mi.AnnounceList[0][i] != tracker {
+				t.Errorf("AnnounceList[%d] = %q, want %q", i, mi.AnnounceList[0][i], tracker)
+			}
+		}
+	})
+
+	t.Run("No tracker", func(t *testing.T) {
+		opts := Options{
+			OutputDir:   tmpDir,
+			TrackerURLs: nil,
+			Version:     "test",
+		}
+		result, err := ModifyTorrent(torrent.Path, opts)
+		if err != nil {
+			t.Fatalf("ModifyTorrent failed: %v", err)
+		}
+		if result.OutputPath == "" {
+			t.Errorf("Expected output path to be set")
+		}
+		mi, err := LoadFromFile(result.OutputPath)
+		if err != nil {
+			t.Fatalf("Failed to load modified torrent: %v", err)
+		}
+		if mi.Announce != "" {
+			t.Errorf("Announce should be empty when no tracker, got %q", mi.Announce)
+		}
+		if mi.AnnounceList != nil && len(mi.AnnounceList) > 0 && len(mi.AnnounceList[0]) > 0 {
+			t.Errorf("AnnounceList should be empty or nil when no tracker, got %#v", mi.AnnounceList)
+		}
+	})
+}
