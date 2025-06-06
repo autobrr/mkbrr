@@ -8,27 +8,28 @@ import (
 
 // CreateTorrentOptions contains all options for creating a torrent
 type CreateTorrentOptions struct {
-	PieceLengthExp  *uint
-	MaxPieceLength  *uint
-	Path            string
-	Name            string
-	TrackerURL      string
-	Comment         string
-	Source          string
-	Version         string
-	OutputPath      string
-	OutputDir       string
-	WebSeeds        []string
-	ExcludePatterns []string
-	IncludePatterns []string
-	Workers         int
-	IsPrivate       bool
-	NoDate          bool
-	NoCreator       bool
-	Verbose         bool
-	Entropy         bool
-	Quiet           bool
-	SkipPrefix      bool
+	PieceLengthExp          *uint
+	MaxPieceLength          *uint
+	Path                    string
+	Name                    string
+	TrackerURL              string
+	Comment                 string
+	Source                  string
+	Version                 string
+	OutputPath              string
+	OutputDir               string
+	WebSeeds                []string
+	ExcludePatterns         []string
+	IncludePatterns         []string
+	Workers                 int
+	IsPrivate               bool
+	NoDate                  bool
+	NoCreator               bool
+	Verbose                 bool
+	Entropy                 bool
+	Quiet                   bool
+	SkipPrefix              bool
+	FailOnSeasonPackWarning bool
 }
 
 // Torrent represents a torrent file with additional functionality

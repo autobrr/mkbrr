@@ -261,10 +261,10 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 		display.SetQuiet(opts.Quiet)
 
 		var pieceHashes [][]byte
-		hasher := NewPieceHasher(files, pieceLenInt, int(numPieces), display)
+		hasher := NewPieceHasher(files, pieceLenInt, int(numPieces), display, opts.FailOnSeasonPackWarning)
 		// Pass the specified or default worker count from opts
 		if err := hasher.hashPieces(opts.Workers); err != nil {
-			return nil, fmt.Errorf("error hashing pieces: %w", err)
+			return nil, err
 		}
 		pieceHashes = hasher.pieces
 

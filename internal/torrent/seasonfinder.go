@@ -114,12 +114,7 @@ func AnalyzeSeasonPack(files []fileEntry) *SeasonPackInfo {
 		}
 
 		if episodeCount < expectedEpisodes {
-			missingCount := expectedEpisodes - episodeCount
-			percentMissing := float64(missingCount) / float64(expectedEpisodes) * 100
-
-			if (missingCount >= 3 && info.MaxEpisode >= 7) || percentMissing > 50 {
-				info.IsSuspicious = true
-			}
+			info.IsSuspicious = true
 		}
 	}
 

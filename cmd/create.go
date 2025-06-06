@@ -16,27 +16,28 @@ import (
 
 // createOptions encapsulates all command-line flag values for the create command
 type createOptions struct {
-	pieceLengthExp    *uint
-	maxPieceLengthExp *uint
-	trackerURL        string
-	comment           string
-	outputPath        string
-	outputDir         string
-	source            string
-	batchFile         string
-	presetName        string
-	presetFile        string
-	webSeeds          []string
-	excludePatterns   []string
-	includePatterns   []string
-	createWorkers     int
-	isPrivate         bool
-	noDate            bool
-	noCreator         bool
-	verbose           bool
-	entropy           bool
-	quiet             bool
-	skipPrefix        bool
+	pieceLengthExp      *uint
+	maxPieceLengthExp   *uint
+	trackerURL          string
+	comment             string
+	outputPath          string
+	outputDir           string
+	source              string
+	batchFile           string
+	presetName          string
+	presetFile          string
+	webSeeds            []string
+	excludePatterns     []string
+	includePatterns     []string
+	createWorkers       int
+	isPrivate           bool
+	noDate              bool
+	noCreator           bool
+	verbose             bool
+	entropy             bool
+	quiet               bool
+	skipPrefix          bool
+	failOnSeasonWarning bool
 }
 
 var options = createOptions{
@@ -104,6 +105,7 @@ func init() {
 	createCmd.Flags().BoolVarP(&options.verbose, "verbose", "v", false, "be verbose")
 	createCmd.Flags().BoolVar(&options.quiet, "quiet", false, "reduced output mode (prints only final torrent path)")
 	createCmd.Flags().BoolVarP(&options.skipPrefix, "skip-prefix", "", false, "don't add tracker domain prefix to output filename")
+	createCmd.Flags().BoolVar(&options.failOnSeasonWarning, "fail-on-season-warning", false, "fail on season pack warning")
 	createCmd.Flags().StringArrayVarP(&options.excludePatterns, "exclude", "", nil, "exclude files matching these patterns (e.g., \"*.nfo,*.jpg\" or --exclude \"*.nfo\" --exclude \"*.jpg\")")
 	createCmd.Flags().StringArrayVarP(&options.includePatterns, "include", "", nil, "include only files matching these patterns (e.g., \"*.mkv,*.mp4\" or --include \"*.mkv\" --include \"*.mp4\")")
 	createCmd.Flags().IntVar(&options.createWorkers, "workers", 0, "number of worker goroutines for hashing (0 for automatic)")
@@ -165,25 +167,26 @@ func processBatchMode(opts createOptions, version string, startTime time.Time) e
 // buildCreateOptions creates a torrent.CreateTorrentOptions struct from command-line options and presets
 func buildCreateOptions(cmd *cobra.Command, inputPath string, opts createOptions, version string) (torrent.CreateTorrentOptions, error) {
 	createOpts := torrent.CreateTorrentOptions{
-		Path:            inputPath,
-		TrackerURL:      opts.trackerURL,
-		WebSeeds:        opts.webSeeds,
-		IsPrivate:       opts.isPrivate,
-		Comment:         opts.comment,
-		PieceLengthExp:  opts.pieceLengthExp,
-		MaxPieceLength:  opts.maxPieceLengthExp,
-		Source:          opts.source,
-		NoDate:          opts.noDate,
-		NoCreator:       opts.noCreator,
-		Verbose:         opts.verbose,
-		Version:         version,
-		Entropy:         opts.entropy,
-		Quiet:           opts.quiet,
-		SkipPrefix:      opts.skipPrefix,
-		ExcludePatterns: opts.excludePatterns,
-		IncludePatterns: opts.includePatterns,
-		Workers:         opts.createWorkers,
-		OutputDir:       opts.outputDir,
+		Path:                    inputPath,
+		TrackerURL:              opts.trackerURL,
+		WebSeeds:                opts.webSeeds,
+		IsPrivate:               opts.isPrivate,
+		Comment:                 opts.comment,
+		PieceLengthExp:          opts.pieceLengthExp,
+		MaxPieceLength:          opts.maxPieceLengthExp,
+		Source:                  opts.source,
+		NoDate:                  opts.noDate,
+		NoCreator:               opts.noCreator,
+		Verbose:                 opts.verbose,
+		Version:                 version,
+		Entropy:                 opts.entropy,
+		Quiet:                   opts.quiet,
+		SkipPrefix:              opts.skipPrefix,
+		ExcludePatterns:         opts.excludePatterns,
+		IncludePatterns:         opts.includePatterns,
+		Workers:                 opts.createWorkers,
+		OutputDir:               opts.outputDir,
+		FailOnSeasonPackWarning: opts.failOnSeasonWarning,
 	}
 
 	// If a preset is specified, load the preset options and merge with command-line flags
@@ -246,6 +249,10 @@ func buildCreateOptions(cmd *cobra.Command, inputPath string, opts createOptions
 
 		if !cmd.Flags().Changed("entropy") && presetOpts.Entropy != nil {
 			createOpts.Entropy = *presetOpts.Entropy
+		}
+
+		if presetOpts.FailOnSeasonWarning != nil && !cmd.Flags().Changed("fail-on-season-warning") {
+			createOpts.FailOnSeasonPackWarning = *presetOpts.FailOnSeasonWarning
 		}
 
 		if len(presetOpts.ExcludePatterns) > 0 {

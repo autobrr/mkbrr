@@ -22,8 +22,9 @@ type pieceHasher struct {
 	numPieces  int
 	readSize   int
 
-	bytesProcessed int64
-	mutex          sync.RWMutex
+	bytesProcessed          int64
+	mutex                   sync.RWMutex
+	failOnSeasonPackWarning bool
 }
 
 // optimizeForWorkload determines optimal read buffer size and number of worker goroutines
@@ -136,6 +137,10 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 	seasonInfo := AnalyzeSeasonPack(h.files)
 
 	h.display.ShowSeasonPackWarnings(seasonInfo)
+
+	if seasonInfo.IsSuspicious && h.failOnSeasonPackWarning {
+		return fmt.Errorf("season pack is suspicious, and --fail-on-season-warning is enabled")
+	}
 
 	var completedPieces uint64
 	piecesPerWorker := (h.numPieces + numWorkers - 1) / numWorkers
@@ -314,7 +319,7 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 	return nil
 }
 
-func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Displayer) *pieceHasher {
+func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Displayer, failOnSeasonPackWarning bool) *pieceHasher {
 	bufferPool := &sync.Pool{
 		New: func() interface{} {
 			buf := make([]byte, pieceLen)
@@ -322,12 +327,13 @@ func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Di
 		},
 	}
 	return &pieceHasher{
-		pieces:     make([][]byte, numPieces),
-		pieceLen:   pieceLen,
-		numPieces:  numPieces,
-		files:      files,
-		display:    display,
-		bufferPool: bufferPool,
+		pieces:                  make([][]byte, numPieces),
+		pieceLen:                pieceLen,
+		numPieces:               numPieces,
+		files:                   files,
+		display:                 display,
+		bufferPool:              bufferPool,
+		failOnSeasonPackWarning: failOnSeasonPackWarning,
 	}
 }
 

@@ -11,6 +11,7 @@ default:
   # workers: 2 # override built-in calculation
   # comment: "Default comment for all torrents"  # Torrent comment
   # source: "DEFAULT"                           # Source tag
+  # fail_on_season_warning: false               # Fail if incomplete season pack detected
   # exclude_patterns:                           # Default list of glob patterns to exclude files
   #   - "*.bak"
   #   - "temp.*"
@@ -31,7 +32,8 @@ presets:
       - "*.mkv"
       - "*.mp4"
     # entropy: true # randomize the hash, useful for cross-seeded torrents
-    #workers: 1 # override built-in calculation
+    # workers: 1 # override built-in calculation
+    # fail_on_season_warning: true # Fail if incomplete season pack detected
 
   # Public tracker preset with all options shown
   public:

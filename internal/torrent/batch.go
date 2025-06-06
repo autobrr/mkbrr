@@ -6,8 +6,9 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/autobrr/mkbrr/internal/preset"
 	"gopkg.in/yaml.v3"
+
+	"github.com/autobrr/mkbrr/internal/preset"
 )
 
 // BatchConfig represents the YAML configuration for batch torrent creation
@@ -18,19 +19,20 @@ type BatchConfig struct {
 
 // BatchJob represents a single torrent creation job within a batch
 type BatchJob struct {
-	Output          string   `yaml:"output"`
-	Path            string   `yaml:"path"`
-	Name            string   `yaml:"-"`
-	Comment         string   `yaml:"comment"`
-	Source          string   `yaml:"source"`
-	Trackers        []string `yaml:"trackers"`
-	WebSeeds        []string `yaml:"webseeds"`
-	ExcludePatterns []string `yaml:"exclude_patterns"`
-	IncludePatterns []string `yaml:"include_patterns"`
-	PieceLength     uint     `yaml:"piece_length"`
-	Private         bool     `yaml:"private"`
-	NoDate          bool     `yaml:"no_date"`
-	SkipPrefix      bool     `yaml:"skip_prefix"`
+	Output              string   `yaml:"output"`
+	Path                string   `yaml:"path"`
+	Name                string   `yaml:"-"`
+	Comment             string   `yaml:"comment"`
+	Source              string   `yaml:"source"`
+	Trackers            []string `yaml:"trackers"`
+	WebSeeds            []string `yaml:"webseeds"`
+	ExcludePatterns     []string `yaml:"exclude_patterns"`
+	IncludePatterns     []string `yaml:"include_patterns"`
+	PieceLength         uint     `yaml:"piece_length"`
+	Private             bool     `yaml:"private"`
+	NoDate              bool     `yaml:"no_date"`
+	SkipPrefix          bool     `yaml:"skip_prefix"`
+	FailOnSeasonWarning bool     `yaml:"fail_on_season_warning"`
 }
 
 // ToCreateOptions converts a BatchJob to CreateTorrentOptions
@@ -41,20 +43,21 @@ func (j *BatchJob) ToCreateOptions(verbose bool, quiet bool, version string) Cre
 	}
 
 	opts := CreateTorrentOptions{
-		Path:            j.Path,
-		Name:            j.Name,
-		TrackerURL:      tracker,
-		WebSeeds:        j.WebSeeds,
-		IsPrivate:       j.Private,
-		Comment:         j.Comment,
-		Source:          j.Source,
-		NoDate:          j.NoDate,
-		Verbose:         verbose,
-		Quiet:           quiet,
-		Version:         version,
-		SkipPrefix:      j.SkipPrefix,
-		ExcludePatterns: j.ExcludePatterns,
-		IncludePatterns: j.IncludePatterns,
+		Path:                    j.Path,
+		Name:                    j.Name,
+		TrackerURL:              tracker,
+		WebSeeds:                j.WebSeeds,
+		IsPrivate:               j.Private,
+		Comment:                 j.Comment,
+		Source:                  j.Source,
+		NoDate:                  j.NoDate,
+		Verbose:                 verbose,
+		Quiet:                   quiet,
+		Version:                 version,
+		SkipPrefix:              j.SkipPrefix,
+		ExcludePatterns:         j.ExcludePatterns,
+		IncludePatterns:         j.IncludePatterns,
+		FailOnSeasonPackWarning: j.FailOnSeasonWarning,
 	}
 
 	if j.PieceLength != 0 {

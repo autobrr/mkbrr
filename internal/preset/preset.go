@@ -21,22 +21,23 @@ type Config struct {
 
 // Options represents the options for a single preset
 type Options struct {
-	Private         *bool    `yaml:"private"`
-	NoDate          *bool    `yaml:"no_date"`
-	NoCreator       *bool    `yaml:"no_creator"`
-	SkipPrefix      *bool    `yaml:"skip_prefix"`
-	Entropy         *bool    `yaml:"entropy"`
-	Comment         string   `yaml:"comment"`
-	Source          string   `yaml:"source"`
-	OutputDir       string   `yaml:"output_dir"`
-	Version         string   // used for creator string
-	Trackers        []string `yaml:"trackers"`
-	WebSeeds        []string `yaml:"webseeds"`
-	ExcludePatterns []string `yaml:"exclude_patterns"`
-	IncludePatterns []string `yaml:"include_patterns"`
-	PieceLength     uint     `yaml:"piece_length"`
-	MaxPieceLength  uint     `yaml:"max_piece_length"`
-	Workers         int      `yaml:"workers"`
+	Private             *bool    `yaml:"private"`
+	NoDate              *bool    `yaml:"no_date"`
+	NoCreator           *bool    `yaml:"no_creator"`
+	SkipPrefix          *bool    `yaml:"skip_prefix"`
+	Entropy             *bool    `yaml:"entropy"`
+	FailOnSeasonWarning *bool    `yaml:"fail_on_season_warning"`
+	Comment             string   `yaml:"comment"`
+	Source              string   `yaml:"source"`
+	OutputDir           string   `yaml:"output_dir"`
+	Version             string   // used for creator string
+	Trackers            []string `yaml:"trackers"`
+	WebSeeds            []string `yaml:"webseeds"`
+	ExcludePatterns     []string `yaml:"exclude_patterns"`
+	IncludePatterns     []string `yaml:"include_patterns"`
+	PieceLength         uint     `yaml:"piece_length"`
+	MaxPieceLength      uint     `yaml:"max_piece_length"`
+	Workers             int      `yaml:"workers"`
 }
 
 // FindPresetFile searches for a preset file in known locations
@@ -112,6 +113,9 @@ func (c *Config) GetPreset(name string) (*Options, error) {
 
 	// if we have defaults in config, use those instead
 	if c.Default != nil {
+		if c.Default.FailOnSeasonWarning != nil {
+			merged.FailOnSeasonWarning = c.Default.FailOnSeasonWarning
+		}
 		if c.Default.Private != nil {
 			merged.Private = c.Default.Private
 		}
@@ -188,6 +192,9 @@ func (c *Config) GetPreset(name string) (*Options, error) {
 	}
 	if preset.Workers != 0 {
 		merged.Workers = preset.Workers
+	}
+	if preset.FailOnSeasonWarning != nil {
+		merged.FailOnSeasonWarning = preset.FailOnSeasonWarning
 	}
 
 	return &merged, nil
