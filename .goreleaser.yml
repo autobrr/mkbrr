@@ -11,39 +11,25 @@ builds:
       - BUILDER
     flags:
       - -pgo=cpu.pprof
-    goos:
-      - linux
-      - windows
-      - darwin
-      - freebsd
-    goarch:
-      - amd64
-      - arm
-      - arm64
-    goarm:
-      - 6
-    ignore:
-      - goos: windows
-        goarch: arm
-      - goos: windows
-        goarch: arm64
-      - goos: darwin
-        goarch: arm
-      - goos: freebsd
-        goarch: arm
-      - goos: freebsd
-        goarch: arm64
-    main: ./main.go
+    main: ./cmd/mkbrr/
     binary: mkbrr
     ldflags:
       - -s -w
       - -X main.version={{.Version}}
       - -X main.buildTime={{.CommitDate}}
 
+  # mkbrr-gui is built separately:
+  # - macOS: using 'fyne package' on macOS runner (universal binary)
+  # - Windows: using 'fyne-cross' on Linux runner
+  # - Linux: using 'fyne-cross' on Linux runner
 archives:
-  - format_overrides:
+  # CLI tool archive
+  - id: mkbrr
+    ids:
+      - mkbrr
+    format_overrides:
       - goos: windows
-        format: zip
+        formats: [ 'zip' ]
     name_template: >-
       {{ .ProjectName }}_
       {{- .Version }}_
@@ -51,8 +37,62 @@ archives:
       {{- if eq .Arch "amd64" }}x86_64
       {{- else }}{{ .Arch }}{{ end }}
 
+  # Windows amd64 GUI Archive
+  - id: mkbrr-gui-windows-amd64
+    format_overrides:
+      - goos: windows
+        formats: [ 'zip' ]
+    name_template: >-
+      {{ .ProjectName }}-gui_
+      {{- .Version }}_
+      windows_x86_64
+    meta: true # Create archive without binaries, just pre-built files
+    files:
+      - src: fyne-cross/bin/windows-amd64/mkbrr-gui.exe
+        dst: mkbrr-gui.exe
+
+  # Windows arm64 GUI Archive
+  - id: mkbrr-gui-windows-arm64
+    format_overrides:
+      - goos: windows
+        formats: [ 'zip' ]
+    name_template: >-
+      {{ .ProjectName }}-gui_
+      {{- .Version }}_
+      windows_arm64
+    meta: true # Create archive without binaries, just pre-built files
+    files:
+      - src: fyne-cross/bin/windows-arm64/mkbrr-gui.exe
+        dst: mkbrr-gui.exe
+
+  # Linux amd64 GUI Archive
+  - id: mkbrr-gui-linux-amd64
+    name_template: >-
+      {{ .ProjectName }}-gui_
+      {{- .Version }}_
+      linux_x86_64
+    meta: true # Create archive without binaries, just pre-built files
+    files:
+      - src: fyne-cross/bin/linux-amd64/mkbrr-gui
+        dst: mkbrr-gui
+
+  # Linux arm64 GUI Archive
+  - id: mkbrr-gui-linux-arm64
+    name_template: >-
+      {{ .ProjectName }}-gui_
+      {{- .Version }}_
+      linux_arm64
+    meta: true # Create archive without binaries, just pre-built files
+    files:
+      - src: fyne-cross/bin/linux-arm64/mkbrr-gui
+        dst: mkbrr-gui
+
 release:
   prerelease: auto
+  # Attach the pre-built DMG directly as an extra file
+  extra_files:
+    - glob: ./dist/mkbrr-gui-darwin-universal.DMG
+      name_template: "{{ .ProjectName }}-gui_{{ .Version }}_darwin_universal.DMG"
   footer: |
     **Full Changelog**: https://github.com/autobrr/mkbrr/compare/{{ .PreviousTag }}...{{ .Tag }}
 
@@ -87,3 +127,5 @@ nfpms:
       - deb
       - rpm
       - archlinux
+
+# TODO: Add nfpms config for mkbrr-gui

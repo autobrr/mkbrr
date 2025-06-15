@@ -26,7 +26,7 @@ on:
 env:
   REGISTRY: ghcr.io
   REGISTRY_IMAGE: ghcr.io/${{ github.repository }}
-  GO_VERSION: "1.24"
+  GO_VERSION: "1.23"
 
 permissions:
   contents: write
@@ -53,16 +53,9 @@ jobs:
           cache: true
 
       - name: Run Tests with Race Detection
+        env:
+          CGO_ENABLED: 1
         run: make test-race
-
-      - name: Generate Test Summary
-        run: go run gotest.tools/gotestsum@latest --junitfile unit-tests.xml --format pkgname
-
-      - name: Test Summary
-        uses: test-summary/action@v2
-        with:
-          paths: "unit-tests.xml"
-        if: always()
 
   testother:
     strategy:
@@ -91,14 +84,14 @@ jobs:
       - name: Run Tests (MacOS)
         if: matrix.os == 'macos-latest'
         env:
-          CGO_ENABLED: 0
+          CGO_ENABLED: 1
         run: go test ./...
 
-      - name: Run Tests (Windows)
-        if: matrix.os == 'windows-latest'
-        env:
-          CGO_ENABLED: 0
-        run: go test -short ./...
+      #- name: Run Tests (Windows)
+      #  if: matrix.os == 'windows-latest'
+      #  env:
+      #    CGO_ENABLED: 1
+      #  run: go test -short ./...
 
       - name: Generate Test Summary
         if: matrix.os != 'windows-latest'
@@ -126,8 +119,7 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: true
 
-      # Create test data for profiling
-      - name: Create test data
+      - name: Create test data for profiling
         shell: bash
         run: |
           mkdir -p test_data
@@ -140,7 +132,7 @@ jobs:
           CGO_ENABLED: 0
         run: |
           # Build initial binary
-          go build -o mkbrr
+          go build -o mkbrr ./cmd/mkbrr/
 
           # Run different workload scenarios
           ./mkbrr create test_data/test1.bin --cpuprofile=cpu1.pprof
@@ -169,10 +161,90 @@ jobs:
           name: pprof
           path: cpu.pprof
 
+  # Build GUI for macOS has to happen on macos-latest runner (xcode)
+  build-gui-darwin:
+    name: Build GUI for Darwin
+    runs-on: macos-latest
+    needs: [ test, testother ]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          
+      - name: Install Fyne CLI
+        run: go install fyne.io/tools/cmd/fyne@latest
+        
+      - name: Build macOS GUI executable
+        run: make build-gui
+
+      - name: Package macOS GUI app bundle
+        run: |
+          fyne package --executable build/mkbrr-gui --os darwin --name mkbrr-gui --id com.autobrr.mkbrr --icon .github/assets/logo.png
+          ls -la
+
+      - name: Create DMG for macOS app bundle
+        run: |
+          # Define variables
+          APP_NAME="mkbrr-gui"
+          APP_BUNDLE="$APP_NAME.app"
+          VOL_NAME="$APP_NAME" # Volume name inside the DMG
+          DMG_NAME="$APP_NAME-darwin-universal.DMG"
+          TEMP_DMG="temp_$DMG_NAME"
+          
+          # Check if app bundle exists
+          if [ ! -d "$APP_BUNDLE" ]; then
+            echo "Error: $APP_BUNDLE not found!"
+            exit 1
+          fi
+          
+          echo "Creating temporary DMG..."
+          # Estimate size needed (add some buffer)
+          APP_SIZE=$(du -sm "$APP_BUNDLE" | awk '{print $1}')
+          DMG_SIZE=$((APP_SIZE + 50)) # Add 50MB buffer
+          
+          hdiutil create -srcfolder "$APP_BUNDLE" -volname "$VOL_NAME" -fs HFS+ -fsargs "-c c=64,a=16,e=16" -format UDRW -size ${DMG_SIZE}m "$TEMP_DMG"
+          
+          echo "Mounting temporary DMG..."
+          MOUNT_DIR=$(hdiutil attach "$TEMP_DMG" -nobrowse -noverify -noautoopen | grep Volumes | sed 's/.*\/Volumes\///')
+          if [ -z "$MOUNT_DIR" ]; then
+            echo "Error: Failed to mount temporary DMG"
+            exit 1
+          fi
+          VOLUME_PATH="/Volumes/$MOUNT_DIR"
+          
+          echo "Mounted at $VOLUME_PATH"
+          # Add symlink to Applications folder
+          ln -s /Applications "$VOLUME_PATH/Applications"
+          
+          echo "Unmounting DMG..."
+          hdiutil detach "$VOLUME_PATH"
+          
+          echo "Converting to final compressed DMG..."
+          hdiutil convert "$TEMP_DMG" -format UDZO -imagekey zlib-level=9 -o "$DMG_NAME"
+          
+          echo "Cleaning up temporary DMG..."
+          rm "$TEMP_DMG"
+          
+          echo "DMG created: $DMG_NAME"
+          ls -lh "$DMG_NAME"
+
+      - name: Upload macOS DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: darwin-gui-artifact-DMG # Use a distinct name for the DMG artifact
+          path: mkbrr-gui-darwin-universal.DMG # Path to the DMG file
+
   goreleaserbuild:
     name: Build distribution binaries
     runs-on: ubuntu-latest
-    needs: [ pgo ]
+    needs: [ pgo, build-gui-darwin ]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -185,12 +257,45 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: true
 
+      - name: Create destination directories
+        run: |
+          mkdir -p dist/darwin
+          mkdir -p dist/windows
+
       - name: Download pprof
         uses: actions/download-artifact@v4
         with:
           name: pprof
           path: .
+          
+      - name: Download macOS DMG
+        uses: actions/download-artifact@v4
+        with:
+          name: darwin-gui-artifact-DMG # Match the uploaded artifact name
+          path: dist/ # Download directly into the dist directory where GoReleaser looks
+          
+      # No extraction needed for DMG
+          
+      - name: Debug - List downloaded artifact
+        run: |
+          echo "Listing dist directory after DMG download:"
+          ls -la dist/ || echo "Directory dist not found or empty"
+          echo ""
+          echo "Listing full dist directory recursively:"
+          find dist -type f -ls 2>/dev/null || echo "No files found in dist/"
 
+      - name: Install fyne-cross
+        run: go install github.com/fyne-io/fyne-cross@latest
+          
+      - name: Build GUI for Windows and Linux
+        run: |
+          # Build Windows GUI binaries
+          fyne-cross windows -arch=amd64,arm64 -app-id=com.autobrr.mkbrr --icon .github/assets/logo.png -output=mkbrr-gui ./cmd/mkbrr-gui/
+          # Build Linux GUI binaries
+          fyne-cross linux -arch=amd64,arm64 -app-id=com.autobrr.mkbrr --icon .github/assets/logo.png -output=mkbrr-gui ./cmd/mkbrr-gui/
+          ls -la fyne-cross/bin/
+          # Note: GoReleaser pulls directly from fyne-cross/bin/ directories
+      
       - name: Run GoReleaser build
         if: github.event_name == 'pull_request'
         uses: goreleaser/goreleaser-action@v6

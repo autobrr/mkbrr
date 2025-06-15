@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -114,7 +115,6 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 	if numWorkers == 0 {
 		// no workers needed, possibly no pieces to hash
 		h.display.ShowProgress(0)
-		h.display.FinishProgress()
 		return nil
 	}
 
@@ -132,7 +132,16 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 	h.mutex.Unlock()
 	h.bytesProcessed = 0
 
-	h.display.ShowFiles(h.files, numWorkers)
+	// Convert fileEntry slice to FileEntry slice for interface compatibility
+	convertedFiles := make([]FileEntry, len(h.files))
+	for i, f := range h.files {
+		convertedFiles[i] = FileEntry{
+			Path: f.path,
+			Size: f.length,
+			Name: filepath.Base(f.path),
+		}
+	}
+	h.display.ShowFiles(convertedFiles, numWorkers)
 
 	seasonInfo := AnalyzeSeasonPack(h.files)
 
@@ -197,7 +206,6 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 		}
 	}
 
-	h.display.FinishProgress()
 	return nil
 }
 

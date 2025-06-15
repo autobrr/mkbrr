@@ -125,7 +125,7 @@ func runInspect(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	display := torrent.NewDisplay(torrent.NewFormatter(inspectOpts.verbose))
+	display := torrent.NewDisplay(torrent.NewBytesFormatter(inspectOpts.verbose))
 	displayStandardInfo(display, mi, info)
 
 	if inspectOpts.verbose {

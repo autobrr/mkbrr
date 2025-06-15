@@ -27,11 +27,7 @@ func init() {
 	rootCmd.AddCommand(versionCmd)
 }
 
-func Execute() error {
-	rootCmd.CompletionOptions.DisableDefaultCmd = true
-	rootCmd.SilenceUsage = false
-
-	rootCmd.SetUsageTemplate(`Usage:
+const commonUsageTemplate = `Usage:
   {{.CommandPath}} [command]
 
 Available Commands:{{range .Commands}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
@@ -41,7 +37,19 @@ Flags:
 {{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}
 
 Use "{{.CommandPath}} [command] --help" for more information about a command.
-`)
+`
 
+func setupCommon() {
+	rootCmd.CompletionOptions.DisableDefaultCmd = true
+	rootCmd.SilenceUsage = false
+	rootCmd.SetUsageTemplate(commonUsageTemplate)
+}
+
+func ExecuteCLI() error {
+	setupCommon()
 	return rootCmd.Execute()
+}
+
+func Execute() error {
+	return ExecuteCLI()
 }
