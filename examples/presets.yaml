@@ -7,9 +7,11 @@ default:
   no_date: true
   no_creator: false
   skip_prefix: false
+  output_dir: "/full/path/to/torrents"
   # workers: 2 # override built-in calculation
   # comment: "Default comment for all torrents"  # Torrent comment
   # source: "DEFAULT"                           # Source tag
+  # fail_on_season_warning: false               # Fail if incomplete season pack detected
   # exclude_patterns:                           # Default list of glob patterns to exclude files
   #   - "*.bak"
   #   - "temp.*"
@@ -20,6 +22,7 @@ default:
 presets:
   ptp:
     source: "PTP"
+    output_dir: "/full/path/to/torrents/ptp"
     trackers:
       - "https://please.passthe.tea/announce"
     exclude_patterns: # Example: exclude NFO files and samples
@@ -29,10 +32,12 @@ presets:
       - "*.mkv"
       - "*.mp4"
     # entropy: true # randomize the hash, useful for cross-seeded torrents
-    #workers: 1 # override built-in calculation
+    # workers: 1 # override built-in calculation
+    # fail_on_season_warning: true # Fail if incomplete season pack detected
 
   # Public tracker preset with all options shown
   public:
+    output_dir: "/full/path/to/torrents/public"
     private: false  # overrides default preset
     no_date: false
     no_creator: true

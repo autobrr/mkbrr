@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	"github.com/anacrolix/torrent/metainfo"
+
+	"github.com/autobrr/mkbrr/internal/preset"
 )
 
 func Test_calculatePieceLength(t *testing.T) {
@@ -222,4 +224,110 @@ func TestCreateTorrent_Symlink(t *testing.T) {
 	}
 
 	t.Logf("Symlink test successful: Torrent created from %q, correctly referencing content from %q", linkDir, realFilePath)
+}
+
+func TestCreateTorrent_OutputDirPriority(t *testing.T) {
+	// Setup temporary directories for test
+	tmpDir, err := os.MkdirTemp("", "mkbrr-create-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Create a non-empty file in the temp directory for the torrent content
+	dummyFilePath := filepath.Join(tmpDir, "dummy.txt")
+	if err := os.WriteFile(dummyFilePath, []byte("test content"), 0644); err != nil {
+		t.Fatalf("Failed to create dummy file: %v", err)
+	}
+
+	// Create preset file
+	presetDir := filepath.Join(tmpDir, "presets")
+	if err := os.Mkdir(presetDir, 0755); err != nil {
+		t.Fatalf("Failed to create presets dir: %v", err)
+	}
+	presetPath := filepath.Join(presetDir, "presets.yaml")
+	presetConfig := `version: 1
+presets:
+  test:
+    output_dir: "` + filepath.ToSlash(filepath.Join(tmpDir, "preset_output")) + `"
+    private: true
+    source: "TEST"
+`
+	if err := os.WriteFile(presetPath, []byte(presetConfig), 0644); err != nil {
+		t.Fatalf("Failed to write preset config: %v", err)
+	}
+
+	// Create the output directories
+	cmdLineOutputDir := filepath.Join(tmpDir, "cmdline_output")
+	presetOutputDir := filepath.Join(tmpDir, "preset_output")
+	if err := os.Mkdir(cmdLineOutputDir, 0755); err != nil {
+		t.Fatalf("Failed to create cmdline output dir: %v", err)
+	}
+	if err := os.Mkdir(presetOutputDir, 0755); err != nil {
+		t.Fatalf("Failed to create preset output dir: %v", err)
+	}
+
+	// Test cases
+	tests := []struct {
+		name           string
+		opts           CreateTorrentOptions
+		expectedOutDir string
+	}{
+		{
+			name: "Command-line OutputDir should take precedence",
+			opts: CreateTorrentOptions{
+				Path:      tmpDir,
+				OutputDir: cmdLineOutputDir,
+				IsPrivate: true,
+				NoDate:    true,
+				NoCreator: true,
+			},
+			expectedOutDir: cmdLineOutputDir,
+		},
+		{
+			name: "Preset OutputDir should be used when no command-line OutputDir",
+			opts: CreateTorrentOptions{
+				Path:      tmpDir,
+				OutputDir: "", // empty to simulate preset usage
+				IsPrivate: true,
+				NoDate:    true,
+				NoCreator: true,
+			},
+			expectedOutDir: presetOutputDir,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// For the preset test case, we need to simulate the preset loading
+			if tt.name == "Preset OutputDir should be used when no command-line OutputDir" {
+				// Load preset options and apply them
+				presetOpts, err := preset.LoadPresetOptions(presetPath, "test")
+				if err != nil {
+					t.Fatalf("Failed to load preset options: %v", err)
+				}
+
+				// Apply preset OutputDir if command-line OutputDir is empty
+				if tt.opts.OutputDir == "" && presetOpts.OutputDir != "" {
+					tt.opts.OutputDir = presetOpts.OutputDir
+				}
+			}
+
+			result, err := Create(tt.opts)
+			if err != nil {
+				t.Fatalf("Create failed: %v", err)
+			}
+
+			// Verify the output path contains the expected directory
+			dir := filepath.Dir(result.Path)
+			if dir != tt.expectedOutDir {
+				t.Errorf("Expected output directory %q, got %q", tt.expectedOutDir, dir)
+			}
+
+			// Verify the file was actually created in the expected directory
+			if _, err := os.Stat(result.Path); os.IsNotExist(err) {
+				t.Errorf("Output file wasn't created at expected path: %s", result.Path)
+			}
+		})
+	}
 }

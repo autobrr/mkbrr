@@ -21,7 +21,7 @@ type Options struct {
 	PresetFile     string
 	OutputDir      string
 	OutputPattern  string
-	TrackerURL     string
+	TrackerURLs    []string
 	Comment        string
 	Source         string
 	Version        string
@@ -101,10 +101,14 @@ func ModifyTorrent(path string, opts Options) (*Result, error) {
 
 	// apply flag-based overrides:
 	// update tracker if flag provided
-	if opts.TrackerURL != "" {
-		mi.Announce = opts.TrackerURL
-		mi.AnnounceList = [][]string{{opts.TrackerURL}}
+	if len(opts.TrackerURLs) > 0 {
+		mi.Announce = opts.TrackerURLs[0] // Primary announce is the first one
+		announceList := make([][]string, 1)
+		announceList[0] = make([]string, len(opts.TrackerURLs))
+		copy(announceList[0], opts.TrackerURLs)
+		mi.AnnounceList = announceList
 		wasModified = true
+		// Note: This overrides any trackers set by a preset
 	}
 
 	// update web seeds if provided via flag
@@ -197,13 +201,25 @@ func ModifyTorrent(path string, opts Options) (*Result, error) {
 		basePath = metaInfoName + ".torrent"
 	}
 
+	// determine output directory: command-line flag takes precedence over preset
+	outputDir := opts.OutputDir
+	if outputDir == "" && presetOpts != nil && presetOpts.OutputDir != "" {
+		outputDir = presetOpts.OutputDir
+	}
+
 	// generate output path using the preset generating helper
-	outPath := preset.GenerateOutputPath(basePath, opts.OutputDir, opts.PresetName, opts.OutputPattern, opts.TrackerURL, metaInfoName, opts.SkipPrefix)
+	var trackerForOutput string
+	if len(opts.TrackerURLs) > 0 {
+		trackerForOutput = opts.TrackerURLs[0]
+	} else {
+		trackerForOutput = ""
+	}
+	outPath := preset.GenerateOutputPath(basePath, outputDir, opts.PresetName, opts.OutputPattern, trackerForOutput, metaInfoName, opts.SkipPrefix)
 	result.OutputPath = outPath
 
 	// ensure output directory exists if specified
-	if opts.OutputDir != "" {
-		if err := os.MkdirAll(opts.OutputDir, 0755); err != nil {
+	if outputDir != "" {
+		if err := os.MkdirAll(outputDir, 0755); err != nil {
 			result.Error = fmt.Errorf("could not create output directory: %w", err)
 			return result, result.Error
 		}

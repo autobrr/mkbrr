@@ -4,7 +4,7 @@
   A powerful CLI/GUI tool to create, inspect, and modify torrent files. Private by default. Tracker aware.
 </p>
 <div align="center">
-<p align="center"> 
+<p align="center">
   <img src="https://img.shields.io/badge/Go-1.24-blue?logo=go" alt="Go version">
   <img src="https://img.shields.io/badge/build-passing-brightgreen" alt="Build Status">
   <img src="https://img.shields.io/github/v/release/autobrr/mkbrr" alt="Latest Release">
@@ -218,6 +218,9 @@ mkbrr create path/to/video-folder -t https://example-tracker.com/announce --incl
 # Create using a specific number of worker threads for hashing (e.g., 8)
 # Experimenting with different values might yield better performance than the default automatic setting.
 mkbrr create path/to/large-file -t https://example-tracker.com/announce --workers 8
+
+# Fail if a potentially incomplete season pack is detected
+mkbrr create path/to/season-pack -t https://example-tracker.com/announce --fail-on-season-warning
 ```
 
 > [!NOTE]
@@ -231,6 +234,8 @@ mkbrr create path/to/large-file -t https://example-tracker.com/announce --worker
 > The `--workers` flag controls the number of concurrent threads used for hashing.
 > - `--workers 0` (or omitting the flag) uses automatic logic to determine the optimal number based on your system.
 > - `--workers N` (where N > 0) uses exactly N threads. While the automatic setting is generally good, you might achieve slightly better performance by manually testing different values for N on your specific hardware and workload.
+>
+> The `--fail-on-season-warning` flag makes mkbrr exit with an error if it detects a potentially incomplete season pack instead of just showing a warning.
 
 ### Inspecting Torrents
 
@@ -271,6 +276,9 @@ mkbrr modify *.torrent --private=false
 
 # See what would be changed without making actual changes
 mkbrr modify original.torrent --tracker https://new-tracker.com --dry-run
+
+# Modifying the torrent to contain multiple trackers
+mkbrr modify original.torrent -t https://first.com -t https://second.com -t https://third.com
 
 # Randomize info hash
 mkbrr modify original.torrent -e
@@ -357,6 +365,18 @@ Hashing pieces... [3220.23 MB/s] 100% [========================================]
 
 Wrote title.torrent (elapsed 3.22s)
 ```
+
+### Strict Season Pack Validation
+
+By default, mkbrr will show a warning but continue creating the torrent when it detects a potentially incomplete season pack. If you want to fail the operation instead, use the `--fail-on-season-warning` flag:
+
+```bash
+# This will exit with an error if missing episodes are detected
+mkbrr create ~/Suspicious.Show.S01.1080p.WEB-DL -t https://tracker.com/announce --fail-on-season-warning
+```
+
+> [!TIP]
+> The `--fail-on-season-warning` flag can also be configured in presets and batch files using the `fail_on_season_warning` field.
 
 
 ## Performance

@@ -267,10 +267,10 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 
 		// Use the displayer from outer scope instead of creating a new one
 		var pieceHashes [][]byte
-		hasher := NewPieceHasher(files, pieceLenInt, int(numPieces), displayer)
+		hasher := NewPieceHasher(files, pieceLenInt, int(numPieces), displayer, opts.FailOnSeasonPackWarning)
 		// Pass the specified or default worker count from opts
 		if err := hasher.hashPieces(opts.Workers); err != nil {
-			return nil, fmt.Errorf("error hashing pieces: %w", err)
+			return nil, err
 		}
 		// Ensure the progress dialog is properly closed
 		displayer.FinishProgress()

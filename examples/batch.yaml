@@ -15,6 +15,7 @@ jobs:
     private: true
     source: "anothertracker"
     no_date: true
+    fail_on_season_warning: true # Fail if incomplete season pack detected
     exclude_patterns: # Example: exclude NFO files and samples
       - "*.nfo"
       - "*sample*"

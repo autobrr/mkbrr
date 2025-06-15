@@ -87,7 +87,7 @@ func TestPieceHasher_Concurrent(t *testing.T) {
 			}
 
 			files, expectedHashes := createTestFilesFast(t, tt.numFiles, tt.fileSize, tt.pieceLen)
-			hasher := NewPieceHasher(files, tt.pieceLen, tt.numPieces, &mockDisplay{})
+			hasher := NewPieceHasher(files, tt.pieceLen, tt.numPieces, &mockDisplay{}, false)
 
 			// test with different worker counts
 			workerCounts := []int{1, 2, 4, 8}
@@ -332,7 +332,7 @@ func TestPieceHasher_EdgeCases(t *testing.T) {
 				t.Skip("skipping unreadable file test on Windows")
 			}
 			files := tt.setup()
-			hasher := NewPieceHasher(files, tt.pieceLen, tt.numPieces, &mockDisplay{})
+			hasher := NewPieceHasher(files, tt.pieceLen, tt.numPieces, &mockDisplay{}, false)
 
 			err := hasher.hashPieces(2)
 			if (err != nil) != tt.wantErr {
@@ -367,7 +367,7 @@ func TestPieceHasher_RaceConditions(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			hasher := NewPieceHasher(files, pieceLen, numPieces, &mockDisplay{})
+			hasher := NewPieceHasher(files, pieceLen, numPieces, &mockDisplay{}, false)
 			if err := hasher.hashPieces(4); err != nil {
 				t.Errorf("hashPieces failed: %v", err)
 				return
@@ -379,7 +379,7 @@ func TestPieceHasher_RaceConditions(t *testing.T) {
 }
 
 func TestPieceHasher_NoFiles(t *testing.T) {
-	hasher := NewPieceHasher([]fileEntry{}, 1<<16, 0, &mockDisplay{})
+	hasher := NewPieceHasher([]fileEntry{}, 1<<16, 0, &mockDisplay{}, false)
 
 	err := hasher.hashPieces(0)
 	if err != nil {
@@ -417,7 +417,7 @@ func TestPieceHasher_ZeroWorkers(t *testing.T) {
 	}
 	f.Close()
 
-	hasher := NewPieceHasher(files, 1<<16, 1, &mockDisplay{})
+	hasher := NewPieceHasher(files, 1<<16, 1, &mockDisplay{}, false)
 
 	// Calling with 0 workers should now trigger automatic optimization or default to 1 worker,
 	// so it should NOT return an error in this case.
@@ -447,7 +447,7 @@ func TestPieceHasher_CorruptedData(t *testing.T) {
 		t.Fatalf("failed to write corrupted file: %v", err)
 	}
 
-	hasher := NewPieceHasher(files, 1<<16, 1, &mockDisplay{})
+	hasher := NewPieceHasher(files, 1<<16, 1, &mockDisplay{}, false)
 	if err := hasher.hashPieces(1); err != nil {
 		t.Fatalf("hashPieces failed: %v", err)
 	}
@@ -509,7 +509,7 @@ func TestPieceHasher_BoundaryConditions(t *testing.T) {
 			for _, workers := range workerCounts {
 				t.Run(fmt.Sprintf("workers_%d", workers), func(t *testing.T) {
 					// Need to create a new hasher instance for each run if pieces are modified in place
-					currentHasher := NewPieceHasher(files, pieceLen, int(numPieces), &mockDisplay{})
+					currentHasher := NewPieceHasher(files, pieceLen, int(numPieces), &mockDisplay{}, false)
 					if err := currentHasher.hashPieces(workers); err != nil {
 						t.Fatalf("hashPieces failed with %d workers: %v", workers, err)
 					}
