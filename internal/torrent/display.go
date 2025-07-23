@@ -236,17 +236,10 @@ func (d *Display) ShowOutputPathWithTime(path string, duration time.Duration) {
 	if !d.formatter.verbose {
 		fmt.Fprintln(d.output)
 	}
-	if duration < time.Second {
-		fmt.Fprintf(d.output, "%s %s (%s)\n",
-			success("Wrote"),
-			white(path),
-			magenta(fmt.Sprintf("elapsed %dms", duration.Milliseconds())))
-	} else {
-		fmt.Fprintf(d.output, "%s %s (%s)\n",
-			success("Wrote"),
-			white(path),
-			magenta(fmt.Sprintf("elapsed %.2fs", duration.Seconds())))
-	}
+	fmt.Fprintf(d.output, "%s %s (%s)\n",
+		success("Wrote"),
+		white(path),
+		magenta(fmt.Sprintf("elapsed %s", d.formatter.FormatDuration(duration))))
 }
 
 func (d *Display) ShowBatchResults(results []BatchResult, duration time.Duration) {
@@ -308,10 +301,21 @@ func (f *Formatter) FormatBytes(bytes int64) string {
 }
 
 func (f *Formatter) FormatDuration(dur time.Duration) string {
-	if dur < time.Second {
+	switch {
+	case dur < time.Second:
 		return fmt.Sprintf("%dms", dur.Milliseconds())
+	case dur < time.Minute:
+		return fmt.Sprintf("%.1fs", dur.Seconds())
+	case dur < time.Hour:
+		minutes := int(dur.Minutes())
+		seconds := int(dur.Seconds()) % 60
+		return fmt.Sprintf("%dm %ds", minutes, seconds)
+	default:
+		hours := int(dur.Hours())
+		minutes := int(dur.Minutes()) % 60
+		seconds := int(dur.Seconds()) % 60
+		return fmt.Sprintf("%dh %dm %ds", hours, minutes, seconds)
 	}
-	return humanize.RelTime(time.Now().Add(-dur), time.Now(), "", "")
 }
 
 func (d *Display) ShowSeasonPackWarnings(info *SeasonPackInfo) {
