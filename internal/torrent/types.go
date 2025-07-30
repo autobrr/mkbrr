@@ -12,7 +12,7 @@ type CreateTorrentOptions struct {
 	MaxPieceLength          *uint
 	Path                    string
 	Name                    string
-	TrackerURL              string
+	TrackerURLs             []string
 	Comment                 string
 	Source                  string
 	Version                 string

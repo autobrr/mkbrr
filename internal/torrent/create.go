@@ -35,18 +35,18 @@ func formatPieceSize(exp uint) string {
 
 // calculatePieceLength calculates the optimal piece length based on total size.
 // The min/max bounds (2^16 to 2^24) take precedence over other constraints
-func calculatePieceLength(totalSize int64, maxPieceLength *uint, trackerURL string, verbose bool) uint {
+func calculatePieceLength(totalSize int64, maxPieceLength *uint, trackerURLs []string, verbose bool) uint {
 	minExp := uint(16)
 	maxExp := uint(24) // default max 16 MiB for automatic calculation, can be overridden up to 2^27
 
 	// check if tracker has a maximum piece length constraint
-	if trackerURL != "" {
-		if trackerMaxExp, ok := trackers.GetTrackerMaxPieceLength(trackerURL); ok {
+	if len(trackerURLs) > 0 && trackerURLs[0] != "" {
+		if trackerMaxExp, ok := trackers.GetTrackerMaxPieceLength(trackerURLs[0]); ok {
 			maxExp = trackerMaxExp
 		}
 
 		// check if tracker has specific piece size ranges
-		if exp, ok := trackers.GetTrackerPieceSizeExp(trackerURL, uint64(totalSize)); ok {
+		if exp, ok := trackers.GetTrackerPieceSizeExp(trackerURLs[0], uint64(totalSize)); ok {
 			// ensure we stay within bounds
 			if exp < minExp {
 				exp = minExp
@@ -145,8 +145,14 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 	}
 
 	mi := &metainfo.MetaInfo{
-		Announce: opts.TrackerURL,
-		Comment:  opts.Comment,
+		Comment: opts.Comment,
+	}
+
+	// Set tracker information
+	if len(opts.TrackerURLs) > 0 {
+		mi.Announce = opts.TrackerURLs[0]
+		// Create announce list with all trackers in a single tier
+		mi.AnnounceList = [][]string{opts.TrackerURLs}
 	}
 
 	if !opts.NoCreator {
@@ -357,8 +363,10 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 		if opts.MaxPieceLength != nil {
 			// Get tracker's max piece length if available
 			maxExp := uint(27) // absolute max 128 MiB
-			if trackerMaxExp, ok := trackers.GetTrackerMaxPieceLength(opts.TrackerURL); ok {
-				maxExp = trackerMaxExp
+			if len(opts.TrackerURLs) > 0 && opts.TrackerURLs[0] != "" {
+				if trackerMaxExp, ok := trackers.GetTrackerMaxPieceLength(opts.TrackerURLs[0]); ok {
+					maxExp = trackerMaxExp
+				}
 			}
 
 			if *opts.MaxPieceLength < 14 || *opts.MaxPieceLength > maxExp {
@@ -366,82 +374,91 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 					maxExp, 1<<(maxExp-20), *opts.MaxPieceLength)
 			}
 		}
-		pieceLength = calculatePieceLength(totalSize, opts.MaxPieceLength, opts.TrackerURL, opts.Verbose)
+		pieceLength = calculatePieceLength(totalSize, opts.MaxPieceLength, opts.TrackerURLs, opts.Verbose)
 	} else {
 		pieceLength = *opts.PieceLengthExp
 
 		// Get tracker's max piece length if available
 		maxExp := uint(27) // absolute max 128 MiB
-		if trackerMaxExp, ok := trackers.GetTrackerMaxPieceLength(opts.TrackerURL); ok {
-			maxExp = trackerMaxExp
+		if len(opts.TrackerURLs) > 0 && opts.TrackerURLs[0] != "" {
+			if trackerMaxExp, ok := trackers.GetTrackerMaxPieceLength(opts.TrackerURLs[0]); ok {
+				maxExp = trackerMaxExp
+			}
 		}
 
 		if pieceLength < 16 || pieceLength > maxExp {
-			if opts.TrackerURL != "" {
+			if len(opts.TrackerURLs) > 0 && opts.TrackerURLs[0] != "" {
 				return nil, fmt.Errorf("piece length exponent must be between 16 (64 KiB) and %d (%d MiB) for %s, got: %d",
-					maxExp, 1<<(maxExp-20), opts.TrackerURL, pieceLength)
+					maxExp, 1<<(maxExp-20), opts.TrackerURLs[0], pieceLength)
 			}
 			return nil, fmt.Errorf("piece length exponent must be between 16 (64 KiB) and %d (%d MiB), got: %d",
 				maxExp, 1<<(maxExp-20), pieceLength)
 		}
 
 		// If we have a tracker with specific ranges, show that we're using them and check if piece length matches
-		if exp, ok := trackers.GetTrackerPieceSizeExp(opts.TrackerURL, uint64(totalSize)); ok {
-			if opts.Verbose {
-				display := NewDisplay(NewFormatter(opts.Verbose))
-				display.SetQuiet(opts.Quiet)
-				display.ShowMessage(fmt.Sprintf("using tracker-specific range for content size: %d MiB (recommended: %s pieces)",
-					totalSize>>20, formatPieceSize(exp)))
-				fmt.Fprintln(display.output)
-				if pieceLength != exp {
-					display.ShowWarning(fmt.Sprintf("custom piece length %s differs from recommendation",
-						formatPieceSize(pieceLength)))
+		if len(opts.TrackerURLs) > 0 && opts.TrackerURLs[0] != "" {
+			if exp, ok := trackers.GetTrackerPieceSizeExp(opts.TrackerURLs[0], uint64(totalSize)); ok {
+				if exp < 16 || exp > maxExp {
+					return nil, fmt.Errorf("piece length exponent %d for %s is outside allowed range 16-%d", exp, opts.TrackerURLs[0], maxExp)
+				}
+				if opts.Verbose {
+					display := NewDisplay(NewFormatter(opts.Verbose))
+					display.SetQuiet(opts.Quiet)
+					display.ShowMessage(fmt.Sprintf("using tracker-specific range for content size: %d MiB (recommended: %s pieces)",
+						totalSize>>20, formatPieceSize(exp)))
+					fmt.Fprintln(display.output)
+					if pieceLength != exp {
+						display.ShowWarning(fmt.Sprintf("custom piece length %s differs from recommendation",
+							formatPieceSize(pieceLength)))
+					}
 				}
 			}
 		}
 	}
 
 	// Check for tracker size limits and adjust piece length if needed
-	if maxSize, ok := trackers.GetTrackerMaxTorrentSize(opts.TrackerURL); ok {
-		// Try creating the torrent with initial piece length
-		t, err := createWithPieceLength(pieceLength)
-		if err != nil {
-			return nil, err
-		}
-
-		// Check if it exceeds size limit
-		torrentData, err := bencode.Marshal(t.MetaInfo)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling torrent data: %w", err)
-		}
-
-		// If it exceeds limit, try increasing piece length until it fits or we hit max
-		for uint64(len(torrentData)) > maxSize && pieceLength < 24 {
-			if opts.Verbose {
-				display := NewDisplay(NewFormatter(opts.Verbose))
-				display.SetQuiet(opts.Quiet)
-				display.ShowWarning(fmt.Sprintf("increasing piece length to reduce torrent size (current: %.1f KiB, limit: %.1f KiB)",
-					float64(len(torrentData))/(1<<10), float64(maxSize)/(1<<10)))
-			}
-
-			pieceLength++
-			t, err = createWithPieceLength(pieceLength)
+	if len(opts.TrackerURLs) > 0 && opts.TrackerURLs[0] != "" {
+		if maxSize, ok := trackers.GetTrackerMaxTorrentSize(opts.TrackerURLs[0]); ok {
+			// Try creating the torrent with initial piece length
+			t, err := createWithPieceLength(pieceLength)
 			if err != nil {
 				return nil, err
 			}
 
-			torrentData, err = bencode.Marshal(t.MetaInfo)
+			// Check if it exceeds size limit
+			torrentData, err := bencode.Marshal(t.MetaInfo)
 			if err != nil {
 				return nil, fmt.Errorf("error marshaling torrent data: %w", err)
 			}
-		}
 
-		if uint64(len(torrentData)) > maxSize {
-			return nil, fmt.Errorf("unable to create torrent under size limit (%.1f KiB) even with maximum piece length",
-				float64(maxSize)/(1<<10))
-		}
+			// If it exceeds limit, try increasing piece length until it fits or we hit max
+			for uint64(len(torrentData)) > maxSize && pieceLength < 24 {
+				if opts.Verbose {
+					display := NewDisplay(NewFormatter(opts.Verbose))
+					display.SetQuiet(opts.Quiet)
+					display.ShowWarning(fmt.Sprintf("increasing piece length to reduce torrent size (current: %.1f KiB, limit: %.1f KiB)",
+						float64(len(torrentData))/(1<<10), float64(maxSize)/(1<<10)))
+				}
 
-		return t, nil
+				pieceLength++
+				t, err = createWithPieceLength(pieceLength)
+				if err != nil {
+					return nil, err
+				}
+
+				torrentData, err = bencode.Marshal(t.MetaInfo)
+				if err != nil {
+					return nil, fmt.Errorf("error marshaling torrent data: %w", err)
+				}
+			}
+
+			if uint64(len(torrentData)) > maxSize {
+				return nil, fmt.Errorf("unable to create torrent under size limit (%.1f KiB) even with maximum piece length",
+					float64(maxSize)/(1<<10))
+			}
+
+			return t, nil
+		}
 	}
 
 	// No size limit, just create with original piece length
@@ -461,8 +478,8 @@ func Create(opts CreateTorrentOptions) (*TorrentInfo, error) {
 	}
 
 	fileName := opts.Name
-	if opts.TrackerURL != "" && !opts.SkipPrefix {
-		fileName = preset.GetDomainPrefix(opts.TrackerURL) + "_" + opts.Name
+	if len(opts.TrackerURLs) > 0 && !opts.SkipPrefix {
+		fileName = preset.GetDomainPrefix(opts.TrackerURLs[0]) + "_" + opts.Name
 	}
 
 	if opts.OutputDir != "" {
@@ -506,7 +523,12 @@ func Create(opts CreateTorrentOptions) (*TorrentInfo, error) {
 		Size:     info.Length,
 		InfoHash: t.MetaInfo.HashInfoBytes().String(),
 		Files:    len(info.Files),
-		Announce: opts.TrackerURL,
+		Announce: func() string {
+			if len(opts.TrackerURLs) > 0 {
+				return opts.TrackerURLs[0]
+			}
+			return ""
+		}(),
 	}
 
 	// display info if verbose

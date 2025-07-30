@@ -37,15 +37,10 @@ type BatchJob struct {
 
 // ToCreateOptions converts a BatchJob to CreateTorrentOptions
 func (j *BatchJob) ToCreateOptions(verbose bool, quiet bool, version string) CreateTorrentOptions {
-	var tracker string
-	if len(j.Trackers) > 0 {
-		tracker = j.Trackers[0]
-	}
-
 	opts := CreateTorrentOptions{
 		Path:                    j.Path,
 		Name:                    j.Name,
-		TrackerURL:              tracker,
+		TrackerURLs:             j.Trackers,
 		WebSeeds:                j.WebSeeds,
 		IsPrivate:               j.Private,
 		Comment:                 j.Comment,

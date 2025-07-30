@@ -19,7 +19,7 @@ func Test_calculatePieceLength(t *testing.T) {
 		name           string
 		totalSize      int64
 		maxPieceLength *uint
-		trackerURL     string
+		trackerURLs    []string
 		want           uint
 		wantPieces     *uint // expected number of pieces (approximate)
 	}{
@@ -86,20 +86,20 @@ func Test_calculatePieceLength(t *testing.T) {
 		{
 			name:       "emp should respect max piece length of 2^23",
 			totalSize:  100 << 30, // 100 GiB
-			trackerURL: "https://empornium.sx/announce?passkey=123",
+			trackerURLs: []string{"https://empornium.sx/announce?passkey=123"},
 			want:       23, // limited to 8 MiB pieces
 		},
 		{
 			name:       "unknown tracker should use default calculation",
 			totalSize:  10 << 30, // 10 GiB
-			trackerURL: "https://unknown.tracker.com/announce",
+			trackerURLs: []string{"https://unknown.tracker.com/announce"},
 			want:       23, // 8 MiB pieces
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := calculatePieceLength(tt.totalSize, tt.maxPieceLength, tt.trackerURL, false)
+			got := calculatePieceLength(tt.totalSize, tt.maxPieceLength, tt.trackerURLs, false)
 			if got != tt.want {
 				t.Errorf("calculatePieceLength() = %v, want %v", got, tt.want)
 			}
@@ -327,6 +327,107 @@ presets:
 			// Verify the file was actually created in the expected directory
 			if _, err := os.Stat(result.Path); os.IsNotExist(err) {
 				t.Errorf("Output file wasn't created at expected path: %s", result.Path)
+			}
+		})
+	}
+}
+
+func TestCreate_MultipleTrackers(t *testing.T) {
+	// Create temporary directory
+	tmpDir, err := os.MkdirTemp("", "mkbrr-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Create test file
+	testFile := filepath.Join(tmpDir, "test.txt")
+	if err := os.WriteFile(testFile, []byte("test content for multiple trackers"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	tests := []struct {
+		name              string
+		trackers          []string
+		expectedAnnounce  string
+		expectedListCount int
+	}{
+		{
+			name:              "Single tracker",
+			trackers:          []string{"https://tracker1.com/announce"},
+			expectedAnnounce:  "https://tracker1.com/announce",
+			expectedListCount: 1,
+		},
+		{
+			name:              "Multiple trackers",
+			trackers:          []string{"https://tracker1.com/announce", "https://tracker2.com/announce", "https://tracker3.com/announce"},
+			expectedAnnounce:  "https://tracker1.com/announce",
+			expectedListCount: 3,
+		},
+		{
+			name:              "No trackers",
+			trackers:          []string{},
+			expectedAnnounce:  "",
+			expectedListCount: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pieceLenExp := uint(16)
+			outputPath := filepath.Join(tmpDir, tt.name+".torrent")
+
+			opts := CreateTorrentOptions{
+				Path:           tmpDir,
+				TrackerURLs:    tt.trackers,
+				OutputPath:     outputPath,
+				IsPrivate:      true,
+				NoCreator:      true,
+				NoDate:         true,
+				PieceLengthExp: &pieceLenExp,
+			}
+
+			// Create the torrent
+			result, err := Create(opts)
+			if err != nil {
+				t.Fatalf("Create() failed: %v", err)
+			}
+
+			// Load the created torrent file
+			mi, err := metainfo.LoadFromFile(result.Path)
+			if err != nil {
+				t.Fatalf("Failed to load created torrent file: %v", err)
+			}
+
+			// Check announce URL
+			if mi.Announce != tt.expectedAnnounce {
+				t.Errorf("Expected announce URL %q, got %q", tt.expectedAnnounce, mi.Announce)
+			}
+
+			// Check announce list
+			if len(tt.trackers) > 0 {
+				if mi.AnnounceList == nil || len(mi.AnnounceList) != 1 {
+					t.Errorf("Expected AnnounceList with 1 tier, got %v", mi.AnnounceList)
+				} else if len(mi.AnnounceList[0]) != tt.expectedListCount {
+					t.Errorf("Expected %d trackers in announce list, got %d", tt.expectedListCount, len(mi.AnnounceList[0]))
+				} else {
+					// Check all trackers are in the announce list
+					for i, tracker := range tt.trackers {
+						if mi.AnnounceList[0][i] != tracker {
+							t.Errorf("Expected tracker %q at position %d, got %q", tracker, i, mi.AnnounceList[0][i])
+						}
+					}
+				}
+			} else {
+				// No trackers case
+				if mi.AnnounceList != nil && len(mi.AnnounceList) > 0 && len(mi.AnnounceList[0]) > 0 {
+					t.Errorf("Expected empty announce list, got %v", mi.AnnounceList)
+				}
+			}
+
+			// Check result announce field
+			if result.Announce != tt.expectedAnnounce {
+				t.Errorf("Expected result announce %q, got %q", tt.expectedAnnounce, result.Announce)
 			}
 		})
 	}
