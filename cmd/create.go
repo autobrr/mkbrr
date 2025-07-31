@@ -50,7 +50,7 @@ var createCmd = &cobra.Command{
 	Long: `Create a new torrent file from a file or directory.
 Supports both single file/directory and batch mode using a YAML config file.
 Supports presets for commonly used settings.
-When a tracker URL is provided, the output filename will use the tracker domain (without TLD) as prefix by default (e.g. "example_filename.torrent"). This behavior can be disabled with --skip-prefix.`,
+When a single tracker URL is provided, the output filename will use the tracker domain (without TLD) as prefix by default (e.g. "example_filename.torrent"). This behavior can be disabled with --skip-prefix. When multiple trackers are specified, no prefix is added.`,
 	Args: func(cmd *cobra.Command, args []string) error {
 		if len(args) > 1 {
 			return fmt.Errorf("accepts at most one arg")

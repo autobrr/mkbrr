@@ -478,7 +478,7 @@ func Create(opts CreateTorrentOptions) (*TorrentInfo, error) {
 	}
 
 	fileName := opts.Name
-	if len(opts.TrackerURLs) > 0 && !opts.SkipPrefix {
+	if len(opts.TrackerURLs) == 1 && !opts.SkipPrefix {
 		fileName = preset.GetDomainPrefix(opts.TrackerURLs[0]) + "_" + opts.Name
 	}
 
