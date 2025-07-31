@@ -185,7 +185,7 @@ func TestModifyTorrent_MultipleAndNoTrackers(t *testing.T) {
 		if mi.Announce != "" {
 			t.Errorf("Announce should be empty when no tracker, got %q", mi.Announce)
 		}
-		if mi.AnnounceList != nil && len(mi.AnnounceList) > 0 && len(mi.AnnounceList[0]) > 0 {
+		if len(mi.AnnounceList) > 0 && len(mi.AnnounceList[0]) > 0 {
 			t.Errorf("AnnounceList should be empty or nil when no tracker, got %#v", mi.AnnounceList)
 		}
 	})

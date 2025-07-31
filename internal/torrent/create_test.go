@@ -84,16 +84,16 @@ func Test_calculatePieceLength(t *testing.T) {
 			want:      24,           // 16 MiB pieces
 		},
 		{
-			name:       "emp should respect max piece length of 2^23",
-			totalSize:  100 << 30, // 100 GiB
+			name:        "emp should respect max piece length of 2^23",
+			totalSize:   100 << 30, // 100 GiB
 			trackerURLs: []string{"https://empornium.sx/announce?passkey=123"},
-			want:       23, // limited to 8 MiB pieces
+			want:        23, // limited to 8 MiB pieces
 		},
 		{
-			name:       "unknown tracker should use default calculation",
-			totalSize:  10 << 30, // 10 GiB
+			name:        "unknown tracker should use default calculation",
+			totalSize:   10 << 30, // 10 GiB
 			trackerURLs: []string{"https://unknown.tracker.com/announce"},
-			want:       23, // 8 MiB pieces
+			want:        23, // 8 MiB pieces
 		},
 	}
 
@@ -420,7 +420,7 @@ func TestCreate_MultipleTrackers(t *testing.T) {
 				}
 			} else {
 				// No trackers case
-				if mi.AnnounceList != nil && len(mi.AnnounceList) > 0 && len(mi.AnnounceList[0]) > 0 {
+				if len(mi.AnnounceList) > 0 && len(mi.AnnounceList[0]) > 0 {
 					t.Errorf("Expected empty announce list, got %v", mi.AnnounceList)
 				}
 			}
