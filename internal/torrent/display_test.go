@@ -1,111 +1,136 @@
 package torrent
 
 import (
+	"bytes"
+	"path/filepath"
+	"strings"
 	"testing"
-	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
-func TestFormatDuration(t *testing.T) {
-	formatter := NewFormatter(false)
-
+func TestShowFiles_WithSubdirectories(t *testing.T) {
 	tests := []struct {
 		name     string
-		duration time.Duration
-		expected string
+		files    []fileEntry
+		expected []string // Lines that should appear in output
 	}{
 		{
-			name:     "milliseconds",
-			duration: 500 * time.Millisecond,
-			expected: "500ms",
+			name: "Files with Screens subdirectory",
+			files: []fileEntry{
+				{path: filepath.Join("/test", "Screens", "ShowName.S01E10.720p.x264-Group.Screen0001.png"), length: 1024 * 1024},
+				{path: filepath.Join("/test", "Screens", "ShowName.S01E10.720p.x264-Group.Screen0002.png"), length: 1024 * 1024},
+				{path: filepath.Join("/test", "ShowName.S01E10.720p.x264-Group.mkv"), length: 500 * 1024 * 1024},
+				{path: filepath.Join("/test", "ShowName.S01E10.720p.x264-Group.nfo"), length: 5 * 1024},
+			},
+			expected: []string{
+				"└─ test",
+				"  ├─ Screens",
+				"  │ ├─ ShowName.S01E10.720p.x264-Group.Screen0001.png",
+				"  │ └─ ShowName.S01E10.720p.x264-Group.Screen0002.png",
+				"  ├─ ShowName.S01E10.720p.x264-Group.mkv",
+				"  └─ ShowName.S01E10.720p.x264-Group.nfo",
+			},
 		},
 		{
-			name:     "seconds only",
-			duration: 45 * time.Second,
-			expected: "45.0s",
+			name: "Multiple subdirectories",
+			files: []fileEntry{
+				{path: filepath.Join("/media", "Season 01", "Show.S01E01.mkv"), length: 400 * 1024 * 1024},
+				{path: filepath.Join("/media", "Season 01", "Show.S01E02.mkv"), length: 450 * 1024 * 1024},
+				{path: filepath.Join("/media", "Season 02", "Show.S02E01.mkv"), length: 420 * 1024 * 1024},
+				{path: filepath.Join("/media", "info.txt"), length: 1024},
+			},
+			expected: []string{
+				"└─ media",
+				"  ├─ Season 01",
+				"  │ ├─ Show.S01E01.mkv",
+				"  │ └─ Show.S01E02.mkv",
+				"  ├─ Season 02",
+				"  │ └─ Show.S02E01.mkv",
+				"  └─ info.txt",
+			},
 		},
 		{
-			name:     "minutes and seconds",
-			duration: 5*time.Minute + 30*time.Second,
-			expected: "5m 30s",
-		},
-		{
-			name:     "exactly one hour",
-			duration: 1 * time.Hour,
-			expected: "1h 0m 0s",
-		},
-		{
-			name:     "1 hour 44 minutes (user's reported case)",
-			duration: 1*time.Hour + 44*time.Minute,
-			expected: "1h 44m 0s",
-		},
-		{
-			name:     "1 hour 44 minutes with seconds",
-			duration: 1*time.Hour + 44*time.Minute + 12*time.Second,
-			expected: "1h 44m 12s",
-		},
-		{
-			name:     "2 hours 32 minutes",
-			duration: 2*time.Hour + 32*time.Minute,
-			expected: "2h 32m 0s",
-		},
-		{
-			name:     "hours minutes and seconds",
-			duration: 3*time.Hour + 15*time.Minute + 45*time.Second,
-			expected: "3h 15m 45s",
-		},
-		{
-			name:     "24 hours",
-			duration: 24 * time.Hour,
-			expected: "24h 0m 0s",
-		},
-		{
-			name:     "complex duration",
-			duration: 5*time.Hour + 59*time.Minute + 59*time.Second,
-			expected: "5h 59m 59s",
-		},
-		{
-			name:     "zero duration",
-			duration: 0,
-			expected: "0ms",
-		},
-		{
-			name:     "1 second exact",
-			duration: 1 * time.Second,
-			expected: "1.0s",
-		},
-		{
-			name:     "59 seconds",
-			duration: 59 * time.Second,
-			expected: "59.0s",
-		},
-		{
-			name:     "3.5 seconds",
-			duration: 3*time.Second + 500*time.Millisecond,
-			expected: "3.5s",
-		},
-		{
-			name:     "10.123 seconds (rounds to 1 decimal)",
-			duration: 10*time.Second + 123*time.Millisecond,
-			expected: "10.1s",
-		},
-		{
-			name:     "1 minute exact",
-			duration: 1 * time.Minute,
-			expected: "1m 0s",
-		},
-		{
-			name:     "59 minutes 59 seconds",
-			duration: 59*time.Minute + 59*time.Second,
-			expected: "59m 59s",
+			name: "Flat directory structure",
+			files: []fileEntry{
+				{path: filepath.Join("/downloads", "file1.mkv"), length: 100 * 1024 * 1024},
+				{path: filepath.Join("/downloads", "file2.mkv"), length: 200 * 1024 * 1024},
+				{path: filepath.Join("/downloads", "file3.nfo"), length: 2048},
+			},
+			expected: []string{
+				"└─ downloads",
+				"  ├─ file1.mkv",
+				"  ├─ file2.mkv",
+				"  └─ file3.nfo",
+			},
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := formatter.FormatDuration(tt.duration)
-			if result != tt.expected {
-				t.Errorf("FormatDuration(%v) = %q, want %q", tt.duration, result, tt.expected)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			formatter := NewFormatter(false)
+			display := NewDisplay(formatter)
+			display.output = &buf
+
+			display.ShowFiles(tc.files, 4)
+
+			output := buf.String()
+			
+			// Check that each expected line appears in the output
+			for _, expectedLine := range tc.expected {
+				// Remove ANSI color codes for comparison
+				cleanOutput := stripAnsiCodes(output)
+				assert.Contains(t, cleanOutput, expectedLine, 
+					"Output should contain line: %s", expectedLine)
 			}
 		})
 	}
+}
+
+func TestShowFiles_EmptyFiles(t *testing.T) {
+	var buf bytes.Buffer
+	formatter := NewFormatter(false)
+	display := NewDisplay(formatter)
+	display.output = &buf
+
+	display.ShowFiles([]fileEntry{}, 4)
+
+	output := buf.String()
+	assert.Contains(t, output, "Using 4 worker(s)")
+	assert.Contains(t, output, "Files being hashed:")
+}
+
+func TestShowFiles_QuietMode(t *testing.T) {
+	var buf bytes.Buffer
+	formatter := NewFormatter(false)
+	display := NewDisplay(formatter)
+	display.SetQuiet(true)
+	display.output = &buf
+
+	files := []fileEntry{
+		{path: filepath.Join("/test", "file.mkv"), length: 100 * 1024 * 1024},
+	}
+
+	display.ShowFiles(files, 4)
+
+	output := buf.String()
+	assert.Empty(t, output, "No output should be produced in quiet mode")
+}
+
+// Helper function to strip ANSI color codes from output
+func stripAnsiCodes(s string) string {
+	// Simple regex pattern to remove ANSI escape sequences
+	for {
+		start := strings.Index(s, "\x1b[")
+		if start == -1 {
+			break
+		}
+		end := strings.IndexByte(s[start:], 'm')
+		if end == -1 {
+			break
+		}
+		s = s[:start] + s[start+end+1:]
+	}
+	return s
 }

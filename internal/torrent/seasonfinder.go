@@ -60,7 +60,7 @@ func AnalyzeSeasonPack(files []fileEntry) *SeasonPackInfo {
 	}
 
 	info := &SeasonPackInfo{
-		IsSeasonPack: true,
+		IsSeasonPack: false, // Will be set to true only if multiple episodes found
 		Season:       season,
 		Episodes:     make([]int, 0),
 	}
@@ -101,7 +101,12 @@ func AnalyzeSeasonPack(files []fileEntry) *SeasonPackInfo {
 	}
 	sort.Ints(info.Episodes)
 
-	if info.MaxEpisode > 0 {
+	// Only consider it a season pack if we have multiple episodes
+	if len(info.Episodes) > 1 {
+		info.IsSeasonPack = true
+	}
+
+	if info.MaxEpisode > 0 && info.IsSeasonPack {
 		episodeCount := len(info.Episodes)
 
 		expectedEpisodes := info.MaxEpisode

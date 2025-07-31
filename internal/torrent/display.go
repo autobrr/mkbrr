@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -98,20 +99,108 @@ func (d *Display) ShowFiles(files []fileEntry, numWorkers int) {
 		return
 	}
 	fmt.Fprintf(d.output, "\n%s\n", magenta("Files being hashed:"))
-	if len(files) > 0 {
-		topDir := filepath.Dir(files[0].path)
-		fmt.Fprintf(d.output, "%s %s\n", "└─", success(filepath.Base(topDir)))
+
+	if len(files) == 0 {
+		return
 	}
-	for i, file := range files {
-		prefix := "  ├─"
-		if i == len(files)-1 {
-			prefix = "  └─"
+
+	// Find the common base directory
+	commonBase := filepath.Dir(files[0].path)
+	for _, file := range files[1:] {
+		dir := filepath.Dir(file.path)
+		for !strings.HasPrefix(dir, commonBase) {
+			commonBase = filepath.Dir(commonBase)
+			if commonBase == "/" || commonBase == "." {
+				break
+			}
 		}
-		fmt.Fprintf(d.output, "%s %s (%s)\n",
-			prefix,
-			success(filepath.Base(file.path)),
-			label(d.formatter.FormatBytes(file.length)))
 	}
+
+	// Build a tree structure
+	type fileNode struct {
+		name     string
+		size     int64
+		isDir    bool
+		children map[string]*fileNode
+	}
+
+	root := &fileNode{
+		name:     filepath.Base(commonBase),
+		isDir:    true,
+		children: make(map[string]*fileNode),
+	}
+
+	// Add files to the tree
+	for _, file := range files {
+		relPath, _ := filepath.Rel(commonBase, file.path)
+		parts := strings.Split(relPath, string(filepath.Separator))
+		
+		current := root
+		for _, part := range parts[:len(parts)-1] {
+			if _, exists := current.children[part]; !exists {
+				current.children[part] = &fileNode{
+					name:     part,
+					isDir:    true,
+					children: make(map[string]*fileNode),
+				}
+			}
+			current = current.children[part]
+		}
+		
+		// Add the file
+		fileName := parts[len(parts)-1]
+		current.children[fileName] = &fileNode{
+			name:  fileName,
+			size:  file.length,
+			isDir: false,
+		}
+	}
+
+	// Display the tree
+	var displayTree func(node *fileNode, prefix string, isLast bool)
+	displayTree = func(node *fileNode, prefix string, isLast bool) {
+		connector := "├─"
+		if isLast {
+			connector = "└─"
+		}
+		
+		if prefix == "" {
+			// Root node
+			fmt.Fprintf(d.output, "%s %s\n", connector, success(node.name))
+		} else {
+			if node.isDir {
+				fmt.Fprintf(d.output, "%s%s %s\n", prefix, connector, success(node.name))
+			} else {
+				fmt.Fprintf(d.output, "%s%s %s (%s)\n", prefix, connector, success(node.name), 
+					label(d.formatter.FormatBytes(node.size)))
+			}
+		}
+
+		// Get sorted children
+		childNames := make([]string, 0, len(node.children))
+		for name := range node.children {
+			childNames = append(childNames, name)
+		}
+		sort.Strings(childNames)
+
+		// Display children
+		for i, childName := range childNames {
+			child := node.children[childName]
+			childPrefix := prefix
+			if prefix == "" {
+				childPrefix = "  "
+			} else {
+				if isLast {
+					childPrefix = prefix + "  "
+				} else {
+					childPrefix = prefix + "│ "
+				}
+			}
+			displayTree(child, childPrefix, i == len(childNames)-1)
+		}
+	}
+
+	displayTree(root, "", true)
 }
 
 func (d *Display) FinishProgress() {

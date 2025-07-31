@@ -3,6 +3,8 @@ package torrent
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestDetectSeasonNumber(t *testing.T) {
@@ -19,10 +21,10 @@ func TestDetectSeasonNumber(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		season := detectSeasonNumber(tc.path)
-		if season != tc.expected {
-			t.Errorf("Expected season %d for path %s, got %d", tc.expected, tc.path, season)
-		}
+		t.Run(tc.path, func(t *testing.T) {
+			season := detectSeasonNumber(tc.path)
+			assert.Equal(t, tc.expected, season, "Season number should match for path %s", tc.path)
+		})
 	}
 }
 
@@ -42,37 +44,19 @@ func TestAnalyzeSeasonPack_MultiEpisode(t *testing.T) {
 
 	info := AnalyzeSeasonPack(files)
 
-	if !info.IsSeasonPack {
-		t.Error("Expected IsSeasonPack to be true")
-	}
-	if info.Season != 2 {
-		t.Errorf("Expected Season 2, got %d", info.Season)
-	}
-	if info.VideoFileCount != 10 {
-		t.Errorf("Expected 10 video files, got %d", info.VideoFileCount)
-	}
-	if info.MaxEpisode != 12 {
-		t.Errorf("Expected MaxEpisode 12, got %d", info.MaxEpisode)
-	}
-	if len(info.Episodes) != 12 {
-		t.Errorf("Expected 12 unique episodes, got %d", len(info.Episodes))
-	}
-	if len(info.MissingEpisodes) != 0 {
-		t.Errorf("Expected no missing episodes, got %v", info.MissingEpisodes)
-	}
-	if info.IsSuspicious {
-		t.Error("Expected IsSuspicious to be false for complete season pack with multi-episode file")
-	}
+	assert.True(t, info.IsSeasonPack, "Should be detected as season pack")
+	assert.Equal(t, 2, info.Season, "Should be Season 2")
+	assert.Equal(t, 10, info.VideoFileCount, "Should have 10 video files")
+	assert.Equal(t, 12, info.MaxEpisode, "Maximum episode should be 12")
+	assert.Len(t, info.Episodes, 12, "Should have 12 unique episodes")
+	assert.Empty(t, info.MissingEpisodes, "Should have no missing episodes")
+	assert.False(t, info.IsSuspicious, "Complete season pack should not be suspicious")
 
 	expectedEpisodes := make([]int, 12)
 	for i := range expectedEpisodes {
 		expectedEpisodes[i] = i + 1
 	}
-	for i, ep := range expectedEpisodes {
-		if i >= len(info.Episodes) || info.Episodes[i] != ep {
-			t.Errorf("Expected episode %d at position %d, got %d (or index out of bounds)", ep, i, info.Episodes[i])
-		}
-	}
+	assert.Equal(t, expectedEpisodes, info.Episodes, "Episodes should match expected sequence")
 }
 
 func TestExtractSeasonEpisode(t *testing.T) {
@@ -88,11 +72,11 @@ func TestExtractSeasonEpisode(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		season, episode := extractSeasonEpisode(tc.filename)
-		if season != tc.expectSeason || episode != tc.expectEpisode {
-			t.Errorf("For %s expected S%02dE%02d, got S%02dE%02d",
-				tc.filename, tc.expectSeason, tc.expectEpisode, season, episode)
-		}
+		t.Run(tc.filename, func(t *testing.T) {
+			season, episode := extractSeasonEpisode(tc.filename)
+			assert.Equal(t, tc.expectSeason, season, "Season should match for %s", tc.filename)
+			assert.Equal(t, tc.expectEpisode, episode, "Episode should match for %s", tc.filename)
+		})
 	}
 }
 
@@ -106,18 +90,45 @@ func TestMultipleEpisodes(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		episodes := extractMultiEpisodes(tc.filename)
+		t.Run(tc.filename, func(t *testing.T) {
+			episodes := extractMultiEpisodes(tc.filename)
+			assert.Equal(t, tc.expectedEpisodes, episodes, "Episodes should match for %s", tc.filename)
+		})
+	}
+}
 
-		if len(episodes) != len(tc.expectedEpisodes) {
-			t.Errorf("For %s expected %v episodes, got %v", tc.filename, tc.expectedEpisodes, episodes)
-			continue
-		}
+func TestAnalyzeSeasonPack_SingleEpisode(t *testing.T) {
+	tests := []struct {
+		name  string
+		files []fileEntry
+	}{
+		{
+			name: "Single episode S01E10",
+			files: []fileEntry{
+				{path: filepath.Join("/test", "Screens", "ShowName.S01E10.720p.x264-Group.Screen0001.png")},
+				{path: filepath.Join("/test", "Screens", "ShowName.S01E10.720p.x264-Group.Screen0002.png")},
+				{path: filepath.Join("/test", "Screens", "ShowName.S01E10.720p.x264-Group.Screen0003.png")},
+				{path: filepath.Join("/test", "Screens", "ShowName.S01E10.720p.x264-Group.Screen0004.png")},
+				{path: filepath.Join("/test", "ShowName.S01E10.720p.x264-Group.mkv")},
+				{path: filepath.Join("/test", "ShowName.S01E10.720p.x264-Group.nfo")},
+			},
+		},
+		{
+			name: "Single episode S02E05",
+			files: []fileEntry{
+				{path: filepath.Join("/test", "Show.S02E05.1080p.mkv")},
+				{path: filepath.Join("/test", "Show.S02E05.1080p.nfo")},
+			},
+		},
+	}
 
-		for i, ep := range episodes {
-			if i < len(tc.expectedEpisodes) && ep != tc.expectedEpisodes[i] {
-				t.Errorf("For %s expected episode %d at position %d, got %d",
-					tc.filename, tc.expectedEpisodes[i], i, ep)
-			}
-		}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			info := AnalyzeSeasonPack(tc.files)
+
+			assert.False(t, info.IsSeasonPack, "Expected IsSeasonPack to be false for single episode")
+			assert.Empty(t, info.MissingEpisodes, "Expected no missing episodes for single episode")
+			assert.False(t, info.IsSuspicious, "Expected IsSuspicious to be false for single episode")
+		})
 	}
 }
