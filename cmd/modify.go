@@ -63,7 +63,7 @@ func init() {
 	modifyCmd.Flags().StringVarP(&modifyOpts.Source, "source", "s", "", "add source string")
 	modifyCmd.Flags().BoolVarP(&modifyOpts.Entropy, "entropy", "e", false, "randomize info hash by adding entropy field")
 	modifyCmd.Flags().BoolVarP(&modifyOpts.Verbose, "verbose", "v", false, "be verbose")
-	modifyCmd.Flags().BoolVar(&modifyOpts.Quiet, "quiet", false, "reduced output mode (prints only final torrent paths)")
+	modifyCmd.Flags().BoolVarP(&modifyOpts.Quiet, "quiet", "q", false, "reduced output mode (prints only final torrent paths)")
 	modifyCmd.Flags().BoolVarP(&modifyOpts.SkipPrefix, "skip-prefix", "", false, "don't add tracker domain prefix to output filename")
 	modifyCmd.Flags().BoolVarP(&modifyOpts.DryRun, "dry-run", "n", false, "show what would be modified without making changes")
 

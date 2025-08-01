@@ -11,6 +11,7 @@ import (
 
 	"github.com/anacrolix/torrent/bencode"
 	"github.com/anacrolix/torrent/metainfo"
+	"github.com/fatih/color"
 
 	"github.com/autobrr/mkbrr/internal/preset"
 	"github.com/autobrr/mkbrr/internal/trackers"
@@ -263,8 +264,8 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 		pieceLenInt := int64(1) << pieceLength
 		numPieces := (totalSize + pieceLenInt - 1) / pieceLenInt
 
-		display := NewDisplay(NewFormatter(opts.Verbose))
-		display.SetQuiet(opts.Quiet)
+		display := NewDisplay(NewFormatter(opts.Verbose || opts.InfoOnly))
+		display.SetQuiet(opts.Quiet || opts.InfoOnly)
 
 		var pieceHashes [][]byte
 		hasher := NewPieceHasher(files, pieceLenInt, int(numPieces), display, opts.FailOnSeasonPackWarning)
@@ -401,9 +402,9 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 				if exp < 16 || exp > maxExp {
 					return nil, fmt.Errorf("piece length exponent %d for %s is outside allowed range 16-%d", exp, opts.TrackerURLs[0], maxExp)
 				}
-				if opts.Verbose {
-					display := NewDisplay(NewFormatter(opts.Verbose))
-					display.SetQuiet(opts.Quiet)
+				if opts.Verbose || opts.InfoOnly {
+					display := NewDisplay(NewFormatter(opts.Verbose || opts.InfoOnly))
+					display.SetQuiet(opts.Quiet || opts.InfoOnly)
 					display.ShowMessage(fmt.Sprintf("using tracker-specific range for content size: %d MiB (recommended: %s pieces)",
 						totalSize>>20, formatPieceSize(exp)))
 					fmt.Fprintln(display.output)
@@ -433,9 +434,9 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 
 			// If it exceeds limit, try increasing piece length until it fits or we hit max
 			for uint64(len(torrentData)) > maxSize && pieceLength < 24 {
-				if opts.Verbose {
-					display := NewDisplay(NewFormatter(opts.Verbose))
-					display.SetQuiet(opts.Quiet)
+				if opts.Verbose || opts.InfoOnly {
+					display := NewDisplay(NewFormatter(opts.Verbose || opts.InfoOnly))
+					display.SetQuiet(opts.Quiet || opts.InfoOnly)
 					display.ShowWarning(fmt.Sprintf("increasing piece length to reduce torrent size (current: %.1f KiB, limit: %.1f KiB)",
 						float64(len(torrentData))/(1<<10), float64(maxSize)/(1<<10)))
 				}
@@ -531,9 +532,15 @@ func Create(opts CreateTorrentOptions) (*TorrentInfo, error) {
 		}(),
 	}
 
-	// display info if verbose
-	if opts.Verbose {
-		display := NewDisplay(NewFormatter(opts.Verbose))
+	// display info if verbose or info-only
+	if opts.Verbose || opts.InfoOnly {
+		if opts.InfoOnly {
+			prevNoColor := color.NoColor
+			color.NoColor = true
+			defer func() { color.NoColor = prevNoColor }()
+		}
+
+		display := NewDisplay(NewFormatter(opts.Verbose || opts.InfoOnly))
 		display.ShowTorrentInfo(t, info)
 		//if len(info.Files) > 0 {
 		//display.ShowFileTree(info)

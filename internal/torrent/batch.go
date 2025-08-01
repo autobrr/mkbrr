@@ -36,7 +36,7 @@ type BatchJob struct {
 }
 
 // ToCreateOptions converts a BatchJob to CreateTorrentOptions
-func (j *BatchJob) ToCreateOptions(verbose bool, quiet bool, version string) CreateTorrentOptions {
+func (j *BatchJob) ToCreateOptions(verbose bool, quiet bool, infoOnly bool, version string) CreateTorrentOptions {
 	opts := CreateTorrentOptions{
 		Path:                    j.Path,
 		Name:                    j.Name,
@@ -48,6 +48,7 @@ func (j *BatchJob) ToCreateOptions(verbose bool, quiet bool, version string) Cre
 		NoDate:                  j.NoDate,
 		Verbose:                 verbose,
 		Quiet:                   quiet,
+		InfoOnly:                infoOnly,
 		Version:                 version,
 		SkipPrefix:              j.SkipPrefix,
 		ExcludePatterns:         j.ExcludePatterns,
@@ -73,7 +74,7 @@ type BatchResult struct {
 }
 
 // ProcessBatch processes a batch configuration file and creates multiple torrents
-func ProcessBatch(configPath string, verbose bool, quiet bool, version string) ([]BatchResult, error) {
+func ProcessBatch(configPath string, verbose bool, quiet bool, infoOnly bool, version string) ([]BatchResult, error) {
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read batch config: %w", err)
@@ -112,7 +113,7 @@ func ProcessBatch(configPath string, verbose bool, quiet bool, version string) (
 		go func() {
 			defer wg.Done()
 			for idx := range jobs {
-				results[idx] = processJob(config.Jobs[idx], verbose, quiet, version)
+				results[idx] = processJob(config.Jobs[idx], verbose, quiet, infoOnly, version)
 			}
 		}()
 	}
@@ -147,7 +148,7 @@ func validateJob(job BatchJob) error {
 	return nil
 }
 
-func processJob(job BatchJob, verbose bool, quiet bool, version string) BatchResult {
+func processJob(job BatchJob, verbose bool, quiet bool, infoOnly bool, version string) BatchResult {
 	result := BatchResult{
 		Job:      job,
 		Trackers: job.Trackers,
@@ -176,7 +177,7 @@ func processJob(job BatchJob, verbose bool, quiet bool, version string) BatchRes
 	}
 
 	// convert job to CreateTorrentOptions
-	opts := job.ToCreateOptions(verbose, quiet, version)
+	opts := job.ToCreateOptions(verbose, quiet, infoOnly, version)
 
 	// create the torrent
 	mi, err := CreateTorrent(opts)

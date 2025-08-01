@@ -7,6 +7,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
 	"github.com/autobrr/mkbrr/internal/preset"
@@ -36,6 +37,7 @@ type createOptions struct {
 	verbose             bool
 	entropy             bool
 	quiet               bool
+	infoOnly            bool
 	skipPrefix          bool
 	failOnSeasonWarning bool
 }
@@ -103,7 +105,8 @@ func init() {
 	createCmd.Flags().BoolVarP(&options.noCreator, "no-creator", "", false, "don't write creator")
 	createCmd.Flags().BoolVarP(&options.entropy, "entropy", "e", false, "randomize info hash by adding entropy field")
 	createCmd.Flags().BoolVarP(&options.verbose, "verbose", "v", false, "be verbose")
-	createCmd.Flags().BoolVar(&options.quiet, "quiet", false, "reduced output mode (prints only final torrent path)")
+	createCmd.Flags().BoolVarP(&options.quiet, "quiet", "q", false, "reduced output mode (prints only final torrent path)")
+	createCmd.Flags().BoolVarP(&options.infoOnly, "info-only", "i", false, "display only torrent info without progress (implies verbose)")
 	createCmd.Flags().BoolVarP(&options.skipPrefix, "skip-prefix", "", false, "don't add tracker domain prefix to output filename")
 	createCmd.Flags().BoolVar(&options.failOnSeasonWarning, "fail-on-season-warning", false, "fail on season pack warning")
 	createCmd.Flags().StringArrayVarP(&options.excludePatterns, "exclude", "", nil, "exclude files matching these patterns (e.g., \"*.nfo,*.jpg\" or --exclude \"*.nfo\" --exclude \"*.jpg\")")
@@ -146,7 +149,7 @@ func setupProfiling(cmd *cobra.Command) (cleanup func(), err error) {
 
 // processBatchMode handles processing multiple torrents using a batch configuration file
 func processBatchMode(opts createOptions, version string, startTime time.Time) error {
-	results, err := torrent.ProcessBatch(opts.batchFile, opts.verbose, opts.quiet, version)
+	results, err := torrent.ProcessBatch(opts.batchFile, opts.verbose, opts.quiet, opts.infoOnly, version)
 	if err != nil {
 		return fmt.Errorf("batch processing failed: %w", err)
 	}
@@ -181,6 +184,7 @@ func buildCreateOptions(cmd *cobra.Command, inputPath string, opts createOptions
 		Version:                 version,
 		Entropy:                 opts.entropy,
 		Quiet:                   opts.quiet,
+		InfoOnly:                opts.infoOnly,
 		SkipPrefix:              opts.skipPrefix,
 		ExcludePatterns:         opts.excludePatterns,
 		IncludePatterns:         opts.includePatterns,
@@ -302,8 +306,16 @@ func createSingleTorrent(cmd *cobra.Command, args []string, opts createOptions, 
 
 	if opts.quiet {
 		fmt.Println("Wrote:", torrentInfo.Path)
-	} else {
+	} else if !opts.infoOnly {
 		display := torrent.NewDisplay(torrent.NewFormatter(opts.verbose))
+		display.ShowOutputPathWithTime(torrentInfo.Path, time.Since(startTime))
+	} else {
+		if opts.infoOnly {
+			prevNoColor := color.NoColor
+			color.NoColor = true
+			defer func() { color.NoColor = prevNoColor }()
+		}
+		display := torrent.NewDisplay(torrent.NewFormatter(opts.verbose || opts.infoOnly))
 		display.ShowOutputPathWithTime(torrentInfo.Path, time.Since(startTime))
 	}
 
