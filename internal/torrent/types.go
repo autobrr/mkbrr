@@ -28,6 +28,7 @@ type CreateTorrentOptions struct {
 	Verbose                 bool
 	Entropy                 bool
 	Quiet                   bool
+	InfoOnly                bool
 	SkipPrefix              bool
 	FailOnSeasonPackWarning bool
 }
