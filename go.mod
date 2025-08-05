@@ -3,7 +3,7 @@ module github.com/autobrr/mkbrr
 go 1.24
 
 require (
-	github.com/KyleSanderson/go-ring v0.0.15
+	github.com/KyleSanderson/go-ring v0.0.16
 	github.com/anacrolix/torrent v1.58.1
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/creativeprojects/go-selfupdate v1.5.0
