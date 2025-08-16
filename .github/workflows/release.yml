@@ -42,7 +42,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -78,7 +78,7 @@ jobs:
       USERPROFILE: ${{ startsWith(matrix.os, 'windows') && 'D:\homedir' || '' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -116,7 +116,7 @@ jobs:
     needs: [ test, testother ]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -175,7 +175,7 @@ jobs:
     needs: [ pgo ]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -186,7 +186,7 @@ jobs:
           cache: true
 
       - name: Download pprof
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: pprof
           path: .
@@ -245,12 +245,12 @@ jobs:
     needs: [ pgo, test ]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Download pprof profile
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: pprof
 
@@ -323,7 +323,7 @@ jobs:
     needs: [ docker ]
     steps:
       - name: Download image digests
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           path: /tmp/digests
           pattern: docker-digests-*
