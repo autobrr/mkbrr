@@ -25,16 +25,24 @@ var trackerConfigs = []TrackerConfig{
 			"anthelion.me",
 		},
 		MaxTorrentSize: 250 << 10, // 250 KiB torrent file size limit
+		DefaultSource: "ANT",
 	},
 	{
 		URLs: []string{
 			"hdbits.org",
-			"beyond-hd.me",
 			"superbits.org",
 			"sptracker.cc",
 		},
 		MaxPieceLength:   24, // max 16 MiB pieces (2^24)
 		UseDefaultRanges: true,
+	},
+	{
+		URLs: []string{
+			"beyond-hd.me",
+		},
+		MaxPieceLength:   24, // max 16 MiB pieces (2^24)
+		UseDefaultRanges: true,
+		DefaultSource:    "BHD",
 	},
 	{
 		URLs: []string{
@@ -53,14 +61,23 @@ var trackerConfigs = []TrackerConfig{
 			{MaxSize: ^uint64(0), PieceExp: 24},  // 16 MiB for > 13.90 GiB
 		},
 		UseDefaultRanges: false,
+		DefaultSource:    "PTP",
 	},
 	{
 		URLs: []string{
-			"empornium.sx",
 			"morethantv.me", // https://mtv/forum/thread/3237?postid=74725#post74725
 		},
 		MaxPieceLength:   23, // max 8 MiB pieces (2^23)
 		UseDefaultRanges: true,
+		DefaultSource:    "MTV",
+	},
+	{
+		URLs: []string{
+			"empornium.sx",
+		},
+		MaxPieceLength:   23, // max 8 MiB pieces (2^23)
+		UseDefaultRanges: true,
+		DefaultSource:    "Emp",
 	},
 	{
 		URLs: []string{
@@ -129,6 +146,7 @@ var trackerConfigs = []TrackerConfig{
 			{MaxSize: ^uint64(0), PieceExp: 27},   // 128 MiB for > 128 GB
 		},
 		UseDefaultRanges: false,
+		DefaultSource:    "seedpool.org",
 	},
 	{
 		URLs: []string{
