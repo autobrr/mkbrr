@@ -198,6 +198,21 @@ var trackerConfigs = []TrackerConfig{
 		},
 		UseDefaultRanges: false,
 	},
+		{
+		URLs: []string{
+			"lst.gg",
+		},
+		MaxPieceLength: 24, // max 16 MiB pieces (2^24)
+		PieceSizeRanges: []PieceSizeRange{ // https://lst/pages/8
+			{MaxSize: 1024 << 20, PieceExp: 20},  // 1 MiB < 1 GB
+			{MaxSize: 4096 << 20, PieceExp: 21},  // 2 MiB for 1-4 GB
+			{MaxSize: 12288 << 20, PieceExp: 22}, // 4 MiB for 4-12 GB
+			{MaxSize: 20480 << 20, PieceExp: 23}, // 8 MiB for 12-20 GB
+			{MaxSize: ^uint64(0), PieceExp: 24},  // 16 MiB for > 20 GB
+		},
+		UseDefaultRanges: false,
+		DefaultSource:    "lst.gg",
+	},
 }
 
 // findTrackerConfig returns the config for a given tracker URL
