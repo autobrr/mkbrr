@@ -226,6 +226,12 @@ var trackerConfigs = []TrackerConfig{
 		},
 		DefaultSource: "Aither",
 	},
+	{
+		URLs: []string{
+			"upload.cx",
+		},
+		DefaultSource: "ULCX",
+	},
 }
 
 // findTrackerConfig returns the config for a given tracker URL
