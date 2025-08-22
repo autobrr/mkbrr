@@ -238,6 +238,12 @@ var trackerConfigs = []TrackerConfig{
 		},
 		DefaultSource: "CapybaraBR",
 	},
+	{
+		URLs: []string{
+			"hawke.uno",
+		},
+		DefaultSource: "HUNO",
+	},
 }
 
 // findTrackerConfig returns the config for a given tracker URL
