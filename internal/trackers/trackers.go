@@ -220,6 +220,12 @@ var trackerConfigs = []TrackerConfig{
 		UseDefaultRanges: false,
 		DefaultSource:    "lst.gg",
 	},
+	{
+		URLs: []string{
+			"aither.cc",
+		},
+		DefaultSource: "Aither",
+	},
 }
 
 // findTrackerConfig returns the config for a given tracker URL
