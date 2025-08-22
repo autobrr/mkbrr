@@ -29,6 +29,13 @@ var trackerConfigs = []TrackerConfig{
 	},
 	{
 		URLs: []string{
+			"nebulance.io",
+		},
+		MaxTorrentSize: 1024 << 10, // 1 MiB torrent file size limit
+		DefaultSource: "NBL",
+	},
+	{
+		URLs: []string{
 			"hdbits.org",
 			"superbits.org",
 			"sptracker.cc",
