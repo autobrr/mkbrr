@@ -232,6 +232,12 @@ var trackerConfigs = []TrackerConfig{
 		},
 		DefaultSource: "ULCX",
 	},
+	{
+		URLs: []string{
+			"capybarabr.com",
+		},
+		DefaultSource: "CapybaraBR",
+	},
 }
 
 // findTrackerConfig returns the config for a given tracker URL
