@@ -7,7 +7,7 @@ type TrackerConfig struct {
 	DefaultSource    string           // default source to use for this tracker
 	URLs             []string         // list of tracker URLs that share this config
 	PieceSizeRanges  []PieceSizeRange // custom piece size ranges for specific content sizes
-	MaxPieceLength   uint             // maximum piece length exponent (2^n)
+	MaxPieceLength   uint             // maximum piece length exponent (2^n). default is 24 (16 MiB) from create.go
 	MaxTorrentSize   uint64           // maximum .torrent file size in bytes (0 means no limit)
 	UseDefaultRanges bool             // whether to use default piece size ranges when content size is outside custom ranges
 }
