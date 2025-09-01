@@ -108,14 +108,12 @@ func ProcessBatch(configPath string, verbose bool, quiet bool, infoOnly bool, ve
 	jobs := make(chan int, len(config.Jobs))
 
 	// start workers
-	for i := 0; i < workers; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range workers {
+		wg.Go(func() {
 			for idx := range jobs {
 				results[idx] = processJob(config.Jobs[idx], verbose, quiet, infoOnly, version)
 			}
-		}()
+		})
 	}
 
 	// send jobs to workers

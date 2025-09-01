@@ -154,7 +154,7 @@ func ModifyTorrent(path string, opts Options) (*Result, error) {
 
 	// add random entropy field for cross-seeding if enabled
 	if opts.Entropy {
-		infoMap := make(map[string]interface{})
+		infoMap := make(map[string]any)
 		if err := bencode.Unmarshal(mi.InfoBytes, &infoMap); err == nil {
 			if entropy, err := generateRandomString(); err == nil {
 				infoMap["entropy"] = entropy

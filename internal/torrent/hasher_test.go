@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha1"
 	"fmt"
+	"hash"
 	"io"
 	"os"
 	"path/filepath"
@@ -115,7 +116,7 @@ func createTestFilesFast(t *testing.T, numFiles int, fileSize, pieceLen int64) (
 		pattern[i] = byte((i*7 + 13) % 251) // prime numbers help create distribution
 	}
 
-	for i := 0; i < numFiles; i++ {
+	for i := range numFiles {
 		path := filepath.Join(tempDir, fmt.Sprintf("test_file_%d", i))
 
 		f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0644)
@@ -223,12 +224,9 @@ func createTestFilesWithPattern(t *testing.T, tempDir string, fileSizes []int64,
 	numPieces := (totalSize + pieceLen - 1) / pieceLen
 
 	h := sha1.New()
-	for i := int64(0); i < numPieces; i++ {
+	for i := range numPieces {
 		start := i * pieceLen
-		end := start + pieceLen
-		if end > totalSize {
-			end = totalSize
-		}
+		end := min(start+pieceLen, totalSize)
 		h.Reset()
 		h.Write(globalData[start:end])
 		allExpectedHashes = append(allExpectedHashes, h.Sum(nil))
@@ -354,17 +352,15 @@ func TestPieceHasher_RaceConditions(t *testing.T) {
 	files, expectedHashes := createTestFilesFast(t, numFiles, fileSize, pieceLen)
 
 	var wg sync.WaitGroup
-	for i := 0; i < 4; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range 4 {
+		wg.Go(func() {
 			hasher := NewPieceHasher(files, pieceLen, numPieces, &mockDisplay{}, false)
 			if err := hasher.hashPieces(4); err != nil {
 				t.Errorf("hashPieces failed: %v", err)
 				return
 			}
 			verifyHashes(t, hasher.pieces, expectedHashes)
-		}()
+		})
 	}
 	wg.Wait()
 }
@@ -637,5 +633,38 @@ func TestTorrentFileSize(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestHashCloner verifies that the hash.Cloner optimization is working in Go 1.25+
+func TestHashCloner(t *testing.T) {
+	// Test that SHA1 hasher implements the Cloner interface in Go 1.25+
+	baseHasher := sha1.New()
+
+	// Test hash cloning with Go 1.25 hash.Cloner interface
+	baseHasher.Write([]byte("test data"))
+	originalSum := baseHasher.Sum(nil)
+
+	clonedHasher, err := baseHasher.(hash.Cloner).Clone()
+	if err != nil {
+		t.Errorf("failed to clone hasher: %v", err)
+		return
+	}
+	clonedSum := clonedHasher.Sum(nil)
+
+	if !bytes.Equal(originalSum, clonedSum) {
+		t.Errorf("cloned hasher state mismatch: original=%x, cloned=%x", originalSum, clonedSum)
+	}
+
+	// Verify they're independent - modifying one shouldn't affect the other
+	clonedHasher.Write([]byte(" more data"))
+	newClonedSum := clonedHasher.Sum(nil)
+	unchangedOriginalSum := baseHasher.Sum(nil)
+
+	if bytes.Equal(unchangedOriginalSum, newClonedSum) {
+		t.Error("cloned hasher is not independent - modifications affected original")
+	}
+	if !bytes.Equal(unchangedOriginalSum, originalSum) {
+		t.Error("original hasher state was unexpectedly modified")
 	}
 }

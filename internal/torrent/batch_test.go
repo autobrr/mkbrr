@@ -46,7 +46,7 @@ func TestProcessBatch(t *testing.T) {
 
 	// create batch config file
 	configPath := filepath.Join(tmpDir, "batch.yaml")
-	configContent := []byte(fmt.Sprintf(`version: 1
+	configContent := fmt.Appendf(nil, `version: 1
 jobs:
   - output: %s
     path: %s
@@ -67,7 +67,7 @@ jobs:
 		filepath.Join(tmpDir, "file1.torrent"),
 		filepath.Join(tmpDir, "file1.txt"),
 		filepath.Join(tmpDir, "dir1.torrent"),
-		filepath.Join(tmpDir, "dir1")))
+		filepath.Join(tmpDir, "dir1"))
 
 	if err := os.WriteFile(configPath, configContent, 0644); err != nil {
 		t.Fatalf("Failed to write config file: %v", err)

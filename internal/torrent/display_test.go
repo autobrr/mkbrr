@@ -76,12 +76,12 @@ func TestShowFiles_WithSubdirectories(t *testing.T) {
 			display.ShowFiles(tc.files, 4)
 
 			output := buf.String()
-			
+
 			// Check that each expected line appears in the output
 			for _, expectedLine := range tc.expected {
 				// Remove ANSI color codes for comparison
 				cleanOutput := stripAnsiCodes(output)
-				assert.Contains(t, cleanOutput, expectedLine, 
+				assert.Contains(t, cleanOutput, expectedLine,
 					"Output should contain line: %s", expectedLine)
 			}
 		})

@@ -25,14 +25,14 @@ var trackerConfigs = []TrackerConfig{
 			"anthelion.me",
 		},
 		MaxTorrentSize: 250 << 10, // 250 KiB torrent file size limit
-		DefaultSource: "ANT",
+		DefaultSource:  "ANT",
 	},
 	{
 		URLs: []string{
 			"nebulance.io",
 		},
 		MaxTorrentSize: 1024 << 10, // 1 MiB torrent file size limit
-		DefaultSource: "NBL",
+		DefaultSource:  "NBL",
 	},
 	{
 		URLs: []string{
@@ -205,7 +205,7 @@ var trackerConfigs = []TrackerConfig{
 		},
 		UseDefaultRanges: false,
 	},
-		{
+	{
 		URLs: []string{
 			"lst.gg",
 		},
