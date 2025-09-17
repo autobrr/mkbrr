@@ -9,7 +9,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
-	"github.com/autobrr/mkbrr/internal/torrent"
+	"github.com/autobrr/mkbrr/torrent"
 )
 
 // inspectOptions encapsulates command-line flag values for the inspect command

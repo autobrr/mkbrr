@@ -596,7 +596,7 @@ func TestTorrentFileSize(t *testing.T) {
 			}
 
 			// Create torrent
-			opts := CreateTorrentOptions{
+			opts := CreateOptions{
 				Path:           testPath,
 				TrackerURLs:    []string{tt.trackerURL},
 				PieceLengthExp: &tt.pieceLen,

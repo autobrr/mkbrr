@@ -22,7 +22,7 @@ func TestModifyTorrent_OutputDirPriority(t *testing.T) {
 
 	// Create test torrent file (minimal content for test)
 	torrentPath := filepath.Join(tmpDir, "test.torrent")
-	torrent, err := Create(CreateTorrentOptions{
+	torrent, err := Create(CreateOptions{
 		Path:       tmpDir,
 		OutputPath: torrentPath,
 		IsPrivate:  true,
@@ -62,12 +62,12 @@ presets:
 	// Test cases
 	tests := []struct {
 		name           string
-		opts           Options
+		opts           ModifyOptions
 		expectedOutDir string
 	}{
 		{
 			name: "Command-line OutputDir should take precedence",
-			opts: Options{
+			opts: ModifyOptions{
 				PresetName: "test",
 				PresetFile: presetPath,
 				OutputDir:  cmdLineOutputDir,
@@ -77,7 +77,7 @@ presets:
 		},
 		{
 			name: "Preset OutputDir should be used when no command-line OutputDir",
-			opts: Options{
+			opts: ModifyOptions{
 				PresetName: "test",
 				PresetFile: presetPath,
 				OutputDir:  "", // empty to use preset
@@ -121,7 +121,7 @@ func TestModifyTorrent_MultipleAndNoTrackers(t *testing.T) {
 	}
 
 	torrentPath := filepath.Join(tmpDir, "test.torrent")
-	torrent, err := Create(CreateTorrentOptions{
+	torrent, err := Create(CreateOptions{
 		Path:       tmpDir,
 		OutputPath: torrentPath,
 		IsPrivate:  true,
@@ -132,7 +132,7 @@ func TestModifyTorrent_MultipleAndNoTrackers(t *testing.T) {
 	}
 
 	t.Run("Multiple trackers", func(t *testing.T) {
-		opts := Options{
+		opts := ModifyOptions{
 			OutputDir: tmpDir,
 			TrackerURLs: []string{
 				"https://tracker1.com/announce",
@@ -166,7 +166,7 @@ func TestModifyTorrent_MultipleAndNoTrackers(t *testing.T) {
 	})
 
 	t.Run("No tracker", func(t *testing.T) {
-		opts := Options{
+		opts := ModifyOptions{
 			OutputDir:   tmpDir,
 			TrackerURLs: nil,
 			Version:     "test",

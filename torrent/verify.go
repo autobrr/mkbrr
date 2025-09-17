@@ -52,6 +52,8 @@ type pieceVerifier struct {
 }
 
 // VerifyData checks the integrity of content files against a torrent file.
+// It compares the actual file data against the piece hashes in the torrent.
+// Returns detailed verification results including bad pieces and missing files.
 func VerifyData(opts VerifyOptions) (*VerificationResult, error) {
 	mi, err := metainfo.LoadFromFile(opts.TorrentPath)
 	if err != nil {

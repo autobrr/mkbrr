@@ -137,7 +137,10 @@ func generateRandomString() (string, error) {
 	return fmt.Sprintf("%x", b), nil
 }
 
-func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
+// CreateTorrent creates a new torrent file from the given options.
+// Returns a Torrent struct containing the metainfo.
+// This is the lower-level function; use Create() for a higher-level interface.
+func CreateTorrent(opts CreateOptions) (*Torrent, error) {
 	path := filepath.ToSlash(opts.Path)
 	name := opts.Name
 	if name == "" {
@@ -264,8 +267,16 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 		pieceLenInt := int64(1) << pieceLength
 		numPieces := (totalSize + pieceLenInt - 1) / pieceLenInt
 
-		display := NewDisplay(NewFormatter(opts.Verbose || opts.InfoOnly))
-		display.SetQuiet(opts.Quiet || opts.InfoOnly)
+		var display Displayer
+		if opts.ProgressCallback != nil {
+			// Use callback displayer when progress callback is provided
+			display = &callbackDisplayer{callback: opts.ProgressCallback}
+		} else {
+			// Use default display when no callback is provided
+			defaultDisplay := NewDisplay(NewFormatter(opts.Verbose || opts.InfoOnly))
+			defaultDisplay.SetQuiet(opts.Quiet || opts.InfoOnly)
+			display = defaultDisplay
+		}
 
 		var pieceHashes [][]byte
 		hasher := NewPieceHasher(files, pieceLenInt, int(numPieces), display, opts.FailOnSeasonPackWarning)
@@ -466,8 +477,11 @@ func CreateTorrent(opts CreateTorrentOptions) (*Torrent, error) {
 	return createWithPieceLength(pieceLength)
 }
 
-// Create creates a new torrent file with the given options
-func Create(opts CreateTorrentOptions) (*TorrentInfo, error) {
+// Create creates a new torrent file with the given options.
+// Returns TorrentInfo containing summary information about the created torrent.
+// The torrent file is automatically saved to disk based on the output options.
+// This is the main high-level function for torrent creation.
+func Create(opts CreateOptions) (*TorrentInfo, error) {
 	// validate input path
 	if _, err := os.Stat(opts.Path); err != nil {
 		return nil, fmt.Errorf("invalid path %q: %w", opts.Path, err)

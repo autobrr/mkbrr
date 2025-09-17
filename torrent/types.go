@@ -6,8 +6,14 @@ import (
 	"github.com/anacrolix/torrent/metainfo"
 )
 
-// CreateTorrentOptions contains all options for creating a torrent
-type CreateTorrentOptions struct {
+// ProgressCallback is called during torrent creation to report progress.
+// completed: number of pieces hashed so far
+// total: total number of pieces to hash
+// hashRate: current hashing rate in MB/s
+type ProgressCallback func(completed, total int, hashRate float64)
+
+// CreateOptions contains all options for creating a torrent
+type CreateOptions struct {
 	PieceLengthExp          *uint
 	MaxPieceLength          *uint
 	Path                    string
@@ -31,6 +37,9 @@ type CreateTorrentOptions struct {
 	InfoOnly                bool
 	SkipPrefix              bool
 	FailOnSeasonPackWarning bool
+	// ProgressCallback is called during hashing to report progress.
+	// If nil, no progress callbacks will be made.
+	ProgressCallback        ProgressCallback
 }
 
 // Torrent represents a torrent file with additional functionality
@@ -78,4 +87,43 @@ type VerificationResult struct {
 	BadPieces       int
 	MissingPieces   int
 	Completion      float64
+}
+
+// callbackDisplayer adapts a ProgressCallback to the Displayer interface
+type callbackDisplayer struct {
+	callback ProgressCallback
+	total    int
+}
+
+// ShowProgress implements Displayer interface
+func (c *callbackDisplayer) ShowProgress(total int) {
+	c.total = total
+	if c.callback != nil {
+		c.callback(0, total, 0)
+	}
+}
+
+// UpdateProgress implements Displayer interface
+func (c *callbackDisplayer) UpdateProgress(completed int, hashrate float64) {
+	if c.callback != nil {
+		c.callback(completed, c.total, hashrate)
+	}
+}
+
+// ShowFiles implements Displayer interface (no-op for callback)
+func (c *callbackDisplayer) ShowFiles(files []fileEntry, numWorkers int) {}
+
+// ShowSeasonPackWarnings implements Displayer interface (no-op for callback)
+func (c *callbackDisplayer) ShowSeasonPackWarnings(info *SeasonPackInfo) {}
+
+// FinishProgress implements Displayer interface
+func (c *callbackDisplayer) FinishProgress() {
+	if c.callback != nil {
+		c.callback(c.total, c.total, 0)
+	}
+}
+
+// IsBatch implements Displayer interface
+func (c *callbackDisplayer) IsBatch() bool {
+	return false
 }

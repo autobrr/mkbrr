@@ -35,9 +35,9 @@ type BatchJob struct {
 	FailOnSeasonWarning bool     `yaml:"fail_on_season_warning"`
 }
 
-// ToCreateOptions converts a BatchJob to CreateTorrentOptions
-func (j *BatchJob) ToCreateOptions(verbose bool, quiet bool, infoOnly bool, version string) CreateTorrentOptions {
-	opts := CreateTorrentOptions{
+// ToCreateOptions converts a BatchJob to CreateOptions
+func (j *BatchJob) ToCreateOptions(verbose bool, quiet bool, infoOnly bool, version string) CreateOptions {
+	opts := CreateOptions{
 		Path:                    j.Path,
 		Name:                    j.Name,
 		TrackerURLs:             j.Trackers,
@@ -73,7 +73,9 @@ type BatchResult struct {
 	Success  bool
 }
 
-// ProcessBatch processes a batch configuration file and creates multiple torrents
+// ProcessBatch processes a batch configuration file and creates multiple torrents.
+// It reads a YAML configuration file containing multiple torrent creation jobs
+// and processes them in parallel for efficient batch operations.
 func ProcessBatch(configPath string, verbose bool, quiet bool, infoOnly bool, version string) ([]BatchResult, error) {
 	data, err := os.ReadFile(configPath)
 	if err != nil {
@@ -176,7 +178,7 @@ func processJob(job BatchJob, verbose bool, quiet bool, infoOnly bool, version s
 		output += ".torrent"
 	}
 
-	// convert job to CreateTorrentOptions
+	// convert job to CreateOptions
 	opts := job.ToCreateOptions(verbose, quiet, infoOnly, version)
 
 	// create the torrent
