@@ -21,6 +21,7 @@ type createOptions struct {
 	maxPieceLengthExp   *uint
 	trackers            []string
 	comment             string
+	name                string
 	outputPath          string
 	outputDir           string
 	source              string
@@ -98,7 +99,8 @@ func init() {
 		}
 	}
 
-	createCmd.Flags().StringVarP(&options.outputPath, "output", "o", "", "set output path (default: <name>.torrent)")
+	createCmd.Flags().StringVarP(&options.name, "name", "n", "", "set torrent name (default: <filename>)")
+	createCmd.Flags().StringVarP(&options.outputPath, "output", "o", "", "set output path (default: <filename>.torrent)")
 	createCmd.Flags().StringVar(&options.outputDir, "output-dir", "", "output directory for created torrent")
 	createCmd.Flags().StringVarP(&options.source, "source", "s", "", "add source string")
 	createCmd.Flags().BoolVarP(&options.noDate, "no-date", "d", false, "don't write creation date")
@@ -171,6 +173,7 @@ func processBatchMode(opts createOptions, version string, startTime time.Time) e
 func buildCreateOptions(cmd *cobra.Command, inputPath string, opts createOptions, version string) (torrent.CreateOptions, error) {
 	createOpts := torrent.CreateOptions{
 		Path:                    inputPath,
+		Name:                    opts.name,
 		TrackerURLs:             opts.trackers,
 		WebSeeds:                opts.webSeeds,
 		IsPrivate:               opts.isPrivate,
@@ -223,6 +226,10 @@ func buildCreateOptions(cmd *cobra.Command, inputPath string, opts createOptions
 
 		if presetOpts.Source != "" && !cmd.Flags().Changed("source") {
 			createOpts.Source = presetOpts.Source
+		}
+
+		if presetOpts.Name != "" && !cmd.Flags().Changed("name") {
+			createOpts.Name = presetOpts.Name
 		}
 
 		if presetOpts.OutputDir != "" && !cmd.Flags().Changed("output-dir") {

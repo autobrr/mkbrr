@@ -487,14 +487,14 @@ func Create(opts CreateOptions) (*TorrentInfo, error) {
 		return nil, fmt.Errorf("invalid path %q: %w", opts.Path, err)
 	}
 
-	// set name if not provided
-	if opts.Name == "" {
-		opts.Name = filepath.Base(filepath.Clean(opts.Path))
+	fileName := filepath.Base(filepath.Clean(opts.Path))
+	if len(opts.TrackerURLs) == 1 && !opts.SkipPrefix {
+		fileName = preset.GetDomainPrefix(opts.TrackerURLs[0]) + "_" + fileName
 	}
 
-	fileName := opts.Name
-	if len(opts.TrackerURLs) == 1 && !opts.SkipPrefix {
-		fileName = preset.GetDomainPrefix(opts.TrackerURLs[0]) + "_" + opts.Name
+	// set name if not provided
+	if opts.Name == "" {
+		opts.Name = fileName
 	}
 
 	if opts.OutputDir != "" {

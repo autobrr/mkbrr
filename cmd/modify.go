@@ -13,6 +13,7 @@ import (
 type modifyOptions struct {
 	PresetName string
 	PresetFile string
+	Name       string
 	OutputDir  string
 	Output     string
 	Trackers   []string
@@ -52,6 +53,7 @@ func init() {
 	modifyCmd.Flags().SortFlags = false
 	modifyCmd.Flags().StringVarP(&modifyOpts.PresetName, "preset", "P", "", "use preset from config")
 	modifyCmd.Flags().StringVar(&modifyOpts.PresetFile, "preset-file", "", "preset config file (default: ~/.config/mkbrr/presets.yaml)")
+	modifyCmd.Flags().StringVarP(&modifyOpts.Name, "name", "n", "", "set torrent name (overrides preset name if set)")
 	modifyCmd.Flags().StringVar(&modifyOpts.OutputDir, "output-dir", "", "output directory for modified files")
 	modifyCmd.Flags().StringVarP(&modifyOpts.Output, "output", "o", "", "custom output filename (without extension)")
 	modifyCmd.Flags().BoolVarP(&modifyOpts.NoDate, "no-date", "d", false, "don't update creation date")
@@ -65,7 +67,7 @@ func init() {
 	modifyCmd.Flags().BoolVarP(&modifyOpts.Verbose, "verbose", "v", false, "be verbose")
 	modifyCmd.Flags().BoolVarP(&modifyOpts.Quiet, "quiet", "q", false, "reduced output mode (prints only final torrent paths)")
 	modifyCmd.Flags().BoolVarP(&modifyOpts.SkipPrefix, "skip-prefix", "", false, "don't add tracker domain prefix to output filename")
-	modifyCmd.Flags().BoolVarP(&modifyOpts.DryRun, "dry-run", "n", false, "show what would be modified without making changes")
+	modifyCmd.Flags().BoolVarP(&modifyOpts.DryRun, "dry-run", "y", false, "show what would be modified without making changes")
 
 	modifyCmd.SetUsageTemplate(`Usage:
   {{.CommandPath}} [flags] [torrent files...]
@@ -80,6 +82,7 @@ func buildTorrentOptions(cmd *cobra.Command, opts modifyOptions) torrent.ModifyO
 	torrentOpts := torrent.ModifyOptions{
 		PresetName:    opts.PresetName,
 		PresetFile:    opts.PresetFile,
+		Name:          opts.Name,
 		OutputDir:     opts.OutputDir,
 		OutputPattern: opts.Output,
 		NoDate:        opts.NoDate,
