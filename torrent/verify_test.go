@@ -160,7 +160,7 @@ func TestVerifyData_PerfectMatch_SingleFile(t *testing.T) {
 
 	// 2. Create the corresponding torrent file
 	torrentPath := filepath.Join(tempDir, "perfect_match_single.torrent")
-	createOpts := CreateTorrentOptions{
+	createOpts := CreateOptions{
 		Path:           contentPath,
 		OutputPath:     torrentPath,
 		PieceLengthExp: &pieceLenExp,
@@ -220,7 +220,7 @@ func TestVerifyData_PerfectMatch_MultiFile(t *testing.T) {
 
 	// 2. Create the corresponding torrent file for the directory
 	torrentPath := filepath.Join(tempDir, "perfect_match_multi.torrent")
-	createOpts := CreateTorrentOptions{
+	createOpts := CreateOptions{
 		Path:           contentDir, // Create torrent from the directory
 		OutputPath:     torrentPath,
 		PieceLengthExp: &pieceLenExp,
@@ -279,7 +279,7 @@ func TestVerifyData_CorruptedData(t *testing.T) {
 	t.Cleanup(func() { os.RemoveAll(tempDir) })
 
 	torrentPath := filepath.Join(tempDir, "corrupted_data.torrent")
-	createOpts := CreateTorrentOptions{
+	createOpts := CreateOptions{
 		Path:           contentDir,
 		OutputPath:     torrentPath,
 		PieceLengthExp: &pieceLenExp,
@@ -356,7 +356,7 @@ func TestVerifyData_MissingFile(t *testing.T) {
 	t.Cleanup(func() { os.RemoveAll(tempDir) })
 
 	torrentPath := filepath.Join(tempDir, "missing_file.torrent")
-	createOpts := CreateTorrentOptions{
+	createOpts := CreateOptions{
 		Path:           contentDir,
 		OutputPath:     torrentPath,
 		PieceLengthExp: &pieceLenExp,
@@ -426,7 +426,7 @@ func TestVerifyData_SizeMismatch(t *testing.T) {
 	t.Cleanup(func() { os.RemoveAll(tempDir) })
 
 	torrentPath := filepath.Join(tempDir, "size_mismatch.torrent")
-	createOpts := CreateTorrentOptions{
+	createOpts := CreateOptions{
 		Path:           contentDir,
 		OutputPath:     torrentPath,
 		PieceLengthExp: &pieceLenExp,
@@ -513,7 +513,7 @@ func TestVerifyData_SingleFileInDir(t *testing.T) {
 
 	// 2. Create the corresponding torrent file for the single file
 	torrentPath := filepath.Join(tempDir, "single_in_dir.torrent")
-	createOpts := CreateTorrentOptions{
+	createOpts := CreateOptions{
 		Path:           contentFilePath, // Create torrent FROM the file path
 		Name:           singleFileName,  // Ensure torrent name matches file name
 		OutputPath:     torrentPath,
@@ -634,7 +634,7 @@ func TestVerifyData_EdgeCases(t *testing.T) {
 			// Create torrent
 			torrentPath := filepath.Join(tempDir, tt.name+".torrent")
 			plExp := tt.pieceLenExp
-			createOpts := CreateTorrentOptions{
+			createOpts := CreateOptions{
 				Path:           createPath,
 				OutputPath:     torrentPath,
 				PieceLengthExp: &plExp,

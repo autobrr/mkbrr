@@ -11,8 +11,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/autobrr/mkbrr/internal/preset"
-	"github.com/autobrr/mkbrr/internal/torrent"
 	"github.com/autobrr/mkbrr/internal/trackers"
+	"github.com/autobrr/mkbrr/torrent"
 )
 
 // createOptions encapsulates all command-line flag values for the create command
@@ -167,9 +167,9 @@ func processBatchMode(opts createOptions, version string, startTime time.Time) e
 	return nil
 }
 
-// buildCreateOptions creates a torrent.CreateTorrentOptions struct from command-line options and presets
-func buildCreateOptions(cmd *cobra.Command, inputPath string, opts createOptions, version string) (torrent.CreateTorrentOptions, error) {
-	createOpts := torrent.CreateTorrentOptions{
+// buildCreateOptions creates a torrent.CreateOptions struct from command-line options and presets
+func buildCreateOptions(cmd *cobra.Command, inputPath string, opts createOptions, version string) (torrent.CreateOptions, error) {
+	createOpts := torrent.CreateOptions{
 		Path:                    inputPath,
 		TrackerURLs:             opts.trackers,
 		WebSeeds:                opts.webSeeds,

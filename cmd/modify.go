@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/autobrr/mkbrr/internal/torrent"
+	"github.com/autobrr/mkbrr/torrent"
 )
 
 // modifyOptions encapsulates command-line flag values for the modify command
@@ -75,9 +75,9 @@ Flags:
 `)
 }
 
-// buildTorrentOptions creates a torrent.Options struct from command-line flags
-func buildTorrentOptions(cmd *cobra.Command, opts modifyOptions) torrent.Options {
-	torrentOpts := torrent.Options{
+// buildTorrentOptions creates a torrent.ModifyOptions struct from command-line flags
+func buildTorrentOptions(cmd *cobra.Command, opts modifyOptions) torrent.ModifyOptions {
+	torrentOpts := torrent.ModifyOptions{
 		PresetName:    opts.PresetName,
 		PresetFile:    opts.PresetFile,
 		OutputDir:     opts.OutputDir,

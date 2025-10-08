@@ -160,7 +160,7 @@ func TestCreateTorrent_Symlink(t *testing.T) {
 
 	// 2. Create Torrent Options
 	pieceLenExp := uint(16) // 64 KiB pieces
-	opts := CreateTorrentOptions{
+	opts := CreateOptions{
 		Path:           linkDir, // Create torrent from the directory containing the link
 		OutputPath:     filepath.Join(tmpDir, "symlink_test.torrent"),
 		IsPrivate:      true,
@@ -270,12 +270,12 @@ presets:
 	// Test cases
 	tests := []struct {
 		name           string
-		opts           CreateTorrentOptions
+		opts           CreateOptions
 		expectedOutDir string
 	}{
 		{
 			name: "Command-line OutputDir should take precedence",
-			opts: CreateTorrentOptions{
+			opts: CreateOptions{
 				Path:      tmpDir,
 				OutputDir: cmdLineOutputDir,
 				IsPrivate: true,
@@ -286,7 +286,7 @@ presets:
 		},
 		{
 			name: "Preset OutputDir should be used when no command-line OutputDir",
-			opts: CreateTorrentOptions{
+			opts: CreateOptions{
 				Path:      tmpDir,
 				OutputDir: "", // empty to simulate preset usage
 				IsPrivate: true,
@@ -377,7 +377,7 @@ func TestCreate_MultipleTrackers(t *testing.T) {
 			pieceLenExp := uint(16)
 			outputPath := filepath.Join(tmpDir, tt.name+".torrent")
 
-			opts := CreateTorrentOptions{
+			opts := CreateOptions{
 				Path:           tmpDir,
 				TrackerURLs:    tt.trackers,
 				OutputPath:     outputPath,

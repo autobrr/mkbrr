@@ -11,9 +11,9 @@ import (
 	"github.com/autobrr/mkbrr/internal/preset"
 )
 
-// Options represents the options for modifying a torrent,
+// ModifyOptions represents the options for modifying a torrent,
 // including both preset-related options and flag-based overrides.
-type Options struct {
+type ModifyOptions struct {
 	IsPrivate      *bool
 	PieceLengthExp *uint
 	MaxPieceLength *uint
@@ -43,7 +43,8 @@ type Result struct {
 	WasModified bool
 }
 
-// LoadFromFile loads a torrent file and returns a Torrent
+// LoadFromFile loads a torrent file from disk and returns a Torrent struct.
+// The returned Torrent wraps the metainfo and provides additional functionality.
 func LoadFromFile(path string) (*Torrent, error) {
 	mi, err := metainfo.LoadFromFile(path)
 	if err != nil {
@@ -52,8 +53,10 @@ func LoadFromFile(path string) (*Torrent, error) {
 	return &Torrent{MetaInfo: mi}, nil
 }
 
-// ModifyTorrent modifies a single torrent file according to the given options
-func ModifyTorrent(path string, opts Options) (*Result, error) {
+// ModifyTorrent modifies a single torrent file according to the given options.
+// It can change trackers, comment, source, piece length, and other metadata.
+// Returns a Result containing the operation outcome and output path.
+func ModifyTorrent(path string, opts ModifyOptions) (*Result, error) {
 	result := &Result{
 		Path: path,
 	}
@@ -242,8 +245,10 @@ func ModifyTorrent(path string, opts Options) (*Result, error) {
 	return result, nil
 }
 
-// ProcessTorrents modifies multiple torrent files according to the given options
-func ProcessTorrents(paths []string, opts Options) ([]*Result, error) {
+// ProcessTorrents modifies multiple torrent files according to the given options.
+// It processes each torrent file and returns the results for all operations.
+// This function provides parallel processing for better performance with multiple files.
+func ProcessTorrents(paths []string, opts ModifyOptions) ([]*Result, error) {
 	if len(paths) == 0 {
 		return nil, fmt.Errorf("no torrent files specified")
 	}

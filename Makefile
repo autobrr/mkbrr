@@ -98,7 +98,7 @@ test:
 .PHONY: test-race-short
 test-race-short:
 	@echo "Running quick tests with race detector..."
-	GORACE="$(GORACE)" $(GO) test -race -short ./internal/torrent -v 
+	GORACE="$(GORACE)" $(GO) test -race -short ./torrent -v 
 	@if [ -f "./race_report.log" ]; then \
 		echo "Race conditions detected! Check race_report.log"; \
 		cat "./race_report.log"; \
@@ -108,7 +108,7 @@ test-race-short:
 .PHONY: test-race
 test-race:
 	@echo "Running tests with race detector..."
-	GORACE="$(GORACE)" $(GO) test -race ./internal/torrent -v
+	GORACE="$(GORACE)" $(GO) test -race ./torrent -v
 	@if [ -f "./race_report.log" ]; then \
 		echo "Race conditions detected! Check race_report.log"; \
 		cat "./race_report.log"; \
@@ -118,7 +118,7 @@ test-race:
 .PHONY: test-large
 test-large:
 	@echo "Running large tests..."
-	GORACE="$(GORACE)" $(GO) test -v -tags=large_tests ./internal/torrent
+	GORACE="$(GORACE)" $(GO) test -v -tags=large_tests ./torrent
 	@if [ -f "./race_report.log" ]; then \
 		echo "Race conditions detected! Check race_report.log"; \
 		cat "./race_report.log"; \
