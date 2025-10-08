@@ -3,7 +3,6 @@ package torrent
 import (
 	"crypto/sha1"
 	"fmt"
-	"hash"
 	"io"
 	"os"
 	"runtime"
@@ -53,9 +52,6 @@ func (h *pieceHasher) optimizeForWorkload() (int, int) {
 	var readSize, numWorkers int
 
 	// optimize buffer size and worker count based on file characteristics
-	// Use container-aware GOMAXPROCS instead of runtime.NumCPU() for Go 1.25+
-	maxProcs := runtime.GOMAXPROCS(0)
-
 	switch {
 	case len(h.files) == 1:
 		if totalSize < 1<<20 {
@@ -63,23 +59,23 @@ func (h *pieceHasher) optimizeForWorkload() (int, int) {
 			numWorkers = 1
 		} else if totalSize < 1<<30 { // < 1 GiB
 			readSize = 4 << 20 // 4 MiB
-			numWorkers = maxProcs
+			numWorkers = runtime.NumCPU()
 		} else {
-			readSize = 8 << 20        // 8 MiB for large files
-			numWorkers = maxProcs * 2 // over-subscription for better I/O utilization
+			readSize = 8 << 20                // 8 MiB for large files
+			numWorkers = runtime.NumCPU() * 2 // over-subscription for better I/O utilization
 		}
 	case avgFileSize < 1<<20: // avg < 1 MiB
 		readSize = 256 << 10 // 256 KiB
-		numWorkers = maxProcs
+		numWorkers = runtime.NumCPU()
 	case avgFileSize < 10<<20: // avg < 10 MiB
 		readSize = 1 << 20 // 1 MiB
-		numWorkers = maxProcs
+		numWorkers = runtime.NumCPU()
 	case avgFileSize < 1<<30: // avg < 1 GiB
 		readSize = 4 << 20 // 4 MiB
-		numWorkers = maxProcs * 2
+		numWorkers = runtime.NumCPU() * 2
 	default: // avg >= 1 GiB
 		readSize = 8 << 20 // 8 MiB
-		numWorkers = maxProcs * 2
+		numWorkers = runtime.NumCPU() * 2
 	}
 
 	// ensure we don't create more workers than pieces to process
@@ -122,17 +118,9 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 		return nil
 	}
 
-	// Enable Go 1.25+ runtime optimizations for intensive workloads
-	// Force GC before intensive hashing to optimize memory usage
-	var m1 runtime.MemStats
-	runtime.ReadMemStats(&m1)
-	if m1.HeapAlloc > 50<<20 { // If heap > 50MB, trigger GC
-		runtime.GC()
-	}
-
 	// initialize buffer pool
 	h.bufferPool = &sync.Pool{
-		New: func() any {
+		New: func() interface{} {
 			buf := make([]byte, h.readSize)
 			return buf
 		},
@@ -164,13 +152,18 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 	var wg sync.WaitGroup
 	for i := 0; i < numWorkers; i++ {
 		start := i * piecesPerWorker
-		end := min(start+piecesPerWorker, h.numPieces)
+		end := start + piecesPerWorker
+		if end > h.numPieces {
+			end = h.numPieces
+		}
 
-		wg.Go(func() {
-			if err := h.hashPieceRange(start, end, &completedPieces); err != nil {
+		wg.Add(1)
+		go func(startPiece, endPiece int) {
+			defer wg.Done()
+			if err := h.hashPieceRange(startPiece, endPiece, &completedPieces); err != nil {
 				errorsCh <- err
 			}
-		})
+		}(start, end)
 	}
 
 	// monitor and update progress bar in separate goroutine
@@ -224,8 +217,7 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 	buf := h.bufferPool.Get().([]byte)
 	defer h.bufferPool.Put(buf)
 
-	// Create a base hasher once for cloning (Go 1.25 optimization)
-	baseHasher := sha1.New()
+	hasher := sha1.New()
 	// track open file handles to avoid reopening the same file
 	readers := make(map[string]*fileReader)
 	defer func() {
@@ -250,12 +242,7 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 			}
 		}
 
-		// Use hash cloning for better performance (Go 1.25+ hash.Cloner interface)
-		clonedHasher, err := baseHasher.(hash.Cloner).Clone()
-		if err != nil {
-			return fmt.Errorf("failed to clone hasher: %w", err)
-		}
-		hasher := clonedHasher
+		hasher.Reset()
 		remainingPiece := pieceLength
 
 		for _, file := range h.files {
@@ -273,7 +260,10 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 				readStart = 0
 			}
 
-			readLength := min(file.length-readStart, remainingPiece)
+			readLength := file.length - readStart
+			if readLength > remainingPiece {
+				readLength = remainingPiece
+			}
 
 			// reuse or create new file reader
 			reader, ok := readers[file.path]
@@ -301,7 +291,10 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 			// read file data in chunks to avoid large memory allocations
 			remaining := readLength
 			for remaining > 0 {
-				n := min(int(remaining), len(buf))
+				n := int(remaining)
+				if n > len(buf) {
+					n = len(buf)
+				}
 
 				read, err := io.ReadFull(reader.file, buf[:n])
 				if err != nil && err != io.ErrUnexpectedEOF {
@@ -328,7 +321,7 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 
 func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Displayer, failOnSeasonPackWarning bool) *pieceHasher {
 	bufferPool := &sync.Pool{
-		New: func() any {
+		New: func() interface{} {
 			buf := make([]byte, pieceLen)
 			return buf
 		},

@@ -76,7 +76,7 @@ func displayVerboseInfo(rawBytes []byte, mi *metainfo.MetaInfo) {
 	fmt.Printf("%s\n", cyan("Additional metadata:"))
 
 	// Display extra root-level fields
-	rootMap := make(map[string]any)
+	rootMap := make(map[string]interface{})
 	if err := bencode.Unmarshal(rawBytes, &rootMap); err == nil {
 		standardRoot := map[string]bool{
 			"announce": true, "announce-list": true, "comment": true,
@@ -92,7 +92,7 @@ func displayVerboseInfo(rawBytes []byte, mi *metainfo.MetaInfo) {
 	}
 
 	// Display extra info-dictionary fields
-	infoMap := make(map[string]any)
+	infoMap := make(map[string]interface{})
 	if err := bencode.Unmarshal(mi.InfoBytes, &infoMap); err == nil {
 		standardInfo := map[string]bool{
 			"name": true, "piece length": true, "pieces": true,

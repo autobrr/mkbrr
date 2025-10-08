@@ -69,7 +69,11 @@ func calculatePieceLength(totalSize int64, maxPieceLength *uint, trackerURLs []s
 		if *maxPieceLength < minExp {
 			return minExp
 		}
-		maxExp = min(*maxPieceLength, 27)
+		if *maxPieceLength > 27 {
+			maxExp = 27
+		} else {
+			maxExp = *maxPieceLength
+		}
 	}
 
 	// default calculation for automatic piece length
@@ -346,7 +350,7 @@ func CreateTorrent(opts CreateOptions) (*Torrent, error) {
 
 		// add random entropy field for cross-seeding if enabled
 		if opts.Entropy {
-			infoMap := make(map[string]any)
+			infoMap := make(map[string]interface{})
 			if err := bencode.Unmarshal(infoBytes, &infoMap); err == nil {
 				if entropy, err := generateRandomString(); err == nil {
 					infoMap["entropy"] = entropy

@@ -344,7 +344,7 @@ func (v *pieceVerifier) verifyPieces(numWorkersOverride int) error {
 	}
 
 	v.bufferPool = &sync.Pool{
-		New: func() any {
+		New: func() interface{} {
 			allocSize := v.readSize
 			if allocSize < 64<<10 {
 				allocSize = 64 << 10
@@ -371,7 +371,10 @@ func (v *pieceVerifier) verifyPieces(numWorkersOverride int) error {
 	var wg sync.WaitGroup
 	for i := 0; i < numWorkers; i++ {
 		start := i * piecesPerWorker
-		end := min(start+piecesPerWorker, v.numPieces)
+		end := start + piecesPerWorker
+		if end > v.numPieces {
+			end = v.numPieces
+		}
 
 		wg.Add(1)
 		go func(startPiece, endPiece int) {
@@ -533,7 +536,10 @@ func (v *pieceVerifier) verifyPieceRange(startPiece, endPiece int, completedPiec
 
 			bytesToRead := readLength
 			for bytesToRead > 0 {
-				readSize := min(bytesToRead, int64(len(buf)))
+				readSize := int64(len(buf))
+				if bytesToRead < readSize {
+					readSize = bytesToRead
+				}
 				n, err := reader.file.Read(buf[:readSize])
 				if err != nil && err != io.EOF {
 					atomic.AddUint64(&v.badPieces, 1)

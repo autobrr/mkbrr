@@ -84,7 +84,7 @@ func createTestFilesFastForVerify(t *testing.T, numFiles int, fileSize, pieceLen
 			t.Fatalf("failed to create content dir: %v", err)
 		}
 
-		for i := range numFiles {
+		for i := 0; i < numFiles; i++ {
 			// Create subdirs for testing nested structure
 			subDir := ""
 			if i%2 == 0 && numFiles > 1 { // Add some nesting

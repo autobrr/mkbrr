@@ -43,7 +43,7 @@ func shouldIgnoreFile(path string, excludePatterns []string, includePatterns []s
 	if len(includePatterns) > 0 {
 		matchesInclude := false
 		for _, patternGroup := range includePatterns {
-			for pattern := range strings.SplitSeq(patternGroup, ",") {
+			for _, pattern := range strings.Split(patternGroup, ",") {
 				pattern = strings.TrimSpace(pattern)
 				if pattern == "" {
 					continue
@@ -72,7 +72,7 @@ func shouldIgnoreFile(path string, excludePatterns []string, includePatterns []s
 	// 3. If NO include patterns were provided, check exclude patterns
 	if len(excludePatterns) > 0 {
 		for _, patternGroup := range excludePatterns {
-			for pattern := range strings.SplitSeq(patternGroup, ",") {
+			for _, pattern := range strings.Split(patternGroup, ",") {
 				pattern = strings.TrimSpace(pattern)
 				if pattern == "" {
 					continue
