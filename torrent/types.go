@@ -9,7 +9,7 @@ import (
 // ProgressCallback is called during torrent creation to report progress.
 // completed: number of pieces hashed so far
 // total: total number of pieces to hash
-// hashRate: current hashing rate in MB/s
+// hashRate: current hashing rate in bytes per second
 type ProgressCallback func(completed, total int, hashRate float64)
 
 // CreateOptions contains all options for creating a torrent
