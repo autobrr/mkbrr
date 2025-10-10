@@ -53,21 +53,21 @@ func init() {
 	modifyCmd.Flags().SortFlags = false
 	modifyCmd.Flags().StringVarP(&modifyOpts.PresetName, "preset", "P", "", "use preset from config")
 	modifyCmd.Flags().StringVar(&modifyOpts.PresetFile, "preset-file", "", "preset config file (default: ~/.config/mkbrr/presets.yaml)")
-	modifyCmd.Flags().StringVarP(&modifyOpts.Name, "name", "n", "", "set torrent name (overrides preset name if set)")
+	modifyCmd.Flags().StringVar(&modifyOpts.Name, "name", "", "set torrent name (overrides preset name if set)")
 	modifyCmd.Flags().StringVar(&modifyOpts.OutputDir, "output-dir", "", "output directory for modified files")
 	modifyCmd.Flags().StringVarP(&modifyOpts.Output, "output", "o", "", "custom output filename (without extension)")
 	modifyCmd.Flags().BoolVarP(&modifyOpts.NoDate, "no-date", "d", false, "don't update creation date")
 	modifyCmd.Flags().BoolVarP(&modifyOpts.NoCreator, "no-creator", "", false, "don't write creator")
 	modifyCmd.Flags().StringArrayVarP(&modifyOpts.Trackers, "tracker", "t", nil, "tracker URLs (can be specified multiple times)")
 	modifyCmd.Flags().StringArrayVarP(&modifyOpts.WebSeeds, "web-seed", "w", nil, "add web seed URLs")
-	modifyCmd.Flags().BoolVarP(&modifyOpts.Private, "private", "p", true, "make torrent private (default: true)")
+	modifyCmd.Flags().BoolVarP(&modifyOpts.Private, "private", "p", true, "make torrent private")
 	modifyCmd.Flags().StringVarP(&modifyOpts.Comment, "comment", "c", "", "add comment")
 	modifyCmd.Flags().StringVarP(&modifyOpts.Source, "source", "s", "", "add source string")
 	modifyCmd.Flags().BoolVarP(&modifyOpts.Entropy, "entropy", "e", false, "randomize info hash by adding entropy field")
 	modifyCmd.Flags().BoolVarP(&modifyOpts.Verbose, "verbose", "v", false, "be verbose")
 	modifyCmd.Flags().BoolVarP(&modifyOpts.Quiet, "quiet", "q", false, "reduced output mode (prints only final torrent paths)")
 	modifyCmd.Flags().BoolVarP(&modifyOpts.SkipPrefix, "skip-prefix", "", false, "don't add tracker domain prefix to output filename")
-	modifyCmd.Flags().BoolVarP(&modifyOpts.DryRun, "dry-run", "y", false, "show what would be modified without making changes")
+	modifyCmd.Flags().BoolVarP(&modifyOpts.DryRun, "dry-run", "n", false, "show what would be modified without making changes")
 
 	modifyCmd.SetUsageTemplate(`Usage:
   {{.CommandPath}} [flags] [torrent files...]

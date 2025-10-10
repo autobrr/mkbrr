@@ -184,6 +184,9 @@ mkbrr create path/to/large-file -t https://example-tracker.com/announce --worker
 
 # Fail if a potentially incomplete season pack is detected
 mkbrr create path/to/season-pack -t https://example-tracker.com/announce --fail-on-season-warning
+
+# Create using a name property for the torrent
+mkbrr create path/to/file -t https://example-tracker.com/announce --name "Your torrent name"
 ```
 
 > [!NOTE]
@@ -245,6 +248,9 @@ mkbrr modify original.torrent -t https://first.com -t https://second.com -t http
 
 # Randomize info hash
 mkbrr modify original.torrent -e
+
+# Change the torrent's name property
+mkbrr modify original.torrent --name "My new torrent name"
 ```
 
 ## Advanced Usage
