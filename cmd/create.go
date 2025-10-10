@@ -99,7 +99,7 @@ func init() {
 		}
 	}
 
-	createCmd.Flags().StringVarP(&options.name, "name", "n", "", "set torrent name (default: <filename>)")
+	createCmd.Flags().StringVar(&options.name, "name", "", "set torrent name (default: <filename>)")
 	createCmd.Flags().StringVarP(&options.outputPath, "output", "o", "", "set output path (default: <filename>.torrent)")
 	createCmd.Flags().StringVar(&options.outputDir, "output-dir", "", "output directory for created torrent")
 	createCmd.Flags().StringVarP(&options.source, "source", "s", "", "add source string")
