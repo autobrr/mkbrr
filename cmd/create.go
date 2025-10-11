@@ -228,10 +228,6 @@ func buildCreateOptions(cmd *cobra.Command, inputPath string, opts createOptions
 			createOpts.Source = presetOpts.Source
 		}
 
-		if presetOpts.Name != "" && !cmd.Flags().Changed("name") {
-			createOpts.Name = presetOpts.Name
-		}
-
 		if presetOpts.OutputDir != "" && !cmd.Flags().Changed("output-dir") {
 			createOpts.OutputDir = presetOpts.OutputDir
 		}
