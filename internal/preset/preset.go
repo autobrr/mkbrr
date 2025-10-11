@@ -29,7 +29,6 @@ type Options struct {
 	FailOnSeasonWarning *bool    `yaml:"fail_on_season_warning"`
 	Comment             string   `yaml:"comment"`
 	Source              string   `yaml:"source"`
-	Name                string   `yaml:"name"`
 	OutputDir           string   `yaml:"output_dir"`
 	Version             string   // used for creator string
 	Trackers            []string `yaml:"trackers"`
