@@ -215,18 +215,22 @@ func CreateTorrent(opts CreateOptions) (*Torrent, error) {
 			resolvedInfo = statInfo
 		}
 
-		if resolvedInfo.IsDir() {
-			if baseDir == "" && currentPath == path { // only set baseDir for the initial path if it's a dir
-				baseDir = currentPath
-			}
-			return nil
-		}
-
-		// it's a file (or a link pointing to one)
+		// it's a directory or file (or a link pointing to one); check if it should be ignored
 		shouldIgnore, err := shouldIgnoreFile(currentPath, opts.ExcludePatterns, opts.IncludePatterns) // ignore based on original path
 		if err != nil {
 			return fmt.Errorf("error processing file patterns for %q: %w", currentPath, err)
 		}
+
+		if resolvedInfo.IsDir() {
+			if baseDir == "" && currentPath == path { // only set baseDir for the initial path if it's a dir
+				baseDir = currentPath
+			}
+			if shouldIgnore {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
 		if shouldIgnore {
 			return nil
 		}
