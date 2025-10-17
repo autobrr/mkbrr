@@ -1,6 +1,6 @@
 module github.com/autobrr/mkbrr
 
-go 1.24
+go 1.25
 
 require (
 	github.com/anacrolix/torrent v1.58.1
