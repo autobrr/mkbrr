@@ -24,10 +24,10 @@ var (
 )
 
 var inspectCmd = &cobra.Command{
-	Use:                        "inspect <torrent-file>",
-	Short:                      "Inspect a torrent file",
-	Long:                       "Inspect a torrent file",
-	Args:                       cobra.ExactArgs(1),
+	Use:                        "inspect [flags] [torrent files...]",
+	Short:                      "Inspect torrent files",
+	Long:                       "Inspect torrent files",
+	Args:                       cobra.MinimumNArgs(1),
 	RunE:                       runInspect,
 	DisableFlagsInUseLine:      true,
 	SuggestionsMinimumDistance: 1,
@@ -38,7 +38,7 @@ func init() {
 	inspectCmd.Flags().SortFlags = false
 	inspectCmd.Flags().BoolVarP(&inspectOpts.verbose, "verbose", "v", false, "show all metadata fields")
 	inspectCmd.SetUsageTemplate(`Usage:
-  {{.CommandPath}} <torrent-file>
+  {{.CommandPath}} [flags] [torrent files...]
 
 Flags:
 {{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}
@@ -118,19 +118,19 @@ func displayFileTreeIfNeeded(display *torrent.Display, info *metainfo.Info) {
 }
 
 func runInspect(cmd *cobra.Command, args []string) error {
-	torrentPath := args[0]
-
-	mi, info, rawBytes, err := loadTorrentData(torrentPath)
-	if err != nil {
-		return err
-	}
-
 	display := torrent.NewDisplay(torrent.NewFormatter(inspectOpts.verbose))
-	displayStandardInfo(display, mi, info)
+	for _, path := range args {
+		mi, info, rawBytes, err := loadTorrentData(path)
+		if err != nil {
+			return err
+		}
 
-	if inspectOpts.verbose {
-		displayVerboseInfo(rawBytes, mi)
-		displayFileTreeIfNeeded(display, info)
+		displayStandardInfo(display, mi, info)
+
+		if inspectOpts.verbose {
+			displayVerboseInfo(rawBytes, mi)
+			displayFileTreeIfNeeded(display, info)
+		}
 	}
 
 	return nil

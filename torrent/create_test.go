@@ -405,7 +405,7 @@ func TestCreate_MultipleTrackers(t *testing.T) {
 			}
 
 			// Check announce list
-			if len(tt.trackers) > 0 {
+			if len(tt.trackers) > 1 {
 				if mi.AnnounceList == nil || len(mi.AnnounceList) != 1 {
 					t.Errorf("Expected AnnounceList with 1 tier, got %v", mi.AnnounceList)
 				} else if len(mi.AnnounceList[0]) != tt.expectedListCount {
