@@ -19,6 +19,7 @@ type ModifyOptions struct {
 	MaxPieceLength *uint
 	PresetName     string
 	PresetFile     string
+	Name           string
 	OutputDir      string
 	OutputPattern  string
 	TrackerURLs    []string
@@ -114,6 +115,20 @@ func ModifyTorrent(path string, opts ModifyOptions) (*Result, error) {
 		// Note: This overrides any trackers set by a preset
 	}
 
+	// update name if provided via flag
+	if opts.Name != "" {
+		info, err := mi.UnmarshalInfo()
+		if err == nil {
+			if info.Name != opts.Name {
+				info.Name = opts.Name
+				if infoBytes, err := bencode.Marshal(info); err == nil {
+					mi.InfoBytes = infoBytes
+					wasModified = true
+				}
+			}
+		}
+	}
+
 	// update web seeds if provided via flag
 	if len(opts.WebSeeds) > 0 {
 		mi.UrlList = opts.WebSeeds
@@ -200,9 +215,6 @@ func ModifyTorrent(path string, opts ModifyOptions) (*Result, error) {
 	}
 
 	basePath := path
-	if opts.OutputPattern == "" && metaInfoName != "" {
-		basePath = metaInfoName + ".torrent"
-	}
 
 	// determine output directory: command-line flag takes precedence over preset
 	outputDir := opts.OutputDir
