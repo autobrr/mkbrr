@@ -155,8 +155,10 @@ func CreateTorrent(opts CreateOptions) (*Torrent, error) {
 	// Set tracker information
 	if len(opts.TrackerURLs) > 0 {
 		mi.Announce = opts.TrackerURLs[0]
-		// Create announce list with all trackers in a single tier
-		mi.AnnounceList = [][]string{opts.TrackerURLs}
+		if (len(opts.TrackerURLs) > 1) {
+			// Create announce list with all trackers in a single tier
+			mi.AnnounceList = [][]string{opts.TrackerURLs}
+		}
 	}
 
 	if !opts.NoCreator {

@@ -274,6 +274,10 @@ func buildCreateOptions(cmd *cobra.Command, inputPath string, opts createOptions
 				createOpts.IncludePatterns = append(slices.Clone(presetOpts.IncludePatterns), createOpts.IncludePatterns...)
 			}
 		}
+
+		if presetOpts.Workers != 0 && !cmd.Flags().Changed("workers") {
+			createOpts.Workers = presetOpts.Workers
+		}
 	}
 
 	// Check for tracker's default source only if no source is set by flag or preset
