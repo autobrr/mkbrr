@@ -3,6 +3,7 @@ package torrent
 import (
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -13,6 +14,11 @@ var ignoredPatterns = []string{
 	"thumbs.db",
 	"desktop.ini",
 	"zone.identifier", // https://superuser.com/questions/1692240/auto-generated-zone-identity-files-can-should-i-delete
+}
+
+// directories to ignore in source directory (case insensitive) - These are always ignored.
+var ignoredDirNames = []string{
+	"@eadir",
 }
 
 // shouldIgnoreFile checks if a file should be ignored based on predefined patterns,
@@ -28,6 +34,10 @@ var ignoredPatterns = []string{
 //
 // 4. If none of the above conditions cause the file to be ignored, KEEP the file (return false).
 func shouldIgnoreFile(path string, excludePatterns []string, includePatterns []string) (bool, error) {
+	if shouldIgnoreDir(path) {
+		return true, nil
+	}
+
 	// 1. Check built-in patterns (always ignored)
 	lowerPath := strings.ToLower(path)
 	for _, pattern := range ignoredPatterns {
@@ -90,4 +100,20 @@ func shouldIgnoreFile(path string, excludePatterns []string, includePatterns []s
 
 	// 4. Keep the file if no ignore conditions were met
 	return false, nil
+}
+
+// shouldIgnoreDir checks if any directory segment in the path should be ignored.
+func shouldIgnoreDir(path string) bool {
+	lowerPath := strings.ToLower(path)
+	segments := strings.FieldsFunc(lowerPath, func(r rune) bool {
+		return r == '/' || r == '\\'
+	})
+
+	for _, segment := range segments {
+		if slices.Contains(ignoredDirNames, segment) {
+			return true
+		}
+	}
+
+	return false
 }
