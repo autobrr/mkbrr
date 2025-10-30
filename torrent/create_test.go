@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/anacrolix/torrent/metainfo"
@@ -224,6 +225,61 @@ func TestCreateTorrent_Symlink(t *testing.T) {
 	}
 
 	t.Logf("Symlink test successful: Torrent created from %q, correctly referencing content from %q", linkDir, realFilePath)
+}
+
+func TestCreateTorrent_IgnoresSynologyMetadataDir(t *testing.T) {
+	// Setup temporary directory with a regular file and Synology metadata directory
+	rootDir := t.TempDir()
+
+	regularFile := filepath.Join(rootDir, "movie.mkv")
+	if err := os.WriteFile(regularFile, []byte("video data"), 0o644); err != nil {
+		t.Fatalf("failed to write regular file: %v", err)
+	}
+
+	metaDir := filepath.Join(rootDir, "@eaDir")
+	if err := os.Mkdir(metaDir, 0o755); err != nil {
+		t.Fatalf("failed to create @eaDir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(metaDir, "metadata.txt"), []byte("should be ignored"), 0o644); err != nil {
+		t.Fatalf("failed to write metadata file: %v", err)
+	}
+
+	// create nested structure to ensure recursive ignores
+	nestedDir := filepath.Join(metaDir, "subdir")
+	if err := os.Mkdir(nestedDir, 0o755); err != nil {
+		t.Fatalf("failed to create nested dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(nestedDir, "deep.txt"), []byte("ignore me too"), 0o644); err != nil {
+		t.Fatalf("failed to write nested metadata file: %v", err)
+	}
+
+	opts := CreateOptions{
+		Path:      rootDir,
+		NoCreator: true,
+		NoDate:    true,
+	}
+
+	tor, err := CreateTorrent(opts)
+	if err != nil {
+		t.Fatalf("CreateTorrent failed: %v", err)
+	}
+
+	info := tor.GetInfo()
+	if len(info.Files) != 1 {
+		var paths []string
+		for _, f := range info.Files {
+			paths = append(paths, strings.Join(f.Path, "/"))
+		}
+		t.Fatalf("expected 1 file, got %d: %v", len(info.Files), paths)
+	}
+
+	gotPath := strings.Join(info.Files[0].Path, "/")
+	if gotPath != "movie.mkv" {
+		t.Fatalf("expected movie.mkv in torrent, got %q", gotPath)
+	}
+	if strings.Contains(strings.ToLower(gotPath), "@eadir") {
+		t.Fatalf("@eaDir directory unexpectedly included in torrent path %q", gotPath)
+	}
 }
 
 func TestCreateTorrent_OutputDirPriority(t *testing.T) {
