@@ -106,9 +106,10 @@ func ModifyTorrent(path string, opts ModifyOptions) (*Result, error) {
 	// update tracker if flag provided
 	if len(opts.TrackerURLs) > 0 {
 		mi.Announce = opts.TrackerURLs[0] // Primary announce is the first one
-		announceList := make([][]string, 1)
-		announceList[0] = make([]string, len(opts.TrackerURLs))
-		copy(announceList[0], opts.TrackerURLs)
+		announceList := make([][]string, len(opts.TrackerURLs))
+		for i, tracker := range opts.TrackerURLs {
+			announceList[i] = []string{tracker}
+		}
 		mi.AnnounceList = announceList
 		wasModified = true
 		// Note: This overrides any trackers set by a preset

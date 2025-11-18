@@ -212,7 +212,11 @@ func (o *Options) ApplyToMetaInfo(mi *metainfo.MetaInfo) (bool, error) {
 	// Only modify values that are explicitly set in the preset
 	if len(o.Trackers) > 0 {
 		mi.Announce = o.Trackers[0]
-		mi.AnnounceList = [][]string{o.Trackers}
+		announceList := make([][]string, len(o.Trackers))
+		for i, tracker := range o.Trackers {
+			announceList[i] = []string{tracker}
+		}
+		mi.AnnounceList = announceList
 		wasModified = true
 	}
 

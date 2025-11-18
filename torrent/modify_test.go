@@ -155,12 +155,16 @@ func TestModifyTorrent_MultipleAndNoTrackers(t *testing.T) {
 		if mi.Announce != opts.TrackerURLs[0] {
 			t.Errorf("Announce not set to first tracker, got %q", mi.Announce)
 		}
-		if mi.AnnounceList == nil || len(mi.AnnounceList) != 1 || len(mi.AnnounceList[0]) != 3 {
+		if mi.AnnounceList == nil || len(mi.AnnounceList) != len(opts.TrackerURLs) {
 			t.Errorf("AnnounceList not set correctly: %#v", mi.AnnounceList)
 		}
 		for i, tracker := range opts.TrackerURLs {
-			if mi.AnnounceList[0][i] != tracker {
-				t.Errorf("AnnounceList[%d] = %q, want %q", i, mi.AnnounceList[0][i], tracker)
+			if len(mi.AnnounceList) <= i || len(mi.AnnounceList[i]) != 1 {
+				t.Errorf("AnnounceList tier %d invalid: %#v", i, mi.AnnounceList)
+				continue
+			}
+			if mi.AnnounceList[i][0] != tracker {
+				t.Errorf("AnnounceList tier %d = %q, want %q", i, mi.AnnounceList[i][0], tracker)
 			}
 		}
 	})
@@ -185,7 +189,7 @@ func TestModifyTorrent_MultipleAndNoTrackers(t *testing.T) {
 		if mi.Announce != "" {
 			t.Errorf("Announce should be empty when no tracker, got %q", mi.Announce)
 		}
-		if len(mi.AnnounceList) > 0 && len(mi.AnnounceList[0]) > 0 {
+		if len(mi.AnnounceList) > 0 {
 			t.Errorf("AnnounceList should be empty or nil when no tracker, got %#v", mi.AnnounceList)
 		}
 	})
