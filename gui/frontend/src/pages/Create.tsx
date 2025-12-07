@@ -1,0 +1,439 @@
+import { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Progress } from '@/components/ui/progress';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { FolderOpen, Plus, X, Loader2, ChevronDown } from 'lucide-react';
+import { SelectPath, CreateTorrent, ListPresets, GetPreset } from '../../wailsjs/go/main/App';
+import { EventsOn, EventsOff } from '../../wailsjs/runtime/runtime';
+
+import { main, preset as presetTypes } from '../../wailsjs/go/models';
+
+// Re-export types from generated models
+type CreateRequest = main.CreateRequest;
+type TorrentResultType = main.TorrentResult;
+type PresetOptions = presetTypes.Options;
+
+interface ProgressEvent {
+  completed: number;
+  total: number;
+  hashRate: number;
+  percent: number;
+}
+
+// Piece length exponents (2^exp bytes)
+const PIECE_LENGTHS = [
+  { value: 0, label: 'Auto' },
+  { value: 14, label: '16 KiB' },
+  { value: 15, label: '32 KiB' },
+  { value: 16, label: '64 KiB' },
+  { value: 17, label: '128 KiB' },
+  { value: 18, label: '256 KiB' },
+  { value: 19, label: '512 KiB' },
+  { value: 20, label: '1 MiB' },
+  { value: 21, label: '2 MiB' },
+  { value: 22, label: '4 MiB' },
+  { value: 23, label: '8 MiB' },
+  { value: 24, label: '16 MiB' },
+];
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KiB', 'MiB', 'GiB', 'TiB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+export function CreatePage() {
+  const [path, setPath] = useState('');
+  const [name, setName] = useState('');
+  const [trackers, setTrackers] = useState<string[]>(['']);
+  const [isPrivate, setIsPrivate] = useState(true);
+  const [comment, setComment] = useState('');
+  const [source, setSource] = useState('');
+  const [pieceLengthExp, setPieceLengthExp] = useState(0);
+  const [outputPath, setOutputPath] = useState('');
+  const [noDate, setNoDate] = useState(false);
+  const [noCreator, setNoCreator] = useState(false);
+  const [entropy, setEntropy] = useState(false);
+  const [presetName, setPresetName] = useState('');
+
+  const [presets, setPresets] = useState<string[]>([]);
+  const [isCreating, setIsCreating] = useState(false);
+  const [progress, setProgress] = useState<ProgressEvent | null>(null);
+  const [result, setResult] = useState<TorrentResultType | null>(null);
+  const [error, setError] = useState('');
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+
+  useEffect(() => {
+    ListPresets().then(setPresets).catch(console.error);
+  }, []);
+
+  useEffect(() => {
+    const cancel = EventsOn('create:progress', (data: ProgressEvent) => {
+      setProgress(data);
+    });
+    return () => {
+      EventsOff('create:progress');
+    };
+  }, []);
+
+  const handleSelectPath = async () => {
+    try {
+      const selected = await SelectPath();
+      if (selected) {
+        setPath(selected);
+      }
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
+  const handleSelectOutput = async () => {
+    try {
+      const selected = await SelectPath();
+      if (selected) {
+        setOutputPath(selected);
+      }
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
+  const handlePresetChange = async (value: string) => {
+    setPresetName(value);
+    if (value && value !== 'none') {
+      try {
+        const preset = await GetPreset(value) as PresetOptions;
+        if (preset) {
+          if (preset.Trackers && preset.Trackers.length > 0) setTrackers(preset.Trackers);
+          if (preset.Source) setSource(preset.Source);
+          if (preset.Private !== undefined) setIsPrivate(preset.Private);
+          if (preset.Comment) setComment(preset.Comment);
+        }
+      } catch (e) {
+        console.error('Failed to load preset:', e);
+      }
+    }
+  };
+
+  const addTracker = () => {
+    setTrackers([...trackers, '']);
+  };
+
+  const removeTracker = (index: number) => {
+    setTrackers(trackers.filter((_, i) => i !== index));
+  };
+
+  const updateTracker = (index: number, value: string) => {
+    const newTrackers = [...trackers];
+    newTrackers[index] = value;
+    setTrackers(newTrackers);
+  };
+
+  const handleCreate = async () => {
+    if (!path) {
+      setError('Please select a file or folder');
+      return;
+    }
+
+    setError('');
+    setResult(null);
+    setProgress(null);
+    setIsCreating(true);
+
+    try {
+      const req: CreateRequest = {
+        path,
+        name,
+        trackerUrls: trackers.filter(t => t.trim() !== ''),
+        webSeeds: [],
+        isPrivate,
+        comment,
+        source,
+        pieceLengthExp,
+        maxPieceLength: 0,
+        outputPath,
+        outputDir: '',
+        noDate,
+        noCreator,
+        entropy,
+        skipPrefix: false,
+        excludePatterns: [],
+        includePatterns: [],
+        presetName,
+        presetFile: '',
+      };
+
+      const res = await CreateTorrent(req);
+      setResult(res as TorrentResultType);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setIsCreating(false);
+      setProgress(null);
+    }
+  };
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="flex-1 overflow-auto p-6 space-y-4">
+        <div>
+          <h1 className="text-2xl font-semibold">Create Torrent</h1>
+          <p className="text-sm text-muted-foreground">Create a new torrent file from files or folders</p>
+        </div>
+
+        {/* Main Form Card */}
+        <Card>
+          <CardContent className="pt-6 space-y-4">
+            {/* Source Path */}
+            <div className="space-y-1.5">
+              <Label>Source Path</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={path}
+                  onChange={(e) => setPath(e.target.value)}
+                  placeholder="/path/to/content"
+                  className="flex-1"
+                />
+                <Button variant="outline" onClick={handleSelectPath}>
+                  <FolderOpen className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Preset + Private inline */}
+            <div className="flex gap-4 items-end">
+              {presets.length > 0 && (
+                <div className="flex-1 space-y-1.5">
+                  <Label>Preset</Label>
+                  <Select value={presetName} onValueChange={handlePresetChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a preset" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {presets.map((p) => (
+                        <SelectItem key={p} value={p}>
+                          {p}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              <div className="flex items-center gap-2 pb-2">
+                <Switch
+                  id="private"
+                  checked={isPrivate}
+                  onCheckedChange={setIsPrivate}
+                />
+                <Label htmlFor="private" className="text-sm">Private</Label>
+              </div>
+            </div>
+
+            {/* Trackers */}
+            <div className="space-y-1.5">
+              <Label>Trackers</Label>
+              <div className="space-y-2">
+                {trackers.map((tracker, index) => (
+                  <div key={index} className="flex gap-2">
+                    <Input
+                      value={tracker}
+                      onChange={(e) => updateTracker(index, e.target.value)}
+                      placeholder="https://tracker.example.com/announce"
+                      className="flex-1"
+                    />
+                    {trackers.length > 1 && (
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => removeTracker(index)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+                <Button variant="outline" size="sm" onClick={addTracker}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Tracker
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Advanced Options - Collapsible */}
+        <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+          <Card>
+            <CollapsibleTrigger asChild>
+              <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors py-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base font-medium">Advanced Options</CardTitle>
+                  <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${advancedOpen ? 'rotate-180' : ''}`} />
+                </div>
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent className="pt-0 space-y-4">
+                {/* Name + Output Path */}
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label>Name Override</Label>
+                    <Input
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Use source name"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Output Path</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        value={outputPath}
+                        onChange={(e) => setOutputPath(e.target.value)}
+                        placeholder="Same as source"
+                        className="flex-1"
+                      />
+                      <Button variant="outline" size="icon" onClick={handleSelectOutput}>
+                        <FolderOpen className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Source + Comment */}
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label>Source Tag</Label>
+                    <Input
+                      value={source}
+                      onChange={(e) => setSource(e.target.value)}
+                      placeholder="e.g., tracker name"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Comment</Label>
+                    <Input
+                      value={comment}
+                      onChange={(e) => setComment(e.target.value)}
+                      placeholder="Optional comment"
+                    />
+                  </div>
+                </div>
+
+                {/* Piece Length */}
+                <div className="space-y-1.5">
+                  <Label>Piece Length</Label>
+                  <Select
+                    value={pieceLengthExp.toString()}
+                    onValueChange={(v) => setPieceLengthExp(parseInt(v))}
+                  >
+                    <SelectTrigger className="w-48">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PIECE_LENGTHS.map((pl) => (
+                        <SelectItem key={pl.value} value={pl.value.toString()}>
+                          {pl.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Toggles */}
+                <div className="flex flex-wrap gap-6">
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="noDate"
+                      checked={noDate}
+                      onCheckedChange={setNoDate}
+                    />
+                    <Label htmlFor="noDate" className="text-sm">Exclude date</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="noCreator"
+                      checked={noCreator}
+                      onCheckedChange={setNoCreator}
+                    />
+                    <Label htmlFor="noCreator" className="text-sm">Exclude creator</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="entropy"
+                      checked={entropy}
+                      onCheckedChange={setEntropy}
+                    />
+                    <Label htmlFor="entropy" className="text-sm">Add entropy</Label>
+                  </div>
+                </div>
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
+
+        {/* Error */}
+        {error && (
+          <Card className="border-destructive">
+            <CardContent className="py-3">
+              <p className="text-destructive text-sm">{error}</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Progress */}
+        {isCreating && progress && (
+          <Card>
+            <CardContent className="py-4 space-y-3">
+              <div className="flex justify-between text-sm">
+                <span className="font-medium">Creating Torrent</span>
+                <span className="text-muted-foreground">{progress.percent.toFixed(0)}%</span>
+              </div>
+              <Progress value={progress.percent} />
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>{progress.completed} / {progress.total} pieces</span>
+                <span>{progress.hashRate.toFixed(2)} MB/s</span>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Result */}
+        {result && (
+          <Card className="border-green-500">
+            <CardContent className="py-4 space-y-2">
+              <p className="font-medium text-green-600">Torrent Created</p>
+              <div className="grid grid-cols-[80px_1fr] gap-x-2 gap-y-1 text-sm">
+                <span className="text-muted-foreground">Path</span>
+                <span className="font-mono text-xs break-all">{result.path}</span>
+                <span className="text-muted-foreground">Hash</span>
+                <span className="font-mono text-xs break-all">{result.infoHash}</span>
+                <span className="text-muted-foreground">Size</span>
+                <span>{formatBytes(result.size)}</span>
+                <span className="text-muted-foreground">Pieces</span>
+                <span>{result.pieceCount}</span>
+                <span className="text-muted-foreground">Files</span>
+                <span>{result.fileCount}</span>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
+      <div className="border-t bg-background p-4 flex justify-end">
+        <Button onClick={handleCreate} disabled={isCreating || !path}>
+          {isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          {isCreating ? 'Creating...' : 'Create Torrent'}
+        </Button>
+      </div>
+    </div>
+  );
+}

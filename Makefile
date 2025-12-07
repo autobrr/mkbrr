@@ -152,6 +152,39 @@ clean:
 	@rm -rf ${BUILD_DIR}
 	@rm -f coverage.txt coverage.html
 
+# GUI targets
+WAILS=$(GOBIN)/wails
+
+# install wails cli
+.PHONY: install-wails
+install-wails:
+	@echo "Installing Wails CLI..."
+	$(GO) install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+# run gui in development mode
+.PHONY: gui-dev
+gui-dev:
+	@echo "Starting GUI in development mode..."
+	cd gui && $(WAILS) dev
+
+# build gui for current platform
+.PHONY: gui-build
+gui-build:
+	@echo "Building GUI..."
+	cd gui && $(WAILS) build
+
+# build gui for all platforms
+.PHONY: gui-build-all
+gui-build-all:
+	@echo "Building GUI for all platforms..."
+	cd gui && $(WAILS) build -platform darwin/universal,linux/amd64,windows/amd64
+
+# clean gui build artifacts
+.PHONY: gui-clean
+gui-clean:
+	@echo "Cleaning GUI build artifacts..."
+	@rm -rf gui/build/bin
+
 # show help
 .PHONY: help
 help:
@@ -169,3 +202,10 @@ help:
 	@echo "  lint           - Run golangci-lint"
 	@echo "  clean          - Remove build artifacts"
 	@echo "  help           - Show this help"
+	@echo ""
+	@echo "GUI targets:"
+	@echo "  install-wails  - Install Wails CLI"
+	@echo "  gui-dev        - Run GUI in development mode"
+	@echo "  gui-build      - Build GUI for current platform"
+	@echo "  gui-build-all  - Build GUI for all platforms"
+	@echo "  gui-clean      - Clean GUI build artifacts"
