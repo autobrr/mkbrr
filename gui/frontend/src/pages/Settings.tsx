@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -37,6 +37,52 @@ import { preset } from '../../wailsjs/go/models';
 
 type PresetOptions = preset.Options;
 
+// === Default Settings Storage ===
+const DEFAULT_SETTINGS_KEY = 'mkbrr-default-settings';
+
+export interface DefaultSettings {
+  workers: number;
+}
+
+const DEFAULT_SETTINGS: DefaultSettings = {
+  workers: 1,
+};
+
+export function loadDefaultSettings(): DefaultSettings {
+  try {
+    const saved = localStorage.getItem(DEFAULT_SETTINGS_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return { ...DEFAULT_SETTINGS, ...parsed };
+    }
+  } catch (e) {
+    console.error('Failed to load default settings:', e);
+  }
+  return DEFAULT_SETTINGS;
+}
+
+export function saveDefaultSettings(settings: DefaultSettings): void {
+  try {
+    localStorage.setItem(DEFAULT_SETTINGS_KEY, JSON.stringify(settings));
+  } catch (e) {
+    console.error('Failed to save default settings:', e);
+  }
+}
+
+/**
+ * Get the effective workers count, considering preset override and default settings.
+ * @param presetWorkers - Workers value from a preset (0 means "use default")
+ * @returns The effective number of workers to use
+ */
+export function getEffectiveWorkers(presetWorkers?: number): number {
+  const defaults = loadDefaultSettings();
+  // If preset specifies workers > 0, use that; otherwise use default
+  if (presetWorkers && presetWorkers > 0) {
+    return presetWorkers;
+  }
+  return defaults.workers;
+}
+
 interface PresetFormData {
   name: string;
   source: string;
@@ -49,6 +95,7 @@ interface PresetFormData {
   trackers: string[];
   pieceLength: number;
   maxPieceLength: number;
+  workers: number;
 }
 
 const emptyFormData: PresetFormData = {
@@ -63,6 +110,7 @@ const emptyFormData: PresetFormData = {
   trackers: [''],
   pieceLength: 0,
   maxPieceLength: 0,
+  workers: 0, // 0 = use default from settings
 };
 
 // Preset name validation constants (must match backend)
@@ -101,6 +149,7 @@ function optionsToFormData(name: string, options: PresetOptions): PresetFormData
         : [''],
     pieceLength: options.pieceLength || (options as any).PieceLength || 0,
     maxPieceLength: options.maxPieceLength || (options as any).MaxPieceLength || 0,
+    workers: options.workers ?? (options as any).Workers ?? 0, // 0 = use default
   };
 }
 
@@ -121,7 +170,7 @@ function formDataToOptions(data: PresetFormData): PresetOptions {
   options.excludePatterns = [];
   options.includePatterns = [];
   options.outputDir = '';
-  options.workers = 0;
+  options.workers = data.workers;
   return options;
 }
 
@@ -130,6 +179,9 @@ export function SettingsPage() {
   const [presets, setPresets] = useState<Record<string, PresetOptions>>({});
   const [presetErrors, setPresetErrors] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Default settings state
+  const [defaultWorkers, setDefaultWorkers] = useState(() => loadDefaultSettings().workers);
 
   // Dialog states
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -145,6 +197,13 @@ export function SettingsPage() {
   useEffect(() => {
     loadSettings();
   }, []);
+
+  // Save default settings when they change
+  const handleDefaultWorkersChange = (value: number) => {
+    const newValue = Math.max(1, Math.min(32, value || 1)); // Clamp between 1-32
+    setDefaultWorkers(newValue);
+    saveDefaultSettings({ workers: newValue });
+  };
 
   const loadSettings = async () => {
     setIsLoading(true);
@@ -293,8 +352,36 @@ export function SettingsPage() {
       <div className="flex-1 p-6 space-y-4">
         <div>
           <h1 className="text-2xl font-semibold">Settings</h1>
-          <p className="text-sm text-muted-foreground">Manage presets</p>
+          <p className="text-sm text-muted-foreground">Manage default settings and presets</p>
         </div>
+
+        {/* Default Settings Card */}
+        <Card>
+          <CardHeader className="py-3">
+            <CardTitle className="text-base">Default Settings</CardTitle>
+            <CardDescription className="text-xs">
+              These settings apply when no preset is selected, or when a preset doesn't specify a value.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-0 space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="default-workers">Default Workers</Label>
+              <Input
+                id="default-workers"
+                type="number"
+                min={1}
+                max={32}
+                value={defaultWorkers}
+                onChange={(e) => handleDefaultWorkersChange(parseInt(e.target.value) || 1)}
+                className="w-32"
+              />
+              <p className="text-xs text-muted-foreground">
+                Number of parallel workers for hashing. Used when creating torrents without a preset,
+                or when the preset doesn't override this value.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
 
         <Card className="flex-1">
             <CardHeader className="py-3 flex flex-row items-center justify-between">
@@ -373,6 +460,7 @@ export function SettingsPage() {
                               {((opts.trackers && opts.trackers.length > 0) || ((opts as any).Trackers && (opts as any).Trackers.length > 0)) && (
                                 <span>Trackers: {opts.trackers?.length || (opts as any).Trackers?.length}</span>
                               )}
+                              <span>Workers: {(opts.workers ?? (opts as any).Workers) || `default (${defaultWorkers})`}</span>
                             </div>
                           </div>
                         );
@@ -521,6 +609,24 @@ export function SettingsPage() {
                     />
                     <Label htmlFor="preset-skipPrefix" className="text-sm">Skip Prefix</Label>
                   </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="preset-workers">Workers Override</Label>
+                  <Input
+                    id="preset-workers"
+                    type="number"
+                    min={0}
+                    max={32}
+                    value={formData.workers}
+                    onChange={(e) => setFormData({ ...formData, workers: parseInt(e.target.value) || 0 })}
+                    placeholder="0 = use default"
+                    className="w-32"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Override the default workers setting for this preset.
+                    Set to 0 to use the default ({defaultWorkers} workers).
+                  </p>
                 </div>
               </CollapsibleContent>
             </Collapsible>

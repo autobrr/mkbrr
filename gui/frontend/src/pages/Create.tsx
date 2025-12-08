@@ -14,6 +14,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { FolderOpen, File, Plus, X, Loader2, ChevronDown, Sparkles, FileSearch } from 'lucide-react';
 import { SelectPath, SelectFile, CreateTorrent, ListPresets, GetPreset, GetTrackerInfo, GetContentSize, GetRecommendedPieceSize, InspectTorrent } from '../../wailsjs/go/main/App';
 import { EventsOn } from '../../wailsjs/runtime/runtime';
+import { getEffectiveWorkers } from './Settings';
 
 import { main, preset as presetTypes } from '../../wailsjs/go/models';
 
@@ -424,6 +425,9 @@ export function CreatePage() {
     setDialogOpen(true);
 
     try {
+      // Get workers from settings (preset workers override default if set)
+      const workers = getEffectiveWorkers();
+
       const req: CreateRequest = {
         path,
         name,
@@ -444,6 +448,7 @@ export function CreatePage() {
         includePatterns: [],
         presetName,
         presetFile: '',
+        workers,
       };
 
       const res = await CreateTorrent(req);

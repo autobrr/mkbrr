@@ -65,6 +65,7 @@ type CreateRequest struct {
 	IncludePatterns []string `json:"includePatterns"` // Optional: file inclusion patterns
 	PresetName      string   `json:"presetName"`      // Optional: preset name to apply
 	PresetFile      string   `json:"presetFile"`      // Optional: path to preset file
+	Workers         int      `json:"workers"`         // Optional: number of parallel workers (0 = auto)
 }
 
 // TorrentResult represents the result of torrent creation
@@ -255,6 +256,7 @@ func (a *App) CreateTorrent(req CreateRequest) (*TorrentResult, error) {
 		SkipPrefix:      req.SkipPrefix,
 		ExcludePatterns: req.ExcludePatterns,
 		IncludePatterns: req.IncludePatterns,
+		Workers:         req.Workers,
 		Quiet:           true, // Suppress CLI output
 		ProgressCallback: func(completed, total int, hashRate float64) {
 			if a.ctx == nil {
@@ -739,6 +741,10 @@ func applyPresetToCreateOptions(opts *torrent.CreateOptions, presetOpts *preset.
 	}
 	if len(presetOpts.IncludePatterns) > 0 && len(opts.IncludePatterns) == 0 {
 		opts.IncludePatterns = presetOpts.IncludePatterns
+	}
+	// Preset workers override if > 0 (0 means "use default from request")
+	if presetOpts.Workers > 0 {
+		opts.Workers = presetOpts.Workers
 	}
 }
 

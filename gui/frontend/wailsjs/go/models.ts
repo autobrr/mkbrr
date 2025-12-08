@@ -20,6 +20,7 @@ export namespace main {
 	    includePatterns: string[];
 	    presetName: string;
 	    presetFile: string;
+	    workers: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new CreateRequest(source);
@@ -46,6 +47,7 @@ export namespace main {
 	        this.includePatterns = source["includePatterns"];
 	        this.presetName = source["presetName"];
 	        this.presetFile = source["presetFile"];
+	        this.workers = source["workers"];
 	    }
 	}
 	export class FileInfo {
