@@ -184,12 +184,19 @@ xattr -cr /path/to/mkbrr-gui.app
 
 ### GUI Features
 
-The GUI provides the same core functionality as the CLI:
-- **Create** - Create torrent files with tracker support and presets
-- **Inspect** - View torrent metadata and file lists
-- **Verify** - Check torrent data integrity against local files
+The GUI provides the same core functionality as the CLI with additional usability features:
+
+- **Create** - Create torrent files with tracker support, presets, and real-time progress tracking with hash rate display
+- **Inspect** - View torrent metadata with searchable, collapsible file tree
+- **Check** - Verify torrent data integrity with detailed results (good/bad/missing pieces)
 - **Modify** - Edit torrent metadata without source files
-- **Presets** - Manage and use configuration presets
+- **Settings** - Configure default workers and manage presets (create, edit, delete)
+
+Additional features:
+- **Theme Support** - Light, dark, and system theme modes
+- **Tracker Detection** - Automatic piece size recommendations based on tracker rules
+- **Form Persistence** - Form state is saved across sessions
+- **Preset Management** - Full preset CRUD operations with validation
 
 ## Usage
 

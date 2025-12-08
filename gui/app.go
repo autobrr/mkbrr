@@ -61,21 +61,33 @@ type CreateRequest struct {
 	NoCreator       bool     `json:"noCreator"`       // Optional: exclude creator string
 	Entropy         bool     `json:"entropy"`         // Optional: add random entropy for unique hash
 	SkipPrefix      bool     `json:"skipPrefix"`      // Optional: don't prefix output filename
-	ExcludePatterns []string `json:"excludePatterns"` // Optional: file exclusion patterns
-	IncludePatterns []string `json:"includePatterns"` // Optional: file inclusion patterns
-	PresetName      string   `json:"presetName"`      // Optional: preset name to apply
-	PresetFile      string   `json:"presetFile"`      // Optional: path to preset file
-	Workers         int      `json:"workers"`         // Optional: number of parallel workers (0 = auto)
+	ExcludePatterns     []string `json:"excludePatterns"`     // Optional: file exclusion patterns
+	IncludePatterns     []string `json:"includePatterns"`     // Optional: file inclusion patterns
+	PresetName          string   `json:"presetName"`          // Optional: preset name to apply
+	PresetFile          string   `json:"presetFile"`          // Optional: path to preset file
+	Workers             int      `json:"workers"`             // Optional: number of parallel workers (0 = auto)
+	FailOnSeasonWarning bool     `json:"failOnSeasonWarning"` // Optional: fail if incomplete season pack detected
 }
 
 // TorrentResult represents the result of torrent creation
 type TorrentResult struct {
-	Path       string `json:"path"`
-	InfoHash   string `json:"infoHash"`
-	Size       int64  `json:"size"`
-	PieceCount int    `json:"pieceCount"`
-	FileCount  int    `json:"fileCount"`
-	Warning    string `json:"warning,omitempty"`
+	Path           string          `json:"path"`
+	InfoHash       string          `json:"infoHash"`
+	Size           int64           `json:"size"`
+	PieceCount     int             `json:"pieceCount"`
+	FileCount      int             `json:"fileCount"`
+	Warning        string          `json:"warning,omitempty"`
+	SeasonPackInfo *SeasonPackInfo `json:"seasonPackInfo,omitempty"`
+}
+
+// SeasonPackInfo contains information about detected season pack issues
+type SeasonPackInfo struct {
+	IsSeasonPack    bool  `json:"isSeasonPack"`
+	IsSuspicious    bool  `json:"isSuspicious"`
+	Season          int   `json:"season"`
+	MaxEpisode      int   `json:"maxEpisode"`
+	VideoFileCount  int   `json:"videoFileCount"`
+	MissingEpisodes []int `json:"missingEpisodes,omitempty"`
 }
 
 // InspectResult represents torrent metadata for inspection
@@ -216,6 +228,30 @@ func (a *App) CreateTorrent(req CreateRequest) (*TorrentResult, error) {
 		return nil, fmt.Errorf("path is required")
 	}
 
+	// Analyze season pack info before creation
+	var seasonPackInfo *SeasonPackInfo
+	torrentSeasonInfo, err := torrent.AnalyzeSeasonPackFromPath(req.Path)
+	if err != nil {
+		log.Printf("Warning: failed to analyze season pack: %v", err)
+	} else if torrentSeasonInfo != nil && torrentSeasonInfo.IsSeasonPack {
+		seasonPackInfo = &SeasonPackInfo{
+			IsSeasonPack:    torrentSeasonInfo.IsSeasonPack,
+			IsSuspicious:    torrentSeasonInfo.IsSuspicious,
+			Season:          torrentSeasonInfo.Season,
+			MaxEpisode:      torrentSeasonInfo.MaxEpisode,
+			VideoFileCount:  torrentSeasonInfo.VideoFileCount,
+			MissingEpisodes: torrentSeasonInfo.MissingEpisodes,
+		}
+
+		// If fail on season warning is enabled and pack is suspicious, return error
+		if req.FailOnSeasonWarning && torrentSeasonInfo.IsSuspicious {
+			return &TorrentResult{
+				SeasonPackInfo: seasonPackInfo,
+				Warning:        "Incomplete season pack detected and fail-on-season-warning is enabled",
+			}, fmt.Errorf("incomplete season pack detected: missing episodes %v", torrentSeasonInfo.MissingEpisodes)
+		}
+	}
+
 	var pieceLengthExp *uint
 	if req.PieceLengthExp > 0 {
 		pieceLengthExp = &req.PieceLengthExp
@@ -239,25 +275,26 @@ func (a *App) CreateTorrent(req CreateRequest) (*TorrentResult, error) {
 	}
 
 	opts := torrent.CreateOptions{
-		Path:            req.Path,
-		Name:            req.Name,
-		TrackerURLs:     req.TrackerURLs,
-		WebSeeds:        req.WebSeeds,
-		Comment:         req.Comment,
-		Source:          req.Source,
-		IsPrivate:       isPrivate,
-		PieceLengthExp:  pieceLengthExp,
-		MaxPieceLength:  maxPieceLength,
-		OutputPath:      req.OutputPath,
-		OutputDir:       outputDir,
-		NoDate:          req.NoDate,
-		NoCreator:       req.NoCreator,
-		Entropy:         req.Entropy,
-		SkipPrefix:      req.SkipPrefix,
-		ExcludePatterns: req.ExcludePatterns,
-		IncludePatterns: req.IncludePatterns,
-		Workers:         req.Workers,
-		Quiet:           true, // Suppress CLI output
+		Path:                    req.Path,
+		Name:                    req.Name,
+		TrackerURLs:             req.TrackerURLs,
+		WebSeeds:                req.WebSeeds,
+		Comment:                 req.Comment,
+		Source:                  req.Source,
+		IsPrivate:               isPrivate,
+		PieceLengthExp:          pieceLengthExp,
+		MaxPieceLength:          maxPieceLength,
+		OutputPath:              req.OutputPath,
+		OutputDir:               outputDir,
+		NoDate:                  req.NoDate,
+		NoCreator:               req.NoCreator,
+		Entropy:                 req.Entropy,
+		SkipPrefix:              req.SkipPrefix,
+		ExcludePatterns:         req.ExcludePatterns,
+		IncludePatterns:         req.IncludePatterns,
+		Workers:                 req.Workers,
+		FailOnSeasonPackWarning: req.FailOnSeasonWarning,
+		Quiet:                   true, // Suppress CLI output
 		ProgressCallback: func(completed, total int, hashRate float64) {
 			if a.ctx == nil {
 				return
@@ -310,12 +347,13 @@ func (a *App) CreateTorrent(req CreateRequest) (*TorrentResult, error) {
 	}
 
 	return &TorrentResult{
-		Path:       info.Path,
-		InfoHash:   info.InfoHash,
-		Size:       size,
-		PieceCount: pieceCount,
-		FileCount:  fileCount,
-		Warning:    warning,
+		Path:           info.Path,
+		InfoHash:       info.InfoHash,
+		Size:           size,
+		PieceCount:     pieceCount,
+		FileCount:      fileCount,
+		Warning:        warning,
+		SeasonPackInfo: seasonPackInfo,
 	}, nil
 }
 

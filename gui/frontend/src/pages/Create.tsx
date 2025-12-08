@@ -11,7 +11,7 @@ import { Switch } from '@/components/ui/switch';
 import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { FolderOpen, File, Plus, X, Loader2, ChevronDown, Sparkles, FileSearch } from 'lucide-react';
+import { FolderOpen, File, Plus, X, Loader2, ChevronDown, Sparkles, FileSearch, AlertTriangle } from 'lucide-react';
 import { SelectPath, SelectFile, CreateTorrent, ListPresets, GetPreset, GetTrackerInfo, GetContentSize, GetRecommendedPieceSize, InspectTorrent } from '../../wailsjs/go/main/App';
 import { EventsOn } from '../../wailsjs/runtime/runtime';
 import { getEffectiveWorkers } from './Settings';
@@ -52,6 +52,7 @@ interface CreateFormState {
   noCreator: boolean;
   entropy: boolean;
   presetName: string;
+  failOnSeasonWarning: boolean;
 }
 
 const STORAGE_KEY = 'mkbrr-create-form';
@@ -148,6 +149,7 @@ export function CreatePage() {
   const [noCreator, setNoCreator] = useState(savedState.noCreator ?? false);
   const [entropy, setEntropy] = useState(savedState.entropy ?? false);
   const [presetName, setPresetName] = useState(savedState.presetName ?? '');
+  const [failOnSeasonWarning, setFailOnSeasonWarning] = useState(savedState.failOnSeasonWarning ?? false);
 
   const [presets, setPresets] = useState<string[]>([]);
   const [isCreating, setIsCreating] = useState(false);
@@ -179,8 +181,9 @@ export function CreatePage() {
       noCreator,
       entropy,
       presetName,
+      failOnSeasonWarning,
     });
-  }, [path, name, trackers, isPrivate, comment, source, pieceLengthExp, outputDir, noDate, noCreator, entropy, presetName]);
+  }, [path, name, trackers, isPrivate, comment, source, pieceLengthExp, outputDir, noDate, noCreator, entropy, presetName, failOnSeasonWarning]);
 
   // Check for pending result on mount (in case user navigated away during creation)
   useEffect(() => {
@@ -329,9 +332,7 @@ export function CreatePage() {
     setSource('');
     setPieceLengthExp(0);
     setOutputDir('');
-    setNoDate(false);
-    setNoCreator(false);
-    setEntropy(false);
+    // Don't reset noDate, noCreator, entropy, failOnSeasonWarning - they're preferences, not form fields
     setPresetName('');
     setResult(null);
     setError('');
@@ -367,6 +368,12 @@ export function CreatePage() {
           if (sourceVal) setSource(sourceVal);
           if (privateVal !== undefined) setIsPrivate(privateVal);
           if (commentVal) setComment(commentVal);
+
+          // Preset overrides preference-like options if specified
+          if (preset.noDate !== undefined) setNoDate(preset.noDate);
+          if (preset.noCreator !== undefined) setNoCreator(preset.noCreator);
+          if (preset.entropy !== undefined) setEntropy(preset.entropy);
+          if (preset.failOnSeasonWarning !== undefined) setFailOnSeasonWarning(preset.failOnSeasonWarning);
         }
       } catch (e) {
         toast.error('Failed to load preset: ' + String(e));
@@ -449,6 +456,7 @@ export function CreatePage() {
         presetName,
         presetFile: '',
         workers,
+        failOnSeasonWarning,
       };
 
       const res = await CreateTorrent(req);
@@ -723,6 +731,21 @@ export function CreatePage() {
                     />
                     <Label htmlFor="entropy" className="text-sm">Add entropy</Label>
                   </div>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="failOnSeasonWarning"
+                      checked={failOnSeasonWarning}
+                      onCheckedChange={setFailOnSeasonWarning}
+                    />
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Label htmlFor="failOnSeasonWarning" className="text-sm cursor-help">Fail on season warning</Label>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="max-w-xs">Fail if an incomplete season pack is detected (missing episodes)</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                 </div>
               </div>
             </CollapsibleContent>
@@ -782,6 +805,31 @@ export function CreatePage() {
                 <Card className="border-amber-500 bg-amber-500/10 mb-2">
                   <CardContent className="py-2">
                     <p className="text-amber-600 dark:text-amber-400 text-sm">{result.warning}</p>
+                  </CardContent>
+                </Card>
+              )}
+              {result.seasonPackInfo?.isSuspicious && (
+                <Card className="border-amber-500 bg-amber-500/10 mb-2">
+                  <CardContent className="py-3">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
+                      <div className="space-y-1">
+                        <p className="text-amber-600 dark:text-amber-400 text-sm font-medium">
+                          Possible incomplete season pack detected
+                        </p>
+                        <div className="text-xs text-muted-foreground space-y-0.5">
+                          <p>Season: {result.seasonPackInfo.season}</p>
+                          <p>Highest episode: {result.seasonPackInfo.maxEpisode}</p>
+                          <p>Video files: {result.seasonPackInfo.videoFileCount}</p>
+                          {result.seasonPackInfo.missingEpisodes && result.seasonPackInfo.missingEpisodes.length > 0 && (
+                            <p>Missing episodes: {result.seasonPackInfo.missingEpisodes.join(', ')}</p>
+                          )}
+                        </div>
+                        <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                          Check files before uploading.
+                        </p>
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
               )}
