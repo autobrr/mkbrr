@@ -15,12 +15,13 @@ import (
 
 // App struct holds the application state
 type App struct {
-	ctx context.Context
+	ctx     context.Context
+	version string
 }
 
 // NewApp creates a new App application struct
-func NewApp() *App {
-	return &App{}
+func NewApp(version string) *App {
+	return &App{version: version}
 }
 
 // startup is called when the app starts
@@ -634,7 +635,7 @@ func (a *App) FormatBytes(bytes int64) string {
 
 // GetVersion returns the application version
 func (a *App) GetVersion() string {
-	return "0.1.0" // TODO: Get from build info
+	return a.version
 }
 
 // OpenURL opens a URL in the default browser

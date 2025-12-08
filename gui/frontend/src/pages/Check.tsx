@@ -210,7 +210,7 @@ export function CheckPage() {
         )}
       </div>
 
-      <div className="border-t bg-background p-4 flex justify-end">
+      <div className="bg-background p-4 flex justify-end">
         <Button onClick={handleVerify} disabled={isVerifying || !torrentPath || !contentPath}>
           {isVerifying && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           {isVerifying ? 'Verifying...' : 'Verify Torrent'}

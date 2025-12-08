@@ -289,7 +289,7 @@ export function ModifyPage() {
         )}
       </div>
 
-      <div className="border-t bg-background p-4 flex justify-end">
+      <div className="bg-background p-4 flex justify-end">
         <Button onClick={handleModify} disabled={isModifying || !torrentPath}>
           {isModifying && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           {isModifying ? 'Modifying...' : 'Modify Torrent'}

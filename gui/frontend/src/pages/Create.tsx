@@ -453,7 +453,7 @@ export function CreatePage() {
         )}
       </div>
 
-      <div className="border-t bg-background p-4 flex justify-end">
+      <div className="bg-background p-4 flex justify-end">
         <Button onClick={handleCreate} disabled={isCreating || !path}>
           {isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           {isCreating ? 'Creating...' : 'Create Torrent'}

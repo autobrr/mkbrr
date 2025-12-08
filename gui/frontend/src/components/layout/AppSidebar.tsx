@@ -1,5 +1,6 @@
+import { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
-import { FilePlus, FileSearch, FileCheck, FileEdit, Settings, Moon, Sun, Palette } from 'lucide-react';
+import { FilePlus, FileSearch, FileCheck, FileEdit, Settings, Moon, Sun, Palette, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -11,6 +12,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useTheme, ThemeName } from '@/hooks/useTheme';
+import { GetVersion } from '../../../wailsjs/go/main/App';
+import { BrowserOpenURL } from '../../../wailsjs/runtime/runtime';
 
 const navItems = [
   { to: '/', icon: FilePlus, label: 'Create' },
@@ -21,6 +24,11 @@ const navItems = [
 
 export function AppSidebar() {
   const { mode, theme, toggleMode, setTheme, availableThemes } = useTheme();
+  const [version, setVersion] = useState('');
+
+  useEffect(() => {
+    GetVersion().then(setVersion).catch(() => setVersion('dev'));
+  }, []);
 
   return (
     <aside className="flex h-screen w-56 flex-col border-r border-sidebar-border bg-sidebar">
@@ -104,8 +112,20 @@ export function AppSidebar() {
         </Button>
       </div>
 
-      <div className="p-4 text-xs text-sidebar-foreground/50">
-        v0.1.0
+      <div className="p-3 space-y-1">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full justify-start gap-3 px-3 text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground h-8 text-xs"
+          onClick={() => BrowserOpenURL('https://mkbrr.com')}
+        >
+          <ExternalLink className="h-3.5 w-3.5" />
+          Documentation
+        </Button>
+        <div className="flex items-center justify-between px-3 py-1 text-xs text-sidebar-foreground/50">
+          <span>{version || ''}</span>
+          <span>GPL-2.0</span>
+        </div>
       </div>
     </aside>
   );

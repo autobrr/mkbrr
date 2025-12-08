@@ -25,16 +25,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { RefreshCw, ExternalLink, Plus, Pencil, Trash2, X, ChevronDown } from 'lucide-react';
+import { RefreshCw, Plus, Pencil, Trash2, X, ChevronDown } from 'lucide-react';
 import {
-  GetVersion,
   GetPresetFilePath,
   GetAllPresets,
   SavePreset,
   DeletePreset,
   CreatePresetFile,
 } from '../../wailsjs/go/main/App';
-import { BrowserOpenURL } from '../../wailsjs/runtime/runtime';
 import { preset } from '../../wailsjs/go/models';
 
 type PresetOptions = preset.Options;
@@ -105,7 +103,6 @@ function formDataToOptions(data: PresetFormData): PresetOptions {
 }
 
 export function SettingsPage() {
-  const [version, setVersion] = useState('');
   const [presetPath, setPresetPath] = useState('');
   const [presets, setPresets] = useState<Record<string, PresetOptions>>({});
   const [isLoading, setIsLoading] = useState(true);
@@ -127,12 +124,10 @@ export function SettingsPage() {
   const loadSettings = async () => {
     setIsLoading(true);
     try {
-      const [v, path, presetMap] = await Promise.all([
-        GetVersion(),
+      const [path, presetMap] = await Promise.all([
         GetPresetFilePath().catch(() => ''),
         GetAllPresets().catch(() => ({})),
       ]);
-      setVersion(v);
       setPresetPath(path);
       setPresets(presetMap as Record<string, PresetOptions>);
     } catch (e) {
@@ -140,10 +135,6 @@ export function SettingsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleOpenDocs = () => {
-    BrowserOpenURL('https://github.com/autobrr/mkbrr');
   };
 
   const handleNewPreset = async () => {
@@ -241,55 +232,8 @@ export function SettingsPage() {
           <p className="text-sm text-muted-foreground">Application settings and information</p>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="space-y-4">
           <Card>
-            <CardHeader className="py-3">
-              <CardTitle className="text-base">About</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0 space-y-3">
-              <div className="grid grid-cols-[80px_1fr] gap-x-2 gap-y-1 text-sm">
-                <span className="text-muted-foreground">Version</span>
-                <span className="font-mono">{version || 'Loading...'}</span>
-                <span className="text-muted-foreground">License</span>
-                <span>MIT</span>
-              </div>
-              <Separator />
-              <Button variant="outline" size="sm" onClick={handleOpenDocs}>
-                <ExternalLink className="mr-2 h-4 w-4" />
-                Documentation
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card className="lg:col-span-1">
-            <CardHeader className="py-3">
-              <CardTitle className="text-base">Keyboard Shortcuts</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="grid gap-2">
-                <div className="flex items-center justify-between rounded border px-3 py-2">
-                  <span className="text-sm">Create Torrent</span>
-                  <kbd className="inline-flex h-5 items-center gap-1 rounded border bg-muted px-1.5 font-mono text-xs">
-                    <span className="text-xs">⌘</span>N
-                  </kbd>
-                </div>
-                <div className="flex items-center justify-between rounded border px-3 py-2">
-                  <span className="text-sm">Open Torrent</span>
-                  <kbd className="inline-flex h-5 items-center gap-1 rounded border bg-muted px-1.5 font-mono text-xs">
-                    <span className="text-xs">⌘</span>O
-                  </kbd>
-                </div>
-                <div className="flex items-center justify-between rounded border px-3 py-2">
-                  <span className="text-sm">Toggle Theme</span>
-                  <kbd className="inline-flex h-5 items-center gap-1 rounded border bg-muted px-1.5 font-mono text-xs">
-                    <span className="text-xs">⌘</span>D
-                  </kbd>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="lg:col-span-2">
             <CardHeader className="py-3 flex flex-row items-center justify-between">
               <CardTitle className="text-base">Presets</CardTitle>
               <Button variant="outline" size="sm" onClick={handleNewPreset}>
