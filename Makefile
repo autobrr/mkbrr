@@ -92,7 +92,7 @@ install-pgo:
 .PHONY: test
 test:
 	@echo "Running tests..."
-	$(GO) test -v $(shell go list ./... | grep -v /gui)
+	$(GO) test -v ./torrent ./internal/...
 
 # run quick tests with race detector (for CI and quick feedback)
 .PHONY: test-race-short
@@ -128,7 +128,7 @@ test-large:
 .PHONY: test-coverage
 test-coverage:
 	@echo "Running tests with coverage..."
-	GORACE="$(GORACE)" $(GO) test -v -race -coverprofile=coverage.txt -covermode=atomic $(shell go list ./... | grep -v /gui)
+	GORACE="$(GORACE)" $(GO) test -v -race -coverprofile=coverage.txt -covermode=atomic ./torrent ./internal/...
 	$(GO) tool cover -html=coverage.txt -o coverage.html
 	@if [ -f "./race_report.log" ]; then \
 		echo "Race conditions detected! Check race_report.log"; \
