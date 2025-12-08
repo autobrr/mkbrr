@@ -4,12 +4,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
-import { FileSearch, FolderOpen, File, Folder, Loader2, ChevronDown, ChevronRight, Lock, Globe, Copy, Check, RotateCcw, Search, X, ChevronsUpDown } from 'lucide-react';
+import { FileSearch, FolderOpen, File, Folder, Loader2, ChevronDown, ChevronRight, Lock, Globe, Copy, Check, RotateCcw, Search, X, ChevronsUpDown, Tag, User, Calendar } from 'lucide-react';
 import { SelectTorrentFile, InspectTorrent } from '../../wailsjs/go/main/App';
 import { main } from '../../wailsjs/go/models';
 
 type InspectResult = main.InspectResult;
 type FileInfo = main.FileInfo;
+type TrackerTier = main.TrackerTier;
 
 const STORAGE_KEY = 'mkbrr-inspect-state';
 
@@ -317,6 +318,33 @@ function StatItem({ value, label }: { value: string; label: string }) {
   );
 }
 
+interface MetadataBadgeProps {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  copyable?: boolean;
+}
+
+function MetadataBadge({ icon, label, value, copyable }: MetadataBadgeProps) {
+  return (
+    <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-muted/50 text-sm group">
+      <span className="text-muted-foreground">{icon}</span>
+      <span className="text-muted-foreground text-xs">{label}</span>
+      <span className="font-medium">{value}</span>
+      {copyable && (
+        <div className="opacity-0 group-hover:opacity-100 transition-opacity ml-0.5">
+          <CopyButton text={value} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function getTierLabel(tier: number): string {
+  if (tier === 0) return 'Primary';
+  return `Backup ${tier}`;
+}
+
 export function InspectPage() {
   const [torrentInfo, setTorrentInfo] = useState<InspectResult | null>(null);
   const [error, setError] = useState<string>('');
@@ -360,12 +388,9 @@ export function InspectPage() {
     saveInspectState(null);
   };
 
-  const metadataItems = [];
-  if (torrentInfo?.source) metadataItems.push(`Source: ${torrentInfo.source}`);
-  if (torrentInfo?.createdBy) metadataItems.push(`Created by ${torrentInfo.createdBy}`);
-  if (torrentInfo?.creationDate && torrentInfo.creationDate > 0) {
-    metadataItems.push(new Date(torrentInfo.creationDate * 1000).toLocaleDateString());
-  }
+  // Check if we have any metadata to display
+  const hasMetadata = torrentInfo?.source || torrentInfo?.createdBy ||
+    (torrentInfo?.creationDate && torrentInfo.creationDate > 0) || torrentInfo?.comment;
 
   return (
     <div className="h-full overflow-auto">
@@ -452,15 +477,34 @@ export function InspectPage() {
               </div>
 
               {/* Metadata row */}
-              {(metadataItems.length > 0 || torrentInfo.comment) && (
-                <div className="px-5 py-3 border-b bg-muted/30">
-                  {metadataItems.length > 0 && (
-                    <p className="text-sm text-muted-foreground">
-                      {metadataItems.join(' · ')}
-                    </p>
-                  )}
+              {hasMetadata && (
+                <div className="px-5 py-3 border-b bg-muted/30 space-y-2">
+                  <div className="flex flex-wrap gap-2">
+                    {torrentInfo.source && (
+                      <MetadataBadge
+                        icon={<Tag className="h-3.5 w-3.5" />}
+                        label="Source"
+                        value={torrentInfo.source}
+                        copyable
+                      />
+                    )}
+                    {torrentInfo.createdBy && (
+                      <MetadataBadge
+                        icon={<User className="h-3.5 w-3.5" />}
+                        label="Created by"
+                        value={torrentInfo.createdBy}
+                      />
+                    )}
+                    {torrentInfo.creationDate > 0 && (
+                      <MetadataBadge
+                        icon={<Calendar className="h-3.5 w-3.5" />}
+                        label="Date"
+                        value={new Date(torrentInfo.creationDate * 1000).toLocaleDateString()}
+                      />
+                    )}
+                  </div>
                   {torrentInfo.comment && (
-                    <p className="text-sm text-muted-foreground mt-1 italic">
+                    <p className="text-sm text-muted-foreground italic">
                       "{torrentInfo.comment}"
                     </p>
                   )}
@@ -468,28 +512,53 @@ export function InspectPage() {
               )}
 
               {/* Trackers section */}
-              {torrentInfo.trackers && torrentInfo.trackers.length > 0 && (
+              {((torrentInfo.trackerTiers && torrentInfo.trackerTiers.length > 0) ||
+                (torrentInfo.trackers && torrentInfo.trackers.length > 0)) && (
                 <Collapsible open={trackersOpen} onOpenChange={setTrackersOpen}>
                   <CollapsibleTrigger asChild>
                     <div className="flex items-center justify-between px-5 py-2.5 border-b cursor-pointer hover:bg-muted/50 transition-colors">
                       <span className="text-sm font-medium">
-                        Trackers ({torrentInfo.trackers.length})
+                        Trackers ({torrentInfo.trackerTiers?.reduce((sum, tier) => sum + tier.trackers.length, 0) || torrentInfo.trackers?.length || 0})
                       </span>
                       <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${trackersOpen ? 'rotate-180' : ''}`} />
                     </div>
                   </CollapsibleTrigger>
                   <CollapsibleContent>
-                    <div className="px-5 py-3 border-b space-y-1.5">
-                      {torrentInfo.trackers.map((tracker, i) => (
-                        <div key={i} className="flex items-center gap-2 group">
-                          <code className="text-xs font-mono text-muted-foreground break-all flex-1">
-                            {tracker}
-                          </code>
-                          <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                            <CopyButton text={tracker} />
+                    <div className="px-5 py-3 border-b space-y-4">
+                      {torrentInfo.trackerTiers && torrentInfo.trackerTiers.length > 0 ? (
+                        // New tier-based display
+                        torrentInfo.trackerTiers.map((tier, tierIndex) => (
+                          <div key={tierIndex} className="space-y-1.5">
+                            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                              {getTierLabel(tier.tier)}
+                            </div>
+                            {tier.trackers.map((tracker, i) => (
+                              <div key={i} className="flex items-center gap-2 group pl-2">
+                                <code className="text-xs font-mono text-muted-foreground break-all flex-1">
+                                  {tracker}
+                                </code>
+                                <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <CopyButton text={tracker} />
+                                </div>
+                              </div>
+                            ))}
                           </div>
+                        ))
+                      ) : (
+                        // Fallback for cached data without tier info
+                        <div className="space-y-1.5">
+                          {torrentInfo.trackers?.map((tracker, i) => (
+                            <div key={i} className="flex items-center gap-2 group">
+                              <code className="text-xs font-mono text-muted-foreground break-all flex-1">
+                                {tracker}
+                              </code>
+                              <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                <CopyButton text={tracker} />
+                              </div>
+                            </div>
+                          ))}
                         </div>
-                      ))}
+                      )}
                     </div>
                   </CollapsibleContent>
                 </Collapsible>

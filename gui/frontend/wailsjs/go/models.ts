@@ -66,6 +66,20 @@ export namespace main {
 	        this.size = source["size"];
 	    }
 	}
+	export class TrackerTier {
+	    tier: number;
+	    trackers: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new TrackerTier(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.tier = source["tier"];
+	        this.trackers = source["trackers"];
+	    }
+	}
 	export class InspectResult {
 	    name: string;
 	    infoHash: string;
@@ -73,6 +87,7 @@ export namespace main {
 	    pieceLength: number;
 	    pieceCount: number;
 	    trackers: string[];
+	    trackerTiers: TrackerTier[];
 	    webSeeds: string[];
 	    isPrivate: boolean;
 	    source: string;
@@ -94,6 +109,7 @@ export namespace main {
 	        this.pieceLength = source["pieceLength"];
 	        this.pieceCount = source["pieceCount"];
 	        this.trackers = source["trackers"];
+	        this.trackerTiers = this.convertValues(source["trackerTiers"], TrackerTier);
 	        this.webSeeds = source["webSeeds"];
 	        this.isPrivate = source["isPrivate"];
 	        this.source = source["source"];
@@ -290,6 +306,7 @@ export namespace main {
 	        this.hasCustomRules = source["hasCustomRules"];
 	    }
 	}
+	
 	export class VerifyRequest {
 	    torrentPath: string;
 	    contentPath: string;

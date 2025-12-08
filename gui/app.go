@@ -92,26 +92,33 @@ type SeasonPackInfo struct {
 
 // InspectResult represents torrent metadata for inspection
 type InspectResult struct {
-	Name         string     `json:"name"`
-	InfoHash     string     `json:"infoHash"`
-	Size         int64      `json:"size"`
-	PieceLength  int64      `json:"pieceLength"`
-	PieceCount   int        `json:"pieceCount"`
-	Trackers     []string   `json:"trackers"`
-	WebSeeds     []string   `json:"webSeeds"`
-	IsPrivate    bool       `json:"isPrivate"`
-	Source       string     `json:"source"`
-	Comment      string     `json:"comment"`
-	CreatedBy    string     `json:"createdBy"`
-	CreationDate int64      `json:"creationDate"`
-	FileCount    int        `json:"fileCount"`
-	Files        []FileInfo `json:"files"`
+	Name         string        `json:"name"`
+	InfoHash     string        `json:"infoHash"`
+	Size         int64         `json:"size"`
+	PieceLength  int64         `json:"pieceLength"`
+	PieceCount   int           `json:"pieceCount"`
+	Trackers     []string      `json:"trackers"`
+	TrackerTiers []TrackerTier `json:"trackerTiers"`
+	WebSeeds     []string      `json:"webSeeds"`
+	IsPrivate    bool          `json:"isPrivate"`
+	Source       string        `json:"source"`
+	Comment      string        `json:"comment"`
+	CreatedBy    string        `json:"createdBy"`
+	CreationDate int64         `json:"creationDate"`
+	FileCount    int           `json:"fileCount"`
+	Files        []FileInfo    `json:"files"`
 }
 
 // FileInfo represents a file in a torrent
 type FileInfo struct {
 	Path string `json:"path"`
 	Size int64  `json:"size"`
+}
+
+// TrackerTier represents a tier of trackers
+type TrackerTier struct {
+	Tier     int      `json:"tier"`
+	Trackers []string `json:"trackers"`
 }
 
 // VerifyRequest represents a verification request.
@@ -369,7 +376,7 @@ func (a *App) InspectTorrent(path string) (*InspectResult, error) {
 	// Get info using the GetInfo method
 	info := t.GetInfo()
 
-	// Collect trackers
+	// Collect trackers (flat list for backwards compatibility)
 	var trackerList []string
 	if t.Announce != "" {
 		trackerList = append(trackerList, t.Announce)
@@ -378,6 +385,26 @@ func (a *App) InspectTorrent(path string) (*InspectResult, error) {
 		for _, tr := range tier {
 			if tr != t.Announce {
 				trackerList = append(trackerList, tr)
+			}
+		}
+	}
+
+	// Collect trackers by tier
+	var trackerTiers []TrackerTier
+	if t.Announce != "" && len(t.AnnounceList) == 0 {
+		// Only announce URL, no announce list - single tier
+		trackerTiers = append(trackerTiers, TrackerTier{
+			Tier:     0,
+			Trackers: []string{t.Announce},
+		})
+	} else if len(t.AnnounceList) > 0 {
+		// Build tiers from announce list
+		for i, tier := range t.AnnounceList {
+			if len(tier) > 0 {
+				trackerTiers = append(trackerTiers, TrackerTier{
+					Tier:     i,
+					Trackers: tier,
+				})
 			}
 		}
 	}
@@ -408,6 +435,7 @@ func (a *App) InspectTorrent(path string) (*InspectResult, error) {
 		PieceLength:  info.PieceLength,
 		PieceCount:   info.NumPieces(),
 		Trackers:     trackerList,
+		TrackerTiers: trackerTiers,
 		WebSeeds:     t.UrlList,
 		IsPrivate:    info.Private != nil && *info.Private,
 		Source:       info.Source,
