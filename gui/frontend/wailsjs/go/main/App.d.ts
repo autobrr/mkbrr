@@ -13,6 +13,8 @@ export function FormatBytes(arg1:number):Promise<string>;
 
 export function GetAllPresets():Promise<Record<string, preset.Options>>;
 
+export function GetContentSize(arg1:string):Promise<number>;
+
 export function GetPreset(arg1:string):Promise<preset.Options>;
 
 export function GetPresetFilePath():Promise<string>;

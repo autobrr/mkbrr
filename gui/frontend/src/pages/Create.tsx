@@ -8,8 +8,8 @@ import { Switch } from '@/components/ui/switch';
 import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { FolderOpen, File, Plus, X, Loader2, ChevronDown } from 'lucide-react';
-import { SelectPath, SelectFile, CreateTorrent, ListPresets, GetPreset } from '../../wailsjs/go/main/App';
+import { FolderOpen, File, Plus, X, Loader2, ChevronDown, Sparkles } from 'lucide-react';
+import { SelectPath, SelectFile, CreateTorrent, ListPresets, GetPreset, GetTrackerInfo, GetContentSize, GetRecommendedPieceSize } from '../../wailsjs/go/main/App';
 import { EventsOn, EventsOff } from '../../wailsjs/runtime/runtime';
 
 import { main, preset as presetTypes } from '../../wailsjs/go/models';
@@ -18,12 +18,21 @@ import { main, preset as presetTypes } from '../../wailsjs/go/models';
 type CreateRequest = main.CreateRequest;
 type TorrentResultType = main.TorrentResult;
 type PresetOptions = presetTypes.Options;
+type TrackerInfoType = main.TrackerInfo;
 
 interface ProgressEvent {
   completed: number;
   total: number;
   hashRate: number;
   percent: number;
+}
+
+function formatPieceSize(exp: number): string {
+  if (exp === 0) return '';
+  const size = Math.pow(2, exp);
+  if (size >= 1024 * 1024) return `${size / (1024 * 1024)} MiB`;
+  if (size >= 1024) return `${size / 1024} KiB`;
+  return `${size} B`;
 }
 
 // Piece length exponents (2^exp bytes)
@@ -70,6 +79,9 @@ export function CreatePage() {
   const [result, setResult] = useState<TorrentResultType | null>(null);
   const [error, setError] = useState('');
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [trackerInfo, setTrackerInfo] = useState<TrackerInfoType | null>(null);
+  const [contentSize, setContentSize] = useState<number>(0);
+  const [recommendedPieceSize, setRecommendedPieceSize] = useState<number>(0);
 
   useEffect(() => {
     ListPresets().then(setPresets).catch(console.error);
@@ -83,6 +95,81 @@ export function CreatePage() {
       EventsOff('create:progress');
     };
   }, []);
+
+  // Check trackers for known tracker configurations
+  useEffect(() => {
+    const checkTrackers = async () => {
+      const validTrackers = trackers.filter(t => t.trim() !== '');
+      if (validTrackers.length === 0) {
+        setTrackerInfo(null);
+        return;
+      }
+
+      // Check each tracker URL
+      for (const tracker of validTrackers) {
+        try {
+          const info = await GetTrackerInfo(tracker);
+          if (info && info.hasCustomRules) {
+            setTrackerInfo(info);
+            return;
+          }
+        } catch (e) {
+          console.error('Failed to get tracker info:', e);
+        }
+      }
+      setTrackerInfo(null);
+    };
+
+    const debounce = setTimeout(checkTrackers, 300);
+    return () => clearTimeout(debounce);
+  }, [trackers]);
+
+  // Get content size when path changes
+  useEffect(() => {
+    if (!path) {
+      setContentSize(0);
+      return;
+    }
+
+    const fetchSize = async () => {
+      try {
+        const size = await GetContentSize(path);
+        setContentSize(size);
+      } catch (e) {
+        console.error('Failed to get content size:', e);
+        setContentSize(0);
+      }
+    };
+
+    const debounce = setTimeout(fetchSize, 300);
+    return () => clearTimeout(debounce);
+  }, [path]);
+
+  // Calculate recommended piece size when tracker info and content size are available
+  useEffect(() => {
+    const calculatePieceSize = async () => {
+      if (!trackerInfo?.hasCustomRules || contentSize === 0) {
+        setRecommendedPieceSize(0);
+        return;
+      }
+
+      const validTrackers = trackers.filter(t => t.trim() !== '');
+      for (const tracker of validTrackers) {
+        try {
+          const exp = await GetRecommendedPieceSize(tracker, contentSize);
+          if (exp > 0) {
+            setRecommendedPieceSize(exp);
+            return;
+          }
+        } catch (e) {
+          console.error('Failed to get recommended piece size:', e);
+        }
+      }
+      setRecommendedPieceSize(0);
+    };
+
+    calculatePieceSize();
+  }, [trackerInfo, contentSize, trackers]);
 
   const handleSelectFolder = async () => {
     try {
@@ -132,6 +219,9 @@ export function CreatePage() {
     setPresetName('');
     setResult(null);
     setError('');
+    setTrackerInfo(null);
+    setContentSize(0);
+    setRecommendedPieceSize(0);
   };
 
   const handlePresetChange = async (value: string) => {
@@ -308,6 +398,49 @@ export function CreatePage() {
                 </Button>
               </div>
             </div>
+
+            {/* Tracker Optimization Indicator */}
+            {trackerInfo && trackerInfo.hasCustomRules && (
+              <div className="flex items-start gap-3 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                <Sparkles className="h-4 w-4 text-emerald-500 mt-0.5 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-4">
+                    <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
+                      Tracker optimizations detected
+                    </p>
+                    {recommendedPieceSize > 0 && (
+                      <div className="flex items-center gap-2 px-2.5 py-1 rounded-md bg-emerald-500/20">
+                        <span className="text-xs text-emerald-600 dark:text-emerald-400">Piece size:</span>
+                        {pieceLengthExp > 0 ? (
+                          <span className="text-sm font-bold text-amber-600 dark:text-amber-400 line-through">{formatPieceSize(recommendedPieceSize)}</span>
+                        ) : (
+                          <span className="text-sm font-bold text-emerald-700 dark:text-emerald-300">{formatPieceSize(recommendedPieceSize)}</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  {pieceLengthExp > 0 && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                      Manual override: using {formatPieceSize(pieceLengthExp)} instead
+                    </p>
+                  )}
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-xs text-muted-foreground">
+                    {trackerInfo.defaultSource && (
+                      <span>Source: <span className="font-medium text-foreground">{trackerInfo.defaultSource}</span></span>
+                    )}
+                    {trackerInfo.maxPieceLength > 0 && (
+                      <span>Max piece: <span className="font-medium text-foreground">{formatPieceSize(trackerInfo.maxPieceLength)}</span></span>
+                    )}
+                    {trackerInfo.maxTorrentSize > 0 && (
+                      <span>Max .torrent: <span className="font-medium text-foreground">{formatBytes(trackerInfo.maxTorrentSize)}</span></span>
+                    )}
+                    {contentSize > 0 && (
+                      <span>Content: <span className="font-medium text-foreground">{formatBytes(contentSize)}</span></span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 

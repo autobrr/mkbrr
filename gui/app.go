@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -563,6 +564,31 @@ func (a *App) GetRecommendedPieceSize(trackerURL string, contentSize uint64) uin
 		return exp
 	}
 	return 0 // Let the library determine automatically
+}
+
+// GetContentSize returns the total size of the content at the given path
+func (a *App) GetContentSize(path string) (uint64, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return 0, err
+	}
+
+	if !info.IsDir() {
+		return uint64(info.Size()), nil
+	}
+
+	var totalSize uint64
+	err = filepath.Walk(path, func(_ string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			totalSize += uint64(info.Size())
+		}
+		return nil
+	})
+
+	return totalSize, err
 }
 
 // === Utility Functions ===

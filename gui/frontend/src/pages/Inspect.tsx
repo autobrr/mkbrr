@@ -148,8 +148,8 @@ export function InspectPage() {
   }
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-auto p-6 space-y-4">
+    <div className="h-full overflow-auto">
+      <div className="p-6 space-y-4">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-semibold">Inspect Torrent</h1>
@@ -279,7 +279,7 @@ export function InspectPage() {
                     </div>
                   </CollapsibleTrigger>
                   <CollapsibleContent>
-                    <div className="px-5 py-3 max-h-64 overflow-auto">
+                    <div className="px-5 py-3 max-h-[300px] overflow-auto">
                       <FileTree files={torrentInfo.files} />
                     </div>
                   </CollapsibleContent>

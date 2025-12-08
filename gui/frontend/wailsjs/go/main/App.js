@@ -22,6 +22,10 @@ export function GetAllPresets() {
   return window['go']['main']['App']['GetAllPresets']();
 }
 
+export function GetContentSize(arg1) {
+  return window['go']['main']['App']['GetContentSize'](arg1);
+}
+
 export function GetPreset(arg1) {
   return window['go']['main']['App']['GetPreset'](arg1);
 }

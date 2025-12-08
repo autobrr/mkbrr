@@ -225,8 +225,8 @@ export function SettingsPage() {
   const presetNames = Object.keys(presets).sort();
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-auto p-6 space-y-4">
+    <div className="h-full overflow-auto">
+      <div className="p-6 space-y-4">
         <div>
           <h1 className="text-2xl font-semibold">Settings</h1>
           <p className="text-sm text-muted-foreground">Application settings and information</p>
