@@ -180,19 +180,19 @@ jobs:
         if: matrix.build.os == 'macos-latest'
         run: |
           wails build -platform ${{ matrix.build.platform }} \
-            -ldflags "-s -w -X main.version=${{ steps.version.outputs.version }} -X main.buildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            -ldflags "-s -w -X main.version=${{ steps.version.outputs.version }}"
 
       - name: Build Wails App (Linux)
         if: matrix.build.os == 'ubuntu-latest'
         run: |
           wails build -platform ${{ matrix.build.platform }} -tags webkit2_41 \
-            -ldflags "-s -w -X main.version=${{ steps.version.outputs.version }} -X main.buildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            -ldflags "-s -w -X main.version=${{ steps.version.outputs.version }}"
 
       - name: Build Wails App (Windows)
         if: matrix.build.os == 'windows-latest'
         shell: bash
         run: |
-          wails build -platform ${{ matrix.build.platform }} -ldflags "-s -w -X main.version=${{ steps.version.outputs.version }} -X main.buildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          wails build -platform ${{ matrix.build.platform }} -ldflags "-s -w -X main.version=${{ steps.version.outputs.version }}"
 
       - name: Archive macOS app
         if: matrix.build.os == 'macos-latest'

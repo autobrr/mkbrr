@@ -113,11 +113,12 @@ type VerifyRequest struct {
 
 // VerifyResult represents verification results
 type VerifyResult struct {
-	Completion   float64  `json:"completion"`
-	TotalPieces  int      `json:"totalPieces"`
-	GoodPieces   int      `json:"goodPieces"`
-	BadPieces    int      `json:"badPieces"`
-	MissingFiles []string `json:"missingFiles"`
+	Completion    float64  `json:"completion"`
+	TotalPieces   int      `json:"totalPieces"`
+	GoodPieces    int      `json:"goodPieces"`
+	BadPieces     int      `json:"badPieces"`
+	MissingPieces int      `json:"missingPieces"`
+	MissingFiles  []string `json:"missingFiles"`
 }
 
 // ModifyRequest represents a torrent modification request.
@@ -210,6 +211,10 @@ func (a *App) SelectMultipleTorrentFiles() ([]string, error) {
 
 // CreateTorrent creates a new torrent file
 func (a *App) CreateTorrent(req CreateRequest) (*TorrentResult, error) {
+	if req.Path == "" {
+		return nil, fmt.Errorf("path is required")
+	}
+
 	var pieceLengthExp *uint
 	if req.PieceLengthExp > 0 {
 		pieceLengthExp = &req.PieceLengthExp
@@ -378,6 +383,13 @@ func (a *App) InspectTorrent(path string) (*InspectResult, error) {
 
 // VerifyTorrent verifies torrent data against local files
 func (a *App) VerifyTorrent(req VerifyRequest) (*VerifyResult, error) {
+	if req.TorrentPath == "" {
+		return nil, fmt.Errorf("torrent path is required")
+	}
+	if req.ContentPath == "" {
+		return nil, fmt.Errorf("content path is required")
+	}
+
 	opts := torrent.VerifyOptions{
 		TorrentPath: req.TorrentPath,
 		ContentPath: req.ContentPath,
@@ -405,11 +417,12 @@ func (a *App) VerifyTorrent(req VerifyRequest) (*VerifyResult, error) {
 	}
 
 	return &VerifyResult{
-		Completion:   result.Completion,
-		TotalPieces:  result.TotalPieces,
-		GoodPieces:   result.GoodPieces,
-		BadPieces:    result.BadPieces,
-		MissingFiles: result.MissingFiles,
+		Completion:    result.Completion,
+		TotalPieces:   result.TotalPieces,
+		GoodPieces:    result.GoodPieces,
+		BadPieces:     result.BadPieces,
+		MissingPieces: result.MissingPieces,
+		MissingFiles:  result.MissingFiles,
 	}, nil
 }
 
@@ -417,6 +430,10 @@ func (a *App) VerifyTorrent(req VerifyRequest) (*VerifyResult, error) {
 
 // ModifyTorrent modifies an existing torrent file
 func (a *App) ModifyTorrent(req ModifyRequest) (*ModifyResult, error) {
+	if req.TorrentPath == "" {
+		return nil, fmt.Errorf("torrent path is required")
+	}
+
 	opts := torrent.ModifyOptions{
 		TrackerURLs:   req.TrackerURLs,
 		WebSeeds:      req.WebSeeds,
@@ -459,7 +476,7 @@ func (a *App) ListPresets() ([]string, error) {
 		return nil, fmt.Errorf("failed to locate preset file: %w", err)
 	}
 
-	config, err := preset.Load(configPath)
+	config, err := preset.LoadOrCreate(configPath)
 	if err != nil {
 		return nil, err
 	}
@@ -497,7 +514,7 @@ func (a *App) GetAllPresets() (*PresetsResult, error) {
 		return nil, fmt.Errorf("failed to locate preset file: %w", err)
 	}
 
-	config, err := preset.Load(configPath)
+	config, err := preset.LoadOrCreate(configPath)
 	if err != nil {
 		return nil, err
 	}

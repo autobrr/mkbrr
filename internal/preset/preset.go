@@ -114,6 +114,8 @@ func LoadOrCreate(configPath string) (*Config, error) {
 
 	if config.Version == 0 {
 		config.Version = 1
+	} else if config.Version != 1 {
+		return nil, fmt.Errorf("unsupported preset config version: %d", config.Version)
 	}
 
 	if config.Presets == nil {

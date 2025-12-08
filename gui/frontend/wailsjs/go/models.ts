@@ -263,6 +263,7 @@ export namespace main {
 	    totalPieces: number;
 	    goodPieces: number;
 	    badPieces: number;
+	    missingPieces: number;
 	    missingFiles: string[];
 	
 	    static createFrom(source: any = {}) {
@@ -275,6 +276,7 @@ export namespace main {
 	        this.totalPieces = source["totalPieces"];
 	        this.goodPieces = source["goodPieces"];
 	        this.badPieces = source["badPieces"];
+	        this.missingPieces = source["missingPieces"];
 	        this.missingFiles = source["missingFiles"];
 	    }
 	}
