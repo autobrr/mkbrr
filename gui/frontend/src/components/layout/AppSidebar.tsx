@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
-import { FilePlus, FileSearch, FileCheck, FileEdit, Settings, Moon, Sun, Monitor, Palette, ExternalLink } from 'lucide-react';
+import { FilePlus, FileSearch, FileCheck, FileEdit, Settings, Moon, Sun, Monitor, Palette, ExternalLink, Heart } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -126,6 +126,15 @@ export function AppSidebar() {
         >
           <ExternalLink className="h-3.5 w-3.5" />
           Documentation
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full justify-start gap-3 px-3 text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground h-8 text-xs"
+          onClick={() => BrowserOpenURL('https://github.com/autobrr/mkbrr?tab=readme-ov-file#support-development')}
+        >
+          <Heart className="h-3.5 w-3.5" />
+          Donate
         </Button>
         <div className="flex items-center justify-between px-3 py-1 text-xs text-sidebar-foreground/50">
           <span>{version || ''}</span>
