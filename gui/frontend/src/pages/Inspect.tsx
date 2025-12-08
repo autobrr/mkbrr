@@ -3,7 +3,8 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { FileSearch, FolderOpen, File, Folder, Loader2, ChevronDown, Lock, Globe, Copy, Check, RotateCcw } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { FileSearch, FolderOpen, File, Folder, Loader2, ChevronDown, ChevronRight, Lock, Globe, Copy, Check, RotateCcw, Search, X, ChevronsUpDown } from 'lucide-react';
 import { SelectTorrentFile, InspectTorrent } from '../../wailsjs/go/main/App';
 import { main } from '../../wailsjs/go/models';
 
@@ -46,35 +47,131 @@ function formatBytes(bytes: number): string {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
-function FileTree({ files }: { files: FileInfo[] }) {
-  interface TreeNode {
-    name: string;
-    size?: number;
-    children: Map<string, TreeNode>;
-    isFile: boolean;
-  }
+interface TreeNode {
+  name: string;
+  path: string;
+  size?: number;
+  children: Map<string, TreeNode>;
+  isFile: boolean;
+  fileCount: number;
+}
 
-  const root: TreeNode = { name: '', children: new Map(), isFile: false };
+function buildTree(files: FileInfo[]): TreeNode {
+  const root: TreeNode = { name: '', path: '', children: new Map(), isFile: false, fileCount: 0 };
 
   for (const file of files) {
     const parts = file.path.split('/');
     let current = root;
+    let currentPath = '';
 
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i];
       const isLast = i === parts.length - 1;
+      currentPath = currentPath ? `${currentPath}/${part}` : part;
 
       if (!current.children.has(part)) {
         current.children.set(part, {
           name: part,
+          path: currentPath,
           children: new Map(),
           isFile: isLast,
           size: isLast ? file.size : undefined,
+          fileCount: 0,
         });
       }
       current = current.children.get(part)!;
     }
   }
+
+  // Calculate file counts for folders
+  function countFiles(node: TreeNode): number {
+    if (node.isFile) return 1;
+    let count = 0;
+    for (const child of node.children.values()) {
+      count += countFiles(child);
+    }
+    node.fileCount = count;
+    return count;
+  }
+  countFiles(root);
+
+  return root;
+}
+
+function getAllFolderPaths(node: TreeNode, paths: Set<string> = new Set()): Set<string> {
+  for (const child of node.children.values()) {
+    if (!child.isFile) {
+      paths.add(child.path);
+      getAllFolderPaths(child, paths);
+    }
+  }
+  return paths;
+}
+
+function getMatchingPaths(files: FileInfo[], query: string): Set<string> {
+  const paths = new Set<string>();
+  const lowerQuery = query.toLowerCase();
+
+  for (const file of files) {
+    if (file.path.toLowerCase().includes(lowerQuery)) {
+      // Add all parent folder paths
+      const parts = file.path.split('/');
+      let currentPath = '';
+      for (let i = 0; i < parts.length - 1; i++) {
+        currentPath = currentPath ? `${currentPath}/${parts[i]}` : parts[i];
+        paths.add(currentPath);
+      }
+    }
+  }
+  return paths;
+}
+
+function FileTree({ files }: { files: FileInfo[] }) {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(() => {
+    // Default: expand all for small torrents, collapse for large
+    if (files.length <= 50) {
+      const root = buildTree(files);
+      return getAllFolderPaths(root);
+    }
+    return new Set<string>();
+  });
+
+  const root = buildTree(files);
+  const allFolderPaths = getAllFolderPaths(root);
+
+  // Filter files based on search
+  const filteredFiles = searchQuery
+    ? files.filter(f => f.path.toLowerCase().includes(searchQuery.toLowerCase()))
+    : files;
+
+  // Auto-expand folders containing matches when searching
+  const effectiveExpanded = searchQuery
+    ? getMatchingPaths(files, searchQuery)
+    : expandedFolders;
+
+  const toggleFolder = (path: string) => {
+    if (searchQuery) return; // Don't allow manual toggle when searching
+    setExpandedFolders(prev => {
+      const next = new Set(prev);
+      if (next.has(path)) {
+        next.delete(path);
+      } else {
+        next.add(path);
+      }
+      return next;
+    });
+  };
+
+  const expandAll = () => {
+    setExpandedFolders(new Set(allFolderPaths));
+  };
+
+  const collapseAll = () => {
+    setExpandedFolders(new Set());
+  };
+
+  const filteredRoot = searchQuery ? buildTree(filteredFiles) : root;
 
   function renderNode(node: TreeNode, depth: number = 0): React.ReactElement[] {
     const entries = Array.from(node.children.entries()).sort(([, a], [, b]) => {
@@ -83,33 +180,104 @@ function FileTree({ files }: { files: FileInfo[] }) {
     });
 
     return entries.flatMap(([, child]) => {
-      const items: React.ReactElement[] = [
-        <div
-          key={child.name + depth}
-          className="flex items-center gap-2 py-1 text-sm hover:bg-muted/50 rounded px-2 -mx-2"
-          style={{ paddingLeft: `${depth * 16 + 8}px` }}
-        >
-          {child.isFile ? (
-            <File className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-          ) : (
-            <Folder className="h-4 w-4 text-blue-500 flex-shrink-0" />
-          )}
-          <span className="flex-1 truncate">{child.name}</span>
-          {child.size !== undefined && (
-            <span className="text-muted-foreground text-xs tabular-nums">{formatBytes(child.size)}</span>
-          )}
-        </div>,
-      ];
+      const isExpanded = effectiveExpanded.has(child.path);
+      const items: React.ReactElement[] = [];
 
-      if (!child.isFile) {
-        items.push(...renderNode(child, depth + 1));
+      if (child.isFile) {
+        items.push(
+          <div
+            key={child.path}
+            className="flex items-center gap-2 py-1 text-sm hover:bg-muted/50 rounded px-2 -mx-2"
+            style={{ paddingLeft: `${depth * 16 + 8}px` }}
+          >
+            <File className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+            <span className="flex-1 truncate">{child.name}</span>
+            {child.size !== undefined && (
+              <span className="text-muted-foreground text-xs tabular-nums">{formatBytes(child.size)}</span>
+            )}
+          </div>
+        );
+      } else {
+        items.push(
+          <div
+            key={child.path}
+            className="flex items-center gap-2 py-1 text-sm hover:bg-muted/50 rounded px-2 -mx-2 cursor-pointer select-none"
+            style={{ paddingLeft: `${depth * 16 + 8}px` }}
+            onClick={() => toggleFolder(child.path)}
+          >
+            {isExpanded ? (
+              <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+            ) : (
+              <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+            )}
+            <Folder className="h-4 w-4 text-blue-500 flex-shrink-0" />
+            <span className="flex-1 truncate">{child.name}</span>
+            <span className="text-muted-foreground text-xs">
+              {child.fileCount} {child.fileCount === 1 ? 'file' : 'files'}
+            </span>
+          </div>
+        );
+
+        if (isExpanded) {
+          items.push(...renderNode(child, depth + 1));
+        }
       }
 
       return items;
     });
   }
 
-  return <div className="font-mono text-sm">{renderNode(root)}</div>;
+  return (
+    <div className="space-y-3">
+      {/* Search and controls */}
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            type="text"
+            placeholder="Search files..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-8 pr-8 h-8 text-sm"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 hover:bg-muted rounded"
+            >
+              <X className="h-3.5 w-3.5 text-muted-foreground" />
+            </button>
+          )}
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={expandedFolders.size === allFolderPaths.size ? collapseAll : expandAll}
+          disabled={!!searchQuery}
+          className="h-8 px-2"
+          title={expandedFolders.size === allFolderPaths.size ? 'Collapse All' : 'Expand All'}
+        >
+          <ChevronsUpDown className="h-4 w-4" />
+        </Button>
+      </div>
+
+      {/* Filter status */}
+      {searchQuery && (
+        <p className="text-xs text-muted-foreground">
+          Showing {filteredFiles.length} of {files.length} files
+        </p>
+      )}
+
+      {/* File tree */}
+      <div className="font-mono text-sm">
+        {filteredFiles.length === 0 && searchQuery ? (
+          <p className="text-sm text-muted-foreground text-center py-4">No files match your search</p>
+        ) : (
+          renderNode(filteredRoot)
+        )}
+      </div>
+    </div>
+  );
 }
 
 function CopyButton({ text }: { text: string }) {
