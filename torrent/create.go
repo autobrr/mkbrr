@@ -76,38 +76,15 @@ func calculatePieceLength(totalSize int64, maxPieceLength *uint, trackerURLs []s
 		}
 	}
 
-	// default calculation for automatic piece length
-	// ensure minimum of 1 byte for calculation
-	size := max(totalSize, 1)
+	// default calculation for automatic piece length using shared default ranges
+	size := uint64(max(totalSize, 1))
 
 	var exp uint
-	switch {
-	case size <= 64<<20: // 0 to 64 MB: 32 KiB pieces (2^15)
-		exp = 15
-	case size <= 128<<20: // 64-128 MB: 64 KiB pieces (2^16)
-		exp = 16
-	case size <= 256<<20: // 128-256 MB: 128 KiB pieces (2^17)
-		exp = 17
-	case size <= 512<<20: // 256-512 MB: 256 KiB pieces (2^18)
-		exp = 18
-	case size <= 1024<<20: // 512 MB-1 GB: 512 KiB pieces (2^19)
-		exp = 19
-	case size <= 2048<<20: // 1-2 GB: 1 MiB pieces (2^20)
-		exp = 20
-	case size <= 4096<<20: // 2-4 GB: 2 MiB pieces (2^21)
-		exp = 21
-	case size <= 8192<<20: // 4-8 GB: 4 MiB pieces (2^22)
-		exp = 22
-	case size <= 16384<<20: // 8-16 GB: 8 MiB pieces (2^23)
-		exp = 23
-	case size <= 32768<<20: // 16-32 GB: 16 MiB pieces (2^24)
-		exp = 24
-	case size <= 65536<<20: // 32-64 GB: 32 MiB pieces (2^25)
-		exp = 25
-	case size <= 131072<<20: // 64-128 GB: 64 MiB pieces (2^26)
-		exp = 26
-	default: // above 128 GB: 128 MiB pieces (2^27)
-		exp = 27
+	for _, r := range trackers.DefaultPieceSizeRanges {
+		if size <= r.MaxSize {
+			exp = r.PieceExp
+			break
+		}
 	}
 
 	// if no manual piece length was specified, cap at 2^24

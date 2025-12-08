@@ -82,6 +82,34 @@ func Test_GetTrackerPieceSizeExp(t *testing.T) {
 			wantExp:     0,
 			wantFound:   false,
 		},
+		{
+			name:        "bhd small file should use default 32 KiB pieces",
+			trackerURL:  "https://beyond-hd.me/announce?passkey=123",
+			contentSize: 32 << 20, // 32 MB
+			wantExp:     15,       // 32 KiB pieces (from default ranges)
+			wantFound:   true,
+		},
+		{
+			name:        "bhd medium file should use default 2 MiB pieces",
+			trackerURL:  "https://beyond-hd.me/announce?passkey=123",
+			contentSize: 3 << 30, // 3 GB
+			wantExp:     21,      // 2 MiB pieces (from default ranges)
+			wantFound:   true,
+		},
+		{
+			name:        "bhd large file should be clamped to max 16 MiB pieces",
+			trackerURL:  "https://beyond-hd.me/announce?passkey=123",
+			contentSize: 50 << 30, // 50 GB
+			wantExp:     24,       // 16 MiB pieces (clamped from default 32 MiB)
+			wantFound:   true,
+		},
+		{
+			name:        "hdb should use default ranges with max clamping",
+			trackerURL:  "https://hdbits.org/announce?passkey=123",
+			contentSize: 50 << 30, // 50 GB
+			wantExp:     24,       // 16 MiB pieces (clamped from default 32 MiB)
+			wantFound:   true,
+		},
 	}
 
 	for _, tt := range tests {
