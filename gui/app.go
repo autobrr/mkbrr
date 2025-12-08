@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/anacrolix/torrent/metainfo"
 	"github.com/autobrr/mkbrr/internal/preset"
 	"github.com/autobrr/mkbrr/internal/trackers"
 	"github.com/autobrr/mkbrr/torrent"
@@ -181,13 +180,6 @@ func (a *App) SelectMultipleTorrentFiles() ([]string, error) {
 		Filters: []runtime.FileFilter{
 			{DisplayName: "Torrent Files", Pattern: "*.torrent"},
 		},
-	})
-}
-
-// SelectOutputDirectory opens a native directory picker for output
-func (a *App) SelectOutputDirectory() (string, error) {
-	return runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
-		Title: "Select Output Directory",
 	})
 }
 
@@ -672,6 +664,3 @@ func (a *App) OpenURL(url string) error {
 	runtime.BrowserOpenURL(a.ctx, url)
 	return nil
 }
-
-// Unused import prevention
-var _ = metainfo.Info{}
