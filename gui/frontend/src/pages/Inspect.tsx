@@ -1,14 +1,42 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { FileSearch, FolderOpen, File, Folder, Loader2, ChevronDown, Lock, Globe, Copy, Check } from 'lucide-react';
+import { FileSearch, FolderOpen, File, Folder, Loader2, ChevronDown, Lock, Globe, Copy, Check, RotateCcw } from 'lucide-react';
 import { SelectTorrentFile, InspectTorrent } from '../../wailsjs/go/main/App';
 import { main } from '../../wailsjs/go/models';
 
 type InspectResult = main.InspectResult;
 type FileInfo = main.FileInfo;
+
+const STORAGE_KEY = 'mkbrr-inspect-state';
+
+function loadInspectState(): InspectResult | null {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return parsed.torrentInfo || null;
+    }
+    return null;
+  } catch (e) {
+    console.error('Failed to load inspect state from localStorage:', e);
+    return null;
+  }
+}
+
+function saveInspectState(torrentInfo: InspectResult | null) {
+  try {
+    if (torrentInfo) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ torrentInfo }));
+    } else {
+      localStorage.removeItem(STORAGE_KEY);
+    }
+  } catch (e) {
+    console.error('Failed to save inspect state to localStorage:', e);
+  }
+}
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
@@ -128,6 +156,19 @@ export function InspectPage() {
   const [trackersOpen, setTrackersOpen] = useState(true);
   const [filesOpen, setFilesOpen] = useState(true);
 
+  // Load persisted state on mount
+  useEffect(() => {
+    const savedInfo = loadInspectState();
+    if (savedInfo) {
+      setTorrentInfo(savedInfo);
+    }
+  }, []);
+
+  // Save state when torrentInfo changes
+  useEffect(() => {
+    saveInspectState(torrentInfo);
+  }, [torrentInfo]);
+
   const handleSelectTorrent = async () => {
     try {
       setError('');
@@ -145,6 +186,12 @@ export function InspectPage() {
     }
   };
 
+  const handleReset = () => {
+    setTorrentInfo(null);
+    setError('');
+    saveInspectState(null);
+  };
+
   const metadataItems = [];
   if (torrentInfo?.source) metadataItems.push(`Source: ${torrentInfo.source}`);
   if (torrentInfo?.createdBy) metadataItems.push(`Created by ${torrentInfo.createdBy}`);
@@ -160,14 +207,22 @@ export function InspectPage() {
             <h1 className="text-2xl font-semibold">Inspect Torrent</h1>
             <p className="text-sm text-muted-foreground">View detailed information about a torrent file</p>
           </div>
-          <Button onClick={handleSelectTorrent} disabled={isLoading}>
-            {isLoading ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <FolderOpen className="mr-2 h-4 w-4" />
+          <div className="flex gap-2">
+            {torrentInfo && (
+              <Button variant="outline" onClick={handleReset} disabled={isLoading}>
+                <RotateCcw className="mr-2 h-4 w-4" />
+                Reset
+              </Button>
             )}
-            {isLoading ? 'Loading...' : 'Select Torrent'}
-          </Button>
+            <Button onClick={handleSelectTorrent} disabled={isLoading}>
+              {isLoading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <FolderOpen className="mr-2 h-4 w-4" />
+              )}
+              {isLoading ? 'Loading...' : 'Select Torrent'}
+            </Button>
+          </div>
         </div>
 
         {error && (

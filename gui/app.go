@@ -46,7 +46,7 @@ type CreateRequest struct {
 	WebSeeds        []string `json:"webSeeds"`
 	Comment         string   `json:"comment"`
 	Source          string   `json:"source"`
-	IsPrivate       bool     `json:"isPrivate"`
+	IsPrivate       *bool    `json:"isPrivate"`
 	PieceLengthExp  uint     `json:"pieceLengthExp"`
 	MaxPieceLength  uint     `json:"maxPieceLength"`
 	OutputPath      string   `json:"outputPath"`
@@ -68,6 +68,7 @@ type TorrentResult struct {
 	Size       int64  `json:"size"`
 	PieceCount int    `json:"pieceCount"`
 	FileCount  int    `json:"fileCount"`
+	Warning    string `json:"warning,omitempty"`
 }
 
 // InspectResult represents torrent metadata for inspection
@@ -204,6 +205,12 @@ func (a *App) CreateTorrent(req CreateRequest) (*TorrentResult, error) {
 		outputDir = filepath.Dir(req.Path)
 	}
 
+	// Handle IsPrivate pointer - default to true if not specified
+	isPrivate := true
+	if req.IsPrivate != nil {
+		isPrivate = *req.IsPrivate
+	}
+
 	opts := torrent.CreateOptions{
 		Path:            req.Path,
 		Name:            req.Name,
@@ -211,7 +218,7 @@ func (a *App) CreateTorrent(req CreateRequest) (*TorrentResult, error) {
 		WebSeeds:        req.WebSeeds,
 		Comment:         req.Comment,
 		Source:          req.Source,
-		IsPrivate:       req.IsPrivate,
+		IsPrivate:       isPrivate,
 		PieceLengthExp:  pieceLengthExp,
 		MaxPieceLength:  maxPieceLength,
 		OutputPath:      req.OutputPath,
@@ -224,6 +231,9 @@ func (a *App) CreateTorrent(req CreateRequest) (*TorrentResult, error) {
 		IncludePatterns: req.IncludePatterns,
 		Quiet:           true, // Suppress CLI output
 		ProgressCallback: func(completed, total int, hashRate float64) {
+			if a.ctx == nil {
+				return
+			}
 			percent := 0.0
 			if total > 0 {
 				percent = float64(completed) / float64(total) * 100
@@ -256,10 +266,12 @@ func (a *App) CreateTorrent(req CreateRequest) (*TorrentResult, error) {
 	pieceCount := 0
 	fileCount := 1
 	size := info.Size
+	var warning string
 
 	t, err := torrent.LoadFromFile(info.Path)
 	if err != nil {
 		log.Printf("Warning: failed to re-read created torrent for metadata: %v", err)
+		warning = fmt.Sprintf("Created torrent but failed to verify metadata: %v", err)
 	} else {
 		mi := t.GetInfo()
 		pieceCount = mi.NumPieces()
@@ -275,6 +287,7 @@ func (a *App) CreateTorrent(req CreateRequest) (*TorrentResult, error) {
 		Size:       size,
 		PieceCount: pieceCount,
 		FileCount:  fileCount,
+		Warning:    warning,
 	}, nil
 }
 
@@ -349,6 +362,9 @@ func (a *App) VerifyTorrent(req VerifyRequest) (*VerifyResult, error) {
 		ContentPath: req.ContentPath,
 		Quiet:       true,
 		ProgressCallback: func(completed, total int, hashRate float64) {
+			if a.ctx == nil {
+				return
+			}
 			percent := 0.0
 			if total > 0 {
 				percent = float64(completed) / float64(total) * 100
@@ -415,8 +431,11 @@ func (a *App) ModifyTorrent(req ModifyRequest) (*ModifyResult, error) {
 func (a *App) ListPresets() ([]string, error) {
 	configPath, err := preset.FindPresetFile("")
 	if err != nil {
-		// No preset file found - return empty list, not error
-		return []string{}, nil
+		// Only ignore "not found" errors - other errors should be reported
+		if strings.Contains(err.Error(), "could not find preset file") {
+			return []string{}, nil
+		}
+		return nil, fmt.Errorf("failed to locate preset file: %w", err)
 	}
 
 	config, err := preset.Load(configPath)
@@ -445,8 +464,11 @@ func (a *App) GetPresetFilePath() (string, error) {
 func (a *App) GetAllPresets() (map[string]*preset.Options, error) {
 	configPath, err := preset.FindPresetFile("")
 	if err != nil {
-		// No preset file found - return empty map
-		return make(map[string]*preset.Options), nil
+		// Only ignore "not found" errors - other errors should be reported
+		if strings.Contains(err.Error(), "could not find preset file") {
+			return make(map[string]*preset.Options), nil
+		}
+		return nil, fmt.Errorf("failed to locate preset file: %w", err)
 	}
 
 	config, err := preset.Load(configPath)
@@ -466,8 +488,27 @@ func (a *App) GetAllPresets() (map[string]*preset.Options, error) {
 	return result, nil
 }
 
+// validatePresetName validates a preset name for safe usage
+func validatePresetName(name string) error {
+	if name == "" {
+		return fmt.Errorf("preset name cannot be empty")
+	}
+	if len(name) > 64 {
+		return fmt.Errorf("preset name too long (max 64 characters)")
+	}
+	if strings.ContainsAny(name, "/\\:*?\"<>|") {
+		return fmt.Errorf("preset name contains invalid characters")
+	}
+	return nil
+}
+
 // SavePreset creates or updates a preset
 func (a *App) SavePreset(name string, options preset.Options) error {
+	// Validate preset name
+	if err := validatePresetName(name); err != nil {
+		return err
+	}
+
 	// Find or create preset file path
 	configPath, err := preset.FindPresetFile("")
 	if err != nil {

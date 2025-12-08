@@ -320,9 +320,11 @@ func (o *Options) ApplyToMetaInfo(mi *metainfo.MetaInfo) (bool, error) {
 
 	// re-marshal the modified info if needed
 	if wasModified {
-		if infoBytes, err := bencode.Marshal(info); err == nil {
-			mi.InfoBytes = infoBytes
+		infoBytes, err := bencode.Marshal(info)
+		if err != nil {
+			return false, fmt.Errorf("failed to marshal modified info: %w", err)
 		}
+		mi.InfoBytes = infoBytes
 	}
 
 	return wasModified, nil

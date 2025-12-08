@@ -59,7 +59,8 @@ function loadFormState(): Partial<CreateFormState> {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     return saved ? JSON.parse(saved) : {};
-  } catch {
+  } catch (e) {
+    console.error('Failed to load form state from localStorage:', e);
     return {};
   }
 }
@@ -67,8 +68,8 @@ function loadFormState(): Partial<CreateFormState> {
 function saveFormState(state: CreateFormState) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch {
-    // Ignore storage errors
+  } catch (e) {
+    console.error('Failed to save form state to localStorage:', e);
   }
 }
 
@@ -76,8 +77,8 @@ function clearFormState() {
   try {
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem(RESULT_STORAGE_KEY);
-  } catch {
-    // Ignore storage errors
+  } catch (e) {
+    console.error('Failed to clear form state from localStorage:', e);
   }
 }
 
@@ -175,8 +176,8 @@ export function CreatePage() {
         setResult(parsed);
         setDialogOpen(true);
       }
-    } catch {
-      // Ignore parse errors
+    } catch (e) {
+      console.error('Failed to load saved result from localStorage:', e);
     }
   }, []);
 
@@ -326,8 +327,18 @@ export function CreatePage() {
   };
 
   const handlePresetChange = async (value: string) => {
+    if (value === 'none') {
+      // Clear preset-related fields when "None" is selected
+      setPresetName('');
+      setTrackers(['']);
+      setSource('');
+      setComment('');
+      setIsPrivate(true);
+      return;
+    }
+
     setPresetName(value);
-    if (value && value !== 'none') {
+    if (value) {
       try {
         const preset = await GetPreset(value) as PresetOptions;
         if (preset) {
@@ -363,8 +374,8 @@ export function CreatePage() {
     // Clear saved result from localStorage
     try {
       localStorage.removeItem(RESULT_STORAGE_KEY);
-    } catch {
-      // Ignore storage errors
+    } catch (e) {
+      console.error('Failed to clear saved result from localStorage:', e);
     }
   };
 
@@ -408,8 +419,8 @@ export function CreatePage() {
       // Save result to localStorage in case user navigates away
       try {
         localStorage.setItem(RESULT_STORAGE_KEY, JSON.stringify(res));
-      } catch {
-        // Ignore storage errors
+      } catch (e) {
+        console.error('Failed to save result to localStorage:', e);
       }
     } catch (e) {
       setError(String(e));

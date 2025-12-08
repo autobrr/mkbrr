@@ -31,7 +31,8 @@ function loadFormState(): Partial<ModifyFormState> {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     return saved ? JSON.parse(saved) : {};
-  } catch {
+  } catch (e) {
+    console.error('Failed to load form state from localStorage:', e);
     return {};
   }
 }
@@ -39,16 +40,16 @@ function loadFormState(): Partial<ModifyFormState> {
 function saveFormState(state: ModifyFormState) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch {
-    // Ignore storage errors
+  } catch (e) {
+    console.error('Failed to save form state to localStorage:', e);
   }
 }
 
 function clearFormState() {
   try {
     localStorage.removeItem(STORAGE_KEY);
-  } catch {
-    // Ignore storage errors
+  } catch (e) {
+    console.error('Failed to clear form state from localStorage:', e);
   }
 }
 

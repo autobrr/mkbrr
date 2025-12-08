@@ -124,13 +124,27 @@ export function SettingsPage() {
   const loadSettings = async () => {
     setIsLoading(true);
     try {
-      const [path, presetMap] = await Promise.all([
-        GetPresetFilePath().catch(() => ''),
-        GetAllPresets().catch(() => ({})),
+      const [pathResult, presetMapResult] = await Promise.allSettled([
+        GetPresetFilePath(),
+        GetAllPresets(),
       ]);
-      setPresetPath(path);
-      setPresets(presetMap as Record<string, PresetOptions>);
+
+      if (pathResult.status === 'fulfilled') {
+        setPresetPath(pathResult.value);
+      } else {
+        console.error('Failed to get preset file path:', pathResult.reason);
+        setPresetPath('');
+      }
+
+      if (presetMapResult.status === 'fulfilled') {
+        setPresets(presetMapResult.value as Record<string, PresetOptions>);
+      } else {
+        console.error('Failed to load presets:', presetMapResult.reason);
+        toast.error('Failed to load presets: ' + String(presetMapResult.reason));
+        setPresets({});
+      }
     } catch (e) {
+      console.error('Failed to load settings:', e);
       toast.error('Failed to load settings: ' + String(e));
     } finally {
       setIsLoading(false);

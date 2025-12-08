@@ -7,7 +7,7 @@ export namespace main {
 	    webSeeds: string[];
 	    comment: string;
 	    source: string;
-	    isPrivate: boolean;
+	    isPrivate?: boolean;
 	    pieceLengthExp: number;
 	    maxPieceLength: number;
 	    outputPath: string;
@@ -178,6 +178,7 @@ export namespace main {
 	    size: number;
 	    pieceCount: number;
 	    fileCount: number;
+	    warning?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new TorrentResult(source);
@@ -190,6 +191,7 @@ export namespace main {
 	        this.size = source["size"];
 	        this.pieceCount = source["pieceCount"];
 	        this.fileCount = source["fileCount"];
+	        this.warning = source["warning"];
 	    }
 	}
 	export class TrackerInfo {
