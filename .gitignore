@@ -16,3 +16,5 @@ test_ant/*
 repomix-mkbrr.xml
 repomix.config.json
 .vscode/*
+mkbrr-gui
+mkbrr-gui.exe
