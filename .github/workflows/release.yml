@@ -109,6 +109,107 @@ jobs:
           paths: "unit-tests.xml"
         if: always() && matrix.os != 'windows-latest'
 
+  wails-build:
+    name: Build GUI (${{ matrix.build.platform }})
+    needs: [test, testother]
+    strategy:
+      fail-fast: false
+      matrix:
+        build:
+          - os: macos-latest
+            platform: darwin/universal
+            archive-name: mkbrr-gui_darwin_universal.zip
+          - os: windows-latest
+            platform: windows/amd64
+            archive-name: mkbrr-gui_windows_amd64.zip
+          - os: ubuntu-latest
+            platform: linux/amd64
+            archive-name: mkbrr-gui_linux_amd64.tar.gz
+    runs-on: ${{ matrix.build.os }}
+    defaults:
+      run:
+        working-directory: gui
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Linux dependencies
+        if: matrix.build.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev
+        working-directory: .
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Get version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "version=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=dev-${{ github.sha }}" >> $GITHUB_OUTPUT
+          fi
+        shell: bash
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      - name: Install frontend dependencies
+        run: pnpm install
+        working-directory: gui/frontend
+
+      - name: Build Wails App (Unix)
+        if: matrix.build.os != 'windows-latest'
+        run: |
+          wails build -platform ${{ matrix.build.platform }} \
+            -ldflags "-s -w -X main.version=${{ steps.version.outputs.version }} -X main.buildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+      - name: Build Wails App (Windows)
+        if: matrix.build.os == 'windows-latest'
+        shell: bash
+        run: |
+          wails build -platform ${{ matrix.build.platform }} -ldflags "-s -w -X main.version=${{ steps.version.outputs.version }} -X main.buildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+      - name: Archive macOS app
+        if: matrix.build.os == 'macos-latest'
+        run: |
+          cd build/bin
+          zip -r ${{ matrix.build.archive-name }} mkbrr-gui.app
+
+      - name: Archive Windows exe
+        if: matrix.build.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          cd build/bin
+          Compress-Archive -Path mkbrr-gui.exe -DestinationPath ${{ matrix.build.archive-name }}
+
+      - name: Archive Linux binary
+        if: matrix.build.os == 'ubuntu-latest'
+        run: |
+          cd build/bin
+          tar -czvf ${{ matrix.build.archive-name }} mkbrr-gui
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: wails-gui-${{ matrix.build.os }}
+          path: gui/build/bin/${{ matrix.build.archive-name }}
+
   pgo:
     name: Generate PGO Profile
     runs-on: ubuntu-latest
@@ -221,6 +322,25 @@ jobs:
             dist/*.zip
             dist/*.deb
             dist/*.rpm
+
+  release-gui:
+    name: Upload GUI to Release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [goreleaserbuild, wails-build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all GUI artifacts
+        uses: actions/download-artifact@v6
+        with:
+          pattern: wails-gui-*
+          path: gui-dist
+          merge-multiple: true
+
+      - name: Upload to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload ${{ github.ref_name }} gui-dist/* --repo ${{ github.repository }}
 
   docker:
     name: Build Docker images
