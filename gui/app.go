@@ -203,6 +203,12 @@ func (a *App) CreateTorrent(req CreateRequest) (*TorrentResult, error) {
 		maxPieceLength = &req.MaxPieceLength
 	}
 
+	// Default output directory to source directory for GUI
+	outputDir := req.OutputDir
+	if outputDir == "" && req.OutputPath == "" {
+		outputDir = filepath.Dir(req.Path)
+	}
+
 	opts := torrent.CreateOptions{
 		Path:            req.Path,
 		Name:            req.Name,
@@ -214,7 +220,7 @@ func (a *App) CreateTorrent(req CreateRequest) (*TorrentResult, error) {
 		PieceLengthExp:  pieceLengthExp,
 		MaxPieceLength:  maxPieceLength,
 		OutputPath:      req.OutputPath,
-		OutputDir:       req.OutputDir,
+		OutputDir:       outputDir,
 		NoDate:          req.NoDate,
 		NoCreator:       req.NoCreator,
 		Entropy:         req.Entropy,
@@ -251,12 +257,27 @@ func (a *App) CreateTorrent(req CreateRequest) (*TorrentResult, error) {
 		return nil, err
 	}
 
+	// Read back the created torrent to get accurate piece/file counts
+	pieceCount := 0
+	fileCount := 1
+	size := info.Size
+
+	t, err := torrent.LoadFromFile(info.Path)
+	if err == nil {
+		mi := t.GetInfo()
+		pieceCount = mi.NumPieces()
+		size = mi.TotalLength()
+		if len(mi.Files) > 0 {
+			fileCount = len(mi.Files)
+		}
+	}
+
 	return &TorrentResult{
 		Path:       info.Path,
 		InfoHash:   info.InfoHash,
-		Size:       info.Size,
-		PieceCount: 0, // TorrentInfo doesn't have this, could compute if needed
-		FileCount:  info.Files,
+		Size:       size,
+		PieceCount: pieceCount,
+		FileCount:  fileCount,
 	}, nil
 }
 

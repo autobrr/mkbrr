@@ -7,8 +7,9 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { FolderOpen, Plus, X, Loader2, ChevronDown } from 'lucide-react';
-import { SelectPath, CreateTorrent, ListPresets, GetPreset } from '../../wailsjs/go/main/App';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { FolderOpen, File, Plus, X, Loader2, ChevronDown } from 'lucide-react';
+import { SelectPath, SelectFile, CreateTorrent, ListPresets, GetPreset } from '../../wailsjs/go/main/App';
 import { EventsOn, EventsOff } from '../../wailsjs/runtime/runtime';
 
 import { main, preset as presetTypes } from '../../wailsjs/go/models';
@@ -57,7 +58,7 @@ export function CreatePage() {
   const [comment, setComment] = useState('');
   const [source, setSource] = useState('');
   const [pieceLengthExp, setPieceLengthExp] = useState(0);
-  const [outputPath, setOutputPath] = useState('');
+  const [outputDir, setOutputDir] = useState('');
   const [noDate, setNoDate] = useState(false);
   const [noCreator, setNoCreator] = useState(false);
   const [entropy, setEntropy] = useState(false);
@@ -83,7 +84,7 @@ export function CreatePage() {
     };
   }, []);
 
-  const handleSelectPath = async () => {
+  const handleSelectFolder = async () => {
     try {
       const selected = await SelectPath();
       if (selected) {
@@ -94,11 +95,22 @@ export function CreatePage() {
     }
   };
 
-  const handleSelectOutput = async () => {
+  const handleSelectFile = async () => {
+    try {
+      const selected = await SelectFile();
+      if (selected) {
+        setPath(selected);
+      }
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
+  const handleSelectOutputDir = async () => {
     try {
       const selected = await SelectPath();
       if (selected) {
-        setOutputPath(selected);
+        setOutputDir(selected);
       }
     } catch (e) {
       setError(String(e));
@@ -158,8 +170,8 @@ export function CreatePage() {
         source,
         pieceLengthExp,
         maxPieceLength: 0,
-        outputPath,
-        outputDir: '',
+        outputPath: '',
+        outputDir,
         noDate,
         noCreator,
         entropy,
@@ -198,12 +210,25 @@ export function CreatePage() {
                 <Input
                   value={path}
                   onChange={(e) => setPath(e.target.value)}
-                  placeholder="/path/to/content"
+                  placeholder="/path/to/file/or/folder"
                   className="flex-1"
                 />
-                <Button variant="outline" onClick={handleSelectPath}>
-                  <FolderOpen className="h-4 w-4" />
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="outline" size="icon" onClick={handleSelectFile}>
+                      <File className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Select File</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="outline" size="icon" onClick={handleSelectFolder}>
+                      <FolderOpen className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Select Folder</TooltipContent>
+                </Tooltip>
               </div>
             </div>
 
@@ -293,15 +318,15 @@ export function CreatePage() {
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label>Output Path</Label>
+                    <Label>Output Directory</Label>
                     <div className="flex gap-2">
                       <Input
-                        value={outputPath}
-                        onChange={(e) => setOutputPath(e.target.value)}
+                        value={outputDir}
+                        onChange={(e) => setOutputDir(e.target.value)}
                         placeholder="Same as source"
                         className="flex-1"
                       />
-                      <Button variant="outline" size="icon" onClick={handleSelectOutput}>
+                      <Button variant="outline" size="icon" onClick={handleSelectOutputDir}>
                         <FolderOpen className="h-4 w-4" />
                       </Button>
                     </div>
