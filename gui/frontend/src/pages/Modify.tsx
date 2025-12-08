@@ -1,38 +1,117 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { FolderOpen, Plus, X, Loader2, ChevronDown } from 'lucide-react';
-import { SelectTorrentFile, ModifyTorrent } from '../../wailsjs/go/main/App';
+import { SelectTorrentFile, SelectPath, ModifyTorrent } from '../../wailsjs/go/main/App';
 
 import { main } from '../../wailsjs/go/models';
 
 type ModifyRequest = main.ModifyRequest;
 type ModifyResult = main.ModifyResult;
 
+// Form state persistence
+interface ModifyFormState {
+  torrentPath: string;
+  outputDir: string;
+  trackers: string[];
+  setPrivate: boolean | undefined;
+  source: string;
+  comment: string;
+  noDate: boolean;
+  noCreator: boolean;
+}
+
+const STORAGE_KEY = 'mkbrr-modify-form';
+
+function loadFormState(): Partial<ModifyFormState> {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    return saved ? JSON.parse(saved) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveFormState(state: ModifyFormState) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+function clearFormState() {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // Ignore storage errors
+  }
+}
+
 export function ModifyPage() {
-  const [torrentPath, setTorrentPath] = useState('');
-  const [outputDir, setOutputDir] = useState('');
-  const [trackers, setTrackers] = useState<string[]>(['']);
-  const [setPrivate, setSetPrivate] = useState<boolean | undefined>(undefined);
-  const [source, setSource] = useState('');
-  const [comment, setComment] = useState('');
-  const [noDate, setNoDate] = useState(false);
-  const [noCreator, setNoCreator] = useState(false);
+  const savedState = loadFormState();
+  const [torrentPath, setTorrentPath] = useState(savedState.torrentPath ?? '');
+  const [outputDir, setOutputDir] = useState(savedState.outputDir ?? '');
+  const [trackers, setTrackers] = useState<string[]>(savedState.trackers ?? ['']);
+  const [setPrivate, setSetPrivate] = useState<boolean | undefined>(savedState.setPrivate);
+  const [source, setSource] = useState(savedState.source ?? '');
+  const [comment, setComment] = useState(savedState.comment ?? '');
+  const [noDate, setNoDate] = useState(savedState.noDate ?? false);
+  const [noCreator, setNoCreator] = useState(savedState.noCreator ?? false);
 
   const [isModifying, setIsModifying] = useState(false);
   const [result, setResult] = useState<ModifyResult | null>(null);
   const [error, setError] = useState('');
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
+  // Save form state to localStorage whenever values change
+  useEffect(() => {
+    saveFormState({
+      torrentPath,
+      outputDir,
+      trackers,
+      setPrivate,
+      source,
+      comment,
+      noDate,
+      noCreator,
+    });
+  }, [torrentPath, outputDir, trackers, setPrivate, source, comment, noDate, noCreator]);
+
+  const handleReset = () => {
+    setTorrentPath('');
+    setOutputDir('');
+    setTrackers(['']);
+    setSetPrivate(undefined);
+    setSource('');
+    setComment('');
+    setNoDate(false);
+    setNoCreator(false);
+    setResult(null);
+    setError('');
+    clearFormState();
+  };
+
   const handleSelectInput = async () => {
     try {
       const path = await SelectTorrentFile();
       if (path) {
         setTorrentPath(path);
+      }
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
+  const handleSelectOutputDir = async () => {
+    try {
+      const path = await SelectPath();
+      if (path) {
+        setOutputDir(path);
       }
     } catch (e) {
       setError(String(e));
@@ -194,32 +273,36 @@ export function ModifyPage() {
                 </label>
               </div>
             </div>
+
+            {/* Output Directory */}
+            <div className="space-y-1.5">
+              <Label>Output Directory</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={outputDir}
+                  onChange={(e) => setOutputDir(e.target.value)}
+                  placeholder="Same as input file"
+                  className="flex-1"
+                />
+                <Button variant="outline" size="icon" onClick={handleSelectOutputDir}>
+                  <FolderOpen className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
         {/* Advanced Options - Collapsible */}
         <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
-          <Card>
+          <div className="rounded-lg border bg-card">
             <CollapsibleTrigger asChild>
-              <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors py-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-base font-medium">Advanced Options</CardTitle>
-                  <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${advancedOpen ? 'rotate-180' : ''}`} />
-                </div>
-              </CardHeader>
+              <div className="flex items-center justify-between px-4 py-2 cursor-pointer hover:bg-muted/50 transition-colors rounded-lg">
+                <span className="text-sm font-medium">Advanced Options</span>
+                <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${advancedOpen ? 'rotate-180' : ''}`} />
+              </div>
             </CollapsibleTrigger>
             <CollapsibleContent>
-              <CardContent className="pt-0 space-y-4">
-                {/* Output Dir */}
-                <div className="space-y-1.5">
-                  <Label>Output Directory</Label>
-                  <Input
-                    value={outputDir}
-                    onChange={(e) => setOutputDir(e.target.value)}
-                    placeholder="Same as input file"
-                  />
-                </div>
-
+              <div className="px-4 pb-4 space-y-4 pt-4">
                 {/* Source + Comment */}
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-1.5">
@@ -259,9 +342,9 @@ export function ModifyPage() {
                     <Label htmlFor="noCreator" className="text-sm">Remove creator</Label>
                   </div>
                 </div>
-              </CardContent>
+              </div>
             </CollapsibleContent>
-          </Card>
+          </div>
         </Collapsible>
 
         {/* Error */}
@@ -289,7 +372,10 @@ export function ModifyPage() {
         )}
       </div>
 
-      <div className="bg-background p-4 flex justify-end">
+      <div className="bg-background p-4 flex justify-end gap-2">
+        <Button variant="outline" onClick={handleReset} disabled={isModifying}>
+          Reset
+        </Button>
         <Button onClick={handleModify} disabled={isModifying || !torrentPath}>
           {isModifying && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           {isModifying ? 'Modifying...' : 'Modify Torrent'}

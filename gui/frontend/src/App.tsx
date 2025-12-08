@@ -5,6 +5,7 @@ import { InspectPage } from '@/pages/Inspect';
 import { CheckPage } from '@/pages/Check';
 import { ModifyPage } from '@/pages/Modify';
 import { SettingsPage } from '@/pages/Settings';
+import { Toaster } from '@/components/ui/sonner';
 
 function App() {
   return (
@@ -18,6 +19,7 @@ function App() {
           <Route path="/settings" element={<SettingsPage />} />
         </Route>
       </Routes>
+      <Toaster />
     </BrowserRouter>
   );
 }

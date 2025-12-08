@@ -19,11 +19,12 @@ import (
 
 // VerifyOptions holds options for the verification process
 type VerifyOptions struct {
-	TorrentPath string
-	ContentPath string
-	Verbose     bool
-	Quiet       bool
-	Workers     int // Number of worker goroutines for verification
+	TorrentPath      string
+	ContentPath      string
+	Verbose          bool
+	Quiet            bool
+	Workers          int              // Number of worker goroutines for verification
+	ProgressCallback ProgressCallback // Optional callback for progress updates
 }
 
 type pieceVerifier struct {
@@ -35,9 +36,10 @@ type pieceVerifier struct {
 	contentPath string
 	files       []fileEntry // Mapped files based on contentPath
 
-	badPieceIndices []int
-	missingFiles    []string
-	missingRanges   [][2]int64 // Byte ranges [start, end) of missing/mismatched files
+	badPieceIndices  []int
+	missingFiles     []string
+	missingRanges    [][2]int64       // Byte ranges [start, end) of missing/mismatched files
+	progressCallback ProgressCallback // Optional callback for progress updates
 
 	pieceLen  int64
 	numPieces int
@@ -193,13 +195,14 @@ func VerifyData(opts VerifyOptions) (*VerificationResult, error) {
 	// 4. Initialize Verifier
 	numPieces := len(info.Pieces) / 20
 	verifier := &pieceVerifier{
-		torrentInfo:  &info,
-		contentPath:  opts.ContentPath,
-		pieceLen:     info.PieceLength,
-		numPieces:    numPieces,
-		files:        mappedFiles,
-		display:      NewDisplay(NewFormatter(opts.Verbose)),
-		missingFiles: missingFiles,
+		torrentInfo:      &info,
+		contentPath:      opts.ContentPath,
+		pieceLen:         info.PieceLength,
+		numPieces:        numPieces,
+		files:            mappedFiles,
+		display:          NewDisplay(NewFormatter(opts.Verbose)),
+		missingFiles:     missingFiles,
+		progressCallback: opts.ProgressCallback,
 	}
 	verifier.display.SetQuiet(opts.Quiet)
 
@@ -405,6 +408,11 @@ func (v *pieceVerifier) verifyPieces(numWorkersOverride int) error {
 			// Pass total completed count and rate to UpdateProgress
 			// Note: UpdateProgress might need adjustment if it expects percentage instead of count
 			v.display.UpdateProgress(int(completed), rate)
+
+			// Call progress callback if provided
+			if v.progressCallback != nil {
+				v.progressCallback(int(completed), v.numPieces, rate/(1024*1024)) // Convert to MB/s
+			}
 
 			if completed >= uint64(v.numPieces) {
 				return // Exit goroutine when all pieces are processed

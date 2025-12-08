@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
@@ -131,7 +131,7 @@ export function SettingsPage() {
       setPresetPath(path);
       setPresets(presetMap as Record<string, PresetOptions>);
     } catch (e) {
-      console.error('Failed to load settings:', e);
+      toast.error('Failed to load settings: ' + String(e));
     } finally {
       setIsLoading(false);
     }
@@ -144,7 +144,7 @@ export function SettingsPage() {
         const path = await CreatePresetFile();
         setPresetPath(path);
       } catch (e) {
-        console.error('Failed to create preset file:', e);
+        toast.error('Failed to create preset file: ' + String(e));
         // Still allow opening the dialog - save will create the file
       }
     }
@@ -177,7 +177,7 @@ export function SettingsPage() {
       await DeletePreset(presetToDelete);
       await loadSettings();
     } catch (e) {
-      console.error('Failed to delete preset:', e);
+      toast.error('Failed to delete preset: ' + String(e));
     } finally {
       setDeleteDialogOpen(false);
       setPresetToDelete(null);
@@ -199,7 +199,7 @@ export function SettingsPage() {
       await loadSettings();
       setEditDialogOpen(false);
     } catch (e) {
-      console.error('Failed to save preset:', e);
+      toast.error('Failed to save preset: ' + String(e));
     } finally {
       setIsSaving(false);
     }
@@ -225,15 +225,14 @@ export function SettingsPage() {
   const presetNames = Object.keys(presets).sort();
 
   return (
-    <div className="h-full overflow-auto">
-      <div className="p-6 space-y-4">
+    <div className="flex flex-col h-full overflow-auto">
+      <div className="flex-1 p-6 space-y-4">
         <div>
           <h1 className="text-2xl font-semibold">Settings</h1>
-          <p className="text-sm text-muted-foreground">Application settings and information</p>
+          <p className="text-sm text-muted-foreground">Manage presets</p>
         </div>
 
-        <div className="space-y-4">
-          <Card>
+        <Card className="flex-1">
             <CardHeader className="py-3 flex flex-row items-center justify-between">
               <CardTitle className="text-base">Presets</CardTitle>
               <Button variant="outline" size="sm" onClick={handleNewPreset}>
@@ -263,8 +262,7 @@ export function SettingsPage() {
                     No presets configured. Click "New Preset" to create one.
                   </p>
                 ) : (
-                  <ScrollArea className="h-48">
-                    <div className="space-y-2">
+                  <div className="space-y-2">
                       {presetNames.map((name) => {
                         const opts = presets[name];
                         return (
@@ -303,13 +301,11 @@ export function SettingsPage() {
                           </div>
                         );
                       })}
-                    </div>
-                  </ScrollArea>
+                  </div>
                 )}
               </div>
             </CardContent>
           </Card>
-        </div>
       </div>
 
       {/* Edit/Create Preset Dialog */}

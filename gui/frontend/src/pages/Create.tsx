@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -11,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { FolderOpen, File, Plus, X, Loader2, ChevronDown, Sparkles } from 'lucide-react';
 import { SelectPath, SelectFile, CreateTorrent, ListPresets, GetPreset, GetTrackerInfo, GetContentSize, GetRecommendedPieceSize } from '../../wailsjs/go/main/App';
-import { EventsOn, EventsOff } from '../../wailsjs/runtime/runtime';
+import { EventsOn } from '../../wailsjs/runtime/runtime';
 
 import { main, preset as presetTypes } from '../../wailsjs/go/models';
 
@@ -26,6 +27,58 @@ interface ProgressEvent {
   total: number;
   hashRate: number;
   percent: number;
+}
+
+function formatHashRate(mibPerSec: number): string {
+  if (mibPerSec >= 1024) {
+    return `${(mibPerSec / 1024).toFixed(2)} GiB/s`;
+  }
+  return `${mibPerSec.toFixed(2)} MiB/s`;
+}
+
+// Form state that persists across navigation
+interface CreateFormState {
+  path: string;
+  name: string;
+  trackers: string[];
+  isPrivate: boolean;
+  comment: string;
+  source: string;
+  pieceLengthExp: number;
+  outputDir: string;
+  noDate: boolean;
+  noCreator: boolean;
+  entropy: boolean;
+  presetName: string;
+}
+
+const STORAGE_KEY = 'mkbrr-create-form';
+const RESULT_STORAGE_KEY = 'mkbrr-create-result';
+
+function loadFormState(): Partial<CreateFormState> {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    return saved ? JSON.parse(saved) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveFormState(state: CreateFormState) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+function clearFormState() {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(RESULT_STORAGE_KEY);
+  } catch {
+    // Ignore storage errors
+  }
 }
 
 function formatPieceSize(exp: number): string {
@@ -50,6 +103,9 @@ const PIECE_LENGTHS = [
   { value: 22, label: '4 MiB' },
   { value: 23, label: '8 MiB' },
   { value: 24, label: '16 MiB' },
+  { value: 25, label: '32 MiB' },
+  { value: 26, label: '64 MiB' },
+  { value: 27, label: '128 MiB' },
 ];
 
 function formatBytes(bytes: number): string {
@@ -61,18 +117,21 @@ function formatBytes(bytes: number): string {
 }
 
 export function CreatePage() {
-  const [path, setPath] = useState('');
-  const [name, setName] = useState('');
-  const [trackers, setTrackers] = useState<string[]>(['']);
-  const [isPrivate, setIsPrivate] = useState(true);
-  const [comment, setComment] = useState('');
-  const [source, setSource] = useState('');
-  const [pieceLengthExp, setPieceLengthExp] = useState(0);
-  const [outputDir, setOutputDir] = useState('');
-  const [noDate, setNoDate] = useState(false);
-  const [noCreator, setNoCreator] = useState(false);
-  const [entropy, setEntropy] = useState(false);
-  const [presetName, setPresetName] = useState('');
+  // Load saved form state from localStorage
+  const savedState = loadFormState();
+
+  const [path, setPath] = useState(savedState.path ?? '');
+  const [name, setName] = useState(savedState.name ?? '');
+  const [trackers, setTrackers] = useState<string[]>(savedState.trackers ?? ['']);
+  const [isPrivate, setIsPrivate] = useState(savedState.isPrivate ?? true);
+  const [comment, setComment] = useState(savedState.comment ?? '');
+  const [source, setSource] = useState(savedState.source ?? '');
+  const [pieceLengthExp, setPieceLengthExp] = useState(savedState.pieceLengthExp ?? 0);
+  const [outputDir, setOutputDir] = useState(savedState.outputDir ?? '');
+  const [noDate, setNoDate] = useState(savedState.noDate ?? false);
+  const [noCreator, setNoCreator] = useState(savedState.noCreator ?? false);
+  const [entropy, setEntropy] = useState(savedState.entropy ?? false);
+  const [presetName, setPresetName] = useState(savedState.presetName ?? '');
 
   const [presets, setPresets] = useState<string[]>([]);
   const [isCreating, setIsCreating] = useState(false);
@@ -86,7 +145,39 @@ export function CreatePage() {
   const [dialogOpen, setDialogOpen] = useState(false);
 
   useEffect(() => {
-    ListPresets().then(setPresets).catch(console.error);
+    ListPresets().then(setPresets).catch((e) => toast.error('Failed to load presets: ' + String(e)));
+  }, []);
+
+  // Save form state to localStorage whenever values change
+  useEffect(() => {
+    saveFormState({
+      path,
+      name,
+      trackers,
+      isPrivate,
+      comment,
+      source,
+      pieceLengthExp,
+      outputDir,
+      noDate,
+      noCreator,
+      entropy,
+      presetName,
+    });
+  }, [path, name, trackers, isPrivate, comment, source, pieceLengthExp, outputDir, noDate, noCreator, entropy, presetName]);
+
+  // Check for pending result on mount (in case user navigated away during creation)
+  useEffect(() => {
+    try {
+      const savedResult = localStorage.getItem(RESULT_STORAGE_KEY);
+      if (savedResult) {
+        const parsed = JSON.parse(savedResult);
+        setResult(parsed);
+        setDialogOpen(true);
+      }
+    } catch {
+      // Ignore parse errors
+    }
   }, []);
 
   useEffect(() => {
@@ -94,7 +185,7 @@ export function CreatePage() {
       setProgress(data);
     });
     return () => {
-      EventsOff('create:progress');
+      cancel();
     };
   }, []);
 
@@ -116,7 +207,7 @@ export function CreatePage() {
             return;
           }
         } catch (e) {
-          console.error('Failed to get tracker info:', e);
+          toast.error('Failed to get tracker info: ' + String(e));
         }
       }
       setTrackerInfo(null);
@@ -138,7 +229,7 @@ export function CreatePage() {
         const size = await GetContentSize(path);
         setContentSize(size);
       } catch (e) {
-        console.error('Failed to get content size:', e);
+        toast.error('Failed to get content size: ' + String(e));
         setContentSize(0);
       }
     };
@@ -164,7 +255,7 @@ export function CreatePage() {
             return;
           }
         } catch (e) {
-          console.error('Failed to get recommended piece size:', e);
+          toast.error('Failed to get recommended piece size: ' + String(e));
         }
       }
       setRecommendedPieceSize(0);
@@ -172,6 +263,13 @@ export function CreatePage() {
 
     calculatePieceSize();
   }, [trackerInfo, contentSize, trackers]);
+
+  // Reset piece length if it exceeds tracker's max
+  useEffect(() => {
+    if (trackerInfo?.maxPieceLength && pieceLengthExp > trackerInfo.maxPieceLength) {
+      setPieceLengthExp(0); // Reset to Auto
+    }
+  }, [trackerInfo?.maxPieceLength, pieceLengthExp]);
 
   const handleSelectFolder = async () => {
     try {
@@ -224,6 +322,7 @@ export function CreatePage() {
     setTrackerInfo(null);
     setContentSize(0);
     setRecommendedPieceSize(0);
+    clearFormState(); // Also clear localStorage
   };
 
   const handlePresetChange = async (value: string) => {
@@ -238,7 +337,7 @@ export function CreatePage() {
           if (preset.Comment) setComment(preset.Comment);
         }
       } catch (e) {
-        console.error('Failed to load preset:', e);
+        toast.error('Failed to load preset: ' + String(e));
       }
     }
   };
@@ -261,6 +360,12 @@ export function CreatePage() {
     setDialogOpen(false);
     setResult(null);
     setError('');
+    // Clear saved result from localStorage
+    try {
+      localStorage.removeItem(RESULT_STORAGE_KEY);
+    } catch {
+      // Ignore storage errors
+    }
   };
 
   const handleCreate = async () => {
@@ -300,6 +405,12 @@ export function CreatePage() {
 
       const res = await CreateTorrent(req);
       setResult(res as TorrentResultType);
+      // Save result to localStorage in case user navigates away
+      try {
+        localStorage.setItem(RESULT_STORAGE_KEY, JSON.stringify(res));
+      } catch {
+        // Ignore storage errors
+      }
     } catch (e) {
       setError(String(e));
     } finally {
@@ -408,6 +519,22 @@ export function CreatePage() {
               </div>
             </div>
 
+            {/* Output Directory */}
+            <div className="space-y-1.5">
+              <Label>Output Directory</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={outputDir}
+                  onChange={(e) => setOutputDir(e.target.value)}
+                  placeholder="Same as source"
+                  className="flex-1"
+                />
+                <Button variant="outline" size="icon" onClick={handleSelectOutputDir}>
+                  <FolderOpen className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
             {/* Tracker Optimization Indicator */}
             {trackerInfo && trackerInfo.hasCustomRules && (
               <div className="flex items-start gap-3 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
@@ -464,30 +591,14 @@ export function CreatePage() {
             </CollapsibleTrigger>
             <CollapsibleContent>
               <div className="px-4 pb-4 space-y-4 pt-4">
-                {/* Name + Output Path */}
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-1.5">
-                    <Label>Name Override</Label>
-                    <Input
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="Use source name"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Output Directory</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        value={outputDir}
-                        onChange={(e) => setOutputDir(e.target.value)}
-                        placeholder="Same as source"
-                        className="flex-1"
-                      />
-                      <Button variant="outline" size="icon" onClick={handleSelectOutputDir}>
-                        <FolderOpen className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
+                {/* Name Override */}
+                <div className="space-y-1.5">
+                  <Label>Name Override</Label>
+                  <Input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Use source name"
+                  />
                 </div>
 
                 {/* Source + Comment */}
@@ -521,11 +632,19 @@ export function CreatePage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {PIECE_LENGTHS.map((pl) => (
-                        <SelectItem key={pl.value} value={pl.value.toString()}>
-                          {pl.label}
-                        </SelectItem>
-                      ))}
+                      {PIECE_LENGTHS
+                        .filter((pl) => {
+                          // If tracker has max piece length limit, filter out larger sizes
+                          if (trackerInfo?.maxPieceLength && pl.value > 0) {
+                            return pl.value <= trackerInfo.maxPieceLength;
+                          }
+                          return true;
+                        })
+                        .map((pl) => (
+                          <SelectItem key={pl.value} value={pl.value.toString()}>
+                            {pl.label}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -599,7 +718,7 @@ export function CreatePage() {
                 {progress && (
                   <div className="flex justify-between text-xs text-muted-foreground">
                     <span>{progress.completed} / {progress.total} pieces</span>
-                    <span>{progress.hashRate.toFixed(2)} MB/s</span>
+                    <span>{formatHashRate(progress.hashRate)}</span>
                   </div>
                 )}
               </div>
@@ -632,7 +751,7 @@ export function CreatePage() {
               <DialogHeader>
                 <DialogTitle className="text-destructive">Error</DialogTitle>
               </DialogHeader>
-              <p className="text-sm py-4">{error}</p>
+              <p className="text-sm py-4 break-words">{error}</p>
               <DialogFooter>
                 <Button variant="outline" onClick={handleDialogClose}>Close</Button>
               </DialogFooter>
@@ -643,7 +762,7 @@ export function CreatePage() {
 
       <div className="bg-background p-4 flex justify-end gap-2">
         <Button variant="outline" onClick={handleClearFields} disabled={isCreating}>
-          Clear Fields
+          Reset
         </Button>
         <Button onClick={handleCreate} disabled={isCreating || !path}>
           {isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -230,7 +231,7 @@ func (a *App) CreateTorrent(req CreateRequest) (*TorrentResult, error) {
 			runtime.EventsEmit(a.ctx, "create:progress", ProgressEvent{
 				Completed: completed,
 				Total:     total,
-				HashRate:  hashRate,
+				HashRate:  hashRate / (1024 * 1024), // Convert bytes/s to MB/s
 				Percent:   percent,
 			})
 		},
@@ -257,7 +258,9 @@ func (a *App) CreateTorrent(req CreateRequest) (*TorrentResult, error) {
 	size := info.Size
 
 	t, err := torrent.LoadFromFile(info.Path)
-	if err == nil {
+	if err != nil {
+		log.Printf("Warning: failed to re-read created torrent for metadata: %v", err)
+	} else {
 		mi := t.GetInfo()
 		pieceCount = mi.NumPieces()
 		size = mi.TotalLength()
@@ -345,6 +348,18 @@ func (a *App) VerifyTorrent(req VerifyRequest) (*VerifyResult, error) {
 		TorrentPath: req.TorrentPath,
 		ContentPath: req.ContentPath,
 		Quiet:       true,
+		ProgressCallback: func(completed, total int, hashRate float64) {
+			percent := 0.0
+			if total > 0 {
+				percent = float64(completed) / float64(total) * 100
+			}
+			runtime.EventsEmit(a.ctx, "verify:progress", ProgressEvent{
+				Completed: completed,
+				Total:     total,
+				HashRate:  hashRate, // Already in MiB/s from torrent package
+				Percent:   percent,
+			})
+		},
 	}
 
 	result, err := torrent.VerifyData(opts)
@@ -443,6 +458,7 @@ func (a *App) GetAllPresets() (map[string]*preset.Options, error) {
 	for name := range config.Presets {
 		opts, err := config.GetPreset(name)
 		if err != nil {
+			log.Printf("Warning: failed to load preset %q: %v", name, err)
 			continue
 		}
 		result[name] = opts

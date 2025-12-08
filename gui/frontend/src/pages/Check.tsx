@@ -7,7 +7,7 @@ import { Progress } from '@/components/ui/progress';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { FolderOpen, File, Loader2, CheckCircle, XCircle } from 'lucide-react';
 import { SelectTorrentFile, SelectPath, SelectFile, VerifyTorrent } from '../../wailsjs/go/main/App';
-import { EventsOn, EventsOff } from '../../wailsjs/runtime/runtime';
+import { EventsOn } from '../../wailsjs/runtime/runtime';
 import { main } from '../../wailsjs/go/models';
 
 type VerifyRequest = main.VerifyRequest;
@@ -20,22 +20,76 @@ interface ProgressEvent {
   percent: number;
 }
 
+function formatHashRate(mibPerSec: number): string {
+  if (mibPerSec >= 1024) {
+    return `${(mibPerSec / 1024).toFixed(2)} GiB/s`;
+  }
+  return `${mibPerSec.toFixed(2)} MiB/s`;
+}
+
+// Form state persistence
+interface CheckFormState {
+  torrentPath: string;
+  contentPath: string;
+}
+
+const STORAGE_KEY = 'mkbrr-check-form';
+
+function loadFormState(): Partial<CheckFormState> {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    return saved ? JSON.parse(saved) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveFormState(state: CheckFormState) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+function clearFormState() {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // Ignore storage errors
+  }
+}
+
 export function CheckPage() {
-  const [torrentPath, setTorrentPath] = useState('');
-  const [contentPath, setContentPath] = useState('');
+  const savedState = loadFormState();
+  const [torrentPath, setTorrentPath] = useState(savedState.torrentPath ?? '');
+  const [contentPath, setContentPath] = useState(savedState.contentPath ?? '');
   const [isVerifying, setIsVerifying] = useState(false);
   const [progress, setProgress] = useState<ProgressEvent | null>(null);
   const [result, setResult] = useState<VerifyResult | null>(null);
   const [error, setError] = useState('');
+
+  // Save form state to localStorage whenever values change
+  useEffect(() => {
+    saveFormState({ torrentPath, contentPath });
+  }, [torrentPath, contentPath]);
 
   useEffect(() => {
     const cancel = EventsOn('verify:progress', (data: ProgressEvent) => {
       setProgress(data);
     });
     return () => {
-      EventsOff('verify:progress');
+      cancel();
     };
   }, []);
+
+  const handleReset = () => {
+    setTorrentPath('');
+    setContentPath('');
+    setResult(null);
+    setError('');
+    clearFormState();
+  };
 
   const handleSelectTorrent = async () => {
     try {
@@ -175,7 +229,7 @@ export function CheckPage() {
               <Progress value={progress.percent} />
               <div className="flex justify-between text-xs text-muted-foreground">
                 <span>{progress.completed} / {progress.total} pieces</span>
-                <span>{progress.hashRate.toFixed(2)} MB/s</span>
+                <span>{formatHashRate(progress.hashRate)}</span>
               </div>
             </CardContent>
           </Card>
@@ -235,7 +289,10 @@ export function CheckPage() {
         )}
       </div>
 
-      <div className="bg-background p-4 flex justify-end">
+      <div className="bg-background p-4 flex justify-end gap-2">
+        <Button variant="outline" onClick={handleReset} disabled={isVerifying}>
+          Reset
+        </Button>
         <Button onClick={handleVerify} disabled={isVerifying || !torrentPath || !contentPath}>
           {isVerifying && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           {isVerifying ? 'Verifying...' : 'Verify Torrent'}
