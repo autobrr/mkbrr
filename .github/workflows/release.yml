@@ -118,13 +118,16 @@ jobs:
         build:
           - os: macos-latest
             platform: darwin/universal
-            archive-name: mkbrr-gui_darwin_universal.zip
+            archive-suffix: darwin_universal
+            archive-ext: zip
           - os: windows-latest
             platform: windows/amd64
-            archive-name: mkbrr-gui_windows_amd64.zip
+            archive-suffix: windows_amd64
+            archive-ext: zip
           - os: ubuntu-latest
             platform: linux/amd64
-            archive-name: mkbrr-gui_linux_amd64.tar.gz
+            archive-suffix: linux_amd64
+            archive-ext: tar.gz
     runs-on: ${{ matrix.build.os }}
     defaults:
       run:
@@ -195,26 +198,26 @@ jobs:
         if: matrix.build.os == 'macos-latest'
         run: |
           cd build/bin
-          zip -r ${{ matrix.build.archive-name }} mkbrr-gui.app
+          zip -r mkbrr-gui_${{ steps.version.outputs.version }}_${{ matrix.build.archive-suffix }}.zip mkbrr-gui.app
 
       - name: Archive Windows exe
         if: matrix.build.os == 'windows-latest'
         shell: pwsh
         run: |
           cd build/bin
-          Compress-Archive -Path mkbrr-gui.exe -DestinationPath ${{ matrix.build.archive-name }}
+          Compress-Archive -Path mkbrr-gui.exe -DestinationPath mkbrr-gui_${{ steps.version.outputs.version }}_${{ matrix.build.archive-suffix }}.zip
 
       - name: Archive Linux binary
         if: matrix.build.os == 'ubuntu-latest'
         run: |
           cd build/bin
-          tar -czvf ${{ matrix.build.archive-name }} mkbrr-gui
+          tar -czvf mkbrr-gui_${{ steps.version.outputs.version }}_${{ matrix.build.archive-suffix }}.tar.gz mkbrr-gui
 
       - name: Upload artifact
         uses: actions/upload-artifact@v5
         with:
           name: wails-gui-${{ matrix.build.os }}
-          path: gui/build/bin/${{ matrix.build.archive-name }}
+          path: gui/build/bin/mkbrr-gui_${{ steps.version.outputs.version }}_${{ matrix.build.archive-suffix }}.${{ matrix.build.archive-ext }}
 
   pgo:
     name: Generate PGO Profile
