@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -10,8 +11,8 @@ import { Switch } from '@/components/ui/switch';
 import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { FolderOpen, File, Plus, X, Loader2, ChevronDown, Sparkles } from 'lucide-react';
-import { SelectPath, SelectFile, CreateTorrent, ListPresets, GetPreset, GetTrackerInfo, GetContentSize, GetRecommendedPieceSize } from '../../wailsjs/go/main/App';
+import { FolderOpen, File, Plus, X, Loader2, ChevronDown, Sparkles, FileSearch } from 'lucide-react';
+import { SelectPath, SelectFile, CreateTorrent, ListPresets, GetPreset, GetTrackerInfo, GetContentSize, GetRecommendedPieceSize, InspectTorrent } from '../../wailsjs/go/main/App';
 import { EventsOn } from '../../wailsjs/runtime/runtime';
 
 import { main, preset as presetTypes } from '../../wailsjs/go/models';
@@ -130,6 +131,7 @@ function formatBytes(bytes: number): string {
 }
 
 export function CreatePage() {
+  const navigate = useNavigate();
   // Load saved form state from localStorage
   const savedState = loadFormState();
 
@@ -394,6 +396,18 @@ export function CreatePage() {
       localStorage.removeItem(RESULT_STORAGE_KEY);
     } catch (e) {
       console.error('Failed to clear saved result from localStorage:', e);
+    }
+  };
+
+  const handleInspectResult = async () => {
+    if (!result?.path) return;
+    try {
+      const info = await InspectTorrent(result.path);
+      localStorage.setItem('mkbrr-inspect-state', JSON.stringify({ torrentInfo: info }));
+      handleDialogClose();
+      navigate('/inspect');
+    } catch (e) {
+      toast.error('Failed to inspect torrent: ' + String(e));
     }
   };
 
@@ -779,6 +793,10 @@ export function CreatePage() {
                 <span>{result.fileCount}</span>
               </div>
               <DialogFooter>
+                <Button variant="outline" onClick={handleInspectResult}>
+                  <FileSearch className="mr-2 h-4 w-4" />
+                  Inspect
+                </Button>
                 <Button onClick={handleDialogClose}>Close</Button>
               </DialogFooter>
             </>

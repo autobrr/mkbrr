@@ -434,6 +434,12 @@ func (a *App) ModifyTorrent(req ModifyRequest) (*ModifyResult, error) {
 		return nil, fmt.Errorf("torrent path is required")
 	}
 
+	// Default output directory to source directory for GUI
+	outputDir := req.OutputDir
+	if outputDir == "" {
+		outputDir = filepath.Dir(req.TorrentPath)
+	}
+
 	opts := torrent.ModifyOptions{
 		TrackerURLs:   req.TrackerURLs,
 		WebSeeds:      req.WebSeeds,
@@ -444,7 +450,7 @@ func (a *App) ModifyTorrent(req ModifyRequest) (*ModifyResult, error) {
 		NoCreator:     req.NoCreator,
 		Entropy:       req.Entropy,
 		SkipPrefix:    req.SkipPrefix,
-		OutputDir:     req.OutputDir,
+		OutputDir:     outputDir,
 		OutputPattern: req.OutputPattern,
 		PresetName:    req.PresetName,
 		PresetFile:    req.PresetFile,

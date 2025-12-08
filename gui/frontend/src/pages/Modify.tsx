@@ -1,17 +1,28 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { FolderOpen, Plus, X, Loader2, ChevronDown } from 'lucide-react';
-import { SelectTorrentFile, SelectPath, ModifyTorrent } from '../../wailsjs/go/main/App';
+import { FolderOpen, Plus, X, Loader2, ChevronDown, FileSearch } from 'lucide-react';
+import { SelectTorrentFile, SelectPath, ModifyTorrent, ListPresets, GetPreset, InspectTorrent } from '../../wailsjs/go/main/App';
 
-import { main } from '../../wailsjs/go/models';
+import { main, preset as presetTypes } from '../../wailsjs/go/models';
 
 type ModifyRequest = main.ModifyRequest;
 type ModifyResult = main.ModifyResult;
+type PresetOptions = presetTypes.Options;
+
+// Get directory from path (works for both Unix and Windows paths)
+function getDirectory(path: string): string {
+  if (!path) return '';
+  // Handle both forward and backslashes
+  const lastSlash = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
+  return lastSlash > 0 ? path.substring(0, lastSlash) : path;
+}
 
 // Form state persistence
 interface ModifyFormState {
@@ -23,6 +34,7 @@ interface ModifyFormState {
   comment: string;
   noDate: boolean;
   noCreator: boolean;
+  presetName: string;
 }
 
 const STORAGE_KEY = 'mkbrr-modify-form';
@@ -54,6 +66,7 @@ function clearFormState() {
 }
 
 export function ModifyPage() {
+  const navigate = useNavigate();
   const savedState = loadFormState();
   const [torrentPath, setTorrentPath] = useState(savedState.torrentPath ?? '');
   const [outputDir, setOutputDir] = useState(savedState.outputDir ?? '');
@@ -63,11 +76,18 @@ export function ModifyPage() {
   const [comment, setComment] = useState(savedState.comment ?? '');
   const [noDate, setNoDate] = useState(savedState.noDate ?? false);
   const [noCreator, setNoCreator] = useState(savedState.noCreator ?? false);
+  const [presetName, setPresetName] = useState(savedState.presetName ?? '');
 
+  const [presets, setPresets] = useState<string[]>([]);
   const [isModifying, setIsModifying] = useState(false);
   const [result, setResult] = useState<ModifyResult | null>(null);
   const [error, setError] = useState('');
   const [advancedOpen, setAdvancedOpen] = useState(false);
+
+  // Load presets on mount
+  useEffect(() => {
+    ListPresets().then(setPresets).catch((e) => console.error('Failed to load presets:', e));
+  }, []);
 
   // Save form state to localStorage whenever values change
   useEffect(() => {
@@ -80,8 +100,9 @@ export function ModifyPage() {
       comment,
       noDate,
       noCreator,
+      presetName,
     });
-  }, [torrentPath, outputDir, trackers, setPrivate, source, comment, noDate, noCreator]);
+  }, [torrentPath, outputDir, trackers, setPrivate, source, comment, noDate, noCreator, presetName]);
 
   const handleReset = () => {
     setTorrentPath('');
@@ -92,9 +113,36 @@ export function ModifyPage() {
     setComment('');
     setNoDate(false);
     setNoCreator(false);
+    setPresetName('');
     setResult(null);
     setError('');
     clearFormState();
+  };
+
+  const handlePresetChange = async (value: string) => {
+    if (value === 'none') {
+      setPresetName('');
+      return;
+    }
+
+    setPresetName(value);
+    try {
+      const preset = await GetPreset(value) as PresetOptions;
+      if (preset) {
+        // Support both camelCase (new) and PascalCase (legacy) field names
+        const trackerList = preset.trackers || (preset as any).Trackers;
+        const sourceVal = preset.source || (preset as any).Source;
+        const privateVal = preset.private ?? (preset as any).Private;
+        const commentVal = preset.comment || (preset as any).Comment;
+
+        if (trackerList && trackerList.length > 0) setTrackers(trackerList);
+        if (sourceVal) setSource(sourceVal);
+        if (privateVal !== undefined) setSetPrivate(privateVal);
+        if (commentVal) setComment(commentVal);
+      }
+    } catch (e) {
+      setError('Failed to load preset: ' + String(e));
+    }
   };
 
   const handleSelectInput = async () => {
@@ -141,6 +189,17 @@ export function ModifyPage() {
     }
   };
 
+  const handleInspectResult = async () => {
+    if (!result?.outputPath) return;
+    try {
+      const info = await InspectTorrent(result.outputPath);
+      localStorage.setItem('mkbrr-inspect-state', JSON.stringify({ torrentInfo: info }));
+      navigate('/inspect');
+    } catch (e) {
+      setError('Failed to inspect torrent: ' + String(e));
+    }
+  };
+
   const handleModify = async () => {
     if (!torrentPath) {
       setError('Please select a torrent file');
@@ -165,7 +224,7 @@ export function ModifyPage() {
         skipPrefix: false,
         outputDir,
         outputPattern: '',
-        presetName: '',
+        presetName,
         presetFile: '',
         dryRun: false,
       };
@@ -207,6 +266,24 @@ export function ModifyPage() {
                 </Button>
               </div>
             </div>
+
+            {/* Preset Selector */}
+            {presets.length > 0 && (
+              <div className="space-y-1.5">
+                <Label>Preset</Label>
+                <Select value={presetName} onValueChange={handlePresetChange}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a preset" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {presets.map((p) => (
+                      <SelectItem key={p} value={p}>{p}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             {/* Trackers */}
             <div className="space-y-1.5">
@@ -282,13 +359,18 @@ export function ModifyPage() {
                 <Input
                   value={outputDir}
                   onChange={(e) => setOutputDir(e.target.value)}
-                  placeholder="Same as input file"
+                  placeholder={getDirectory(torrentPath) || 'Same as input file'}
                   className="flex-1"
                 />
                 <Button variant="outline" size="icon" onClick={handleSelectOutputDir}>
                   <FolderOpen className="h-4 w-4" />
                 </Button>
               </div>
+              {torrentPath && !outputDir && (
+                <p className="text-xs text-muted-foreground">
+                  Output: {getDirectory(torrentPath)}
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -367,6 +449,12 @@ export function ModifyPage() {
                 <span className="font-mono text-xs break-all">{result.outputPath}</span>
                 <span className="text-muted-foreground">Status</span>
                 <span>{result.wasModified ? 'Modified successfully' : 'No changes made'}</span>
+              </div>
+              <div className="pt-2">
+                <Button variant="outline" size="sm" onClick={handleInspectResult}>
+                  <FileSearch className="mr-2 h-4 w-4" />
+                  Inspect
+                </Button>
               </div>
             </CardContent>
           </Card>
