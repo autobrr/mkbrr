@@ -173,10 +173,16 @@ jobs:
         run: pnpm install
         working-directory: gui/frontend
 
-      - name: Build Wails App (Unix)
-        if: matrix.build.os != 'windows-latest'
+      - name: Build Wails App (macOS)
+        if: matrix.build.os == 'macos-latest'
         run: |
           wails build -platform ${{ matrix.build.platform }} \
+            -ldflags "-s -w -X main.version=${{ steps.version.outputs.version }} -X main.buildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+      - name: Build Wails App (Linux)
+        if: matrix.build.os == 'ubuntu-latest'
+        run: |
+          wails build -platform ${{ matrix.build.platform }} -tags webkit2_41 \
             -ldflags "-s -w -X main.version=${{ steps.version.outputs.version }} -X main.buildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
       - name: Build Wails App (Windows)
