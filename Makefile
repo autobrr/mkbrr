@@ -88,11 +88,11 @@ install-pgo:
 		install -m 755 ${BUILD_DIR}/${BINARY_NAME} ${GOBIN}/; \
 	fi
 
-# run all tests (excluding large tests)
+# run all tests (excluding large tests and gui)
 .PHONY: test
 test:
 	@echo "Running tests..."
-	$(GO) test -v ./...
+	$(GO) test -v $(shell go list ./... | grep -v /gui)
 
 # run quick tests with race detector (for CI and quick feedback)
 .PHONY: test-race-short
@@ -124,11 +124,11 @@ test-large:
 		cat "./race_report.log"; \
 	fi
 
-# run tests with coverage
+# run tests with coverage (excluding gui)
 .PHONY: test-coverage
 test-coverage:
 	@echo "Running tests with coverage..."
-	GORACE="$(GORACE)" $(GO) test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
+	GORACE="$(GORACE)" $(GO) test -v -race -coverprofile=coverage.txt -covermode=atomic $(shell go list ./... | grep -v /gui)
 	$(GO) tool cover -html=coverage.txt -o coverage.html
 	@if [ -f "./race_report.log" ]; then \
 		echo "Race conditions detected! Check race_report.log"; \

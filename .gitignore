@@ -15,3 +15,4 @@ test_ant/*
 .repomixignore
 repomix-mkbrr.xml
 repomix.config.json
+.vscode/*

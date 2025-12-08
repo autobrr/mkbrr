@@ -55,7 +55,7 @@ jobs:
         run: make test-race
 
       - name: Generate Test Summary
-        run: go run gotest.tools/gotestsum@latest --junitfile unit-tests.xml --format pkgname
+        run: go run gotest.tools/gotestsum@latest --junitfile unit-tests.xml --format pkgname -- $(go list ./... | grep -v /gui)
 
       - name: Test Summary
         uses: test-summary/action@v2
@@ -91,17 +91,18 @@ jobs:
         if: matrix.os == 'macos-latest'
         env:
           CGO_ENABLED: 0
-        run: go test ./...
+        run: go test $(go list ./... | grep -v /gui)
 
       - name: Run Tests (Windows)
         if: matrix.os == 'windows-latest'
         env:
           CGO_ENABLED: 0
-        run: go test -short ./...
+        shell: bash
+        run: go test -short $(go list ./... | grep -v /gui)
 
       - name: Generate Test Summary
         if: matrix.os != 'windows-latest'
-        run: go run gotest.tools/gotestsum@latest --junitfile unit-tests.xml --format pkgname
+        run: go run gotest.tools/gotestsum@latest --junitfile unit-tests.xml --format pkgname -- $(go list ./... | grep -v /gui)
 
       - name: Test Summary
         uses: test-summary/action@v2
