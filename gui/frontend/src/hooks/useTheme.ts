@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 
-export type Mode = 'light' | 'dark';
+export type Mode = 'light' | 'dark' | 'system';
+export type ResolvedMode = 'light' | 'dark';
 export type ThemeName = 'default' | 'autobrr' | 'nightwalker' | 'swizzin' | 'amethyst-haze';
 
 export interface ThemeInfo {
@@ -22,26 +23,51 @@ interface ThemeState {
   theme: ThemeName;
 }
 
+function getSystemMode(): ResolvedMode {
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
 export function useTheme() {
   const [state, setState] = useState<ThemeState>(() => {
-    // Check localStorage first
     const storedMode = localStorage.getItem('mode') as Mode | null;
     const storedTheme = localStorage.getItem('theme') as ThemeName | null;
 
-    const mode = storedMode || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    // Default to 'system' if no preference stored
+    const mode = storedMode || 'system';
     const theme = storedTheme || 'autobrr';
 
     return { mode, theme };
   });
 
-  // Apply mode (dark class on html element)
+  const [systemMode, setSystemMode] = useState<ResolvedMode>(getSystemMode);
+
+  // Listen for OS theme changes
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+
+    const handleChange = (e: MediaQueryListEvent) => {
+      setSystemMode(e.matches ? 'dark' : 'light');
+    };
+
+    mediaQuery.addEventListener('change', handleChange);
+    return () => mediaQuery.removeEventListener('change', handleChange);
+  }, []);
+
+  // Resolve the actual mode (system -> light/dark)
+  const resolvedMode: ResolvedMode = state.mode === 'system' ? systemMode : state.mode;
+
+  // Apply resolved mode (dark class on html element)
   useEffect(() => {
     const root = document.documentElement;
-    if (state.mode === 'dark') {
+    if (resolvedMode === 'dark') {
       root.classList.add('dark');
     } else {
       root.classList.remove('dark');
     }
+  }, [resolvedMode]);
+
+  // Persist mode preference to localStorage
+  useEffect(() => {
     localStorage.setItem('mode', state.mode);
   }, [state.mode]);
 
@@ -61,11 +87,16 @@ export function useTheme() {
   }, []);
 
   const toggleMode = useCallback(() => {
-    setState(prev => ({ ...prev, mode: prev.mode === 'dark' ? 'light' : 'dark' }));
+    setState(prev => {
+      // Cycle through: system -> light -> dark -> system
+      const nextMode: Mode = prev.mode === 'system' ? 'light' : prev.mode === 'light' ? 'dark' : 'system';
+      return { ...prev, mode: nextMode };
+    });
   }, []);
 
   return {
     mode: state.mode,
+    resolvedMode,
     theme: state.theme,
     setMode,
     setTheme,

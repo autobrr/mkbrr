@@ -4,8 +4,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
-import { FolderOpen, Loader2, CheckCircle, XCircle } from 'lucide-react';
-import { SelectTorrentFile, SelectPath, VerifyTorrent } from '../../wailsjs/go/main/App';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { FolderOpen, File, Loader2, CheckCircle, XCircle } from 'lucide-react';
+import { SelectTorrentFile, SelectPath, SelectFile, VerifyTorrent } from '../../wailsjs/go/main/App';
 import { EventsOn, EventsOff } from '../../wailsjs/runtime/runtime';
 import { main } from '../../wailsjs/go/models';
 
@@ -47,9 +48,20 @@ export function CheckPage() {
     }
   };
 
-  const handleSelectContent = async () => {
+  const handleSelectContentFolder = async () => {
     try {
       const path = await SelectPath();
+      if (path) {
+        setContentPath(path);
+      }
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
+  const handleSelectContentFile = async () => {
+    try {
+      const path = await SelectFile();
       if (path) {
         setContentPath(path);
       }
@@ -95,7 +107,7 @@ export function CheckPage() {
 
         {/* Main Form Card */}
         <Card>
-          <CardContent className="pt-6 space-y-4">
+          <CardContent className="space-y-4">
             {/* Torrent File */}
             <div className="space-y-1.5">
               <Label>Torrent File</Label>
@@ -122,9 +134,22 @@ export function CheckPage() {
                   placeholder="Select the content folder or file"
                   className="flex-1"
                 />
-                <Button variant="outline" onClick={handleSelectContent}>
-                  <FolderOpen className="h-4 w-4" />
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="outline" size="icon" onClick={handleSelectContentFile}>
+                      <File className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Select File</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="outline" size="icon" onClick={handleSelectContentFolder}>
+                      <FolderOpen className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Select Folder</TooltipContent>
+                </Tooltip>
               </div>
             </div>
           </CardContent>
@@ -158,13 +183,13 @@ export function CheckPage() {
 
         {/* Result */}
         {result && (
-          <Card className={result.completion >= 100 ? 'border-green-500' : 'border-destructive'}>
+          <Card className={result.completion >= 100 ? 'border-emerald-500' : 'border-destructive'}>
             <CardContent className="py-4 space-y-3">
               <div className="flex items-center gap-2">
                 {result.completion >= 100 ? (
                   <>
-                    <CheckCircle className="h-5 w-5 text-green-500" />
-                    <span className="font-medium text-green-600">Verification Passed</span>
+                    <CheckCircle className="h-5 w-5 text-emerald-500" />
+                    <span className="font-medium text-emerald-600">Verification Passed</span>
                   </>
                 ) : (
                   <>

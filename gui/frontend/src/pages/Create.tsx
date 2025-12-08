@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -117,6 +117,23 @@ export function CreatePage() {
     }
   };
 
+  const handleClearFields = () => {
+    setPath('');
+    setName('');
+    setTrackers(['']);
+    setIsPrivate(true);
+    setComment('');
+    setSource('');
+    setPieceLengthExp(0);
+    setOutputDir('');
+    setNoDate(false);
+    setNoCreator(false);
+    setEntropy(false);
+    setPresetName('');
+    setResult(null);
+    setError('');
+  };
+
   const handlePresetChange = async (value: string) => {
     setPresetName(value);
     if (value && value !== 'none') {
@@ -202,7 +219,7 @@ export function CreatePage() {
 
         {/* Main Form Card */}
         <Card>
-          <CardContent className="pt-6 space-y-4">
+          <CardContent className="space-y-4">
             {/* Source Path */}
             <div className="space-y-1.5">
               <Label>Source Path</Label>
@@ -296,17 +313,15 @@ export function CreatePage() {
 
         {/* Advanced Options - Collapsible */}
         <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
-          <Card>
+          <div className="rounded-lg border bg-card">
             <CollapsibleTrigger asChild>
-              <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors py-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-base font-medium">Advanced Options</CardTitle>
-                  <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${advancedOpen ? 'rotate-180' : ''}`} />
-                </div>
-              </CardHeader>
+              <div className="flex items-center justify-between px-4 py-2 cursor-pointer hover:bg-muted/50 transition-colors rounded-lg">
+                <span className="text-sm font-medium">Advanced Options</span>
+                <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${advancedOpen ? 'rotate-180' : ''}`} />
+              </div>
             </CollapsibleTrigger>
             <CollapsibleContent>
-              <CardContent className="pt-0 space-y-4">
+              <div className="px-4 pb-4 space-y-4 pt-4">
                 {/* Name + Output Path */}
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-1.5">
@@ -400,9 +415,9 @@ export function CreatePage() {
                     <Label htmlFor="entropy" className="text-sm">Add entropy</Label>
                   </div>
                 </div>
-              </CardContent>
+              </div>
             </CollapsibleContent>
-          </Card>
+          </div>
         </Collapsible>
 
         {/* Error */}
@@ -433,9 +448,9 @@ export function CreatePage() {
 
         {/* Result */}
         {result && (
-          <Card className="border-green-500">
+          <Card className="border-emerald-500">
             <CardContent className="py-4 space-y-2">
-              <p className="font-medium text-green-600">Torrent Created</p>
+              <p className="font-medium text-emerald-600">Torrent Created</p>
               <div className="grid grid-cols-[80px_1fr] gap-x-2 gap-y-1 text-sm">
                 <span className="text-muted-foreground">Path</span>
                 <span className="font-mono text-xs break-all">{result.path}</span>
@@ -453,7 +468,10 @@ export function CreatePage() {
         )}
       </div>
 
-      <div className="bg-background p-4 flex justify-end">
+      <div className="bg-background p-4 flex justify-end gap-2">
+        <Button variant="outline" onClick={handleClearFields} disabled={isCreating}>
+          Clear Fields
+        </Button>
         <Button onClick={handleCreate} disabled={isCreating || !path}>
           {isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           {isCreating ? 'Creating...' : 'Create Torrent'}

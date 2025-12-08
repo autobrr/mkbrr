@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
-import { FilePlus, FileSearch, FileCheck, FileEdit, Settings, Moon, Sun, Palette, ExternalLink } from 'lucide-react';
+import { FilePlus, FileSearch, FileCheck, FileEdit, Settings, Moon, Sun, Monitor, Palette, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -98,15 +98,20 @@ export function AppSidebar() {
           className="w-full justify-start gap-3 px-3 text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
           onClick={toggleMode}
         >
-          {mode === 'dark' ? (
+          {mode === 'system' ? (
+            <>
+              <Monitor className="h-4 w-4" />
+              System
+            </>
+          ) : mode === 'light' ? (
             <>
               <Sun className="h-4 w-4" />
-              Light Mode
+              Light
             </>
           ) : (
             <>
               <Moon className="h-4 w-4" />
-              Dark Mode
+              Dark
             </>
           )}
         </Button>

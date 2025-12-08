@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { FileSearch, FolderOpen, File, Folder, Loader2 } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { FileSearch, FolderOpen, File, Folder, Loader2, ChevronDown, Lock, Globe, Copy, Check } from 'lucide-react';
 import { SelectTorrentFile, InspectTorrent } from '../../wailsjs/go/main/App';
 import { main } from '../../wailsjs/go/models';
 
@@ -57,17 +57,17 @@ function FileTree({ files }: { files: FileInfo[] }) {
       const items: React.ReactElement[] = [
         <div
           key={child.name + depth}
-          className="flex items-center gap-2 py-0.5 text-sm"
-          style={{ paddingLeft: `${depth * 16}px` }}
+          className="flex items-center gap-2 py-1 text-sm hover:bg-muted/50 rounded px-2 -mx-2"
+          style={{ paddingLeft: `${depth * 16 + 8}px` }}
         >
           {child.isFile ? (
-            <File className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+            <File className="h-4 w-4 text-muted-foreground flex-shrink-0" />
           ) : (
-            <Folder className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+            <Folder className="h-4 w-4 text-blue-500 flex-shrink-0" />
           )}
           <span className="flex-1 truncate">{child.name}</span>
           {child.size !== undefined && (
-            <span className="text-muted-foreground text-xs">{formatBytes(child.size)}</span>
+            <span className="text-muted-foreground text-xs tabular-nums">{formatBytes(child.size)}</span>
           )}
         </div>,
       ];
@@ -83,10 +83,45 @@ function FileTree({ files }: { files: FileInfo[] }) {
   return <div className="font-mono text-sm">{renderNode(root)}</div>;
 }
 
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <button
+      onClick={handleCopy}
+      className="p-1 hover:bg-muted rounded transition-colors"
+      title="Copy to clipboard"
+    >
+      {copied ? (
+        <Check className="h-3.5 w-3.5 text-emerald-500" />
+      ) : (
+        <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+      )}
+    </button>
+  );
+}
+
+function StatItem({ value, label }: { value: string; label: string }) {
+  return (
+    <div className="flex flex-col items-center px-4 py-2">
+      <span className="text-lg font-semibold tabular-nums">{value}</span>
+      <span className="text-xs text-muted-foreground">{label}</span>
+    </div>
+  );
+}
+
 export function InspectPage() {
   const [torrentInfo, setTorrentInfo] = useState<InspectResult | null>(null);
   const [error, setError] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
+  const [trackersOpen, setTrackersOpen] = useState(true);
+  const [filesOpen, setFilesOpen] = useState(true);
 
   const handleSelectTorrent = async () => {
     try {
@@ -104,6 +139,13 @@ export function InspectPage() {
       setIsLoading(false);
     }
   };
+
+  const metadataItems = [];
+  if (torrentInfo?.source) metadataItems.push(`Source: ${torrentInfo.source}`);
+  if (torrentInfo?.createdBy) metadataItems.push(`Created by ${torrentInfo.createdBy}`);
+  if (torrentInfo?.creationDate && torrentInfo.creationDate > 0) {
+    metadataItems.push(new Date(torrentInfo.creationDate * 1000).toLocaleDateString());
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -133,117 +175,118 @@ export function InspectPage() {
 
         {!torrentInfo && !error && (
           <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-              <FileSearch className="h-12 w-12 text-muted-foreground mb-4" />
+            <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+              <FileSearch className="h-12 w-12 text-muted-foreground/50 mb-4" />
               <p className="text-muted-foreground">Select a torrent file to inspect its contents</p>
             </CardContent>
           </Card>
         )}
 
         {torrentInfo && (
-          <div className="grid gap-4 md:grid-cols-2">
-            <Card>
-              <CardHeader className="py-3">
-                <CardTitle className="text-base">General</CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="grid grid-cols-[100px_1fr] gap-x-2 gap-y-1 text-sm">
-                  <span className="text-muted-foreground">Name</span>
-                  <span className="font-medium break-all">{torrentInfo.name}</span>
-
-                  <span className="text-muted-foreground">Hash</span>
-                  <span className="font-mono text-xs break-all">{torrentInfo.infoHash}</span>
-
-                  <span className="text-muted-foreground">Size</span>
-                  <span>{formatBytes(torrentInfo.size)}</span>
-
-                  <span className="text-muted-foreground">Pieces</span>
-                  <span>{torrentInfo.pieceCount.toLocaleString()} × {formatBytes(torrentInfo.pieceLength)}</span>
-
-                  <span className="text-muted-foreground">Files</span>
-                  <span>{torrentInfo.fileCount}</span>
-
-                  <span className="text-muted-foreground">Private</span>
-                  <span>{torrentInfo.isPrivate ? 'Yes' : 'No'}</span>
+          <Card>
+            <CardContent className="p-0">
+              {/* Header with name and hash */}
+              <div className="p-5 border-b">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-muted rounded-lg">
+                    <File className="h-6 w-6 text-muted-foreground" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h2 className="text-lg font-semibold truncate" title={torrentInfo.name}>
+                      {torrentInfo.name}
+                    </h2>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <code className="text-xs text-muted-foreground font-mono truncate">
+                        {torrentInfo.infoHash}
+                      </code>
+                      <CopyButton text={torrentInfo.infoHash} />
+                    </div>
+                  </div>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
 
-            <Card>
-              <CardHeader className="py-3">
-                <CardTitle className="text-base">Metadata</CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="grid grid-cols-[100px_1fr] gap-x-2 gap-y-1 text-sm">
-                  {torrentInfo.source && (
-                    <>
-                      <span className="text-muted-foreground">Source</span>
-                      <span>{torrentInfo.source}</span>
-                    </>
+              {/* Stats row */}
+              <div className="flex items-center justify-center border-b divide-x">
+                <StatItem value={formatBytes(torrentInfo.size)} label="Size" />
+                <StatItem value={torrentInfo.pieceCount.toLocaleString()} label="Pieces" />
+                <StatItem value={formatBytes(torrentInfo.pieceLength)} label="Piece Size" />
+                <StatItem value={torrentInfo.fileCount.toString()} label={torrentInfo.fileCount === 1 ? 'File' : 'Files'} />
+                <div className="flex flex-col items-center px-4 py-2">
+                  {torrentInfo.isPrivate ? (
+                    <Lock className="h-5 w-5 text-amber-500" />
+                  ) : (
+                    <Globe className="h-5 w-5 text-muted-foreground" />
                   )}
+                  <span className="text-xs text-muted-foreground mt-1">
+                    {torrentInfo.isPrivate ? 'Private' : 'Public'}
+                  </span>
+                </div>
+              </div>
 
+              {/* Metadata row */}
+              {(metadataItems.length > 0 || torrentInfo.comment) && (
+                <div className="px-5 py-3 border-b bg-muted/30">
+                  {metadataItems.length > 0 && (
+                    <p className="text-sm text-muted-foreground">
+                      {metadataItems.join(' · ')}
+                    </p>
+                  )}
                   {torrentInfo.comment && (
-                    <>
-                      <span className="text-muted-foreground">Comment</span>
-                      <span className="break-all">{torrentInfo.comment}</span>
-                    </>
-                  )}
-
-                  {torrentInfo.createdBy && (
-                    <>
-                      <span className="text-muted-foreground">Created By</span>
-                      <span>{torrentInfo.createdBy}</span>
-                    </>
-                  )}
-
-                  {torrentInfo.creationDate > 0 && (
-                    <>
-                      <span className="text-muted-foreground">Created</span>
-                      <span>{new Date(torrentInfo.creationDate * 1000).toLocaleString()}</span>
-                    </>
-                  )}
-
-                  {(!torrentInfo.source && !torrentInfo.comment && !torrentInfo.createdBy && !torrentInfo.creationDate) && (
-                    <span className="text-muted-foreground col-span-2">No metadata available</span>
+                    <p className="text-sm text-muted-foreground mt-1 italic">
+                      "{torrentInfo.comment}"
+                    </p>
                   )}
                 </div>
-              </CardContent>
-            </Card>
+              )}
 
-            {torrentInfo.trackers && torrentInfo.trackers.length > 0 && (
-              <Card>
-                <CardHeader className="py-3">
-                  <CardTitle className="text-base">Trackers ({torrentInfo.trackers.length})</CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <ScrollArea className="h-24">
-                    <div className="space-y-0.5">
+              {/* Trackers section */}
+              {torrentInfo.trackers && torrentInfo.trackers.length > 0 && (
+                <Collapsible open={trackersOpen} onOpenChange={setTrackersOpen}>
+                  <CollapsibleTrigger asChild>
+                    <div className="flex items-center justify-between px-5 py-2.5 border-b cursor-pointer hover:bg-muted/50 transition-colors">
+                      <span className="text-sm font-medium">
+                        Trackers ({torrentInfo.trackers.length})
+                      </span>
+                      <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${trackersOpen ? 'rotate-180' : ''}`} />
+                    </div>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="px-5 py-3 border-b space-y-1.5">
                       {torrentInfo.trackers.map((tracker, i) => (
-                        <p key={i} className="text-sm font-mono break-all">
-                          {tracker}
-                        </p>
+                        <div key={i} className="flex items-center gap-2 group">
+                          <code className="text-xs font-mono text-muted-foreground break-all flex-1">
+                            {tracker}
+                          </code>
+                          <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                            <CopyButton text={tracker} />
+                          </div>
+                        </div>
                       ))}
                     </div>
-                  </ScrollArea>
-                </CardContent>
-              </Card>
-            )}
+                  </CollapsibleContent>
+                </Collapsible>
+              )}
 
-            {torrentInfo.files && torrentInfo.files.length > 0 && (
-              <Card className={torrentInfo.trackers && torrentInfo.trackers.length > 0 ? '' : 'md:col-span-2'}>
-                <CardHeader className="py-3">
-                  <CardTitle className="text-base">
-                    Files ({torrentInfo.fileCount}) - {formatBytes(torrentInfo.size)}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <ScrollArea className="h-40">
-                    <FileTree files={torrentInfo.files} />
-                  </ScrollArea>
-                </CardContent>
-              </Card>
-            )}
-          </div>
+              {/* Files section */}
+              {torrentInfo.files && torrentInfo.files.length > 0 && (
+                <Collapsible open={filesOpen} onOpenChange={setFilesOpen}>
+                  <CollapsibleTrigger asChild>
+                    <div className="flex items-center justify-between px-5 py-2.5 cursor-pointer hover:bg-muted/50 transition-colors">
+                      <span className="text-sm font-medium">
+                        Files ({torrentInfo.fileCount})
+                      </span>
+                      <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${filesOpen ? 'rotate-180' : ''}`} />
+                    </div>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="px-5 py-3 max-h-64 overflow-auto">
+                      <FileTree files={torrentInfo.files} />
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              )}
+            </CardContent>
+          </Card>
         )}
       </div>
     </div>
