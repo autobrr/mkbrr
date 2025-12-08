@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -82,6 +83,7 @@ export function CreatePage() {
   const [trackerInfo, setTrackerInfo] = useState<TrackerInfoType | null>(null);
   const [contentSize, setContentSize] = useState<number>(0);
   const [recommendedPieceSize, setRecommendedPieceSize] = useState<number>(0);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   useEffect(() => {
     ListPresets().then(setPresets).catch(console.error);
@@ -255,6 +257,12 @@ export function CreatePage() {
     setTrackers(newTrackers);
   };
 
+  const handleDialogClose = () => {
+    setDialogOpen(false);
+    setResult(null);
+    setError('');
+  };
+
   const handleCreate = async () => {
     if (!path) {
       setError('Please select a file or folder');
@@ -265,6 +273,7 @@ export function CreatePage() {
     setResult(null);
     setProgress(null);
     setIsCreating(true);
+    setDialogOpen(true);
 
     try {
       const req: CreateRequest = {
@@ -553,38 +562,56 @@ export function CreatePage() {
           </div>
         </Collapsible>
 
-        {/* Error */}
-        {error && (
+        {/* Validation Error (shown inline when dialog is closed) */}
+        {!dialogOpen && error && (
           <Card className="border-destructive">
             <CardContent className="py-3">
               <p className="text-destructive text-sm">{error}</p>
             </CardContent>
           </Card>
         )}
+      </div>
 
-        {/* Progress */}
-        {isCreating && progress && (
-          <Card>
-            <CardContent className="py-4 space-y-3">
-              <div className="flex justify-between text-sm">
-                <span className="font-medium">Creating Torrent</span>
-                <span className="text-muted-foreground">{progress.percent.toFixed(0)}%</span>
+      {/* Progress/Result Dialog */}
+      <Dialog
+        open={dialogOpen}
+        onOpenChange={(open) => {
+          if (!isCreating && !open) {
+            handleDialogClose();
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md" onInteractOutside={(e) => isCreating && e.preventDefault()}>
+          {isCreating ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>Creating Torrent</DialogTitle>
+                <DialogDescription>
+                  Please wait while your torrent is being created...
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3 py-4">
+                <div className="flex justify-between text-sm">
+                  <span className="font-medium">Hashing files</span>
+                  <span className="text-muted-foreground">{progress?.percent.toFixed(0) ?? 0}%</span>
+                </div>
+                <Progress value={progress?.percent ?? 0} />
+                {progress && (
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>{progress.completed} / {progress.total} pieces</span>
+                    <span>{progress.hashRate.toFixed(2)} MB/s</span>
+                  </div>
+                )}
               </div>
-              <Progress value={progress.percent} />
-              <div className="flex justify-between text-xs text-muted-foreground">
-                <span>{progress.completed} / {progress.total} pieces</span>
-                <span>{progress.hashRate.toFixed(2)} MB/s</span>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Result */}
-        {result && (
-          <Card className="border-emerald-500">
-            <CardContent className="py-4 space-y-2">
-              <p className="font-medium text-emerald-600">Torrent Created</p>
-              <div className="grid grid-cols-[80px_1fr] gap-x-2 gap-y-1 text-sm">
+            </>
+          ) : result ? (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-emerald-600 dark:text-emerald-400">
+                  Torrent Created Successfully
+                </DialogTitle>
+              </DialogHeader>
+              <div className="grid grid-cols-[80px_1fr] gap-x-2 gap-y-2 text-sm py-4">
                 <span className="text-muted-foreground">Path</span>
                 <span className="font-mono text-xs break-all">{result.path}</span>
                 <span className="text-muted-foreground">Hash</span>
@@ -596,10 +623,23 @@ export function CreatePage() {
                 <span className="text-muted-foreground">Files</span>
                 <span>{result.fileCount}</span>
               </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
+              <DialogFooter>
+                <Button onClick={handleDialogClose}>Close</Button>
+              </DialogFooter>
+            </>
+          ) : error ? (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-destructive">Error</DialogTitle>
+              </DialogHeader>
+              <p className="text-sm py-4">{error}</p>
+              <DialogFooter>
+                <Button variant="outline" onClick={handleDialogClose}>Close</Button>
+              </DialogFooter>
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       <div className="bg-background p-4 flex justify-end gap-2">
         <Button variant="outline" onClick={handleClearFields} disabled={isCreating}>
