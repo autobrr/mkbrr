@@ -406,25 +406,25 @@ func TestCreate_MultipleTrackers(t *testing.T) {
 		name              string
 		trackers          []string
 		expectedAnnounce  string
-		expectedListCount int
+		expectedTierCount int
 	}{
 		{
 			name:              "Single tracker",
 			trackers:          []string{"https://tracker1.com/announce"},
 			expectedAnnounce:  "https://tracker1.com/announce",
-			expectedListCount: 1,
+			expectedTierCount: 0,
 		},
 		{
 			name:              "Multiple trackers",
 			trackers:          []string{"https://tracker1.com/announce", "https://tracker2.com/announce", "https://tracker3.com/announce"},
 			expectedAnnounce:  "https://tracker1.com/announce",
-			expectedListCount: 3,
+			expectedTierCount: 3,
 		},
 		{
 			name:              "No trackers",
 			trackers:          []string{},
 			expectedAnnounce:  "",
-			expectedListCount: 0,
+			expectedTierCount: 0,
 		},
 	}
 
@@ -462,21 +462,22 @@ func TestCreate_MultipleTrackers(t *testing.T) {
 
 			// Check announce list
 			if len(tt.trackers) > 1 {
-				if mi.AnnounceList == nil || len(mi.AnnounceList) != 1 {
-					t.Errorf("Expected AnnounceList with 1 tier, got %v", mi.AnnounceList)
-				} else if len(mi.AnnounceList[0]) != tt.expectedListCount {
-					t.Errorf("Expected %d trackers in announce list, got %d", tt.expectedListCount, len(mi.AnnounceList[0]))
+				if mi.AnnounceList == nil || len(mi.AnnounceList) != tt.expectedTierCount {
+					t.Errorf("Expected AnnounceList with %d tiers, got %v", tt.expectedTierCount, mi.AnnounceList)
 				} else {
-					// Check all trackers are in the announce list
 					for i, tracker := range tt.trackers {
-						if mi.AnnounceList[0][i] != tracker {
-							t.Errorf("Expected tracker %q at position %d, got %q", tracker, i, mi.AnnounceList[0][i])
+						if len(mi.AnnounceList[i]) != 1 {
+							t.Errorf("Expected tier %d to contain 1 tracker, got %v", i, mi.AnnounceList[i])
+							continue
+						}
+						if mi.AnnounceList[i][0] != tracker {
+							t.Errorf("Expected tracker %q at tier %d, got %q", tracker, i, mi.AnnounceList[i][0])
 						}
 					}
 				}
 			} else {
-				// No trackers case
-				if len(mi.AnnounceList) > 0 && len(mi.AnnounceList[0]) > 0 {
+				// No announce list should be set when there are zero or one trackers
+				if len(mi.AnnounceList) > 0 {
 					t.Errorf("Expected empty announce list, got %v", mi.AnnounceList)
 				}
 			}
