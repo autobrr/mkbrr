@@ -6,6 +6,7 @@
 @import "./themes/autobrr.css";
 @import "./themes/nightwalker.css";
 @import "./themes/swizzin.css";
+@import "./themes/amethyst-haze.css";
 
 @custom-variant dark (&:is(.dark *));
 
