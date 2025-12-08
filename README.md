@@ -31,7 +31,7 @@
 
 **Key Features:**
 - **Fast**: Blazingly fast hashing beating the competition
-- **Simple**: Easy to use CLI
+- **Simple**: Easy to use CLI and GUI
 - **Portable**: Single binary with no dependencies
 - **Smart**: Detects possible missing files when creating torrents for season packs
 
@@ -59,6 +59,7 @@ mkbrr create path/to/file -t https://example-tracker.com/announce -e
 ## Table of Contents
 
 - [Installation](#installation)
+- [GUI](#gui)
 - [Usage](#usage)
   - [Creating Torrents](#creating-torrents)
   - [Inspecting Torrents](#inspecting-torrents)
@@ -138,6 +139,57 @@ For convenience, you can add an alias to your shell configuration:
 # Add to your .zshrc or .bashrc
 alias mkbrr='docker run -v ~/Downloads:/downloads mkbrr mkbrr'
 ```
+
+## GUI
+
+mkbrr includes a graphical user interface for those who prefer not to use the command line.
+
+### GUI Installation
+
+Download the GUI binary for your platform from the [releases page](https://github.com/autobrr/mkbrr/releases).
+
+#### Building from Source
+
+```bash
+# Install Wails CLI (one-time requirement)
+make install-wails
+
+# Build GUI for your current platform
+make gui-build
+
+# Or build for all platforms
+make gui-build-all
+```
+
+The built application will be in `gui/build/bin/`.
+
+### macOS Gatekeeper
+
+The GUI app is not notarized, so macOS will block it by default. Use one of these methods to run it:
+
+**Option 1: Remove quarantine attribute (recommended)**
+```bash
+xattr -cr /path/to/mkbrr-gui.app
+```
+
+**Option 2: Right-click to open**
+1. Right-click (or Control-click) on the app
+2. Select "Open" from the context menu
+3. Click "Open" in the dialog
+
+**Option 3: System Settings**
+1. Try to open the app (it will be blocked)
+2. Open System Settings → Privacy & Security
+3. Click "Open Anyway" next to the mkbrr-gui message
+
+### GUI Features
+
+The GUI provides the same core functionality as the CLI:
+- **Create** - Create torrent files with tracker support and presets
+- **Inspect** - View torrent metadata and file lists
+- **Verify** - Check torrent data integrity against local files
+- **Modify** - Edit torrent metadata without source files
+- **Presets** - Manage and use configuration presets
 
 ## Usage
 
