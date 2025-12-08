@@ -65,46 +65,70 @@ const emptyFormData: PresetFormData = {
   maxPieceLength: 0,
 };
 
+// Preset name validation constants (must match backend)
+const MAX_PRESET_NAME_LENGTH = 64;
+const INVALID_PRESET_NAME_CHARS = /[/\\:*?"<>|]/;
+
+function validatePresetName(name: string): string | null {
+  const trimmed = name.trim();
+  if (!trimmed) {
+    return 'Preset name cannot be empty';
+  }
+  if (trimmed.length > MAX_PRESET_NAME_LENGTH) {
+    return `Preset name too long (max ${MAX_PRESET_NAME_LENGTH} characters)`;
+  }
+  if (INVALID_PRESET_NAME_CHARS.test(trimmed)) {
+    return 'Preset name contains invalid characters';
+  }
+  return null;
+}
+
 function optionsToFormData(name: string, options: PresetOptions): PresetFormData {
+  // Support both camelCase (new) and PascalCase (legacy) field names
   return {
     name,
-    source: options.Source || '',
-    comment: options.Comment || '',
-    isPrivate: options.Private ?? true,
-    noDate: options.NoDate ?? false,
-    noCreator: options.NoCreator ?? false,
-    entropy: options.Entropy ?? false,
-    skipPrefix: options.SkipPrefix ?? false,
-    trackers: options.Trackers && options.Trackers.length > 0 ? options.Trackers : [''],
-    pieceLength: options.PieceLength || 0,
-    maxPieceLength: options.MaxPieceLength || 0,
+    source: options.source || (options as any).Source || '',
+    comment: options.comment || (options as any).Comment || '',
+    isPrivate: options.private ?? (options as any).Private ?? true,
+    noDate: options.noDate ?? (options as any).NoDate ?? false,
+    noCreator: options.noCreator ?? (options as any).NoCreator ?? false,
+    entropy: options.entropy ?? (options as any).Entropy ?? false,
+    skipPrefix: options.skipPrefix ?? (options as any).SkipPrefix ?? false,
+    trackers: (options.trackers && options.trackers.length > 0)
+      ? options.trackers
+      : ((options as any).Trackers && (options as any).Trackers.length > 0)
+        ? (options as any).Trackers
+        : [''],
+    pieceLength: options.pieceLength || (options as any).PieceLength || 0,
+    maxPieceLength: options.maxPieceLength || (options as any).MaxPieceLength || 0,
   };
 }
 
 function formDataToOptions(data: PresetFormData): PresetOptions {
   const options = new preset.Options();
-  options.Private = data.isPrivate;
-  options.NoDate = data.noDate;
-  options.NoCreator = data.noCreator;
-  options.Entropy = data.entropy;
-  options.SkipPrefix = data.skipPrefix;
-  options.Source = data.source;
-  options.Comment = data.comment;
-  options.Trackers = data.trackers.filter(t => t.trim() !== '');
-  options.PieceLength = data.pieceLength;
-  options.MaxPieceLength = data.maxPieceLength;
-  options.WebSeeds = [];
-  options.ExcludePatterns = [];
-  options.IncludePatterns = [];
-  options.OutputDir = '';
-  options.Version = '';
-  options.Workers = 0;
+  // Use camelCase field names (matching new JSON tags)
+  options.private = data.isPrivate;
+  options.noDate = data.noDate;
+  options.noCreator = data.noCreator;
+  options.entropy = data.entropy;
+  options.skipPrefix = data.skipPrefix;
+  options.source = data.source;
+  options.comment = data.comment;
+  options.trackers = data.trackers.filter(t => t.trim() !== '');
+  options.pieceLength = data.pieceLength;
+  options.maxPieceLength = data.maxPieceLength;
+  options.webSeeds = [];
+  options.excludePatterns = [];
+  options.includePatterns = [];
+  options.outputDir = '';
+  options.workers = 0;
   return options;
 }
 
 export function SettingsPage() {
   const [presetPath, setPresetPath] = useState('');
   const [presets, setPresets] = useState<Record<string, PresetOptions>>({});
+  const [presetErrors, setPresetErrors] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Dialog states
@@ -114,6 +138,7 @@ export function SettingsPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [originalName, setOriginalName] = useState<string | null>(null);
   const [formData, setFormData] = useState<PresetFormData>(emptyFormData);
+  const [nameError, setNameError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
@@ -137,11 +162,18 @@ export function SettingsPage() {
       }
 
       if (presetMapResult.status === 'fulfilled') {
-        setPresets(presetMapResult.value as Record<string, PresetOptions>);
+        const result = presetMapResult.value as { presets: Record<string, PresetOptions>; errors?: string[] };
+        setPresets(result.presets || {});
+        setPresetErrors(result.errors || []);
+        // Show toast for any preset loading errors
+        if (result.errors && result.errors.length > 0) {
+          toast.warning(`${result.errors.length} preset(s) failed to load. Check settings for details.`);
+        }
       } else {
         console.error('Failed to load presets:', presetMapResult.reason);
         toast.error('Failed to load presets: ' + String(presetMapResult.reason));
         setPresets({});
+        setPresetErrors([]);
       }
     } catch (e) {
       console.error('Failed to load settings:', e);
@@ -166,6 +198,7 @@ export function SettingsPage() {
     setIsEditing(false);
     setOriginalName(null);
     setAdvancedOpen(false);
+    setNameError(null);
     setEditDialogOpen(true);
   };
 
@@ -176,6 +209,7 @@ export function SettingsPage() {
       setIsEditing(true);
       setOriginalName(name);
       setAdvancedOpen(false);
+      setNameError(null);
       setEditDialogOpen(true);
     }
   };
@@ -190,26 +224,42 @@ export function SettingsPage() {
     try {
       await DeletePreset(presetToDelete);
       await loadSettings();
-    } catch (e) {
-      toast.error('Failed to delete preset: ' + String(e));
-    } finally {
+      // Only close dialog and reset state on success
       setDeleteDialogOpen(false);
       setPresetToDelete(null);
+    } catch (e) {
+      toast.error('Failed to delete preset: ' + String(e));
+      // Keep dialog open so user can try again or cancel
     }
   };
 
   const handleSavePreset = async () => {
-    if (!formData.name.trim()) return;
+    // Validate preset name
+    const validationError = validatePresetName(formData.name);
+    if (validationError) {
+      setNameError(validationError);
+      return;
+    }
+    setNameError(null);
 
     setIsSaving(true);
     try {
-      // If renaming, delete old preset first
-      if (isEditing && originalName && originalName !== formData.name) {
-        await DeletePreset(originalName);
+      // If renaming, we need to handle this atomically
+      // First save the new preset, then delete the old one
+      const options = formDataToOptions(formData);
+      await SavePreset(formData.name.trim(), options);
+
+      // If renaming, delete old preset after new one is saved
+      if (isEditing && originalName && originalName !== formData.name.trim()) {
+        try {
+          await DeletePreset(originalName);
+        } catch (e) {
+          // New preset was saved, but old one couldn't be deleted
+          // This is not critical - warn user but don't fail
+          toast.warning(`Preset saved, but failed to remove old preset "${originalName}": ${String(e)}`);
+        }
       }
 
-      const options = formDataToOptions(formData);
-      await SavePreset(formData.name, options);
       await loadSettings();
       setEditDialogOpen(false);
     } catch (e) {
@@ -269,9 +319,21 @@ export function SettingsPage() {
                 </div>
               </div>
               <Separator />
+              {presetErrors.length > 0 && (
+                <div className="rounded border border-amber-500 bg-amber-500/10 p-3 space-y-1">
+                  <p className="text-xs font-medium text-amber-600 dark:text-amber-400">
+                    Failed to load {presetErrors.length} preset(s):
+                  </p>
+                  <ul className="text-xs text-amber-600 dark:text-amber-400 list-disc list-inside">
+                    {presetErrors.map((err, i) => (
+                      <li key={i}>{err}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <div className="space-y-1.5">
                 <Label className="text-xs">Available Presets ({presetNames.length})</Label>
-                {presetNames.length === 0 ? (
+                {presetNames.length === 0 && presetErrors.length === 0 ? (
                   <p className="text-xs text-muted-foreground py-4 text-center">
                     No presets configured. Click "New Preset" to create one.
                   </p>
@@ -306,10 +368,10 @@ export function SettingsPage() {
                               </div>
                             </div>
                             <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                              {opts.Source && <span>Source: {opts.Source}</span>}
-                              <span>Private: {opts.Private ? 'Yes' : 'No'}</span>
-                              {opts.Trackers && opts.Trackers.length > 0 && (
-                                <span>Trackers: {opts.Trackers.length}</span>
+                              {(opts.source || (opts as any).Source) && <span>Source: {opts.source || (opts as any).Source}</span>}
+                              <span>Private: {(opts.private ?? (opts as any).Private) ? 'Yes' : 'No'}</span>
+                              {((opts.trackers && opts.trackers.length > 0) || ((opts as any).Trackers && (opts as any).Trackers.length > 0)) && (
+                                <span>Trackers: {opts.trackers?.length || (opts as any).Trackers?.length}</span>
                               )}
                             </div>
                           </div>
@@ -341,9 +403,18 @@ export function SettingsPage() {
               <Input
                 id="preset-name"
                 value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                onChange={(e) => {
+                  setFormData({ ...formData, name: e.target.value });
+                  // Clear error when user starts typing
+                  if (nameError) setNameError(null);
+                }}
                 placeholder="my-preset"
+                className={nameError ? 'border-destructive' : ''}
+                maxLength={MAX_PRESET_NAME_LENGTH}
               />
+              {nameError && (
+                <p className="text-xs text-destructive">{nameError}</p>
+              )}
             </div>
 
             {/* Source + Comment */}

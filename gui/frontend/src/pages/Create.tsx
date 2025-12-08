@@ -55,6 +55,9 @@ interface CreateFormState {
 const STORAGE_KEY = 'mkbrr-create-form';
 const RESULT_STORAGE_KEY = 'mkbrr-create-result';
 
+// Track if we've shown localStorage warnings to avoid spamming
+let localStorageWarningShown = false;
+
 function loadFormState(): Partial<CreateFormState> {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -70,6 +73,15 @@ function saveFormState(state: CreateFormState) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   } catch (e) {
     console.error('Failed to save form state to localStorage:', e);
+    // Show warning once per session
+    if (!localStorageWarningShown) {
+      localStorageWarningShown = true;
+      if (e instanceof DOMException && e.name === 'QuotaExceededError') {
+        toast.warning('Storage full: Form state cannot be saved. Consider clearing browser data.');
+      } else {
+        toast.warning('Unable to save form state for persistence.');
+      }
+    }
   }
 }
 
@@ -342,10 +354,16 @@ export function CreatePage() {
       try {
         const preset = await GetPreset(value) as PresetOptions;
         if (preset) {
-          if (preset.Trackers && preset.Trackers.length > 0) setTrackers(preset.Trackers);
-          if (preset.Source) setSource(preset.Source);
-          if (preset.Private !== undefined) setIsPrivate(preset.Private);
-          if (preset.Comment) setComment(preset.Comment);
+          // Support both camelCase (new) and PascalCase (legacy) field names
+          const trackerList = preset.trackers || (preset as any).Trackers;
+          const sourceVal = preset.source || (preset as any).Source;
+          const privateVal = preset.private ?? (preset as any).Private;
+          const commentVal = preset.comment || (preset as any).Comment;
+
+          if (trackerList && trackerList.length > 0) setTrackers(trackerList);
+          if (sourceVal) setSource(sourceVal);
+          if (privateVal !== undefined) setIsPrivate(privateVal);
+          if (commentVal) setComment(commentVal);
         }
       } catch (e) {
         toast.error('Failed to load preset: ' + String(e));
@@ -741,6 +759,13 @@ export function CreatePage() {
                   Torrent Created Successfully
                 </DialogTitle>
               </DialogHeader>
+              {result.warning && (
+                <Card className="border-amber-500 bg-amber-500/10 mb-2">
+                  <CardContent className="py-2">
+                    <p className="text-amber-600 dark:text-amber-400 text-sm">{result.warning}</p>
+                  </CardContent>
+                </Card>
+              )}
               <div className="grid grid-cols-[80px_1fr] gap-x-2 gap-y-2 text-sm py-4">
                 <span className="text-muted-foreground">Path</span>
                 <span className="font-mono text-xs break-all">{result.path}</span>

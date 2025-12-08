@@ -172,6 +172,38 @@ export namespace main {
 	        this.wasModified = source["wasModified"];
 	    }
 	}
+	export class PresetsResult {
+	    presets: Record<string, preset.Options>;
+	    errors?: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new PresetsResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.presets = this.convertValues(source["presets"], preset.Options, true);
+	        this.errors = source["errors"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class TorrentResult {
 	    path: string;
 	    infoHash: string;
@@ -252,23 +284,22 @@ export namespace main {
 export namespace preset {
 	
 	export class Options {
-	    Private?: boolean;
-	    NoDate?: boolean;
-	    NoCreator?: boolean;
-	    SkipPrefix?: boolean;
-	    Entropy?: boolean;
-	    FailOnSeasonWarning?: boolean;
-	    Comment: string;
-	    Source: string;
-	    OutputDir: string;
-	    Version: string;
-	    Trackers: string[];
-	    WebSeeds: string[];
-	    ExcludePatterns: string[];
-	    IncludePatterns: string[];
-	    PieceLength: number;
-	    MaxPieceLength: number;
-	    Workers: number;
+	    private?: boolean;
+	    noDate?: boolean;
+	    noCreator?: boolean;
+	    skipPrefix?: boolean;
+	    entropy?: boolean;
+	    failOnSeasonWarning?: boolean;
+	    comment?: string;
+	    source?: string;
+	    outputDir?: string;
+	    trackers?: string[];
+	    webSeeds?: string[];
+	    excludePatterns?: string[];
+	    includePatterns?: string[];
+	    pieceLength?: number;
+	    maxPieceLength?: number;
+	    workers?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new Options(source);
@@ -276,23 +307,22 @@ export namespace preset {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.Private = source["Private"];
-	        this.NoDate = source["NoDate"];
-	        this.NoCreator = source["NoCreator"];
-	        this.SkipPrefix = source["SkipPrefix"];
-	        this.Entropy = source["Entropy"];
-	        this.FailOnSeasonWarning = source["FailOnSeasonWarning"];
-	        this.Comment = source["Comment"];
-	        this.Source = source["Source"];
-	        this.OutputDir = source["OutputDir"];
-	        this.Version = source["Version"];
-	        this.Trackers = source["Trackers"];
-	        this.WebSeeds = source["WebSeeds"];
-	        this.ExcludePatterns = source["ExcludePatterns"];
-	        this.IncludePatterns = source["IncludePatterns"];
-	        this.PieceLength = source["PieceLength"];
-	        this.MaxPieceLength = source["MaxPieceLength"];
-	        this.Workers = source["Workers"];
+	        this.private = source["private"];
+	        this.noDate = source["noDate"];
+	        this.noCreator = source["noCreator"];
+	        this.skipPrefix = source["skipPrefix"];
+	        this.entropy = source["entropy"];
+	        this.failOnSeasonWarning = source["failOnSeasonWarning"];
+	        this.comment = source["comment"];
+	        this.source = source["source"];
+	        this.outputDir = source["outputDir"];
+	        this.trackers = source["trackers"];
+	        this.webSeeds = source["webSeeds"];
+	        this.excludePatterns = source["excludePatterns"];
+	        this.includePatterns = source["includePatterns"];
+	        this.pieceLength = source["pieceLength"];
+	        this.maxPieceLength = source["maxPieceLength"];
+	        this.workers = source["workers"];
 	    }
 	}
 

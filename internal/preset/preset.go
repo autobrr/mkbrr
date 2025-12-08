@@ -1,6 +1,7 @@
 package preset
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,6 +13,9 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// ErrPresetFileNotFound is returned when no preset file can be found in known locations
+var ErrPresetFileNotFound = errors.New("could not find preset file in known locations")
+
 // Config represents the YAML configuration for torrent creation presets
 type Config struct {
 	Default *Options           `yaml:"default"`
@@ -21,23 +25,23 @@ type Config struct {
 
 // Options represents the options for a single preset
 type Options struct {
-	Private             *bool    `yaml:"private"`
-	NoDate              *bool    `yaml:"no_date"`
-	NoCreator           *bool    `yaml:"no_creator"`
-	SkipPrefix          *bool    `yaml:"skip_prefix"`
-	Entropy             *bool    `yaml:"entropy"`
-	FailOnSeasonWarning *bool    `yaml:"fail_on_season_warning"`
-	Comment             string   `yaml:"comment"`
-	Source              string   `yaml:"source"`
-	OutputDir           string   `yaml:"output_dir"`
-	Version             string   // used for creator string
-	Trackers            []string `yaml:"trackers"`
-	WebSeeds            []string `yaml:"webseeds"`
-	ExcludePatterns     []string `yaml:"exclude_patterns"`
-	IncludePatterns     []string `yaml:"include_patterns"`
-	PieceLength         uint     `yaml:"piece_length"`
-	MaxPieceLength      uint     `yaml:"max_piece_length"`
-	Workers             int      `yaml:"workers"`
+	Private             *bool    `yaml:"private" json:"private,omitempty"`
+	NoDate              *bool    `yaml:"no_date" json:"noDate,omitempty"`
+	NoCreator           *bool    `yaml:"no_creator" json:"noCreator,omitempty"`
+	SkipPrefix          *bool    `yaml:"skip_prefix" json:"skipPrefix,omitempty"`
+	Entropy             *bool    `yaml:"entropy" json:"entropy,omitempty"`
+	FailOnSeasonWarning *bool    `yaml:"fail_on_season_warning" json:"failOnSeasonWarning,omitempty"`
+	Comment             string   `yaml:"comment" json:"comment,omitempty"`
+	Source              string   `yaml:"source" json:"source,omitempty"`
+	OutputDir           string   `yaml:"output_dir" json:"outputDir,omitempty"`
+	Version             string   `json:"-"` // used for creator string, not exposed to frontend
+	Trackers            []string `yaml:"trackers" json:"trackers,omitempty"`
+	WebSeeds            []string `yaml:"webseeds" json:"webSeeds,omitempty"`
+	ExcludePatterns     []string `yaml:"exclude_patterns" json:"excludePatterns,omitempty"`
+	IncludePatterns     []string `yaml:"include_patterns" json:"includePatterns,omitempty"`
+	PieceLength         uint     `yaml:"piece_length" json:"pieceLength,omitempty"`
+	MaxPieceLength      uint     `yaml:"max_piece_length" json:"maxPieceLength,omitempty"`
+	Workers             int      `yaml:"workers" json:"workers,omitempty"`
 }
 
 // FindPresetFile searches for a preset file in known locations
@@ -63,7 +67,7 @@ func FindPresetFile(explicitPath string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("could not find preset file in known locations")
+	return "", ErrPresetFileNotFound
 }
 
 // Load loads presets from a config file

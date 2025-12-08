@@ -11,7 +11,7 @@ export function DeletePreset(arg1:string):Promise<void>;
 
 export function FormatBytes(arg1:number):Promise<string>;
 
-export function GetAllPresets():Promise<Record<string, preset.Options>>;
+export function GetAllPresets():Promise<main.PresetsResult>;
 
 export function GetContentSize(arg1:string):Promise<number>;
 

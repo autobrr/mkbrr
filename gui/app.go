@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -38,27 +39,32 @@ type ProgressEvent struct {
 	Percent   float64 `json:"percent"`
 }
 
-// CreateRequest represents a torrent creation request from the frontend
+// CreateRequest represents a torrent creation request from the frontend.
+//
+// Required fields:
+//   - Path: The source file or directory to create a torrent from
+//
+// Optional fields (all others): Have sensible defaults if not specified
 type CreateRequest struct {
-	Path            string   `json:"path"`
-	Name            string   `json:"name"`
-	TrackerURLs     []string `json:"trackerUrls"`
-	WebSeeds        []string `json:"webSeeds"`
-	Comment         string   `json:"comment"`
-	Source          string   `json:"source"`
-	IsPrivate       *bool    `json:"isPrivate"`
-	PieceLengthExp  uint     `json:"pieceLengthExp"`
-	MaxPieceLength  uint     `json:"maxPieceLength"`
-	OutputPath      string   `json:"outputPath"`
-	OutputDir       string   `json:"outputDir"`
-	NoDate          bool     `json:"noDate"`
-	NoCreator       bool     `json:"noCreator"`
-	Entropy         bool     `json:"entropy"`
-	SkipPrefix      bool     `json:"skipPrefix"`
-	ExcludePatterns []string `json:"excludePatterns"`
-	IncludePatterns []string `json:"includePatterns"`
-	PresetName      string   `json:"presetName"`
-	PresetFile      string   `json:"presetFile"`
+	Path            string   `json:"path"`            // Required: source file/directory path
+	Name            string   `json:"name"`            // Optional: override torrent name (defaults to source name)
+	TrackerURLs     []string `json:"trackerUrls"`     // Optional: tracker announce URLs
+	WebSeeds        []string `json:"webSeeds"`        // Optional: web seed URLs
+	Comment         string   `json:"comment"`         // Optional: torrent comment
+	Source          string   `json:"source"`          // Optional: source tag
+	IsPrivate       *bool    `json:"isPrivate"`       // Optional: private flag (nil = true)
+	PieceLengthExp  uint     `json:"pieceLengthExp"`  // Optional: piece length as 2^exp (0 = auto)
+	MaxPieceLength  uint     `json:"maxPieceLength"`  // Optional: max piece length as 2^exp
+	OutputPath      string   `json:"outputPath"`      // Optional: full output path (mutually exclusive with OutputDir)
+	OutputDir       string   `json:"outputDir"`       // Optional: output directory (defaults to source dir)
+	NoDate          bool     `json:"noDate"`          // Optional: exclude creation date
+	NoCreator       bool     `json:"noCreator"`       // Optional: exclude creator string
+	Entropy         bool     `json:"entropy"`         // Optional: add random entropy for unique hash
+	SkipPrefix      bool     `json:"skipPrefix"`      // Optional: don't prefix output filename
+	ExcludePatterns []string `json:"excludePatterns"` // Optional: file exclusion patterns
+	IncludePatterns []string `json:"includePatterns"` // Optional: file inclusion patterns
+	PresetName      string   `json:"presetName"`      // Optional: preset name to apply
+	PresetFile      string   `json:"presetFile"`      // Optional: path to preset file
 }
 
 // TorrentResult represents the result of torrent creation
@@ -95,10 +101,14 @@ type FileInfo struct {
 	Size int64  `json:"size"`
 }
 
-// VerifyRequest represents a verification request
+// VerifyRequest represents a verification request.
+//
+// Required fields:
+//   - TorrentPath: Path to the .torrent file to verify against
+//   - ContentPath: Path to the content (file or directory) to verify
 type VerifyRequest struct {
-	TorrentPath string `json:"torrentPath"`
-	ContentPath string `json:"contentPath"`
+	TorrentPath string `json:"torrentPath"` // Required: path to .torrent file
+	ContentPath string `json:"contentPath"` // Required: path to content to verify
 }
 
 // VerifyResult represents verification results
@@ -110,23 +120,28 @@ type VerifyResult struct {
 	MissingFiles []string `json:"missingFiles"`
 }
 
-// ModifyRequest represents a torrent modification request
+// ModifyRequest represents a torrent modification request.
+//
+// Required fields:
+//   - TorrentPath: Path to the .torrent file to modify
+//
+// Optional fields (all others): Only non-empty/non-nil values will be applied
 type ModifyRequest struct {
-	TorrentPath   string   `json:"torrentPath"`
-	TrackerURLs   []string `json:"trackerUrls"`
-	WebSeeds      []string `json:"webSeeds"`
-	Comment       string   `json:"comment"`
-	Source        string   `json:"source"`
-	IsPrivate     *bool    `json:"isPrivate"`
-	NoDate        bool     `json:"noDate"`
-	NoCreator     bool     `json:"noCreator"`
-	Entropy       bool     `json:"entropy"`
-	SkipPrefix    bool     `json:"skipPrefix"`
-	OutputDir     string   `json:"outputDir"`
-	OutputPattern string   `json:"outputPattern"`
-	PresetName    string   `json:"presetName"`
-	PresetFile    string   `json:"presetFile"`
-	DryRun        bool     `json:"dryRun"`
+	TorrentPath   string   `json:"torrentPath"`   // Required: path to .torrent file to modify
+	TrackerURLs   []string `json:"trackerUrls"`   // Optional: new tracker URLs (replaces existing)
+	WebSeeds      []string `json:"webSeeds"`      // Optional: new web seed URLs
+	Comment       string   `json:"comment"`       // Optional: new comment
+	Source        string   `json:"source"`        // Optional: new source tag
+	IsPrivate     *bool    `json:"isPrivate"`     // Optional: set private flag (nil = unchanged)
+	NoDate        bool     `json:"noDate"`        // Optional: remove creation date
+	NoCreator     bool     `json:"noCreator"`     // Optional: remove creator string
+	Entropy       bool     `json:"entropy"`       // Optional: add entropy for unique hash
+	SkipPrefix    bool     `json:"skipPrefix"`    // Optional: don't prefix output filename
+	OutputDir     string   `json:"outputDir"`     // Optional: output directory for modified file
+	OutputPattern string   `json:"outputPattern"` // Optional: output filename pattern
+	PresetName    string   `json:"presetName"`    // Optional: preset to apply
+	PresetFile    string   `json:"presetFile"`    // Optional: path to preset file
+	DryRun        bool     `json:"dryRun"`        // Optional: simulate modification without writing
 }
 
 // ModifyResult represents the result of torrent modification
@@ -147,6 +162,12 @@ type TrackerInfo struct {
 type PresetInfo struct {
 	Name    string          `json:"name"`
 	Options *preset.Options `json:"options"`
+}
+
+// PresetsResult represents all presets with any loading errors
+type PresetsResult struct {
+	Presets map[string]*preset.Options `json:"presets"`
+	Errors  []string                   `json:"errors,omitempty"`
 }
 
 // === File Dialogs ===
@@ -432,7 +453,7 @@ func (a *App) ListPresets() ([]string, error) {
 	configPath, err := preset.FindPresetFile("")
 	if err != nil {
 		// Only ignore "not found" errors - other errors should be reported
-		if strings.Contains(err.Error(), "could not find preset file") {
+		if err == preset.ErrPresetFileNotFound {
 			return []string{}, nil
 		}
 		return nil, fmt.Errorf("failed to locate preset file: %w", err)
@@ -460,13 +481,18 @@ func (a *App) GetPresetFilePath() (string, error) {
 	return preset.FindPresetFile("")
 }
 
-// GetAllPresets returns all presets with their full options
-func (a *App) GetAllPresets() (map[string]*preset.Options, error) {
+// GetAllPresets returns all presets with their full options and any loading errors
+func (a *App) GetAllPresets() (*PresetsResult, error) {
+	result := &PresetsResult{
+		Presets: make(map[string]*preset.Options),
+		Errors:  []string{},
+	}
+
 	configPath, err := preset.FindPresetFile("")
 	if err != nil {
 		// Only ignore "not found" errors - other errors should be reported
-		if strings.Contains(err.Error(), "could not find preset file") {
-			return make(map[string]*preset.Options), nil
+		if err == preset.ErrPresetFileNotFound {
+			return result, nil
 		}
 		return nil, fmt.Errorf("failed to locate preset file: %w", err)
 	}
@@ -476,14 +502,13 @@ func (a *App) GetAllPresets() (map[string]*preset.Options, error) {
 		return nil, err
 	}
 
-	result := make(map[string]*preset.Options)
 	for name := range config.Presets {
 		opts, err := config.GetPreset(name)
 		if err != nil {
-			log.Printf("Warning: failed to load preset %q: %v", name, err)
+			result.Errors = append(result.Errors, fmt.Sprintf("preset %q: %v", name, err))
 			continue
 		}
-		result[name] = opts
+		result.Presets[name] = opts
 	}
 	return result, nil
 }
@@ -714,10 +739,17 @@ func (a *App) GetVersion() string {
 }
 
 // OpenURL opens a URL in the default browser
-func (a *App) OpenURL(url string) error {
-	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
-		return fmt.Errorf("invalid URL scheme")
+func (a *App) OpenURL(rawURL string) error {
+	if !strings.HasPrefix(rawURL, "http://") && !strings.HasPrefix(rawURL, "https://") {
+		return fmt.Errorf("invalid URL scheme: must be http or https")
 	}
-	runtime.BrowserOpenURL(a.ctx, url)
+	parsedURL, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("invalid URL format: %w", err)
+	}
+	if parsedURL.Host == "" {
+		return fmt.Errorf("invalid URL: missing host")
+	}
+	runtime.BrowserOpenURL(a.ctx, rawURL)
 	return nil
 }
