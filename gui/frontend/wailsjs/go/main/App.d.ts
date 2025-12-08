@@ -39,8 +39,6 @@ export function SelectFile():Promise<string>;
 
 export function SelectMultipleTorrentFiles():Promise<Array<string>>;
 
-export function SelectOutputDirectory():Promise<string>;
-
 export function SelectPath():Promise<string>;
 
 export function SelectTorrentFile():Promise<string>;

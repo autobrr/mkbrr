@@ -74,10 +74,6 @@ export function SelectMultipleTorrentFiles() {
   return window['go']['main']['App']['SelectMultipleTorrentFiles']();
 }
 
-export function SelectOutputDirectory() {
-  return window['go']['main']['App']['SelectOutputDirectory']();
-}
-
 export function SelectPath() {
   return window['go']['main']['App']['SelectPath']();
 }
