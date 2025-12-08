@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 
 export type Mode = 'light' | 'dark';
-export type ThemeName = 'default' | 'autobrr';
+export type ThemeName = 'default' | 'autobrr' | 'nightwalker' | 'swizzin';
 
 export interface ThemeInfo {
   name: ThemeName;
@@ -12,6 +12,8 @@ export interface ThemeInfo {
 export const AVAILABLE_THEMES: ThemeInfo[] = [
   { name: 'default', displayName: 'Default', description: 'Clean neutral theme with subtle grays' },
   { name: 'autobrr', displayName: 'Autobrr', description: 'Clean theme inspired by the autobrr project' },
+  { name: 'nightwalker', displayName: 'Nightwalker', description: 'Dark theme inspired by the nightwalker project' },
+  { name: 'swizzin', displayName: 'Swizzin', description: 'Light theme inspired by the swizzin project' },
 ];
 
 interface ThemeState {

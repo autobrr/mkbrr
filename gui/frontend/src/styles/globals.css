@@ -4,6 +4,8 @@
 /* Import all themes - they use data-theme selectors so only one applies */
 @import "./themes/default.css";
 @import "./themes/autobrr.css";
+@import "./themes/nightwalker.css";
+@import "./themes/swizzin.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -74,5 +76,18 @@
   }
   body {
     @apply bg-background text-foreground;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* Allow selection in interactive elements */
+  input,
+  textarea,
+  [contenteditable="true"],
+  pre,
+  code,
+  .selectable {
+    user-select: text;
+    -webkit-user-select: text;
   }
 }

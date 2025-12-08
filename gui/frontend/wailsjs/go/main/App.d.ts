@@ -3,9 +3,15 @@
 import {main} from '../models';
 import {preset} from '../models';
 
+export function CreatePresetFile():Promise<string>;
+
 export function CreateTorrent(arg1:main.CreateRequest):Promise<main.TorrentResult>;
 
+export function DeletePreset(arg1:string):Promise<void>;
+
 export function FormatBytes(arg1:number):Promise<string>;
+
+export function GetAllPresets():Promise<Record<string, preset.Options>>;
 
 export function GetPreset(arg1:string):Promise<preset.Options>;
 
@@ -24,6 +30,8 @@ export function ListPresets():Promise<Array<string>>;
 export function ModifyTorrent(arg1:main.ModifyRequest):Promise<main.ModifyResult>;
 
 export function OpenURL(arg1:string):Promise<void>;
+
+export function SavePreset(arg1:string,arg2:preset.Options):Promise<void>;
 
 export function SelectFile():Promise<string>;
 

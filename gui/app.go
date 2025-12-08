@@ -432,6 +432,113 @@ func (a *App) GetPresetFilePath() (string, error) {
 	return preset.FindPresetFile("")
 }
 
+// GetAllPresets returns all presets with their full options
+func (a *App) GetAllPresets() (map[string]*preset.Options, error) {
+	configPath, err := preset.FindPresetFile("")
+	if err != nil {
+		// No preset file found - return empty map
+		return make(map[string]*preset.Options), nil
+	}
+
+	config, err := preset.Load(configPath)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[string]*preset.Options)
+	for name := range config.Presets {
+		opts, err := config.GetPreset(name)
+		if err != nil {
+			continue
+		}
+		result[name] = opts
+	}
+	return result, nil
+}
+
+// SavePreset creates or updates a preset
+func (a *App) SavePreset(name string, options preset.Options) error {
+	// Find or create preset file path
+	configPath, err := preset.FindPresetFile("")
+	if err != nil {
+		// Use default path if no file exists
+		configPath, err = preset.GetDefaultPresetPath()
+		if err != nil {
+			return fmt.Errorf("could not get default preset path: %w", err)
+		}
+	}
+
+	// Load or create config
+	config, err := preset.LoadOrCreate(configPath)
+	if err != nil {
+		return fmt.Errorf("could not load preset config: %w", err)
+	}
+
+	// Update the preset
+	config.Presets[name] = options
+
+	// Save the config
+	if err := preset.Save(configPath, config); err != nil {
+		return fmt.Errorf("could not save preset config: %w", err)
+	}
+
+	return nil
+}
+
+// DeletePreset removes a preset from the config
+func (a *App) DeletePreset(name string) error {
+	configPath, err := preset.FindPresetFile("")
+	if err != nil {
+		return fmt.Errorf("could not find preset file: %w", err)
+	}
+
+	config, err := preset.Load(configPath)
+	if err != nil {
+		return fmt.Errorf("could not load preset config: %w", err)
+	}
+
+	if _, ok := config.Presets[name]; !ok {
+		return fmt.Errorf("preset %q not found", name)
+	}
+
+	delete(config.Presets, name)
+
+	// Save the config
+	if err := preset.Save(configPath, config); err != nil {
+		return fmt.Errorf("could not save preset config: %w", err)
+	}
+
+	return nil
+}
+
+// CreatePresetFile creates a new preset file if none exists
+func (a *App) CreatePresetFile() (string, error) {
+	// Check if a preset file already exists
+	existingPath, err := preset.FindPresetFile("")
+	if err == nil {
+		return existingPath, nil
+	}
+
+	// Get default path
+	configPath, err := preset.GetDefaultPresetPath()
+	if err != nil {
+		return "", fmt.Errorf("could not get default preset path: %w", err)
+	}
+
+	// Create empty config
+	config := &preset.Config{
+		Version: 1,
+		Presets: make(map[string]preset.Options),
+	}
+
+	// Save the config
+	if err := preset.Save(configPath, config); err != nil {
+		return "", fmt.Errorf("could not create preset file: %w", err)
+	}
+
+	return configPath, nil
+}
+
 // === Tracker Operations ===
 
 // GetTrackerInfo returns tracker-specific configuration
