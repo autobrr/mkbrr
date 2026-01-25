@@ -87,3 +87,19 @@ nfpms:
       - deb
       - rpm
       - archlinux
+
+brews:
+  - name: mkbrr
+    repository:
+      owner: autobrr
+      name: homebrew-mkbrr
+      branch: main
+    directory: Formula
+    homepage: "https://github.com/autobrr/mkbrr"
+    description: "Command-line tool for creating, modifying and inspecting torrent files"
+    license: "GPL-2.0-or-later"
+    commit_msg_template: "chore: update formula for {{ .ProjectName }} version {{ .Tag }}"
+    install: |
+      bin.install "mkbrr"
+    test: |
+      system "#{bin}/mkbrr", "version"
