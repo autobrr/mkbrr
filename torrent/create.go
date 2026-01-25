@@ -155,9 +155,12 @@ func CreateTorrent(opts CreateOptions) (*Torrent, error) {
 	// Set tracker information
 	if len(opts.TrackerURLs) > 0 {
 		mi.Announce = opts.TrackerURLs[0]
-		if (len(opts.TrackerURLs) > 1) {
-			// Create announce list with all trackers in a single tier
-			mi.AnnounceList = [][]string{opts.TrackerURLs}
+		if len(opts.TrackerURLs) > 1 {
+			announceList := make([][]string, len(opts.TrackerURLs))
+			for i, tracker := range opts.TrackerURLs {
+				announceList[i] = []string{tracker}
+			}
+			mi.AnnounceList = announceList
 		}
 	}
 
@@ -218,6 +221,10 @@ func CreateTorrent(opts CreateOptions) (*Torrent, error) {
 		}
 
 		if resolvedInfo.IsDir() {
+			if shouldIgnoreDir(currentPath) || shouldIgnoreDir(resolvedPath) {
+				return filepath.SkipDir
+			}
+
 			if baseDir == "" && currentPath == path { // only set baseDir for the initial path if it's a dir
 				baseDir = currentPath
 			}

@@ -134,7 +134,7 @@ func (d *Display) ShowFiles(files []fileEntry, numWorkers int) {
 	for _, file := range files {
 		relPath, _ := filepath.Rel(commonBase, file.path)
 		parts := strings.Split(relPath, string(filepath.Separator))
-		
+
 		current := root
 		for _, part := range parts[:len(parts)-1] {
 			if _, exists := current.children[part]; !exists {
@@ -146,7 +146,7 @@ func (d *Display) ShowFiles(files []fileEntry, numWorkers int) {
 			}
 			current = current.children[part]
 		}
-		
+
 		// Add the file
 		fileName := parts[len(parts)-1]
 		current.children[fileName] = &fileNode{
@@ -163,7 +163,7 @@ func (d *Display) ShowFiles(files []fileEntry, numWorkers int) {
 		if isLast {
 			connector = "└─"
 		}
-		
+
 		if prefix == "" {
 			// Root node
 			fmt.Fprintf(d.output, "%s %s\n", connector, success(node.name))
@@ -171,7 +171,7 @@ func (d *Display) ShowFiles(files []fileEntry, numWorkers int) {
 			if node.isDir {
 				fmt.Fprintf(d.output, "%s%s %s\n", prefix, connector, success(node.name))
 			} else {
-				fmt.Fprintf(d.output, "%s%s %s (%s)\n", prefix, connector, success(node.name), 
+				fmt.Fprintf(d.output, "%s%s %s (%s)\n", prefix, connector, success(node.name),
 					label(d.formatter.FormatBytes(node.size)))
 			}
 		}
@@ -255,6 +255,11 @@ func (d *Display) ShowTorrentInfo(t *Torrent, info *metainfo.Info) {
 	fmt.Fprintf(d.output, "  %-13s %s\n", label("Size:"), d.formatter.FormatBytes(info.TotalLength()))
 	fmt.Fprintf(d.output, "  %-13s %s\n", label("Piece length:"), d.formatter.FormatBytes(info.PieceLength))
 	fmt.Fprintf(d.output, "  %-13s %d\n", label("Pieces:"), len(info.Pieces)/20)
+
+	magnet, err := t.MagnetV2()
+	if err == nil {
+		fmt.Fprintf(d.output, "  %-13s %s\n", label("Magnet:"), magnet.String())
+	}
 
 	if t.AnnounceList != nil {
 		fmt.Fprintf(d.output, "  %-13s\n", label("Trackers:"))

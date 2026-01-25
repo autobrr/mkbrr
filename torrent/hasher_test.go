@@ -260,12 +260,13 @@ func TestPieceHasher_EdgeCases(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	tests := []struct {
-		name      string
-		setup     func() []fileEntry
-		pieceLen  int64
-		numPieces int
-		wantErr   bool
-		skipOnWin bool
+		name       string
+		setup      func() []fileEntry
+		pieceLen   int64
+		numPieces  int
+		wantErr    bool
+		skipOnWin  bool
+		skipOnRoot bool
 	}{
 		{
 			name: "non-existent file",
@@ -310,10 +311,11 @@ func TestPieceHasher_EdgeCases(t *testing.T) {
 					offset: 0,
 				}}
 			},
-			pieceLen:  64,
-			numPieces: 1,
-			wantErr:   true,
-			skipOnWin: true,
+			pieceLen:   64,
+			numPieces:  1,
+			wantErr:    true,
+			skipOnWin:  true,
+			skipOnRoot: true,
 		},
 	}
 
@@ -321,6 +323,9 @@ func TestPieceHasher_EdgeCases(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.skipOnWin && runtime.GOOS == "windows" {
 				t.Skip("skipping unreadable file test on Windows")
+			}
+			if tt.skipOnRoot && os.Geteuid() == 0 {
+				t.Skip("skipping unreadable file test when running as root")
 			}
 			files := tt.setup()
 			hasher := NewPieceHasher(files, tt.pieceLen, tt.numPieces, &mockDisplay{}, false)
