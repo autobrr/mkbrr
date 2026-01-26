@@ -94,6 +94,7 @@ brews:
       owner: autobrr
       name: homebrew-mkbrr
       branch: main
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     directory: Formula
     homepage: "https://github.com/autobrr/mkbrr"
     description: "Command-line tool for creating, modifying and inspecting torrent files"
