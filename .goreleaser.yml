@@ -43,7 +43,7 @@ builds:
 archives:
   - format_overrides:
       - goos: windows
-        format: zip
+        formats: [zip]
     name_template: >-
       {{ .ProjectName }}_
       {{- .Version }}_
@@ -87,3 +87,20 @@ nfpms:
       - deb
       - rpm
       - archlinux
+
+brews:
+  - name: mkbrr
+    repository:
+      owner: autobrr
+      name: homebrew-mkbrr
+      branch: main
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    directory: Formula
+    homepage: "https://github.com/autobrr/mkbrr"
+    description: "Command-line tool for creating, modifying and inspecting torrent files"
+    license: "GPL-2.0-or-later"
+    commit_msg_template: "chore: update formula for {{ .ProjectName }} version {{ .Tag }}"
+    install: |
+      bin.install "mkbrr"
+    test: |
+      system "#{bin}/mkbrr", "version"
