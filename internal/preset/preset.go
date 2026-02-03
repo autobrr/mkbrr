@@ -1,6 +1,7 @@
 package preset
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,6 +13,9 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// ErrPresetFileNotFound is returned when no preset file can be found in known locations
+var ErrPresetFileNotFound = errors.New("could not find preset file in known locations")
+
 // Config represents the YAML configuration for torrent creation presets
 type Config struct {
 	Default *Options           `yaml:"default"`
@@ -21,23 +25,23 @@ type Config struct {
 
 // Options represents the options for a single preset
 type Options struct {
-	Private             *bool    `yaml:"private"`
-	NoDate              *bool    `yaml:"no_date"`
-	NoCreator           *bool    `yaml:"no_creator"`
-	SkipPrefix          *bool    `yaml:"skip_prefix"`
-	Entropy             *bool    `yaml:"entropy"`
-	FailOnSeasonWarning *bool    `yaml:"fail_on_season_warning"`
-	Comment             string   `yaml:"comment"`
-	Source              string   `yaml:"source"`
-	OutputDir           string   `yaml:"output_dir"`
-	Version             string   // used for creator string
-	Trackers            []string `yaml:"trackers"`
-	WebSeeds            []string `yaml:"webseeds"`
-	ExcludePatterns     []string `yaml:"exclude_patterns"`
-	IncludePatterns     []string `yaml:"include_patterns"`
-	PieceLength         uint     `yaml:"piece_length"`
-	MaxPieceLength      uint     `yaml:"max_piece_length"`
-	Workers             int      `yaml:"workers"`
+	Private             *bool    `yaml:"private" json:"private,omitempty"`
+	NoDate              *bool    `yaml:"no_date" json:"noDate,omitempty"`
+	NoCreator           *bool    `yaml:"no_creator" json:"noCreator,omitempty"`
+	SkipPrefix          *bool    `yaml:"skip_prefix" json:"skipPrefix,omitempty"`
+	Entropy             *bool    `yaml:"entropy" json:"entropy,omitempty"`
+	FailOnSeasonWarning *bool    `yaml:"fail_on_season_warning" json:"failOnSeasonWarning,omitempty"`
+	Comment             string   `yaml:"comment" json:"comment,omitempty"`
+	Source              string   `yaml:"source" json:"source,omitempty"`
+	OutputDir           string   `yaml:"output_dir" json:"outputDir,omitempty"`
+	Version             string   `json:"-"` // used for creator string, not exposed to frontend
+	Trackers            []string `yaml:"trackers" json:"trackers,omitempty"`
+	WebSeeds            []string `yaml:"webseeds" json:"webSeeds,omitempty"`
+	ExcludePatterns     []string `yaml:"exclude_patterns" json:"excludePatterns,omitempty"`
+	IncludePatterns     []string `yaml:"include_patterns" json:"includePatterns,omitempty"`
+	PieceLength         uint     `yaml:"piece_length" json:"pieceLength,omitempty"`
+	MaxPieceLength      uint     `yaml:"max_piece_length" json:"maxPieceLength,omitempty"`
+	Workers             int      `yaml:"workers" json:"workers,omitempty"`
 }
 
 // FindPresetFile searches for a preset file in known locations
@@ -63,7 +67,7 @@ func FindPresetFile(explicitPath string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("could not find preset file in known locations")
+	return "", ErrPresetFileNotFound
 }
 
 // Load loads presets from a config file
@@ -87,6 +91,69 @@ func Load(configPath string) (*Config, error) {
 	}
 
 	return &config, nil
+}
+
+// LoadOrCreate loads presets from a config file, or creates an empty config if it doesn't exist
+func LoadOrCreate(configPath string) (*Config, error) {
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// Return empty config
+			return &Config{
+				Version: 1,
+				Presets: make(map[string]Options),
+			}, nil
+		}
+		return nil, fmt.Errorf("could not read preset config: %w", err)
+	}
+
+	var config Config
+	if err := yaml.Unmarshal(data, &config); err != nil {
+		return nil, fmt.Errorf("could not parse preset config: %w", err)
+	}
+
+	if config.Version == 0 {
+		config.Version = 1
+	} else if config.Version != 1 {
+		return nil, fmt.Errorf("unsupported preset config version: %d", config.Version)
+	}
+
+	if config.Presets == nil {
+		config.Presets = make(map[string]Options)
+	}
+
+	return &config, nil
+}
+
+// Save saves the config to a YAML file
+func Save(configPath string, config *Config) error {
+	// Ensure directory exists
+	dir := filepath.Dir(configPath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("could not create config directory: %w", err)
+	}
+
+	// Marshal to YAML
+	data, err := yaml.Marshal(config)
+	if err != nil {
+		return fmt.Errorf("could not marshal config: %w", err)
+	}
+
+	// Write file
+	if err := os.WriteFile(configPath, data, 0644); err != nil {
+		return fmt.Errorf("could not write config file: %w", err)
+	}
+
+	return nil
+}
+
+// GetDefaultPresetPath returns the default preset file path (~/.config/mkbrr/presets.yaml)
+func GetDefaultPresetPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("could not get home directory: %w", err)
+	}
+	return filepath.Join(home, ".config", "mkbrr", "presets.yaml"), nil
 }
 
 // GetPreset returns a preset by name, merged with default settings
@@ -263,9 +330,11 @@ func (o *Options) ApplyToMetaInfo(mi *metainfo.MetaInfo) (bool, error) {
 
 	// re-marshal the modified info if needed
 	if wasModified {
-		if infoBytes, err := bencode.Marshal(info); err == nil {
-			mi.InfoBytes = infoBytes
+		infoBytes, err := bencode.Marshal(info)
+		if err != nil {
+			return false, fmt.Errorf("failed to marshal modified info: %w", err)
 		}
+		mi.InfoBytes = infoBytes
 	}
 
 	return wasModified, nil
@@ -356,8 +425,18 @@ func GenerateOutputPath(originalPath, outputDir, presetName string, outputPatter
 // It handles the full process of loading the presets file and resolving the named preset,
 // including applying any default settings.
 func LoadPresetOptions(presetFilePath string, presetName string) (*Options, error) {
+	// Find the preset file if not explicitly provided
+	configPath := presetFilePath
+	if configPath == "" {
+		var err error
+		configPath, err = FindPresetFile("")
+		if err != nil {
+			return nil, fmt.Errorf("could not find preset file: %w", err)
+		}
+	}
+
 	// Load the presets from the file
-	config, err := Load(presetFilePath)
+	config, err := Load(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("could not load presets: %w", err)
 	}

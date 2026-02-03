@@ -267,23 +267,59 @@ func GetTrackerMaxPieceLength(trackerURL string) (uint, bool) {
 	return 0, false
 }
 
+// DefaultPieceSizeRanges defines the default piece size calculation ranges
+// Used by both the trackers package and torrent/create.go for automatic piece length
+var DefaultPieceSizeRanges = []PieceSizeRange{
+	{MaxSize: 64 << 20, PieceExp: 15},     // 32 KiB for <= 64 MB
+	{MaxSize: 128 << 20, PieceExp: 16},    // 64 KiB for 64-128 MB
+	{MaxSize: 256 << 20, PieceExp: 17},    // 128 KiB for 128-256 MB
+	{MaxSize: 512 << 20, PieceExp: 18},    // 256 KiB for 256-512 MB
+	{MaxSize: 1024 << 20, PieceExp: 19},   // 512 KiB for 512 MB-1 GB
+	{MaxSize: 2048 << 20, PieceExp: 20},   // 1 MiB for 1-2 GB
+	{MaxSize: 4096 << 20, PieceExp: 21},   // 2 MiB for 2-4 GB
+	{MaxSize: 8192 << 20, PieceExp: 22},   // 4 MiB for 4-8 GB
+	{MaxSize: 16384 << 20, PieceExp: 23},  // 8 MiB for 8-16 GB
+	{MaxSize: 32768 << 20, PieceExp: 24},  // 16 MiB for 16-32 GB
+	{MaxSize: 65536 << 20, PieceExp: 25},  // 32 MiB for 32-64 GB
+	{MaxSize: 131072 << 20, PieceExp: 26}, // 64 MiB for 64-128 GB
+	{MaxSize: ^uint64(0), PieceExp: 27},   // 128 MiB for > 128 GB
+}
+
 // GetTrackerPieceSizeExp returns the recommended piece size exponent for a given content size and tracker
 func GetTrackerPieceSizeExp(trackerURL string, contentSize uint64) (uint, bool) {
-	if config := findTrackerConfig(trackerURL); config != nil {
-		if len(config.PieceSizeRanges) > 0 {
-			for _, r := range config.PieceSizeRanges {
-				if contentSize <= r.MaxSize {
-					return r.PieceExp, true
-				}
+	config := findTrackerConfig(trackerURL)
+	if config == nil {
+		return 0, false
+	}
+
+	// Determine which ranges to use
+	ranges := config.PieceSizeRanges
+	if len(ranges) == 0 && config.UseDefaultRanges {
+		ranges = DefaultPieceSizeRanges
+	}
+
+	if len(ranges) == 0 {
+		return 0, false
+	}
+
+	// Find the appropriate piece size for the content size
+	for _, r := range ranges {
+		if contentSize <= r.MaxSize {
+			exp := r.PieceExp
+			// Clamp to tracker's max piece length if set
+			if config.MaxPieceLength > 0 && exp > config.MaxPieceLength {
+				exp = config.MaxPieceLength
 			}
-			// if we have ranges but didn't find a match, and UseDefaultRanges is false,
-			// use the highest defined piece size
-			if !config.UseDefaultRanges {
-				return config.PieceSizeRanges[len(config.PieceSizeRanges)-1].PieceExp, true
-			}
+			return exp, true
 		}
 	}
-	return 0, false
+
+	// Use the highest defined piece size (clamped to max)
+	exp := ranges[len(ranges)-1].PieceExp
+	if config.MaxPieceLength > 0 && exp > config.MaxPieceLength {
+		exp = config.MaxPieceLength
+	}
+	return exp, true
 }
 
 // GetTrackerMaxTorrentSize returns the maximum allowed .torrent file size for a tracker if known

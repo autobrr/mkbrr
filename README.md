@@ -31,7 +31,7 @@
 
 **Key Features:**
 - **Fast**: Blazingly fast hashing beating the competition
-- **Simple**: Easy to use CLI
+- **Simple**: Easy to use CLI and GUI
 - **Portable**: Single binary with no dependencies
 - **Smart**: Detects possible missing files when creating torrents for season packs
 
@@ -59,6 +59,7 @@ mkbrr create path/to/file -t https://example-tracker.com/announce -e
 ## Table of Contents
 
 - [Installation](#installation)
+- [GUI](#gui)
 - [Usage](#usage)
   - [Creating Torrents](#creating-torrents)
   - [Inspecting Torrents](#inspecting-torrents)
@@ -74,6 +75,7 @@ mkbrr create path/to/file -t https://example-tracker.com/announce -e
   - [Speed Comparison](#speed-comparison)
   - [Consistency](#consistency)
   - [Hardware Specifications](#hardware-specifications)
+- [Support Development](#support-development)
 - [License](#license)
 
 ## Installation
@@ -137,6 +139,64 @@ For convenience, you can add an alias to your shell configuration:
 # Add to your .zshrc or .bashrc
 alias mkbrr='docker run -v ~/Downloads:/downloads mkbrr mkbrr'
 ```
+
+## GUI
+
+mkbrr includes a graphical user interface for those who prefer not to use the command line.
+
+### GUI Installation
+
+Download the GUI binary for your platform from the [releases page](https://github.com/autobrr/mkbrr/releases).
+
+#### Building from Source
+
+```bash
+# Install Wails CLI (one-time requirement)
+make install-wails
+
+# Build GUI for your current platform
+make gui-build
+
+# Or build for all platforms
+make gui-build-all
+```
+
+The built application will be in `gui/build/bin/`.
+
+### macOS Gatekeeper
+
+The GUI app is not notarized, so macOS will block it by default. Use one of these methods to run it:
+
+**Option 1: Remove quarantine attribute (recommended)**
+```bash
+xattr -cr /path/to/mkbrr-gui.app
+```
+
+**Option 2: Right-click to open**
+1. Right-click (or Control-click) on the app
+2. Select "Open" from the context menu
+3. Click "Open" in the dialog
+
+**Option 3: System Settings**
+1. Try to open the app (it will be blocked)
+2. Open System Settings → Privacy & Security
+3. Click "Open Anyway" next to the mkbrr-gui message
+
+### GUI Features
+
+The GUI provides the same core functionality as the CLI with additional usability features:
+
+- **Create** - Create torrent files with tracker support, presets, and real-time progress tracking with hash rate display
+- **Inspect** - View torrent metadata with searchable, collapsible file tree
+- **Check** - Verify torrent data integrity with detailed results (good/bad/missing pieces)
+- **Modify** - Edit torrent metadata without source files
+- **Settings** - Configure default workers and manage presets (create, edit, delete)
+
+Additional features:
+- **Theme Support** - Light, dark, and system theme modes
+- **Tracker Detection** - Automatic piece size recommendations based on tracker rules
+- **Form Persistence** - Form state is saved across sessions
+- **Preset Management** - Full preset CRUD operations with validation
 
 ## Usage
 
@@ -494,6 +554,36 @@ Summary
     1.12 ± 0.08 times faster than mktorrent ~/Desktop/Show.S01.1080p.SRC.WEB-DL.DDP5.1.H.264-GRP
 ```
 </details>
+
+## Support Development
+
+mkbrr is developed and maintained by volunteers. Your support helps us continue improving the project.
+
+- **soup**
+  - [GitHub Sponsors](https://github.com/s0up4200)
+  - [Buy Me a Coffee](https://buymeacoffee.com/s0up4200)
+- **zze0s**
+  - [GitHub Sponsors](https://github.com/zze0s)
+
+### Cryptocurrency
+
+#### Bitcoin (BTC)
+- soup: `bc1qfe093kmhvsa436v4ksz0udfcggg3vtnm2tjgem`
+- zze0s: `bc1q2nvdd83hrzelqn4vyjm8tvjwmsuuxsdlg4ws7x`
+
+#### Ethereum (ETH)
+- soup: `0xD8f517c395a68FEa8d19832398d4dA7b45cbc38F`
+- zze0s: `0xBF7d749574aabF17fC35b27232892d3F0ff4D423`
+
+#### Litecoin (LTC)
+- soup: `ltc1q86nx64mu2j22psj378amm58ghvy4c9dw80z88h`
+- zze0s: `ltc1qza9ffjr5y43uk8nj9ndjx9hkj0ph3rhur6wudn`
+
+#### Monero (XMR)
+- soup: `8AMPTPgjmLG9armLBvRA8NMZqPWuNT4US3kQoZrxDDVSU21kpYpFr1UCWmmtcBKGsvDCFA3KTphGXExWb3aHEu67JkcjAvC`
+- zze0s: `44AvbWXzFN3bnv2oj92AmEaR26PQf5Ys4W155zw3frvEJf2s4g325bk4tRBgH7umSVMhk88vkU3gw9cDvuCSHgpRPsuWVJp`
+
+Thank you for your support!
 
 ## License
 
