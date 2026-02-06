@@ -491,6 +491,21 @@ func CreateTorrent(opts CreateOptions) (*Torrent, error) {
 // The torrent file is automatically saved to disk based on the output options.
 // This is the main high-level function for torrent creation.
 func Create(opts CreateOptions) (*TorrentInfo, error) {
+	if opts.Magnet != "" {
+		return &TorrentInfo{
+			Magnet: opts.Magnet,
+			Files:  0,
+			Size:   0,
+			Path:   "",
+			Announce: func() string {
+				if len(opts.TrackerURLs) > 0 {
+					return opts.TrackerURLs[0]
+				}
+				return ""
+			}(),
+		}, nil
+	}
+
 	// validate input path
 	if _, err := os.Stat(opts.Path); err != nil {
 		return nil, fmt.Errorf("invalid path %q: %w", opts.Path, err)

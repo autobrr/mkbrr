@@ -21,6 +21,7 @@ type BatchConfig struct {
 type BatchJob struct {
 	Output              string   `yaml:"output"`
 	Path                string   `yaml:"path"`
+	Magnet  			string   `yaml:"magnet"`
 	Name                string   `yaml:"-"`
 	Comment             string   `yaml:"comment"`
 	Source              string   `yaml:"source"`
@@ -54,6 +55,7 @@ func (j *BatchJob) ToCreateOptions(verbose bool, quiet bool, infoOnly bool, vers
 		ExcludePatterns:         j.ExcludePatterns,
 		IncludePatterns:         j.IncludePatterns,
 		FailOnSeasonPackWarning: j.FailOnSeasonWarning,
+		Magnet: 				 j.Magnet,
 	}
 
 	if j.PieceLength != 0 {
@@ -156,6 +158,17 @@ func processJob(job BatchJob, verbose bool, quiet bool, infoOnly bool, version s
 		Trackers: job.Trackers,
 	}
 
+	if job.Magnet != "" {
+		result.Success = true
+		result.Info = &TorrentInfo{
+			Magnet: job.Magnet,
+			Files:  0,
+			Size:   0,
+			Path:   "", // нет .torrent файла
+		}
+		return result
+	}
+
 	var trackerURL string
 	if len(job.Trackers) > 0 {
 		trackerURL = job.Trackers[0]
@@ -209,6 +222,7 @@ func processJob(job BatchJob, verbose bool, quiet bool, infoOnly bool, version s
 		Size:     info.TotalLength(),
 		InfoHash: mi.HashInfoBytes().String(),
 		Files:    len(info.Files),
+		Magnet:   "",
 	}
 
 	return result

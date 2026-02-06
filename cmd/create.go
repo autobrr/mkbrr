@@ -40,6 +40,7 @@ type createOptions struct {
 	infoOnly            bool
 	skipPrefix          bool
 	failOnSeasonWarning bool
+	magnet              string
 }
 
 var options = createOptions{

@@ -40,6 +40,7 @@ type CreateOptions struct {
 	// ProgressCallback is called during hashing to report progress.
 	// If nil, no progress callbacks will be made.
 	ProgressCallback        ProgressCallback
+	Magnet                  string
 }
 
 // Torrent represents a torrent file with additional functionality
@@ -76,6 +77,7 @@ type TorrentInfo struct {
 	Announce string
 	Size     int64
 	Files    int
+	Magnet   string
 }
 
 // VerificationResult holds the outcome of a torrent data verification check
