@@ -191,3 +191,47 @@ jobs: []`,
 		})
 	}
 }
+
+func TestProcessBatch_WithMagnet(t *testing.T) {
+	job := BatchJob{
+		Magnet: "magnet:?xt=urn:btih:abcdef&dn=testbatch",
+		Path:   "", // path не нужен для magnet
+		Output: "", // не создаём .torrent
+	}
+
+	configPath := filepath.Join(t.TempDir(), "batch-magnet.yaml")
+	content := fmt.Sprintf(`version: 1
+jobs:
+  - magnet: %s
+    path: ""
+    output: ""
+`, job.Magnet)
+
+	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
+		t.Fatalf("Failed to write batch config: %v", err)
+	}
+
+	results, err := ProcessBatch(configPath, false, false, false, "1.0")
+	if err != nil {
+		t.Fatalf("ProcessBatch failed: %v", err)
+	}
+
+	if len(results) != 1 {
+		t.Fatalf("Expected 1 job result, got %d", len(results))
+	}
+
+	result := results[0]
+	if !result.Success {
+		t.Fatalf("Job failed: %v", result.Error)
+	}
+
+	if result.Info.Magnet != job.Magnet {
+		t.Errorf("Expected Magnet=%q, got %q", job.Magnet, result.Info.Magnet)
+	}
+	if result.Info.Path != "" {
+		t.Errorf("Expected empty Path for magnet job, got %q", result.Info.Path)
+	}
+	if result.Info.Files != 0 || result.Info.Size != 0 {
+		t.Errorf("Expected Files=0 and Size=0 for magnet job, got Files=%d Size=%d", result.Info.Files, result.Info.Size)
+	}
+}

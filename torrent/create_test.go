@@ -489,3 +489,26 @@ func TestCreate_MultipleTrackers(t *testing.T) {
 		})
 	}
 }
+
+func TestCreateTorrent_WithMagnet(t *testing.T) {
+	magnetURL := "magnet:?xt=urn:btih:12345&dn=testfile"
+	opts := CreateOptions{
+		Magnet: magnetURL,
+	}
+
+	info, err := Create(opts)
+	if err != nil {
+		t.Fatalf("Create() returned error: %v", err)
+	}
+
+	if info.Magnet != magnetURL {
+		t.Errorf("Expected Magnet=%q, got %q", magnetURL, info.Magnet)
+	}
+	if info.Path != "" {
+		t.Errorf("Expected empty Path for magnet, got %q", info.Path)
+	}
+	if info.Files != 0 || info.Size != 0 {
+		t.Errorf("Expected Files=0 and Size=0 for magnet, got Files=%d Size=%d", info.Files, info.Size)
+	}
+}
+
