@@ -58,12 +58,12 @@ When a single tracker URL is provided, the output filename will use the tracker 
 		if len(args) > 1 {
 			return fmt.Errorf("accepts at most one arg")
 		}
-		if len(args) == 0 && options.batchFile == "" {
+		if len(args) == 0 && options.batchFile == "" && options.magnet == "" {
 			presetFlag := cmd.Flags().Lookup("preset")
 			if presetFlag != nil && presetFlag.Changed {
-				return fmt.Errorf("when using a preset (-P/--preset), you must provide a path to the content")
+				return fmt.Errorf("when using a preset (-P/--preset), you must provide a path to the content or magnet link")
 			}
-			return fmt.Errorf("requires a path argument or --batch flag")
+			return fmt.Errorf("requires a path argument, magnet link, or --batch flag")
 		}
 		if len(args) == 1 && options.batchFile != "" {
 			return fmt.Errorf("cannot specify both path argument and --batch flag")
@@ -86,6 +86,7 @@ func init() {
 	createCmd.Flags().StringArrayVarP(&options.webSeeds, "web-seed", "w", nil, "add web seed URLs")
 	createCmd.Flags().BoolVarP(&options.isPrivate, "private", "p", true, "make torrent private")
 	createCmd.Flags().StringVarP(&options.comment, "comment", "c", "", "add comment")
+	createCmd.Flags().StringVarP(&options.magnet, "magnet", "", "", "magnet link to create torrent")
 
 	var defaultPieceLength, defaultMaxPieceLength uint
 	createCmd.Flags().UintVarP(&defaultPieceLength, "piece-length", "l", 0, "set piece length to 2^n bytes (16-27, automatic if not specified)")
@@ -172,6 +173,7 @@ func processBatchMode(opts createOptions, version string, startTime time.Time) e
 func buildCreateOptions(cmd *cobra.Command, inputPath string, opts createOptions, version string) (torrent.CreateOptions, error) {
 	createOpts := torrent.CreateOptions{
 		Path:                    inputPath,
+		Magnet: 				 opts.magnet,
 		TrackerURLs:             opts.trackers,
 		WebSeeds:                opts.webSeeds,
 		IsPrivate:               opts.isPrivate,
@@ -297,11 +299,18 @@ func buildCreateOptions(cmd *cobra.Command, inputPath string, opts createOptions
 
 // createSingleTorrent handles creating a single torrent file
 func createSingleTorrent(cmd *cobra.Command, args []string, opts createOptions, version string, startTime time.Time) error {
-	inputPath := args[0]
+	var inputPath string
+	if len(args) > 0 {
+		inputPath = args[0]
+	}
 
 	createOpts, err := buildCreateOptions(cmd, inputPath, opts, version)
 	if err != nil {
 		return err
+	}
+
+	if opts.magnet != "" {
+		createOpts.Path = ""
 	}
 
 	torrentInfo, err := torrent.Create(createOpts)
@@ -309,20 +318,22 @@ func createSingleTorrent(cmd *cobra.Command, args []string, opts createOptions, 
 		return err
 	}
 
-	if opts.quiet {
-		fmt.Println("Wrote:", torrentInfo.Path)
-	} else if !opts.infoOnly {
-		display := torrent.NewDisplay(torrent.NewFormatter(opts.verbose))
-		display.ShowOutputPathWithTime(torrentInfo.Path, time.Since(startTime))
-	} else {
-		if opts.infoOnly {
-			prevNoColor := color.NoColor
-			color.NoColor = true
-			defer func() { color.NoColor = prevNoColor }()
-		}
-		display := torrent.NewDisplay(torrent.NewFormatter(opts.verbose || opts.infoOnly))
-		display.ShowOutputPathWithTime(torrentInfo.Path, time.Since(startTime))
+	outputPath := torrentInfo.Path
+	if outputPath == "" && opts.magnet != "" {
+		outputPath = opts.magnet
 	}
+
+	if opts.quiet {
+		fmt.Println("Wrote:", outputPath)
+		return nil
+	}
+
+	prevNoColor := color.NoColor
+	color.NoColor = opts.infoOnly 
+	defer func() { color.NoColor = prevNoColor }()
+
+	display := torrent.NewDisplay(torrent.NewFormatter(opts.verbose || opts.infoOnly))
+	display.ShowOutputPathWithTime(outputPath, time.Since(startTime))
 
 	return nil
 }
