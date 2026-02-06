@@ -133,24 +133,29 @@ func ProcessBatch(configPath string, verbose bool, quiet bool, infoOnly bool, ve
 }
 
 func validateJob(job BatchJob) error {
-	if job.Path == "" {
-		return fmt.Errorf("path is required")
-	}
+    if job.Magnet != "" {
+        return nil
+    }
 
-	if _, err := os.Stat(job.Path); err != nil {
-		return fmt.Errorf("invalid path %q: %w", job.Path, err)
-	}
+    if job.Path == "" {
+        return fmt.Errorf("path is required")
+    }
 
-	if job.Output == "" {
-		return fmt.Errorf("output is required")
-	}
+    if _, err := os.Stat(job.Path); err != nil {
+        return fmt.Errorf("invalid path %q: %w", job.Path, err)
+    }
 
-	if job.PieceLength != 0 && (job.PieceLength < 14 || job.PieceLength > 24) {
-		return fmt.Errorf("piece length must be between 14 and 24")
-	}
+    if job.Output == "" {
+        return fmt.Errorf("output is required")
+    }
 
-	return nil
+    if job.PieceLength != 0 && (job.PieceLength < 14 || job.PieceLength > 24) {
+        return fmt.Errorf("piece length must be between 14 and 24")
+    }
+
+    return nil
 }
+
 
 func processJob(job BatchJob, verbose bool, quiet bool, infoOnly bool, version string) BatchResult {
 	result := BatchResult{
