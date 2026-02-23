@@ -262,6 +262,7 @@ var trackerConfigs = []TrackerConfig{
 			{MaxSize: ^uint64(0), PieceExp: 24},  // 16 MiB for 16+ GiB
 		},
 		UseDefaultRanges: false,
+		DefaultSource: "TorrentLeech.org",
 	},
 }
 
