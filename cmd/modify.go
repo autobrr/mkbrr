@@ -53,7 +53,7 @@ func init() {
 	modifyCmd.Flags().SortFlags = false
 	modifyCmd.Flags().StringVarP(&modifyOpts.PresetName, "preset", "P", "", "use preset from config")
 	modifyCmd.Flags().StringVar(&modifyOpts.PresetFile, "preset-file", "", "preset config file (default: ~/.config/mkbrr/presets.yaml)")
-	modifyCmd.Flags().StringVar(&modifyOpts.Name, "name", "", "set torrent name (overrides preset name if set)")
+	modifyCmd.Flags().StringVar(&modifyOpts.Name, "name", "", "set the torrent's internal name")
 	modifyCmd.Flags().StringVar(&modifyOpts.OutputDir, "output-dir", "", "output directory for modified files")
 	modifyCmd.Flags().StringVarP(&modifyOpts.Output, "output", "o", "", "custom output filename (without extension)")
 	modifyCmd.Flags().BoolVarP(&modifyOpts.NoDate, "no-date", "d", false, "don't update creation date")
