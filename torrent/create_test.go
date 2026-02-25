@@ -557,10 +557,10 @@ func TestCreate_NameArgument(t *testing.T) {
 
 	// Create temporary directory
 	testDir, err := os.MkdirTemp("", "mkbrr-create-TestCreate-NameArgument-*")
-	baseDir := filepath.Base(testDir)
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
+	baseDir := filepath.Base(testDir)
 	defer os.RemoveAll(testDir)
 
 	// Create test files
