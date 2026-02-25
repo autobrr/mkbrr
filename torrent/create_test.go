@@ -802,7 +802,7 @@ func TestCreate_NameArgument(t *testing.T) {
 			}
 
 			t.Logf("Torrent created with name %q and filename %q as expected.", info.Name, createdFilename)
-			os.Remove(createdFilename) // If the delete fails, the defer will clean up the temp dir
+			os.Remove(result.Path) // best-effort cleanup; defer handles the rest
 		})
 	}
 }
