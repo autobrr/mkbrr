@@ -490,6 +490,66 @@ func TestCreate_MultipleTrackers(t *testing.T) {
 	}
 }
 
+func TestCreate_UsesCustomNameForOutputPath(t *testing.T) {
+	t.Parallel()
+
+	const customName = "CustomShow"
+	content := []byte("tiny sample so the test stays fast")
+
+	cases := []struct {
+		scenario string
+		trackers []string
+		wantFile string
+	}{
+		{
+			scenario: "when I pick a custom name without any tracker, the torrent file should use it",
+			trackers: nil,
+			wantFile: customName + ".torrent",
+		},
+		{
+			scenario: "when I pick a custom name and add a tracker, the tracker prefix should still keep my name",
+			trackers: []string{"https://tracker.example.com/announce"},
+			wantFile: "example_" + customName + ".torrent",
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.scenario, func(t *testing.T) {
+			t.Parallel()
+
+			workspace := t.TempDir()
+			inputPath := filepath.Join(workspace, "video.mkv")
+			if err := os.WriteFile(inputPath, content, 0644); err != nil {
+				t.Fatalf("failed to write input file: %v", err)
+			}
+
+			outputDir := filepath.Join(workspace, "out")
+			opts := CreateOptions{
+				Path:        inputPath,
+				Name:        customName,
+				TrackerURLs: tc.trackers,
+				OutputDir:   outputDir,
+				Quiet:       true,
+			}
+
+			info, err := Create(opts)
+			if err != nil {
+				t.Fatalf("Create returned error: %v", err)
+			}
+
+			gotFile := filepath.Base(info.Path)
+			if gotFile != tc.wantFile {
+				t.Fatalf("expected torrent output %q, got %q", tc.wantFile, gotFile)
+			}
+
+			if _, err := os.Stat(info.Path); err != nil {
+				t.Fatalf("expected torrent file to exist at %q, got error: %v", info.Path, err)
+			}
+		})
+	}
+}
+
 func TestCreate_NameArgument(t *testing.T) {
 
 	tracker := "https://unknown.customtracker.com/announce"
@@ -555,7 +615,7 @@ func TestCreate_NameArgument(t *testing.T) {
 				Quiet:       true,
 			},
 			expectedName:     "customname",
-			expectedFilename: "customtracker_" + filename + ".torrent",
+			expectedFilename: "customtracker_customname.torrent",
 		},
 		{
 			name: "Single file with --name argument --skip-prefix present -o supplied, (-o overrides --skip-prefix)",
@@ -629,7 +689,7 @@ func TestCreate_NameArgument(t *testing.T) {
 				Quiet:       true,
 			},
 			expectedName:     "customname",
-			expectedFilename: filename + ".torrent",
+			expectedFilename: "customname.torrent",
 		},
 		{
 			name: "Multiple files no --name argument no --skip-prefix no -o",
@@ -664,7 +724,7 @@ func TestCreate_NameArgument(t *testing.T) {
 				Quiet:       true,
 			},
 			expectedName:     "customname",
-			expectedFilename: "customtracker_" + baseDir + ".torrent",
+			expectedFilename: "customtracker_customname.torrent",
 		},
 		{
 			name: "Multiple files with --name argument --skip-prefix present no -o",
@@ -676,7 +736,7 @@ func TestCreate_NameArgument(t *testing.T) {
 				Quiet:       true,
 			},
 			expectedName:     "customname",
-			expectedFilename: baseDir + ".torrent",
+			expectedFilename: "customname.torrent",
 		},
 		{
 			name: "Multiple files with --name argument no --skip-prefix -o supplied",
@@ -701,7 +761,7 @@ func TestCreate_NameArgument(t *testing.T) {
 				Quiet:       true,
 			},
 			expectedName:     "customname",
-			expectedFilename: baseDir + ".torrent",
+			expectedFilename: "customname.torrent",
 		},
 	}
 

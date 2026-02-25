@@ -502,9 +502,9 @@ func Create(opts CreateOptions) (*TorrentInfo, error) {
 	}
 
 	// set name if not provided
-	fileName := baseName
+	fileName := opts.Name
 	if len(opts.TrackerURLs) == 1 && !opts.SkipPrefix {
-		fileName = preset.GetDomainPrefix(opts.TrackerURLs[0]) + "_" + baseName
+		fileName = preset.GetDomainPrefix(opts.TrackerURLs[0]) + "_" + fileName
 	}
 
 	if opts.OutputDir != "" {
