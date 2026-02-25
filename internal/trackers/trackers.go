@@ -247,6 +247,7 @@ var trackerConfigs = []TrackerConfig{
 	{
 		URLs: []string{
 			"tracker.torrentleech.org",
+			"tracker.tleechreload.org",
 		},
 		MaxPieceLength: 24, // max 16 MiB pieces (2^24)
 		PieceSizeRanges: []PieceSizeRange{
