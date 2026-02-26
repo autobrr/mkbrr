@@ -17,14 +17,6 @@ import (
 	"github.com/autobrr/mkbrr/internal/trackers"
 )
 
-// max returns the larger of x or y
-func max(x, y int64) int64 {
-	if x > y {
-		return x
-	}
-	return y
-}
-
 // formatPieceSize returns a human readable piece size, using KiB for sizes < 1024 KiB and MiB for larger sizes
 func formatPieceSize(exp uint) string {
 	size := uint64(1) << (exp - 10) // convert to KiB
@@ -49,12 +41,7 @@ func calculatePieceLength(totalSize int64, maxPieceLength *uint, trackerURLs []s
 		// check if tracker has specific piece size ranges
 		if exp, ok := trackers.GetTrackerPieceSizeExp(trackerURLs[0], uint64(totalSize)); ok {
 			// ensure we stay within bounds
-			if exp < minExp {
-				exp = minExp
-			}
-			if exp > maxExp {
-				exp = maxExp
-			}
+			exp = min(max(exp, minExp), maxExp)
 			if verbose {
 				display := NewDisplay(NewFormatter(verbose))
 				display.ShowMessage(fmt.Sprintf("using tracker-specific range for content size: %d MiB (recommended: %s pieces)",
@@ -69,11 +56,7 @@ func calculatePieceLength(totalSize int64, maxPieceLength *uint, trackerURLs []s
 		if *maxPieceLength < minExp {
 			return minExp
 		}
-		if *maxPieceLength > 27 {
-			maxExp = 27
-		} else {
-			maxExp = *maxPieceLength
-		}
+		maxExp = min(*maxPieceLength, 27)
 	}
 
 	// default calculation for automatic piece length
@@ -111,14 +94,12 @@ func calculatePieceLength(totalSize int64, maxPieceLength *uint, trackerURLs []s
 	}
 
 	// if no manual piece length was specified, cap at 2^24
-	if maxPieceLength == nil && exp > 24 {
-		exp = 24
+	if maxPieceLength == nil {
+		exp = min(exp, 24)
 	}
 
 	// ensure we stay within bounds
-	if exp > maxExp {
-		exp = maxExp
-	}
+	exp = min(exp, maxExp)
 
 	return exp
 }

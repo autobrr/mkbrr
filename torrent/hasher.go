@@ -336,11 +336,3 @@ func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Di
 		failOnSeasonPackWarning: failOnSeasonPackWarning,
 	}
 }
-
-// minInt returns the smaller of two integers
-func minInt(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
