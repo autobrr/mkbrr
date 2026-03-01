@@ -3,7 +3,7 @@ module github.com/autobrr/mkbrr
 go 1.25
 
 require (
-	github.com/anacrolix/torrent v1.60.0
+	github.com/anacrolix/torrent v1.61.0
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/creativeprojects/go-selfupdate v1.5.2
 	github.com/dustin/go-humanize v1.0.1
@@ -18,7 +18,7 @@ require (
 	code.gitea.io/sdk/gitea v0.22.1 // indirect
 	github.com/42wim/httpsig v1.2.3 // indirect
 	github.com/Masterminds/semver/v3 v3.4.0 // indirect
-	github.com/anacrolix/generics v0.1.0 // indirect
+	github.com/anacrolix/generics v0.1.1-0.20251125230353-15d98d46693b // indirect
 	github.com/anacrolix/missinggo v1.3.0 // indirect
 	github.com/anacrolix/missinggo/v2 v2.10.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
@@ -46,10 +46,11 @@ require (
 	github.com/ulikunitz/xz v0.5.15 // indirect
 	gitlab.com/gitlab-org/api/client-go v1.9.1 // indirect
 	golang.org/x/crypto v0.46.0 // indirect
-	golang.org/x/exp v0.0.0-20250813145105-42675adae3e6 // indirect
+	golang.org/x/exp v0.0.0-20251113190631-e25ba8c21ef6 // indirect
 	golang.org/x/oauth2 v0.34.0 // indirect
 	golang.org/x/sys v0.39.0 // indirect
 	golang.org/x/term v0.38.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
+	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	lukechampine.com/blake3 v1.4.0 // indirect
 )
