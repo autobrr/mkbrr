@@ -13,6 +13,7 @@ import (
 type modifyOptions struct {
 	PresetName string
 	PresetFile string
+	Name       string
 	OutputDir  string
 	Output     string
 	Trackers   []string
@@ -52,13 +53,14 @@ func init() {
 	modifyCmd.Flags().SortFlags = false
 	modifyCmd.Flags().StringVarP(&modifyOpts.PresetName, "preset", "P", "", "use preset from config")
 	modifyCmd.Flags().StringVar(&modifyOpts.PresetFile, "preset-file", "", "preset config file (default: ~/.config/mkbrr/presets.yaml)")
+	modifyCmd.Flags().StringVar(&modifyOpts.Name, "name", "", "set the torrent's internal name")
 	modifyCmd.Flags().StringVar(&modifyOpts.OutputDir, "output-dir", "", "output directory for modified files")
 	modifyCmd.Flags().StringVarP(&modifyOpts.Output, "output", "o", "", "custom output filename (without extension)")
 	modifyCmd.Flags().BoolVarP(&modifyOpts.NoDate, "no-date", "d", false, "don't update creation date")
 	modifyCmd.Flags().BoolVarP(&modifyOpts.NoCreator, "no-creator", "", false, "don't write creator")
 	modifyCmd.Flags().StringArrayVarP(&modifyOpts.Trackers, "tracker", "t", nil, "tracker URLs (can be specified multiple times)")
 	modifyCmd.Flags().StringArrayVarP(&modifyOpts.WebSeeds, "web-seed", "w", nil, "add web seed URLs")
-	modifyCmd.Flags().BoolVarP(&modifyOpts.Private, "private", "p", true, "make torrent private (default: true)")
+	modifyCmd.Flags().BoolVarP(&modifyOpts.Private, "private", "p", true, "make torrent private")
 	modifyCmd.Flags().StringVarP(&modifyOpts.Comment, "comment", "c", "", "add comment")
 	modifyCmd.Flags().StringVarP(&modifyOpts.Source, "source", "s", "", "add source string")
 	modifyCmd.Flags().BoolVarP(&modifyOpts.Entropy, "entropy", "e", false, "randomize info hash by adding entropy field")
@@ -80,6 +82,7 @@ func buildTorrentOptions(cmd *cobra.Command, opts modifyOptions) torrent.ModifyO
 	torrentOpts := torrent.ModifyOptions{
 		PresetName:    opts.PresetName,
 		PresetFile:    opts.PresetFile,
+		Name:          opts.Name,
 		OutputDir:     opts.OutputDir,
 		OutputPattern: opts.Output,
 		NoDate:        opts.NoDate,
