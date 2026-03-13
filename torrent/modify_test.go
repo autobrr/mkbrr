@@ -369,9 +369,9 @@ func TestModify_NameArgument(t *testing.T) {
 				t.Fatalf("Modify() failed: %v", err)
 			}
 
-			// Verify the file was actually created or modified in place
-			if _, err := os.Stat(result.Path); err != nil {
-				t.Fatalf("Modified torrent file, %q does not exist: %v", tt.path, err)
+			// Verify the output file was actually written
+			if _, err := os.Stat(result.OutputPath); err != nil {
+				t.Fatalf("Modified torrent output file, %q does not exist: %v", result.OutputPath, err)
 			}
 
 			// Get the modified torrent internals
