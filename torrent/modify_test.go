@@ -221,17 +221,31 @@ func TestModify_NameArgument(t *testing.T) {
 		OutputDir:   tmpDir,
 		TrackerURLs: []string{tracker},
 		SkipPrefix:  true,
-		Quiet:       false,
-		Verbose:     true,
+		Quiet:       true,
 	})
 	if err != nil {
 		t.Fatalf("Create() failed: %v", err)
+	}
+
+	prefixedCreateResult, err := Create(CreateOptions{
+		Path:        testFile,
+		Name:        "oldname",
+		OutputDir:   tmpDir,
+		TrackerURLs: []string{tracker},
+		Quiet:       true,
+	})
+	if err != nil {
+		t.Fatalf("Create() with prefix failed: %v", err)
 	}
 
 	// Verify the file was actually created
 	torrentFilepath := createresult.Path
 	if _, err := os.Stat(torrentFilepath); err != nil {
 		t.Fatalf("Created torrent file, %q does not exist: %v", torrentFilepath, err)
+	}
+	prefixedTorrentFilepath := prefixedCreateResult.Path
+	if _, err := os.Stat(prefixedTorrentFilepath); err != nil {
+		t.Fatalf("Created prefixed torrent file, %q does not exist: %v", prefixedTorrentFilepath, err)
 	}
 
 	// Test cases
@@ -322,6 +336,27 @@ func TestModify_NameArgument(t *testing.T) {
 			},
 			expectedName:     "customname",
 			expectedFilename: "customfilename.torrent", // original behavior -  does not add prefix on modify
+		},
+		{
+			name: "Prefixed input no --name argument no --skip-prefix no -o",
+			path: prefixedTorrentFilepath,
+			opts: ModifyOptions{
+				SkipPrefix: false,
+				Quiet:      true,
+			},
+			expectedName:     "oldname",
+			expectedFilename: "modified_oldname.torrent",
+		},
+		{
+			name: "Prefixed input with --name argument no --skip-prefix no -o",
+			path: prefixedTorrentFilepath,
+			opts: ModifyOptions{
+				Name:       "customname",
+				SkipPrefix: false,
+				Quiet:      true,
+			},
+			expectedName:     "customname",
+			expectedFilename: "modified_oldname.torrent",
 		},
 	}
 

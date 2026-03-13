@@ -103,6 +103,11 @@ func ModifyTorrent(path string, opts ModifyOptions) (*Result, error) {
 		}
 	}
 
+	originalMetaInfoName := ""
+	if info, err := mi.UnmarshalInfo(); err == nil {
+		originalMetaInfoName = info.Name
+	}
+
 	// apply flag-based overrides:
 	// update tracker if flag provided
 	if len(opts.TrackerURLs) > 0 {
@@ -216,6 +221,9 @@ func ModifyTorrent(path string, opts ModifyOptions) (*Result, error) {
 	}
 
 	basePath := path
+	if opts.OutputPattern == "" && originalMetaInfoName != "" {
+		basePath = originalMetaInfoName + ".torrent"
+	}
 
 	// determine output directory: command-line flag takes precedence over preset
 	outputDir := opts.OutputDir
