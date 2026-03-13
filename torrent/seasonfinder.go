@@ -47,7 +47,7 @@ func AnalyzeSeasonPack(files []fileEntry) *SeasonPackInfo {
 	season := detectSeasonNumber(dirPath)
 
 	if season == 0 && len(files) > 1 {
-		for i := 0; i < minInt(5, len(files)); i++ {
+		for i := 0; i < min(5, len(files)); i++ {
 			if s, _ := extractSeasonEpisode(filepath.Base(files[i].path)); s > 0 {
 				season = s
 				break

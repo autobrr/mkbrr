@@ -87,7 +87,6 @@ Download a ready-to-use binary for your platform from the [releases page](https:
 ### Homebrew (macOS and Linux)
 
 ```bash
-brew tap autobrr/mkbrr
 brew install mkbrr
 ```
 

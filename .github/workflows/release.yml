@@ -163,7 +163,7 @@ jobs:
           fi
 
       - name: Upload pprof
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: pprof
           path: cpu.pprof
@@ -185,14 +185,14 @@ jobs:
           cache: true
 
       - name: Download pprof
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: pprof
           path: .
 
       - name: Run GoReleaser build
         if: github.event_name == 'pull_request'
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
           version: "~> v2"
@@ -203,7 +203,7 @@ jobs:
 
       - name: Run GoReleaser build and publish tags
         if: startsWith(github.ref, 'refs/tags/')
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
           version: "~> v2"
@@ -214,7 +214,7 @@ jobs:
           BUILDER: ${{ github.actor }}@github-actions
 
       - name: Upload assets
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: mkbrr
           path: |
@@ -250,12 +250,12 @@ jobs:
           fetch-depth: 0
 
       - name: Download pprof profile
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: pprof
 
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.repository_owner }}
@@ -263,7 +263,7 @@ jobs:
 
       - name: Extract metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY_IMAGE }}
           tags: |
@@ -275,17 +275,17 @@ jobs:
             latest=auto
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Supported Architectures
         run: docker buildx ls
 
       - name: Build and publish image
         id: docker_build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: './ci.Dockerfile'
@@ -309,7 +309,7 @@ jobs:
           touch "/tmp/digests/${digest#sha256:}"
 
       - name: Upload image digest
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: docker-digests-${{ steps.digest-prep.outputs.manifest-hash }}
           path: /tmp/digests/*
@@ -323,17 +323,17 @@ jobs:
     needs: [ docker ]
     steps:
       - name: Download image digests
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           path: /tmp/digests
           pattern: docker-digests-*
           merge-multiple: true
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.repository_owner }}
@@ -341,7 +341,7 @@ jobs:
 
       - name: Extract metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY_IMAGE }}
           tags: |
