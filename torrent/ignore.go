@@ -113,23 +113,17 @@ func matchPattern(pattern, relPath string, isDir bool) (bool, error) {
 			return true, nil
 		}
 
-		// Also check if any pattern component matches the directory for "contains" style matching
-		// e.g., "**/extras/**" should match when we're inside "extras" directory
-		// This handles patterns like "**/dir/**" matching path "dir/subdir"
-		if strings.Contains(lowerPattern, "/**/") || strings.HasSuffix(lowerPattern, "/**") {
-			// Extract the directory name from pattern like "**/extras/**" -> "extras"
-			parts := strings.Split(lowerPattern, "/")
-			for i, part := range parts {
-				if part != "**" && part != "" && !strings.ContainsAny(part, "*?[{") {
-					// This is a literal directory name in the pattern
-					pathParts := strings.Split(lowerPath, "/")
-					if slices.Contains(pathParts, part) {
-						// Check if this is a proper match by verifying pattern structure
-						// Pattern "**/extras/**" with path "foo/extras" should match
-						if (i == 0 || parts[i-1] == "**") && (i == len(parts)-1 || parts[i+1] == "**" || i+1 < len(parts)) {
-							return true, nil
-						}
-					}
+		// For patterns like "**/dirname/**", check if the directory is in the path
+		// This allows early directory skipping for recursive exclude patterns
+		if strings.HasPrefix(lowerPattern, "**/") && strings.HasSuffix(lowerPattern, "/**") {
+			// Extract the middle part: "**/extras/**" -> "extras"
+			middle := strings.TrimPrefix(lowerPattern, "**/")
+			middle = strings.TrimSuffix(middle, "/**")
+			// Only match if middle is a simple literal (no wildcards)
+			if !strings.ContainsAny(middle, "*?[{") {
+				pathParts := strings.Split(lowerPath, "/")
+				if slices.Contains(pathParts, middle) {
+					return true, nil
 				}
 			}
 		}

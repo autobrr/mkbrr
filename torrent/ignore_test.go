@@ -4,6 +4,8 @@ import (
 	"testing"
 )
 
+// TestNormalizePattern tests the normalizePattern function which converts
+// patterns to doublestar format for consistent matching.
 func TestNormalizePattern(t *testing.T) {
 	tests := []struct {
 		input string
@@ -40,6 +42,57 @@ func TestNormalizePattern(t *testing.T) {
 	}
 }
 
+// TestSplitPatterns tests the splitPatterns function which splits
+// comma-separated patterns while respecting brace expressions.
+func TestSplitPatterns(t *testing.T) {
+	tests := []struct {
+		input string
+		want  []string
+	}{
+		// Simple comma-separated
+		{"*.nfo,*.txt", []string{"*.nfo", "*.txt"}},
+		{"*.nfo, *.txt, *.jpg", []string{"*.nfo", "*.txt", "*.jpg"}},
+
+		// Brace alternatives should NOT be split
+		{"*.{nfo,txt,jpg}", []string{"*.{nfo,txt,jpg}"}},
+		{"*.{mkv,mp4,avi},*.srt", []string{"*.{mkv,mp4,avi}", "*.srt"}},
+
+		// Nested braces
+		{"*.{a,{b,c}}", []string{"*.{a,{b,c}}"}},
+
+		// Mixed
+		{"**/extras/**,*.{nfo,txt}", []string{"**/extras/**", "*.{nfo,txt}"}},
+
+		// Single pattern
+		{"*.nfo", []string{"*.nfo"}},
+
+		// Empty and whitespace
+		{"", []string{}},
+		{"  ", []string{}},
+		{"*.nfo,  ,*.txt", []string{"*.nfo", "*.txt"}},
+
+		// Trailing/leading commas
+		{",*.nfo,*.txt,", []string{"*.nfo", "*.txt"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got := splitPatterns(tt.input)
+			if len(got) != len(tt.want) {
+				t.Errorf("splitPatterns(%q) = %v, want %v", tt.input, got, tt.want)
+				return
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Errorf("splitPatterns(%q)[%d] = %q, want %q", tt.input, i, got[i], tt.want[i])
+				}
+			}
+		})
+	}
+}
+
+// TestMatchPattern tests the matchPattern function which matches glob patterns
+// against paths using doublestar with case-insensitivity and directory handling.
 func TestMatchPattern(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -204,6 +257,16 @@ func TestMatchPattern(t *testing.T) {
 			isDir:   false,
 			want:    false,
 		},
+
+		// Invalid patterns that should return errors
+		{
+			name:    "invalid pattern - unclosed bracket",
+			pattern: "[abc",
+			relPath: "file.txt",
+			isDir:   false,
+			want:    false,
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -220,6 +283,8 @@ func TestMatchPattern(t *testing.T) {
 	}
 }
 
+// TestShouldIgnoreEntry tests the shouldIgnoreEntry function which determines
+// if a file or directory should be ignored based on include/exclude patterns.
 func TestShouldIgnoreEntry(t *testing.T) {
 	tests := []struct {
 		name            string
@@ -425,6 +490,29 @@ func TestShouldIgnoreEntry(t *testing.T) {
 			wantIgnore:      true,
 		},
 
+		// Regression: pattern with specific file should NOT skip entire directory
+		{
+			name:            "specific file pattern should not skip directory",
+			relPath:         "foo/extras",
+			isDir:           true,
+			excludePatterns: []string{"**/extras/specific.txt"},
+			wantIgnore:      false, // Should NOT skip - only specific.txt should be excluded
+		},
+		{
+			name:            "specific file pattern should exclude the file",
+			relPath:         "foo/extras/specific.txt",
+			isDir:           false,
+			excludePatterns: []string{"**/extras/specific.txt"},
+			wantIgnore:      true, // Should exclude the actual file
+		},
+		{
+			name:            "specific file pattern should not exclude other files",
+			relPath:         "foo/extras/other.txt",
+			isDir:           false,
+			excludePatterns: []string{"**/extras/specific.txt"},
+			wantIgnore:      false, // Should NOT exclude other files in extras
+		},
+
 		// No patterns - should keep
 		{
 			name:       "no patterns - keep file",
@@ -455,6 +543,8 @@ func TestShouldIgnoreEntry(t *testing.T) {
 	}
 }
 
+// TestShouldIgnoreFile tests the deprecated shouldIgnoreFile wrapper function
+// for backward compatibility with filename-only matching.
 func TestShouldIgnoreFile(t *testing.T) {
 	// Test backward compatibility of shouldIgnoreFile wrapper
 	tests := []struct {
@@ -499,6 +589,8 @@ func TestShouldIgnoreFile(t *testing.T) {
 	}
 }
 
+// TestShouldIgnoreDir tests the shouldIgnoreDir function which checks
+// if any path segment matches the hardcoded ignored directory names.
 func TestShouldIgnoreDir(t *testing.T) {
 	tests := []struct {
 		name       string
