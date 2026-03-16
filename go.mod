@@ -5,6 +5,7 @@ go 1.25
 require (
 	github.com/anacrolix/torrent v1.61.0
 	github.com/blang/semver v3.5.1+incompatible
+	github.com/bmatcuk/doublestar/v4 v4.10.0
 	github.com/creativeprojects/go-selfupdate v1.5.2
 	github.com/dustin/go-humanize v1.0.1
 	github.com/fatih/color v1.18.0
