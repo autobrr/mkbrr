@@ -76,6 +76,13 @@ func Test_GetTrackerPieceSizeExp(t *testing.T) {
 			wantFound:   true,
 		},
 		{
+			name:        "onlyencodes should use lst piece rules",
+			trackerURL:  "https://onlyencodes.cc/announce?passkey=123",
+			contentSize: 8 << 30, // 8 GB
+			wantExp:     22,      // 4 MiB pieces
+			wantFound:   true,
+		},
+		{
 			name:        "unknown tracker should not return piece size recommendations",
 			trackerURL:  "https://unknown.tracker/announce",
 			contentSize: 1 << 30,
@@ -143,6 +150,12 @@ func Test_GetTrackerMaxPieceLength(t *testing.T) {
 		{
 			name:       "torrent-syndikat alternate domain should allow up to 16 MiB pieces",
 			trackerURL: "https://ulo.tee-stube.org/ts_ann.php?passkey=123",
+			wantExp:    24, // 16 MiB pieces
+			wantFound:  true,
+		},
+		{
+			name:       "onlyencodes should allow up to 16 MiB pieces",
+			trackerURL: "https://onlyencodes.cc/announce?passkey=123",
 			wantExp:    24, // 16 MiB pieces
 			wantFound:  true,
 		},
