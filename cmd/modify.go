@@ -27,6 +27,7 @@ type modifyOptions struct {
 	Quiet      bool
 	SkipPrefix bool
 	Private    bool
+	NoPrivate  bool
 	Entropy    bool
 }
 
@@ -61,8 +62,9 @@ func init() {
 	modifyCmd.Flags().StringArrayVarP(&modifyOpts.Trackers, "tracker", "t", nil, "tracker URLs (can be specified multiple times)")
 	modifyCmd.Flags().StringArrayVarP(&modifyOpts.WebSeeds, "web-seed", "w", nil, "add web seed URLs")
 	modifyCmd.Flags().BoolVarP(&modifyOpts.Private, "private", "p", true, "make torrent private")
-	modifyCmd.Flags().StringVarP(&modifyOpts.Comment, "comment", "c", "", "add comment")
-	modifyCmd.Flags().StringVarP(&modifyOpts.Source, "source", "s", "", "add source string")
+	modifyCmd.Flags().BoolVar(&modifyOpts.NoPrivate, "no-private", false, "remove private flag entirely")
+	modifyCmd.Flags().StringVarP(&modifyOpts.Comment, "comment", "c", "", "set comment (use empty string to remove)")
+	modifyCmd.Flags().StringVarP(&modifyOpts.Source, "source", "s", "", "set source string (use empty string to remove)")
 	modifyCmd.Flags().BoolVarP(&modifyOpts.Entropy, "entropy", "e", false, "randomize info hash by adding entropy field")
 	modifyCmd.Flags().BoolVarP(&modifyOpts.Verbose, "verbose", "v", false, "be verbose")
 	modifyCmd.Flags().BoolVarP(&modifyOpts.Quiet, "quiet", "q", false, "reduced output mode (prints only final torrent paths)")
@@ -100,6 +102,19 @@ func buildTorrentOptions(cmd *cobra.Command, opts modifyOptions) torrent.ModifyO
 
 	if cmd.Flags().Changed("private") {
 		torrentOpts.IsPrivate = &opts.Private
+	}
+
+	if opts.NoPrivate {
+		torrentOpts.RemovePrivate = true
+		torrentOpts.IsPrivate = nil // --no-private takes precedence over --private
+	}
+
+	if cmd.Flags().Changed("source") {
+		torrentOpts.SourceSet = true
+	}
+
+	if cmd.Flags().Changed("comment") {
+		torrentOpts.CommentSet = true
 	}
 
 	if cmd.Flags().Changed("entropy") {

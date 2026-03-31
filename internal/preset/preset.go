@@ -200,14 +200,18 @@ func (c *Config) GetPreset(name string) (*Options, error) {
 	return &merged, nil
 }
 
-// ApplyToMetaInfo applies preset options to a MetaInfo object
+// ApplyToMetaInfo applies preset options to a MetaInfo object.
+// Info-level changes are applied via raw map to preserve custom keys (e.g. entropy).
 func (o *Options) ApplyToMetaInfo(mi *metainfo.MetaInfo) (bool, error) {
 	wasModified := false
 
-	info, err := mi.UnmarshalInfo()
-	if err != nil {
-		return false, fmt.Errorf("could not unmarshal info: %w", err)
+	// track info-level changes to apply via raw map at the end
+	type infoChange struct {
+		key    string
+		value  any
+		remove bool
 	}
+	var infoChanges []infoChange
 
 	// Only modify values that are explicitly set in the preset
 	if len(o.Trackers) > 0 {
@@ -226,7 +230,7 @@ func (o *Options) ApplyToMetaInfo(mi *metainfo.MetaInfo) (bool, error) {
 	}
 
 	if o.Source != "" {
-		info.Source = o.Source
+		infoChanges = append(infoChanges, infoChange{key: "source", value: o.Source})
 		wasModified = true
 	}
 
@@ -236,10 +240,11 @@ func (o *Options) ApplyToMetaInfo(mi *metainfo.MetaInfo) (bool, error) {
 	}
 
 	if o.Private != nil {
-		if info.Private == nil {
-			info.Private = new(bool)
+		val := int64(0)
+		if *o.Private {
+			val = 1
 		}
-		*info.Private = *o.Private
+		infoChanges = append(infoChanges, infoChange{key: "private", value: val})
 		wasModified = true
 	}
 
@@ -261,10 +266,20 @@ func (o *Options) ApplyToMetaInfo(mi *metainfo.MetaInfo) (bool, error) {
 		wasModified = true
 	}
 
-	// re-marshal the modified info if needed
-	if wasModified {
-		if infoBytes, err := bencode.Marshal(info); err == nil {
-			mi.InfoBytes = infoBytes
+	// apply info-level changes via raw map to preserve custom keys
+	if len(infoChanges) > 0 {
+		infoMap := make(map[string]any)
+		if err := bencode.Unmarshal(mi.InfoBytes, &infoMap); err == nil {
+			for _, c := range infoChanges {
+				if c.remove {
+					delete(infoMap, c.key)
+				} else {
+					infoMap[c.key] = c.value
+				}
+			}
+			if infoBytes, err := bencode.Marshal(infoMap); err == nil {
+				mi.InfoBytes = infoBytes
+			}
 		}
 	}
 
