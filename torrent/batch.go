@@ -32,6 +32,7 @@ type BatchJob struct {
 	Private             bool     `yaml:"private"`
 	NoDate              bool     `yaml:"no_date"`
 	SkipPrefix          bool     `yaml:"skip_prefix"`
+	Entropy             bool     `yaml:"entropy"`
 	FailOnSeasonWarning bool     `yaml:"fail_on_season_warning"`
 }
 
@@ -51,6 +52,7 @@ func (j *BatchJob) ToCreateOptions(verbose bool, quiet bool, infoOnly bool, vers
 		InfoOnly:                infoOnly,
 		Version:                 version,
 		SkipPrefix:              j.SkipPrefix,
+		Entropy:                 j.Entropy,
 		ExcludePatterns:         j.ExcludePatterns,
 		IncludePatterns:         j.IncludePatterns,
 		FailOnSeasonPackWarning: j.FailOnSeasonWarning,

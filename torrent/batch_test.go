@@ -123,6 +123,62 @@ jobs:
 	}
 }
 
+func TestBatchEntropy(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "mkbrr-batch-entropy")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// create a test file
+	testFile := filepath.Join(tmpDir, "file.txt")
+	if err := os.WriteFile(testFile, []byte("test content for entropy"), 0644); err != nil {
+		t.Fatalf("Failed to write test file: %v", err)
+	}
+
+	// create batch config with entropy enabled
+	configPath := filepath.Join(tmpDir, "batch.yaml")
+	configContent := []byte(fmt.Sprintf(`version: 1
+jobs:
+  - output: %s
+    path: %s
+    entropy: true
+    piece_length: 16
+  - output: %s
+    path: %s
+    entropy: false
+    piece_length: 16
+`,
+		filepath.Join(tmpDir, "with_entropy.torrent"),
+		testFile,
+		filepath.Join(tmpDir, "without_entropy.torrent"),
+		testFile))
+
+	if err := os.WriteFile(configPath, configContent, 0644); err != nil {
+		t.Fatalf("Failed to write config file: %v", err)
+	}
+
+	results, err := ProcessBatch(configPath, false, false, false, "test-version")
+	if err != nil {
+		t.Fatalf("ProcessBatch failed: %v", err)
+	}
+
+	if len(results) != 2 {
+		t.Fatalf("Expected 2 results, got %d", len(results))
+	}
+
+	for i, result := range results {
+		if !result.Success {
+			t.Fatalf("Job %d failed: %v", i, result.Error)
+		}
+	}
+
+	// the two torrents should have different info hashes because one has entropy
+	if results[0].Info.InfoHash == results[1].Info.InfoHash {
+		t.Error("Expected different info hashes when entropy is enabled vs disabled")
+	}
+}
+
 func TestBatchValidation(t *testing.T) {
 	tests := []struct {
 		name        string

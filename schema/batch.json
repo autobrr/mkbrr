@@ -65,6 +65,11 @@
             "description": "Don't write creation date",
             "default": false
           },
+          "entropy": {
+            "type": "boolean",
+            "description": "Randomize info hash by adding entropy field",
+            "default": false
+          },
           "exclude_patterns": {
             "type": "array",
             "description": "List of glob patterns to exclude files (e.g., \"*.nfo\", \"*sample*\")",
