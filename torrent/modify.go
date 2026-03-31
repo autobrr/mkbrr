@@ -32,7 +32,7 @@ type ModifyOptions struct {
 	DryRun         bool
 	Verbose        bool
 	Quiet          bool
-	Entropy        bool
+	Entropy        *bool
 	SkipPrefix     bool
 }
 
@@ -177,12 +177,12 @@ func ModifyTorrent(path string, opts ModifyOptions) (*Result, error) {
 	}
 
 	// apply entropy from preset if not explicitly set via flag
-	if !opts.Entropy && presetOpts != nil && presetOpts.Entropy != nil && *presetOpts.Entropy {
-		opts.Entropy = true
+	if opts.Entropy == nil && presetOpts != nil && presetOpts.Entropy != nil {
+		opts.Entropy = presetOpts.Entropy
 	}
 
 	// add random entropy field for cross-seeding if enabled
-	if opts.Entropy {
+	if opts.Entropy != nil && *opts.Entropy {
 		infoMap := make(map[string]interface{})
 		if err := bencode.Unmarshal(mi.InfoBytes, &infoMap); err == nil {
 			if entropy, err := generateRandomString(); err == nil {

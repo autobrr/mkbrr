@@ -95,12 +95,15 @@ func buildTorrentOptions(cmd *cobra.Command, opts modifyOptions) torrent.ModifyO
 		Comment:       opts.Comment,
 		Source:        opts.Source,
 		Version:       version,
-		Entropy:       opts.Entropy,
 		SkipPrefix:    opts.SkipPrefix,
 	}
 
 	if cmd.Flags().Changed("private") {
 		torrentOpts.IsPrivate = &opts.Private
+	}
+
+	if cmd.Flags().Changed("entropy") {
+		torrentOpts.Entropy = &opts.Entropy
 	}
 
 	return torrentOpts
