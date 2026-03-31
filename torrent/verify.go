@@ -194,7 +194,10 @@ func VerifyData(opts VerifyOptions) (*VerificationResult, error) {
 			currentOffset += f.Length
 		}
 		for i := range mappedFiles {
-			relPath, _ := filepath.Rel(baseContentPath, mappedFiles[i].path)
+			relPath, err := filepath.Rel(baseContentPath, mappedFiles[i].path)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get relative path for %q: %w", mappedFiles[i].path, err)
+			}
 			relPath = filepath.ToSlash(relPath)
 			mappedFiles[i].offset = torrentOffsets[relPath]
 		}

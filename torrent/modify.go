@@ -196,10 +196,13 @@ func ModifyTorrent(path string, opts ModifyOptions) (*Result, error) {
 
 	// add random entropy field for cross-seeding if enabled
 	if opts.Entropy != nil && *opts.Entropy {
-		if entropy, err := generateRandomString(); err == nil {
-			infoChanges = append(infoChanges, infoChange{key: "entropy", value: entropy})
-			wasModified = true
+		entropy, err := generateRandomString()
+		if err != nil {
+			result.Error = fmt.Errorf("could not generate entropy: %w", err)
+			return result, result.Error
 		}
+		infoChanges = append(infoChanges, infoChange{key: "entropy", value: entropy})
+		wasModified = true
 	}
 
 	// apply all info-level changes via raw map to preserve custom keys
