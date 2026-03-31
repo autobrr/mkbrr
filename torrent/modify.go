@@ -150,7 +150,7 @@ func ModifyTorrent(path string, opts ModifyOptions) (*Result, error) {
 
 	// update comment if provided via flag (CommentSet allows clearing with empty string)
 	if opts.CommentSet {
-		if mi.Comment != opts.Comment {
+		if opts.Comment == "" || mi.Comment != opts.Comment {
 			mi.Comment = opts.Comment
 			wasModified = true
 		}
@@ -205,18 +205,23 @@ func ModifyTorrent(path string, opts ModifyOptions) (*Result, error) {
 	// apply all info-level changes via raw map to preserve custom keys
 	if len(infoChanges) > 0 {
 		infoMap := make(map[string]any)
-		if err := bencode.Unmarshal(mi.InfoBytes, &infoMap); err == nil {
-			for _, c := range infoChanges {
-				if c.remove {
-					delete(infoMap, c.key)
-				} else {
-					infoMap[c.key] = c.value
-				}
-			}
-			if infoBytes, err := bencode.Marshal(infoMap); err == nil {
-				mi.InfoBytes = infoBytes
+		if err := bencode.Unmarshal(mi.InfoBytes, &infoMap); err != nil {
+			result.Error = fmt.Errorf("could not unmarshal info map: %w", err)
+			return result, result.Error
+		}
+		for _, c := range infoChanges {
+			if c.remove {
+				delete(infoMap, c.key)
+			} else {
+				infoMap[c.key] = c.value
 			}
 		}
+		infoBytes, err := bencode.Marshal(infoMap)
+		if err != nil {
+			result.Error = fmt.Errorf("could not marshal info map: %w", err)
+			return result, result.Error
+		}
+		mi.InfoBytes = infoBytes
 	}
 
 	// handle creator

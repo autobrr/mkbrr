@@ -269,18 +269,21 @@ func (o *Options) ApplyToMetaInfo(mi *metainfo.MetaInfo) (bool, error) {
 	// apply info-level changes via raw map to preserve custom keys
 	if len(infoChanges) > 0 {
 		infoMap := make(map[string]any)
-		if err := bencode.Unmarshal(mi.InfoBytes, &infoMap); err == nil {
-			for _, c := range infoChanges {
-				if c.remove {
-					delete(infoMap, c.key)
-				} else {
-					infoMap[c.key] = c.value
-				}
-			}
-			if infoBytes, err := bencode.Marshal(infoMap); err == nil {
-				mi.InfoBytes = infoBytes
+		if err := bencode.Unmarshal(mi.InfoBytes, &infoMap); err != nil {
+			return false, fmt.Errorf("could not unmarshal info map: %w", err)
+		}
+		for _, c := range infoChanges {
+			if c.remove {
+				delete(infoMap, c.key)
+			} else {
+				infoMap[c.key] = c.value
 			}
 		}
+		infoBytes, err := bencode.Marshal(infoMap)
+		if err != nil {
+			return false, fmt.Errorf("could not marshal info map: %w", err)
+		}
+		mi.InfoBytes = infoBytes
 	}
 
 	return wasModified, nil
