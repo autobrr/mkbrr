@@ -183,11 +183,21 @@ func VerifyData(opts VerifyOptions) (*VerificationResult, error) {
 		})
 	}
 
-	// Recalculate offsets after sorting
-	currentOffset := int64(0)
-	for i := range mappedFiles {
-		mappedFiles[i].offset = currentOffset
-		currentOffset += mappedFiles[i].length
+	// Assign torrent-level byte offsets (not compacted) so piece verification
+	// uses the correct position in the torrent's logical byte stream.
+	if info.IsDir() && len(info.Files) > 0 {
+		torrentOffsets := make(map[string]int64)
+		currentOffset := int64(0)
+		for _, f := range info.Files {
+			relPath := filepath.ToSlash(filepath.Join(f.Path...))
+			torrentOffsets[relPath] = currentOffset
+			currentOffset += f.Length
+		}
+		for i := range mappedFiles {
+			relPath, _ := filepath.Rel(baseContentPath, mappedFiles[i].path)
+			relPath = filepath.ToSlash(relPath)
+			mappedFiles[i].offset = torrentOffsets[relPath]
+		}
 	}
 
 	// 4. Initialize Verifier

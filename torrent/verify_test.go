@@ -399,16 +399,23 @@ func TestVerifyData_MissingFile(t *testing.T) {
 	if result.MissingFiles[0] != filepath.ToSlash(deletedFilePathRel) {
 		t.Errorf("Expected missing file '%s', got '%s'", deletedFilePathRel, result.MissingFiles[0])
 	}
-	// Depending on implementation, missing files might contribute to BadPieces or MissingPieces
-	// Let's check that completion is not 100% and GoodPieces < TotalPieces
-	if result.GoodPieces == int(numPieces) {
-		t.Errorf("Expected fewer good pieces than total due to missing file, got %d/%d", result.GoodPieces, numPieces)
+	// Present files should be fully verified as good.
+	// Missing file pieces should not count against completion.
+	expectedGoodPieces := int(numPieces) - result.MissingPieces
+	if result.GoodPieces != expectedGoodPieces {
+		t.Errorf("Expected %d good pieces (total %d minus %d missing), got %d", expectedGoodPieces, numPieces, result.MissingPieces, result.GoodPieces)
 	}
-	if result.Completion == 100.0 {
-		t.Errorf("Expected completion less than 100.0 due to missing file, got %.2f", result.Completion)
+	if result.BadPieces != 0 {
+		t.Errorf("Expected 0 bad pieces (present files are intact), got %d", result.BadPieces)
 	}
-	// BadPieces count might vary depending on how many pieces the missing file spanned
-	t.Logf("Verification result: %d/%d good, %d bad, %d missing pieces (approx), %d missing files, %.2f%% complete",
+	if result.MissingPieces == 0 {
+		t.Errorf("Expected some missing pieces due to deleted file, got 0")
+	}
+	// Completion of checkable pieces should be 100% since present files are intact
+	if result.Completion != 100.0 {
+		t.Errorf("Expected 100.0%% completion of checkable pieces, got %.2f", result.Completion)
+	}
+	t.Logf("Verification result: %d/%d good, %d bad, %d missing pieces, %d missing files, %.2f%% complete",
 		result.GoodPieces, result.TotalPieces, result.BadPieces, result.MissingPieces, len(result.MissingFiles), result.Completion)
 }
 
@@ -470,14 +477,154 @@ func TestVerifyData_SizeMismatch(t *testing.T) {
 	if result.MissingFiles[0] != expectedMismatchString {
 		t.Errorf("Expected mismatched file '%s', got '%s'", expectedMismatchString, result.MissingFiles[0])
 	}
-	if result.GoodPieces == int(numPieces) {
-		t.Errorf("Expected fewer good pieces than total due to size mismatch, got %d/%d", result.GoodPieces, numPieces)
+	// Present files should be fully verified as good.
+	expectedGoodPieces := int(numPieces) - result.MissingPieces
+	if result.GoodPieces != expectedGoodPieces {
+		t.Errorf("Expected %d good pieces (total %d minus %d missing), got %d", expectedGoodPieces, numPieces, result.MissingPieces, result.GoodPieces)
 	}
-	if result.Completion == 100.0 {
-		t.Errorf("Expected completion less than 100.0 due to size mismatch, got %.2f", result.Completion)
+	if result.BadPieces != 0 {
+		t.Errorf("Expected 0 bad pieces (present files are intact), got %d", result.BadPieces)
 	}
-	t.Logf("Verification result: %d/%d good, %d bad, %d missing pieces (approx), %d missing/mismatched files, %.2f%% complete",
+	if result.MissingPieces == 0 {
+		t.Errorf("Expected some missing pieces due to size mismatch, got 0")
+	}
+	// Completion of checkable pieces should be 100% since present files are intact
+	if result.Completion != 100.0 {
+		t.Errorf("Expected 100.0%% completion of checkable pieces, got %.2f", result.Completion)
+	}
+	t.Logf("Verification result: %d/%d good, %d bad, %d missing pieces, %d missing/mismatched files, %.2f%% complete",
 		result.GoodPieces, result.TotalPieces, result.BadPieces, result.MissingPieces, len(result.MissingFiles), result.Completion)
+}
+
+// TestVerifyData_BoundaryPiece verifies that when a missing file shares a piece
+// boundary with present files, the boundary pieces are correctly marked as missing
+// (not good or bad), and corruption in a present file is still detected.
+func TestVerifyData_BoundaryPiece(t *testing.T) {
+	// Use file sizes that DON'T align with piece length so pieces span file boundaries.
+	// Piece size: 64 KiB. Files: 80 KiB, 80 KiB, 80 KiB = 240 KiB total.
+	// Pieces: ceil(240K / 64K) = 4 pieces (last piece is 48 KiB).
+	//
+	// Byte layout:
+	//   Piece 0: [file0: 0-64K)
+	//   Piece 1: [file0: 64K-80K) + [file1: 0-48K)    ← spans file0/file1 boundary
+	//   Piece 2: [file1: 48K-80K) + [file2: 0-32K)    ← spans file1/file2 boundary
+	//   Piece 3: [file2: 32K-80K)                      ← last piece (48 KiB)
+	//
+	// When file1 is deleted: pieces 1 and 2 overlap the missing range and should
+	// be marked as missing. Pieces 0 and 3 cover only present files.
+	pieceLenExp := uint(16) // 64 KiB
+	pieceLen := int64(1 << pieceLenExp)
+	fileSize := int64(80 * 1024) // 80 KiB — not a multiple of 64 KiB
+
+	tempDir, err := os.MkdirTemp("", "verify_boundary_")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	t.Cleanup(func() { os.RemoveAll(tempDir) })
+
+	contentDir := filepath.Join(tempDir, "content")
+	if err := os.Mkdir(contentDir, 0755); err != nil {
+		t.Fatalf("failed to create content dir: %v", err)
+	}
+
+	// Create 3 files with deterministic content
+	for i := 0; i < 3; i++ {
+		data := make([]byte, fileSize)
+		for j := range data {
+			data[j] = byte((i*37 + j*13) % 251)
+		}
+		path := filepath.Join(contentDir, fmt.Sprintf("file_%d.dat", i))
+		if err := os.WriteFile(path, data, 0644); err != nil {
+			t.Fatalf("failed to write file_%d: %v", i, err)
+		}
+	}
+
+	// Create torrent
+	torrentPath := filepath.Join(tempDir, "boundary.torrent")
+	createOpts := CreateOptions{
+		Path:           contentDir,
+		OutputPath:     torrentPath,
+		PieceLengthExp: &pieceLenExp,
+		IsPrivate:      false, NoCreator: true, NoDate: true,
+	}
+	_, err = Create(createOpts)
+	if err != nil {
+		t.Fatalf("Failed to create torrent: %v", err)
+	}
+
+	// Delete the middle file (file_1.dat)
+	if err := os.Remove(filepath.Join(contentDir, "file_1.dat")); err != nil {
+		t.Fatalf("Failed to delete file_1: %v", err)
+	}
+
+	// Verify
+	result, err := VerifyData(VerifyOptions{
+		TorrentPath: torrentPath,
+		ContentPath: contentDir,
+		Verbose:     true,
+	})
+	if err != nil {
+		t.Fatalf("VerifyData failed: %v", err)
+	}
+
+	totalSize := fileSize * 3
+	numPieces := int((totalSize + pieceLen - 1) / pieceLen)
+
+	if result.TotalPieces != numPieces {
+		t.Errorf("Expected %d total pieces, got %d", numPieces, result.TotalPieces)
+	}
+	if len(result.MissingFiles) != 1 {
+		t.Fatalf("Expected 1 missing file, got %d: %v", len(result.MissingFiles), result.MissingFiles)
+	}
+	// Pieces 1 and 2 span the missing file, so they should be missing.
+	// Pieces 0 and 3 cover only present files and should be good.
+	if result.GoodPieces != 2 {
+		t.Errorf("Expected 2 good pieces (pieces 0 and 3), got %d", result.GoodPieces)
+	}
+	if result.BadPieces != 0 {
+		t.Errorf("Expected 0 bad pieces, got %d", result.BadPieces)
+	}
+	if result.MissingPieces != 2 {
+		t.Errorf("Expected 2 missing pieces (boundary pieces 1 and 2), got %d", result.MissingPieces)
+	}
+	if result.Completion != 100.0 {
+		t.Errorf("Expected 100.0%% completion of checkable pieces, got %.2f", result.Completion)
+	}
+
+	// Now corrupt file_2.dat (present file after the gap) to verify corruption is still detected.
+	file2Path := filepath.Join(contentDir, "file_2.dat")
+	data, err := os.ReadFile(file2Path)
+	if err != nil {
+		t.Fatalf("Failed to read file_2: %v", err)
+	}
+	data[len(data)-1] ^= 0xFF // Flip last byte — this is in piece 3
+	if err := os.WriteFile(file2Path, data, 0644); err != nil {
+		t.Fatalf("Failed to write corrupted file_2: %v", err)
+	}
+
+	result2, err := VerifyData(VerifyOptions{
+		TorrentPath: torrentPath,
+		ContentPath: contentDir,
+		Verbose:     true,
+	})
+	if err != nil {
+		t.Fatalf("VerifyData failed after corruption: %v", err)
+	}
+
+	if result2.GoodPieces != 1 {
+		t.Errorf("After corruption: expected 1 good piece (piece 0 only), got %d", result2.GoodPieces)
+	}
+	if result2.BadPieces != 1 {
+		t.Errorf("After corruption: expected 1 bad piece (piece 3), got %d", result2.BadPieces)
+	}
+	if result2.MissingPieces != 2 {
+		t.Errorf("After corruption: expected 2 missing pieces, got %d", result2.MissingPieces)
+	}
+	if result2.Completion >= 100.0 {
+		t.Errorf("After corruption: expected completion < 100%%, got %.2f", result2.Completion)
+	}
+	t.Logf("Boundary test: %d/%d good, %d bad, %d missing, %.2f%% complete",
+		result2.GoodPieces, result2.TotalPieces, result2.BadPieces, result2.MissingPieces, result2.Completion)
 }
 
 func TestVerifyData_SingleFileInDir(t *testing.T) {
