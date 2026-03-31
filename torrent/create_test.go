@@ -282,6 +282,62 @@ func TestCreateTorrent_IgnoresSynologyMetadataDir(t *testing.T) {
 	}
 }
 
+func TestCreateTorrent_SingleFilePatterns(t *testing.T) {
+	rootDir := t.TempDir()
+	filePath := filepath.Join(rootDir, "movie.mkv")
+	if err := os.WriteFile(filePath, []byte("video data"), 0o644); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	tests := []struct {
+		name            string
+		excludePatterns []string
+		includePatterns []string
+		wantErr         bool
+	}{
+		{
+			name:            "exclude matching single file",
+			excludePatterns: []string{"*.mkv"},
+			wantErr:         true,
+		},
+		{
+			name:            "include non-matching single file",
+			includePatterns: []string{"*.mp4"},
+			wantErr:         true,
+		},
+		{
+			name:            "include matching single file",
+			includePatterns: []string{"*.mkv"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := CreateOptions{
+				Path:            filePath,
+				ExcludePatterns: tt.excludePatterns,
+				IncludePatterns: tt.includePatterns,
+				NoCreator:       true,
+				NoDate:          true,
+			}
+
+			tor, err := CreateTorrent(opts)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("CreateTorrent() error = %v", err)
+			}
+			if tor.GetInfo().Length == 0 {
+				t.Fatalf("expected single-file torrent length to be set")
+			}
+		})
+	}
+}
+
 func TestCreateTorrent_OutputDirPriority(t *testing.T) {
 	// Setup temporary directories for test
 	tmpDir, err := os.MkdirTemp("", "mkbrr-create-test")

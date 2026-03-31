@@ -207,6 +207,8 @@ func shouldIgnoreEntry(relPath string, isDir bool, excludePatterns []string, inc
 		if !matchesInclude {
 			return true, nil // Ignore file because no include pattern matched
 		}
+
+		return false, nil // Keep file because include patterns are a whitelist
 	}
 
 	// 4. Check exclude patterns

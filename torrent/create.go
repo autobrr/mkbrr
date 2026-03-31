@@ -158,10 +158,19 @@ func CreateTorrent(opts CreateOptions) (*Torrent, error) {
 	var baseDir string
 	originalPaths := make(map[string]string) // map resolved path -> original path for metainfo
 
+	inputInfo, err := os.Stat(path)
+	if err != nil {
+		return nil, fmt.Errorf("error checking path: %w", err)
+	}
+
 	// Clean the base path for computing relative paths
 	cleanBasePath := filepath.Clean(path)
+	matchBasePath := cleanBasePath
+	if !inputInfo.IsDir() {
+		matchBasePath = filepath.Dir(cleanBasePath)
+	}
 
-	err := filepath.Walk(path, func(currentPath string, walkInfo os.FileInfo, walkErr error) error {
+	err = filepath.Walk(path, func(currentPath string, walkInfo os.FileInfo, walkErr error) error {
 		if walkErr != nil {
 			// check if the error is due to a broken symlink during walk
 			// if lstat works but stat fails, it's likely a broken link we might handle later
@@ -205,7 +214,7 @@ func CreateTorrent(opts CreateOptions) (*Torrent, error) {
 		}
 
 		// Compute relative path from torrent root for glob matching
-		relPath, err := filepath.Rel(cleanBasePath, currentPath)
+		relPath, err := filepath.Rel(matchBasePath, currentPath)
 		if err != nil {
 			return fmt.Errorf("error calculating relative path for %q: %w", currentPath, err)
 		}

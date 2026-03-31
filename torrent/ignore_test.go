@@ -489,6 +489,14 @@ func TestShouldIgnoreEntry(t *testing.T) {
 			excludePatterns: []string{"*.{nfo,txt,jpg}"},
 			wantIgnore:      true,
 		},
+		{
+			name:            "include match keeps file even when exclude also matches",
+			relPath:         "sample.mkv",
+			isDir:           false,
+			excludePatterns: []string{"sample*"},
+			includePatterns: []string{"*.mkv"},
+			wantIgnore:      false,
+		},
 
 		// Regression: pattern with specific file should NOT skip entire directory
 		{
