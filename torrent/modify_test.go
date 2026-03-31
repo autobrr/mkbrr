@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/anacrolix/torrent/bencode"
 )
 
 func TestModifyTorrent_OutputDirPriority(t *testing.T) {
@@ -193,6 +195,78 @@ func TestModifyTorrent_MultipleAndNoTrackers(t *testing.T) {
 			t.Errorf("AnnounceList should be empty or nil when no tracker, got %#v", mi.AnnounceList)
 		}
 	})
+}
+
+func TestModifyTorrent_PresetEntropy(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "mkbrr-modify-entropy-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	dummyFilePath := filepath.Join(tmpDir, "dummy.txt")
+	if err := os.WriteFile(dummyFilePath, []byte("test content for entropy"), 0644); err != nil {
+		t.Fatalf("Failed to create dummy file: %v", err)
+	}
+
+	torrentPath := filepath.Join(tmpDir, "test.torrent")
+	torrent, err := Create(CreateOptions{
+		Path:       tmpDir,
+		OutputPath: torrentPath,
+		IsPrivate:  true,
+		NoDate:     true,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create test torrent: %v", err)
+	}
+
+	// Create preset file with entropy: true
+	presetDir := filepath.Join(tmpDir, "presets")
+	if err := os.Mkdir(presetDir, 0755); err != nil {
+		t.Fatalf("Failed to create presets dir: %v", err)
+	}
+	presetPath := filepath.Join(presetDir, "presets.yaml")
+	presetConfig := `version: 1
+presets:
+  entropy_test:
+    private: true
+    source: "TEST"
+    entropy: true
+`
+	if err := os.WriteFile(presetPath, []byte(presetConfig), 0644); err != nil {
+		t.Fatalf("Failed to write preset config: %v", err)
+	}
+
+	opts := ModifyOptions{
+		PresetName: "entropy_test",
+		PresetFile: presetPath,
+		OutputDir:  tmpDir,
+		Version:    "test",
+	}
+
+	result, err := ModifyTorrent(torrent.Path, opts)
+	if err != nil {
+		t.Fatalf("ModifyTorrent failed: %v", err)
+	}
+
+	if !result.WasModified {
+		t.Fatal("Expected torrent to be modified")
+	}
+
+	// Load modified torrent and check for entropy field in info dict
+	mi, err := LoadFromFile(result.OutputPath)
+	if err != nil {
+		t.Fatalf("Failed to load modified torrent: %v", err)
+	}
+
+	infoMap := make(map[string]interface{})
+	if err := bencode.Unmarshal(mi.InfoBytes, &infoMap); err != nil {
+		t.Fatalf("Failed to unmarshal info bytes: %v", err)
+	}
+
+	if _, ok := infoMap["entropy"]; !ok {
+		t.Error("Expected entropy field in info dict when preset has entropy: true")
+	}
 }
 
 func TestModify_NameArgument(t *testing.T) {

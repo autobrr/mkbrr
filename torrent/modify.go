@@ -176,6 +176,11 @@ func ModifyTorrent(path string, opts ModifyOptions) (*Result, error) {
 		}
 	}
 
+	// apply entropy from preset if not explicitly set via flag
+	if !opts.Entropy && presetOpts != nil && presetOpts.Entropy != nil && *presetOpts.Entropy {
+		opts.Entropy = true
+	}
+
 	// add random entropy field for cross-seeding if enabled
 	if opts.Entropy {
 		infoMap := make(map[string]interface{})
