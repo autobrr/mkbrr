@@ -52,6 +52,11 @@
             "minimum": 14,
             "maximum": 24
           },
+          "target_piece_count": {
+            "type": "integer",
+            "description": "Target approximate number of pieces (calculates optimal piece length). Mutually exclusive with piece_length.",
+            "minimum": 1
+          },
           "comment": {
             "type": "string",
             "description": "Torrent comment"

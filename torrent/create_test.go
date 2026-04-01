@@ -121,6 +121,165 @@ func Test_calculatePieceLength(t *testing.T) {
 	}
 }
 
+func Test_calculatePieceLengthFromTarget(t *testing.T) {
+	tests := []struct {
+		name           string
+		totalSize      int64
+		targetCount    uint
+		maxPieceLength *uint
+		trackerURLs    []string
+		wantExp        uint
+	}{
+		{
+			name:        "10GB with target 1000 pieces",
+			totalSize:   10 << 30,
+			targetCount: 1000,
+			wantExp:     23, // 8 MiB → ~1280 pieces
+		},
+		{
+			name:        "1MiB with target 1000 pieces clamps to minimum",
+			totalSize:   1 << 20,
+			targetCount: 1000,
+			wantExp:     16, // 64 KiB minimum
+		},
+		{
+			name:        "100GB with target 50 clamps to default max",
+			totalSize:   100 << 30,
+			targetCount: 50,
+			wantExp:     24, // 16 MiB default cap
+		},
+		{
+			name:        "totalSize smaller than targetCount",
+			totalSize:   100,
+			targetCount: 1000,
+			wantExp:     16, // ratio=0, clamps to min
+		},
+		{
+			name:        "exact power of 2: 8GB target 1024",
+			totalSize:   8 << 30,
+			targetCount: 1024,
+			wantExp:     23, // 8 MiB exactly
+		},
+		{
+			name:        "tracker cap: emp limits to 2^23",
+			totalSize:   100 << 30,
+			targetCount: 50,
+			trackerURLs: []string{"https://empornium.sx/announce?passkey=123"},
+			wantExp:     23, // emp max is 23
+		},
+		{
+			name:           "maxPieceLength lowers ceiling",
+			totalSize:      100 << 30,
+			targetCount:    50,
+			maxPieceLength: uintPtr(22),
+			wantExp:        22,
+		},
+		{
+			name:           "maxPieceLength raises ceiling above default 24 (no tracker)",
+			totalSize:      100 << 30,
+			targetCount:    50,
+			maxPieceLength: uintPtr(27),
+			wantExp:        27, // 100GB/50 ≈ 2GB = 2^31, floor(log2) = 30, clamped to 27
+		},
+		{
+			name:           "maxPieceLength cannot exceed tracker cap",
+			totalSize:      100 << 30,
+			targetCount:    50,
+			maxPieceLength: uintPtr(27),
+			trackerURLs:    []string{"https://empornium.sx/announce?passkey=123"},
+			wantExp:        23, // emp cap is 23, user's 27 is clamped down
+		},
+		{
+			name:        "target 1 piece gives max exp",
+			totalSize:   10 << 30,
+			targetCount: 1,
+			wantExp:     24, // capped at default max (no maxPieceLength set)
+		},
+		{
+			name:        "4GB with target 500",
+			totalSize:   4 << 30,
+			targetCount: 500,
+			wantExp:     23, // ~4GB/500 = ~8MiB = 2^23
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := calculatePieceLengthFromTarget(tt.totalSize, tt.targetCount, tt.maxPieceLength, tt.trackerURLs, false)
+			if got != tt.wantExp {
+				t.Errorf("calculatePieceLengthFromTarget() = %v, want %v", got, tt.wantExp)
+			}
+		})
+	}
+}
+
+func TestCreateTorrent_TargetPieceCount(t *testing.T) {
+	// integration test: create a real torrent with target piece count
+	dir := t.TempDir()
+
+	// create a 4 MiB file
+	data := make([]byte, 4<<20)
+	if err := os.WriteFile(filepath.Join(dir, "testfile.bin"), data, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	target := uint(100)
+	tor, err := CreateTorrent(CreateOptions{
+		Path:             dir,
+		TargetPieceCount: &target,
+		IsPrivate:        true,
+		NoDate:           true,
+		NoCreator:        true,
+		Version:          "test",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	info, err := tor.UnmarshalInfo()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	numPieces := len(info.Pieces) / 20 // SHA1 hash is 20 bytes
+	// with 4 MiB content and target 100 pieces, we expect exp=16 (64 KiB)
+	// which gives 4 MiB / 64 KiB = 64 pieces
+	// (ratio = 4MiB/100 ≈ 40KiB, floor(log2(40K)) = 15, clamped to min 16)
+	if numPieces < 1 || numPieces > 200 {
+		t.Errorf("unexpected piece count %d for 4 MiB content with target 100", numPieces)
+	}
+
+	if info.PieceLength == 0 {
+		t.Error("piece length should not be zero")
+	}
+}
+
+func TestCreateTorrent_TargetPieceCountZero(t *testing.T) {
+	dir := t.TempDir()
+	data := make([]byte, 1<<20)
+	if err := os.WriteFile(filepath.Join(dir, "testfile.bin"), data, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	zero := uint(0)
+	_, err := CreateTorrent(CreateOptions{
+		Path:             dir,
+		TargetPieceCount: &zero,
+		IsPrivate:        true,
+		NoDate:           true,
+		NoCreator:        true,
+		Version:          "test",
+	})
+	if err == nil {
+		t.Fatal("expected error for target piece count of zero")
+	}
+	if !strings.Contains(err.Error(), "greater than zero") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+func uintPtr(v uint) *uint { return &v }
+
 func TestCreateTorrent_Symlink(t *testing.T) {
 	// Skip symlink tests on Windows as it requires special privileges
 	if runtime.GOOS == "windows" {

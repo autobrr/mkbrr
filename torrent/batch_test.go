@@ -222,6 +222,16 @@ jobs:
 jobs: []`,
 			expectError: true,
 		},
+		{
+			name: "piece_length and target_piece_count conflict",
+			config: `version: 1
+jobs:
+  - output: test.torrent
+    path: test.txt
+    piece_length: 20
+    target_piece_count: 1000`,
+			expectError: true,
+		},
 	}
 
 	for _, tt := range tests {

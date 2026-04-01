@@ -40,6 +40,11 @@
           "minimum": 16,
           "maximum": 27
         },
+        "target_piece_count": {
+          "type": "integer",
+          "description": "Target approximate number of pieces (calculates optimal piece length). Mutually exclusive with piece_length.",
+          "minimum": 1
+        },
         "comment": {
           "type": "string",
           "description": "Torrent comment"
@@ -100,6 +105,11 @@
             "description": "Piece length as 2^n bytes (16-27)",
             "minimum": 16,
             "maximum": 27
+          },
+          "target_piece_count": {
+            "type": "integer",
+            "description": "Target approximate number of pieces (calculates optimal piece length). Mutually exclusive with piece_length.",
+            "minimum": 1
           },
           "comment": {
             "type": "string",

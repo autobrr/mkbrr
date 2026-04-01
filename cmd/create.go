@@ -19,6 +19,7 @@ import (
 type createOptions struct {
 	pieceLengthExp      *uint
 	maxPieceLengthExp   *uint
+	targetPieceCount    *uint
 	trackers            []string
 	comment             string
 	name                string
@@ -87,15 +88,19 @@ func init() {
 	createCmd.Flags().BoolVarP(&options.isPrivate, "private", "p", true, "make torrent private")
 	createCmd.Flags().StringVarP(&options.comment, "comment", "c", "", "add comment")
 
-	var defaultPieceLength, defaultMaxPieceLength uint
+	var defaultPieceLength, defaultMaxPieceLength, defaultTargetPieceCount uint
 	createCmd.Flags().UintVarP(&defaultPieceLength, "piece-length", "l", 0, "set piece length to 2^n bytes (16-27, automatic if not specified)")
 	createCmd.Flags().UintVarP(&defaultMaxPieceLength, "max-piece-length", "m", 0, "limit maximum piece length to 2^n bytes (16-27, unlimited if not specified)")
+	createCmd.Flags().UintVar(&defaultTargetPieceCount, "target-piece-count", 0, "target approximate number of pieces (calculates optimal piece length)")
 	createCmd.PreRun = func(cmd *cobra.Command, args []string) {
 		if cmd.Flags().Changed("piece-length") {
 			options.pieceLengthExp = &defaultPieceLength
 		}
 		if cmd.Flags().Changed("max-piece-length") {
 			options.maxPieceLengthExp = &defaultMaxPieceLength
+		}
+		if cmd.Flags().Changed("target-piece-count") {
+			options.targetPieceCount = &defaultTargetPieceCount
 		}
 	}
 
@@ -180,6 +185,7 @@ func buildCreateOptions(cmd *cobra.Command, inputPath string, opts createOptions
 		Comment:                 opts.comment,
 		PieceLengthExp:          opts.pieceLengthExp,
 		MaxPieceLength:          opts.maxPieceLengthExp,
+		TargetPieceCount:        opts.targetPieceCount,
 		Source:                  opts.source,
 		NoDate:                  opts.noDate,
 		NoCreator:               opts.noCreator,
@@ -244,9 +250,16 @@ func buildCreateOptions(cmd *cobra.Command, inputPath string, opts createOptions
 			createOpts.SkipPrefix = *presetOpts.SkipPrefix
 		}
 
-		if presetOpts.PieceLength != 0 && !cmd.Flags().Changed("piece-length") {
+		// piece_length and target_piece_count are cross-flag aware:
+		// CLI --target-piece-count suppresses preset piece_length and vice versa
+		if presetOpts.PieceLength != 0 && !cmd.Flags().Changed("piece-length") && !cmd.Flags().Changed("target-piece-count") {
 			pieceLen := presetOpts.PieceLength
 			createOpts.PieceLengthExp = &pieceLen
+		}
+
+		if presetOpts.TargetPieceCount != 0 && !cmd.Flags().Changed("target-piece-count") && !cmd.Flags().Changed("piece-length") {
+			count := presetOpts.TargetPieceCount
+			createOpts.TargetPieceCount = &count
 		}
 
 		if presetOpts.MaxPieceLength != 0 && !cmd.Flags().Changed("max-piece-length") {
@@ -288,6 +301,11 @@ func buildCreateOptions(cmd *cobra.Command, inputPath string, opts createOptions
 		if trackerSource, ok := trackers.GetTrackerDefaultSource(createOpts.TrackerURLs[0]); ok {
 			createOpts.Source = trackerSource
 		}
+	}
+
+	// validate: piece_length and target_piece_count are mutually exclusive after all merging
+	if createOpts.PieceLengthExp != nil && createOpts.TargetPieceCount != nil {
+		return createOpts, fmt.Errorf("cannot use both --piece-length and --target-piece-count; use one or the other")
 	}
 
 	if opts.outputPath != "" {

@@ -37,6 +37,7 @@ type Options struct {
 	IncludePatterns     []string `yaml:"include_patterns"`
 	PieceLength         uint     `yaml:"piece_length"`
 	MaxPieceLength      uint     `yaml:"max_piece_length"`
+	TargetPieceCount    uint     `yaml:"target_piece_count"`
 	Workers             int      `yaml:"workers"`
 }
 
@@ -135,6 +136,7 @@ func (c *Config) GetPreset(name string) (*Options, error) {
 		merged.OutputDir = c.Default.OutputDir
 		merged.PieceLength = c.Default.PieceLength
 		merged.MaxPieceLength = c.Default.MaxPieceLength
+		merged.TargetPieceCount = c.Default.TargetPieceCount
 		merged.Workers = c.Default.Workers
 		if len(c.Default.ExcludePatterns) > 0 {
 			merged.ExcludePatterns = c.Default.ExcludePatterns
@@ -165,9 +167,14 @@ func (c *Config) GetPreset(name string) (*Options, error) {
 	}
 	if preset.PieceLength != 0 {
 		merged.PieceLength = preset.PieceLength
+		merged.TargetPieceCount = 0 // mutually exclusive: preset override clears inherited value
 	}
 	if preset.MaxPieceLength != 0 {
 		merged.MaxPieceLength = preset.MaxPieceLength
+	}
+	if preset.TargetPieceCount != 0 {
+		merged.TargetPieceCount = preset.TargetPieceCount
+		merged.PieceLength = 0 // mutually exclusive: preset override clears inherited value
 	}
 	if preset.Private != nil {
 		merged.Private = preset.Private
