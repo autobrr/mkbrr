@@ -1,93 +1,118 @@
 ---
 name: docs
-description: Check if mkbrr.com docs need updating and create a PR if so. Use when shipping user-facing features, adding CLI flags, changing config formats, or modifying preset/batch behavior. Triggers on "/docs", "update docs", "docs check", "docs sync", or after shipping features that change how users interact with mkbrr.
+description: Check if mkbrr.com docs need updating and create a PR if so. Two modes — targeted (on a feature branch, sync specific changes) and sweep (on main, audit entire docs site against codebase for drift). Triggers on "/docs", "update docs", "docs check", "docs sweep", "docs audit", or after shipping features that change how users interact with mkbrr.
 ---
 
 # Docs Sync
 
-Check whether the mkbrr.com documentation site needs updating for recent changes, and create a PR if it does.
+Keep the mkbrr.com documentation site in sync with the mkbrr codebase.
 
-## Why this exists
+## Repos
 
-mkbrr has a separate docs site (repo: `s0up4200/mkbrr.com`, local: `/Users/soup/github/soup/mkbrr.com`). When user-facing features ship in the main repo (`/Users/soup/github/autobrr/mkbrr`), the docs site needs to stay in sync.
+- **mkbrr** (code): `/Users/soup/github/autobrr/mkbrr` (repo: `autobrr/mkbrr`)
+- **mkbrr.com** (docs): `/Users/soup/github/soup/mkbrr.com` (repo: `s0up4200/mkbrr.com`)
 
-## When docs need updating
+## Two modes
 
-**Yes:**
-- New CLI flags or flag behavior changes
-- New or modified preset config fields
-- New or modified batch config fields
-- Changes to tracker rules or constraints
-- New commands or subcommands
-- Changes to default behavior
+**Targeted mode** — on a feature branch, sync specific changes from that branch to docs.
+**Sweep mode** — on main (or anytime), audit the entire docs site against the current codebase for drift, missing info, or contradictions.
 
-**No:**
-- Bug fixes that don't change user-facing behavior
-- Internal refactors, test-only changes, performance improvements
+Pick the mode based on context:
+- Feature branch with uncommitted/recent work → targeted
+- On main, or user says "sweep"/"audit" → sweep
+- After a release → sweep
 
-## The docs site structure
+## Drift surface
 
-The docs site uses Mintlify (MDX files):
+Everything in the docs that can fall out of sync with the codebase. All docs paths are relative to the docs repo root.
 
-| What | Where |
-|------|-------|
-| CLI create flags | `snippets/create-params.mdx` (imported by `cli-reference/create.mdx` and `guides/creating-torrents.mdx`) |
-| Preset config reference | `features/presets.mdx` |
-| Batch config reference | `features/batch-mode.mdx` |
-| Tracker rules | `features/tracker-rules.mdx` |
-| Guides | `guides/` |
+| Area | Docs file(s) | Codebase source of truth |
+|------|-------------|-------------------------|
+| CLI create flags | `snippets/create-params.mdx` + shared `snippets/common-*.mdx` | `cmd/create.go` flag definitions in `init()` |
+| CLI modify flags | `snippets/modify-params.mdx` + shared `snippets/common-*.mdx` | `cmd/modify.go` flag definitions |
+| CLI check flags | `snippets/check-params.mdx` + shared `snippets/common-*.mdx` | `cmd/check.go` flag definitions |
+| CLI reference pages | `cli-reference/create.mdx`, `modify.mdx`, `check.mdx` | Same as above (examples, usage text can drift independently from param snippets) |
+| Quickstart examples | `quickstart.mdx` | Flag names, value ranges, and defaults in `cmd/create.go` |
+| Preset config fields | `features/presets.mdx` | `internal/preset/preset.go` `Options` struct |
+| Batch config fields | `features/batch-mode.mdx` | `torrent/batch.go` `BatchJob` struct |
+| Tracker rules table | `features/tracker-rules.mdx` | `internal/trackers/trackers.go` `trackerConfigs` slice |
+| Filtering defaults | `features/filtering.mdx` | Default exclude patterns in `torrent/create.go` and `torrent/ignore.go` |
+| Season pack detection | `features/season-packs.mdx` | `torrent/seasonfinder.go` regex patterns |
+| Piece size algorithm | `guides/creating-torrents.mdx`, `quickstart.mdx` | `torrent/create.go` `calculatePieceLength()` size tiers |
+| Modify capabilities | `guides/modifying-torrents.mdx`, `cli-reference/modify.mdx` | `torrent/modify.go` |
+| JSON schemas | Referenced in preset/batch docs | `schema/presets.json`, `schema/batch.json` |
+| Development commands | `development.mdx` | `Makefile` targets |
+| Installation methods | `installation.mdx` | Release artifacts, Dockerfile, package configs |
 
-## Process
+Note: the `snippets/common-*.mdx` files (e.g., `common-private.mdx`, `common-entropy.mdx`) are shared across multiple commands. A flag may be documented there rather than in the main params file — check both.
+
+## Targeted mode
+
+Use when on a feature branch with specific changes to sync.
 
 ### 1. Identify what changed
 
-Work from the mkbrr repo at `/Users/soup/github/autobrr/mkbrr`. Look at the current branch's diff against main:
+Work from the mkbrr repo at `/Users/soup/github/autobrr/mkbrr`. Look at the branch diff:
 
 ```bash
 git diff main...HEAD --stat
 ```
 
-Identify user-facing changes — new flags, config fields, behavior changes. If nothing is user-facing, tell the user "No docs update needed" and stop.
+Identify user-facing changes using the drift surface table. If nothing is user-facing, tell the user "No docs update needed" and stop.
 
 ### 2. Check for existing docs work
 
-Before creating anything, check if a docs PR already exists for this feature:
+Before creating anything:
 
 ```bash
 gh pr list --repo s0up4200/mkbrr.com --state open
-```
-
-Also check if a docs branch already exists locally:
-
-```bash
 cd /Users/soup/github/soup/mkbrr.com && git branch --list 'docs/*'
 ```
 
-If docs work already exists, review it for completeness against the changes identified in step 1. If it's complete, tell the user and stop. If it's incomplete, update the existing branch rather than creating a new one.
+If a docs PR/branch already exists for this feature, review it for completeness. If complete, tell the user and stop. If incomplete, update the existing branch.
 
-### 3. Find affected docs pages
+### 3. Find affected docs pages and update
 
-For each user-facing change, determine which docs files need updating using the table above. Read those files in the docs repo to understand the current style and structure.
+For each user-facing change, use the drift surface table to find the docs file(s). Read them in the docs repo, then make targeted edits — match surrounding style, keep changes minimal.
 
-### 4. Create a branch and make changes
+### 4. Ship it
 
-In the docs repo (`/Users/soup/github/soup/mkbrr.com`):
+In the docs repo:
 - Create a branch from main (e.g., `docs/feature-name`)
-- Make targeted edits — add new fields, flags, or sections alongside existing ones
-- Match the style and structure of surrounding content
-- Keep changes minimal — don't reorganize or rewrite existing docs
-
-### 5. Commit, push, and PR
-
-- Commit with a descriptive message (e.g., `docs: add target_piece_count option`)
+- Commit with a descriptive message
 - Push and create a PR on `s0up4200/mkbrr.com`
-- Reference the mkbrr PR in the body (e.g., `Documents changes from autobrr/mkbrr#156`)
-- Keep the PR body short
+- Reference the mkbrr PR in the body
+- Comment on the mkbrr PR with a link to the docs PR
 
-### 6. Link back
+## Sweep mode
 
-Comment on the mkbrr PR with a link to the docs PR:
+Use to audit the full docs site against the current codebase.
 
-```bash
-gh pr comment <mkbrr-pr-number> --repo autobrr/mkbrr --body "Docs PR: <docs-pr-url>"
+### 1. Walk the drift surface
+
+For each row in the drift surface table, compare the docs against the codebase source of truth:
+
+- Read the codebase source (e.g., `cmd/create.go` flag defs, `trackerConfigs` slice)
+- Read the corresponding docs file(s)
+- Compare: are there flags/fields/trackers/patterns in the code that aren't in the docs? Are there things in the docs that no longer exist in the code? Are flag names, defaults, and value ranges accurate?
+
+When the drift surface has many rows, parallelize by dispatching independent comparisons as subagents where possible.
+
+### 2. Report findings
+
+Present a table of discrepancies:
+
 ```
+| Area | Issue | Docs file | Code file | Type |
+```
+
+Type is one of:
+- **Missing** — exists in code but not in docs
+- **Stale** — exists in docs but removed/changed in code
+- **Inaccurate** — docs describe it wrong (wrong flag name, wrong default, wrong value range)
+
+If nothing is found, tell the user "Docs are in sync" and stop.
+
+### 3. Fix and PR
+
+Group related fixes into a single PR. Follow the same ship process as targeted mode — branch, commit, push, PR.
