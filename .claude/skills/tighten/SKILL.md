@@ -36,7 +36,7 @@ If any of these fail, fix them first. Don't waste review cycles on code that doe
 
 ### 2. Run adversarial review
 
-Run `/codex:adversarial-review --wait`. This reviews the working tree diff (all uncommitted changes against the current branch). If you need to review a branch diff against main instead, use `/codex:adversarial-review --base main --wait`.
+Ask the user to run `/codex:adversarial-review --wait` (this skill has `disable-model-invocation` so you cannot invoke it yourself). This reviews the working tree diff (all uncommitted changes against the current branch). If you need to review a branch diff against main instead, ask for `/codex:adversarial-review --base main --wait`.
 
 ### 3. Triage findings
 
@@ -70,7 +70,7 @@ After fixing, re-run tests and build to make sure fixes don't break anything.
 
 ### 5. Re-review
 
-Run `/codex:adversarial-review --wait` again. Repeat from step 3 until:
+Ask the user to run `/codex:adversarial-review --wait` again. Repeat from step 3 until:
 - The review comes back clean (verdict: `looks-good` or only low/informational findings)
 - All remaining findings have been triaged as intentional disagreements
 - Two consecutive reviews surface no new high-severity findings
