@@ -545,7 +545,7 @@ func CreateTorrent(opts CreateOptions) (*Torrent, error) {
 			}
 
 			// Determine the effective max piece length ceiling
-			maxPieceLengthCeiling := uint(24) // default ceiling
+			maxPieceLengthCeiling := uint(27) // absolute max 128 MiB
 			if len(opts.TrackerURLs) > 0 && opts.TrackerURLs[0] != "" {
 				if trackerMaxExp, ok := trackers.GetTrackerMaxPieceLength(opts.TrackerURLs[0]); ok {
 					maxPieceLengthCeiling = trackerMaxExp
