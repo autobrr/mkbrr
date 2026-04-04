@@ -545,14 +545,22 @@ func CreateTorrent(opts CreateOptions) (*Torrent, error) {
 			}
 
 			// Determine the effective max piece length ceiling
-			maxPieceLengthCeiling := uint(27) // absolute max 128 MiB
+			maxPieceLengthCeiling := uint(24) // default ceiling
+			hasTrackerCap := false
 			if len(opts.TrackerURLs) > 0 && opts.TrackerURLs[0] != "" {
 				if trackerMaxExp, ok := trackers.GetTrackerMaxPieceLength(opts.TrackerURLs[0]); ok {
 					maxPieceLengthCeiling = trackerMaxExp
+					hasTrackerCap = true
 				}
 			}
-			if opts.MaxPieceLength != nil && *opts.MaxPieceLength < maxPieceLengthCeiling {
-				maxPieceLengthCeiling = *opts.MaxPieceLength
+			if opts.MaxPieceLength != nil {
+				if hasTrackerCap {
+					// tracker cap is a hard ceiling; user can lower but not exceed it
+					maxPieceLengthCeiling = min(*opts.MaxPieceLength, maxPieceLengthCeiling)
+				} else {
+					// no tracker cap; user can raise above default 24
+					maxPieceLengthCeiling = min(*opts.MaxPieceLength, 27)
+				}
 			}
 
 			// If it exceeds limit, try increasing piece length until it fits or we hit max
