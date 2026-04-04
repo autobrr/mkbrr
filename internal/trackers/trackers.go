@@ -276,8 +276,8 @@ var trackerConfigs = []TrackerConfig{
 			{MaxSize: 16384 << 20, PieceExp: 23},  // 8 MiB for 8-16 GiB
 			{MaxSize: 32768 << 20, PieceExp: 24},  // 16 MiB for 16-32 GiB
 			{MaxSize: 65536 << 20, PieceExp: 25},  // 32 MiB for 32-64 GiB
-			{MaxSize: 131072 << 20, PieceExp: 26}, // 64 MiB for 64-128 GiB
-			{MaxSize: ^uint64(0), PieceExp: 27},   // 128 MiB for 128+ GiB
+			{MaxSize: 122880 << 20, PieceExp: 26}, // 64 MiB for 64-120 GiB
+			{MaxSize: ^uint64(0), PieceExp: 27},   // 128 MiB for 120+ GiB (TL supports 2^28 but mkbrr caps at 2^27)
 		},
 		UseDefaultRanges: false,
 		DefaultSource:    "TorrentLeech.org",
