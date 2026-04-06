@@ -238,7 +238,16 @@ var trackerConfigs = []TrackerConfig{
 		URLs: []string{
 			"aither.cc",
 		},
-		DefaultSource: "Aither",
+		MaxPieceLength: 27, // max 128 MiB pieces (2^27) (only when set with --piece-size)
+		PieceSizeRanges: []PieceSizeRange{
+			{MaxSize: 1024 << 20, PieceExp: 20},  // 1 MiB < 1 GB
+			{MaxSize: 4096 << 20, PieceExp: 21},  // 2 MiB for 1-4 GB
+			{MaxSize: 12288 << 20, PieceExp: 22}, // 4 MiB for 4-12 GB
+			{MaxSize: 20480 << 20, PieceExp: 23}, // 8 MiB for 12-20 GB
+			{MaxSize: ^uint64(0), PieceExp: 24},  // 16 MiB for > 20 GB
+		},
+		UseDefaultRanges: false,
+		DefaultSource:    "Aither",
 	},
 	{
 		URLs: []string{
