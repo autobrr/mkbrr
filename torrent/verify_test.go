@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -145,6 +146,37 @@ func createTestFilesFastForVerify(t *testing.T, numFiles int, fileSize, pieceLen
 	}
 
 	return contentPath, files, expectedHashes // Return base content path
+}
+
+func TestPieceVerifier_OptimizeForWorkload_DoesNotOversubscribeCPUs(t *testing.T) {
+	cpuCount := runtime.NumCPU()
+	if cpuCount < 2 {
+		t.Skip("need at least 2 CPUs to verify worker capping")
+	}
+
+	files := make([]fileEntry, 0, 8)
+	var offset int64
+	for i := 0; i < 8; i++ {
+		files = append(files, fileEntry{
+			path:   fmt.Sprintf("file-%d", i),
+			length: 128 << 20,
+			offset: offset,
+		})
+		offset += 128 << 20
+	}
+
+	numPieces := int((offset + (1 << 20) - 1) / (1 << 20))
+	verifier := &pieceVerifier{
+		files:     files,
+		pieceLen:  1 << 20,
+		numPieces: numPieces,
+		display:   NewDisplay(NewFormatter(false)),
+	}
+
+	_, workers := verifier.optimizeForWorkload()
+	if workers > cpuCount {
+		t.Fatalf("expected workers <= cpu count (%d), got %d", cpuCount, workers)
+	}
 }
 
 func TestVerifyData_PerfectMatch_SingleFile(t *testing.T) {

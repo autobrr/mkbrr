@@ -224,10 +224,12 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 	defer h.bufferPool.Put(buf)
 
 	hasher := sha1.New()
-	readers := make(map[string]*fileReader)
+	readers := make([]*fileReader, len(h.files))
 	defer func() {
 		for _, reader := range readers {
-			_ = reader.file.Close()
+			if reader != nil {
+				_ = reader.file.Close()
+			}
 		}
 	}()
 
@@ -252,8 +254,8 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 				continue
 			}
 
-			reader, ok := readers[file.path]
-			if !ok {
+			reader := readers[fileIndex]
+			if reader == nil {
 				f, err := os.Open(file.path)
 				if err != nil {
 					return fmt.Errorf("failed to open file %s: %w", file.path, err)
@@ -263,7 +265,7 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 					position: 0,
 					length:   file.length,
 				}
-				readers[file.path] = reader
+				readers[fileIndex] = reader
 			}
 
 			if reader.position != readStart {

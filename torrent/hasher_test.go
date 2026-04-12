@@ -171,8 +171,8 @@ func createTestFilesFast(t *testing.T, numFiles int, fileSize, pieceLen int64) (
 }
 
 // createTestFilesWithPattern creates test files filled with a deterministic pattern.
-func createTestFilesWithPattern(t *testing.T, tempDir string, fileSizes []int64, pieceLen int64) ([]fileEntry, [][]byte) {
-	t.Helper()
+func createTestFilesWithPattern(tb testing.TB, tempDir string, fileSizes []int64, pieceLen int64) ([]fileEntry, [][]byte) {
+	tb.Helper()
 
 	var files []fileEntry
 	var allExpectedHashes [][]byte
@@ -189,7 +189,7 @@ func createTestFilesWithPattern(t *testing.T, tempDir string, fileSizes []int64,
 		path := filepath.Join(tempDir, fmt.Sprintf("boundary_test_file_%d", i))
 		f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0644)
 		if err != nil {
-			t.Fatalf("failed to create file %s: %v", path, err)
+			tb.Fatalf("failed to create file %s: %v", path, err)
 		}
 
 		// write the pattern repeatedly to fill the file
@@ -202,7 +202,7 @@ func createTestFilesWithPattern(t *testing.T, tempDir string, fileSizes []int64,
 			n, err := f.Write(pattern[:toWrite])
 			if err != nil {
 				f.Close()
-				t.Fatalf("failed to write pattern to %s: %v", path, err)
+				tb.Fatalf("failed to write pattern to %s: %v", path, err)
 			}
 			// also write to global buffer for hash calculation
 			globalBuffer.Write(pattern[:toWrite])

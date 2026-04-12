@@ -300,7 +300,7 @@ func (v *pieceVerifier) optimizeForWorkload() (int, int) {
 			numWorkers = runtime.NumCPU()
 		} else {
 			readSize = 8 << 20
-			numWorkers = runtime.NumCPU() * 2
+			numWorkers = runtime.NumCPU()
 		}
 	case avgFileSize < 1<<20:
 		readSize = 256 << 10
@@ -310,10 +310,10 @@ func (v *pieceVerifier) optimizeForWorkload() (int, int) {
 		numWorkers = runtime.NumCPU()
 	case avgFileSize < 1<<30:
 		readSize = 4 << 20
-		numWorkers = runtime.NumCPU() * 2
+		numWorkers = runtime.NumCPU()
 	default:
 		readSize = 8 << 20
-		numWorkers = runtime.NumCPU() * 2
+		numWorkers = runtime.NumCPU()
 	}
 
 	if numWorkers > v.numPieces {
@@ -367,10 +367,7 @@ func (v *pieceVerifier) verifyPieces(numWorkersOverride int) error {
 		},
 	}
 
-	v.mutex.Lock()
 	v.startTime = time.Now()
-	v.lastUpdate = v.startTime
-	v.mutex.Unlock()
 	v.bytesVerified = 0
 
 	v.display.ShowFiles(v.files, numWorkers)
@@ -399,33 +396,37 @@ func (v *pieceVerifier) verifyPieces(numWorkersOverride int) error {
 	}
 
 	// Progress monitoring goroutine
+	stopProgress := make(chan struct{})
+	progressDone := make(chan struct{})
 	go func() {
+		defer close(progressDone)
 		ticker := time.NewTicker(200 * time.Millisecond)
 		defer ticker.Stop()
-		for range ticker.C {
-			completed := atomic.LoadUint64(&completedPieces)
-			// Update display
-			// We might need to adjust UpdateProgress or pass different values
-			// For now, let's pass the overall completed count (good+bad+missing)
-			v.mutex.RLock()
-			elapsed := time.Since(v.startTime).Seconds()
-			v.mutex.RUnlock()
-			var rate float64
-			if elapsed > 0 {
-				bytesVerified := atomic.LoadInt64(&v.bytesVerified)
-				rate = float64(bytesVerified) / elapsed
-			}
-			// Pass total completed count and rate to UpdateProgress
-			// Note: UpdateProgress might need adjustment if it expects percentage instead of count
-			v.display.UpdateProgress(int(completed), rate)
 
-			if completed >= uint64(v.numPieces) {
-				return // Exit goroutine when all pieces are processed
+		for {
+			select {
+			case <-stopProgress:
+				return
+			case <-ticker.C:
+				completed := atomic.LoadUint64(&completedPieces)
+				elapsed := time.Since(v.startTime).Seconds()
+				var rate float64
+				if elapsed > 0 {
+					bytesVerified := atomic.LoadInt64(&v.bytesVerified)
+					rate = float64(bytesVerified) / elapsed
+				}
+				v.display.UpdateProgress(int(completed), rate)
+
+				if completed >= uint64(v.numPieces) {
+					return
+				}
 			}
 		}
 	}()
 
 	wg.Wait()
+	close(stopProgress)
+	<-progressDone
 	close(errorsCh)
 
 	for err := range errorsCh {
@@ -445,10 +446,10 @@ func (v *pieceVerifier) verifyPieceRange(startPiece, endPiece int, completedPiec
 	defer v.bufferPool.Put(buf)
 
 	hasher := sha1.New()
-	readers := make(map[string]*fileReader)
+	readers := make([]*fileReader, len(v.files))
 	defer func() {
 		for _, r := range readers {
-			if r.file != nil {
+			if r != nil && r.file != nil {
 				r.file.Close()
 			}
 		}
@@ -481,6 +482,7 @@ func (v *pieceVerifier) verifyPieceRange(startPiece, endPiece int, completedPiec
 		// If not missing, proceed to hash and compare
 		hasher.Reset()
 		bytesHashedThisPiece := int64(0)
+		var actualHashBuf [sha1.Size]byte
 
 		foundStartFile := false
 		for fIdx := currentFileIndex; fIdx < len(v.files); fIdx++ {
@@ -520,8 +522,8 @@ func (v *pieceVerifier) verifyPieceRange(startPiece, endPiece int, completedPiec
 				continue
 			}
 
-			reader, ok := readers[file.path]
-			if !ok {
+			reader := readers[fIdx]
+			if reader == nil {
 				f, err := os.OpenFile(file.path, os.O_RDONLY, 0)
 				if err != nil {
 					// File became unreadable after initial check? Mark as bad.
@@ -532,7 +534,7 @@ func (v *pieceVerifier) verifyPieceRange(startPiece, endPiece int, completedPiec
 					goto nextPiece // Use goto to ensure completedPieces is incremented
 				}
 				reader = &fileReader{file: f, position: -1, length: file.length}
-				readers[file.path] = reader
+				readers[fIdx] = reader
 			}
 
 			if reader.position != readStartInFile {
@@ -568,13 +570,16 @@ func (v *pieceVerifier) verifyPieceRange(startPiece, endPiece int, completedPiec
 				bytesHashedThisPiece += int64(n)
 				reader.position += int64(n)
 				bytesToRead -= int64(n)
-				atomic.AddInt64(&v.bytesVerified, int64(n))
 			}
 			pieceOffset += readLength
 		}
 
+		if bytesHashedThisPiece > 0 {
+			atomic.AddInt64(&v.bytesVerified, bytesHashedThisPiece)
+		}
+
 		expectedHash = v.torrentInfo.Pieces[pieceIndex*20 : (pieceIndex+1)*20]
-		actualHash = hasher.Sum(nil)
+		actualHash = hasher.Sum(actualHashBuf[:0])
 
 		if bytes.Equal(actualHash, expectedHash) {
 			atomic.AddUint64(&v.goodPieces, 1)
