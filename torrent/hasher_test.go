@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sync"
 	"testing"
 
@@ -248,6 +249,51 @@ func verifyHashes(t *testing.T, got, want [][]byte) {
 		if !bytes.Equal(got[i], want[i]) {
 			t.Errorf("piece %d hash mismatch:\ngot  %x\nwant %x", i, got[i], want[i])
 		}
+	}
+}
+
+func TestNewPieceHasher_PrecomputesPieceLayout(t *testing.T) {
+	files := []fileEntry{
+		{path: "a", length: 3, offset: 0},
+		{path: "b", length: 5, offset: 3},
+		{path: "c", length: 2, offset: 8},
+	}
+
+	hasher := NewPieceHasher(files, 4, 3, &mockDisplay{}, false)
+
+	if hasher.totalSize != 10 {
+		t.Fatalf("expected total size 10, got %d", hasher.totalSize)
+	}
+
+	if hasher.lastPieceLength != 2 {
+		t.Fatalf("expected last piece length 2, got %d", hasher.lastPieceLength)
+	}
+
+	wantStartFiles := []int{0, 1, 2}
+	if !slices.Equal(hasher.pieceStartFiles, wantStartFiles) {
+		t.Fatalf("unexpected piece start files: got %v want %v", hasher.pieceStartFiles, wantStartFiles)
+	}
+}
+
+func TestNewPieceHasher_PreallocatesPieceHashStorage(t *testing.T) {
+	hasher := NewPieceHasher(nil, 1<<16, 3, &mockDisplay{}, false)
+
+	if len(hasher.pieceHashStorage) != 3*sha1.Size {
+		t.Fatalf("expected hash storage size %d, got %d", 3*sha1.Size, len(hasher.pieceHashStorage))
+	}
+
+	for i, piece := range hasher.pieces {
+		if len(piece) != sha1.Size {
+			t.Fatalf("piece %d len = %d, want %d", i, len(piece), sha1.Size)
+		}
+		if cap(piece) != sha1.Size {
+			t.Fatalf("piece %d cap = %d, want %d", i, cap(piece), sha1.Size)
+		}
+	}
+
+	hasher.pieces[0][0] = 1
+	if hasher.pieces[1][0] != 0 {
+		t.Fatal("piece hash storage overlaps between pieces")
 	}
 }
 
