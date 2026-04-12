@@ -60,8 +60,8 @@ func (h *pieceHasher) optimizeForWorkload() (int, int) {
 			readSize = 4 << 20 // 4 MiB
 			numWorkers = runtime.NumCPU()
 		} else {
-			readSize = 8 << 20                // 8 MiB for large files
-			numWorkers = runtime.NumCPU() * 2 // over-subscription for better I/O utilization
+			readSize = 8 << 20
+			numWorkers = runtime.NumCPU()
 		}
 	case avgFileSize < 1<<20: // avg < 1 MiB
 		readSize = 256 << 10 // 256 KiB
@@ -71,10 +71,10 @@ func (h *pieceHasher) optimizeForWorkload() (int, int) {
 		numWorkers = runtime.NumCPU()
 	case avgFileSize < 1<<30: // avg < 1 GiB
 		readSize = 4 << 20 // 4 MiB
-		numWorkers = runtime.NumCPU() * 2
+		numWorkers = runtime.NumCPU()
 	default: // avg >= 1 GiB
 		readSize = 8 << 20 // 8 MiB
-		numWorkers = runtime.NumCPU() * 2
+		numWorkers = runtime.NumCPU()
 	}
 
 	// ensure we don't create more workers than pieces to process

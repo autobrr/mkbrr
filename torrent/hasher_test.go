@@ -469,6 +469,32 @@ func TestPieceHasher_ZeroWorkers(t *testing.T) {
 	}
 }
 
+func TestPieceHasher_OptimizeForWorkload_DoesNotOversubscribeCPUs(t *testing.T) {
+	cpuCount := runtime.NumCPU()
+	if cpuCount < 2 {
+		t.Skip("need at least 2 CPUs to verify worker capping")
+	}
+
+	files := make([]fileEntry, 0, 8)
+	var offset int64
+	for i := 0; i < 8; i++ {
+		files = append(files, fileEntry{
+			path:   fmt.Sprintf("file-%d", i),
+			length: 128 << 20,
+			offset: offset,
+		})
+		offset += 128 << 20
+	}
+
+	numPieces := int((offset + (1 << 20) - 1) / (1 << 20))
+	hasher := NewPieceHasher(files, 1<<20, numPieces, &mockDisplay{}, false)
+
+	_, workers := hasher.optimizeForWorkload()
+	if workers > cpuCount {
+		t.Fatalf("expected workers <= cpu count (%d), got %d", cpuCount, workers)
+	}
+}
+
 func TestPieceHasher_CorruptedData(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "hasher_corrupt_test")
 	if err != nil {
