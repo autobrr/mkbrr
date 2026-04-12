@@ -469,7 +469,7 @@ func TestPieceHasher_ZeroWorkers(t *testing.T) {
 	}
 }
 
-func TestPieceHasher_OptimizeForWorkload_DoesNotOversubscribeCPUs(t *testing.T) {
+func TestPieceHasher_OptimizeForWorkload_RespectsPlatformWorkerCap(t *testing.T) {
 	cpuCount := runtime.NumCPU()
 	if cpuCount < 2 {
 		t.Skip("need at least 2 CPUs to verify worker capping")
@@ -490,8 +490,9 @@ func TestPieceHasher_OptimizeForWorkload_DoesNotOversubscribeCPUs(t *testing.T) 
 	hasher := NewPieceHasher(files, 1<<20, numPieces, &mockDisplay{}, false)
 
 	_, workers := hasher.optimizeForWorkload()
-	if workers > cpuCount {
-		t.Fatalf("expected workers <= cpu count (%d), got %d", cpuCount, workers)
+	maxWorkers := autoWorkerCount(cpuCount, true, runtime.GOOS)
+	if workers > maxWorkers {
+		t.Fatalf("expected workers <= platform cap (%d), got %d", maxWorkers, workers)
 	}
 }
 

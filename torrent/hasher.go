@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -58,23 +57,23 @@ func (h *pieceHasher) optimizeForWorkload() (int, int) {
 			numWorkers = 1
 		} else if h.totalSize < 1<<30 { // < 1 GiB
 			readSize = 4 << 20 // 4 MiB
-			numWorkers = runtime.NumCPU()
+			numWorkers = defaultWorkerCount(false)
 		} else {
 			readSize = 8 << 20
-			numWorkers = runtime.NumCPU()
+			numWorkers = defaultWorkerCount(true)
 		}
 	case avgFileSize < 1<<20: // avg < 1 MiB
 		readSize = 256 << 10 // 256 KiB
-		numWorkers = runtime.NumCPU()
+		numWorkers = defaultWorkerCount(false)
 	case avgFileSize < 10<<20: // avg < 10 MiB
 		readSize = 1 << 20 // 1 MiB
-		numWorkers = runtime.NumCPU()
+		numWorkers = defaultWorkerCount(false)
 	case avgFileSize < 1<<30: // avg < 1 GiB
 		readSize = 4 << 20 // 4 MiB
-		numWorkers = runtime.NumCPU()
+		numWorkers = defaultWorkerCount(true)
 	default: // avg >= 1 GiB
 		readSize = 8 << 20 // 8 MiB
-		numWorkers = runtime.NumCPU()
+		numWorkers = defaultWorkerCount(true)
 	}
 
 	// ensure we don't create more workers than pieces to process

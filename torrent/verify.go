@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -297,23 +296,23 @@ func (v *pieceVerifier) optimizeForWorkload() (int, int) {
 			numWorkers = 1
 		} else if totalSize < 1<<30 {
 			readSize = 4 << 20
-			numWorkers = runtime.NumCPU()
+			numWorkers = defaultWorkerCount(false)
 		} else {
 			readSize = 8 << 20
-			numWorkers = runtime.NumCPU()
+			numWorkers = defaultWorkerCount(true)
 		}
 	case avgFileSize < 1<<20:
 		readSize = 256 << 10
-		numWorkers = runtime.NumCPU()
+		numWorkers = defaultWorkerCount(false)
 	case avgFileSize < 10<<20:
 		readSize = 1 << 20
-		numWorkers = runtime.NumCPU()
+		numWorkers = defaultWorkerCount(false)
 	case avgFileSize < 1<<30:
 		readSize = 4 << 20
-		numWorkers = runtime.NumCPU()
+		numWorkers = defaultWorkerCount(true)
 	default:
 		readSize = 8 << 20
-		numWorkers = runtime.NumCPU()
+		numWorkers = defaultWorkerCount(true)
 	}
 
 	if numWorkers > v.numPieces {

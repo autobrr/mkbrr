@@ -3,6 +3,47 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/mkbrr-bench.XXXXXX")"
+GO_BIN="${GO_BIN:-}"
+
+if [ -z "$GO_BIN" ]; then
+  if command -v go >/dev/null 2>&1; then
+    GO_BIN="$(command -v go)"
+  elif [ -x /usr/local/go/bin/go ]; then
+    GO_BIN="/usr/local/go/bin/go"
+  else
+    echo "go binary not found; set GO_BIN=/path/to/go" >&2
+    exit 1
+  fi
+fi
+
+TIME_RUNNER=()
+if [ -x /usr/bin/time ]; then
+  if /usr/bin/time -lp true >/dev/null 2>&1; then
+    TIME_RUNNER=(/usr/bin/time -lp)
+  elif /usr/bin/time -v true >/dev/null 2>&1; then
+    TIME_RUNNER=(/usr/bin/time -v)
+  else
+    TIME_RUNNER=(/usr/bin/time)
+  fi
+elif [ -x /bin/time ]; then
+  if /bin/time -lp true >/dev/null 2>&1; then
+    TIME_RUNNER=(/bin/time -lp)
+  elif /bin/time -v true >/dev/null 2>&1; then
+    TIME_RUNNER=(/bin/time -v)
+  else
+    TIME_RUNNER=(/bin/time)
+  fi
+fi
+
+run_timed() {
+  if [ "${#TIME_RUNNER[@]}" -gt 0 ]; then
+    "${TIME_RUNNER[@]}" "$@"
+    return
+  fi
+
+  TIMEFORMAT=$'real %3R\nuser %3U\nsys %3S'
+  time "$@"
+}
 
 cleanup() {
   if command -v trash >/dev/null 2>&1; then
@@ -28,7 +69,7 @@ build_binary() {
   local output_path="$2"
   (
     cd "$source_dir"
-    go build -o "$output_path" .
+    "$GO_BIN" build -o "$output_path" .
   )
 }
 
@@ -47,7 +88,7 @@ trash_path() {
 write_file_mib() {
   local path="$1"
   local size_mib="$2"
-  dd if=/dev/zero of="$path" bs=1m count="$size_mib" status=none
+  dd if=/dev/zero of="$path" bs=1M count="$size_mib" status=none
 }
 
 prepare_fixture() {
@@ -127,19 +168,23 @@ if command -v hyperfine >/dev/null 2>&1; then
     --prepare "$PREPARE_CMD" \
     "${COMMANDS[@]}"
 else
-  echo "hyperfine not found; falling back to /usr/bin/time -lp" >&2
+  if [ "${#TIME_RUNNER[@]}" -eq 0 ]; then
+    echo "hyperfine not found; falling back to bash built-in time" >&2
+  else
+    echo "hyperfine not found; falling back to ${TIME_RUNNER[*]}" >&2
+  fi
   current_run=1
   while [ "$current_run" -le "$RUNS" ]; do
     trash_path "$CURRENT_OUT"
     echo
     echo "current run $current_run/$RUNS"
-    /usr/bin/time -lp "$CURRENT_BIN" create "$FIXTURE_PATH" --quiet --output "$CURRENT_OUT"
+    run_timed "$CURRENT_BIN" create "$FIXTURE_PATH" --quiet --output "$CURRENT_OUT"
 
     if [ -n "$BASELINE_BIN" ]; then
       trash_path "$BASELINE_OUT"
       echo
       echo "baseline run $current_run/$RUNS"
-      /usr/bin/time -lp "$BASELINE_BIN" create "$FIXTURE_PATH" --quiet --output "$BASELINE_OUT"
+      run_timed "$BASELINE_BIN" create "$FIXTURE_PATH" --quiet --output "$BASELINE_OUT"
     fi
 
     current_run=$((current_run + 1))

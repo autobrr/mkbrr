@@ -148,7 +148,7 @@ func createTestFilesFastForVerify(t *testing.T, numFiles int, fileSize, pieceLen
 	return contentPath, files, expectedHashes // Return base content path
 }
 
-func TestPieceVerifier_OptimizeForWorkload_DoesNotOversubscribeCPUs(t *testing.T) {
+func TestPieceVerifier_OptimizeForWorkload_RespectsPlatformWorkerCap(t *testing.T) {
 	cpuCount := runtime.NumCPU()
 	if cpuCount < 2 {
 		t.Skip("need at least 2 CPUs to verify worker capping")
@@ -174,8 +174,9 @@ func TestPieceVerifier_OptimizeForWorkload_DoesNotOversubscribeCPUs(t *testing.T
 	}
 
 	_, workers := verifier.optimizeForWorkload()
-	if workers > cpuCount {
-		t.Fatalf("expected workers <= cpu count (%d), got %d", cpuCount, workers)
+	maxWorkers := autoWorkerCount(cpuCount, true, runtime.GOOS)
+	if workers > maxWorkers {
+		t.Fatalf("expected workers <= platform cap (%d), got %d", maxWorkers, workers)
 	}
 }
 
