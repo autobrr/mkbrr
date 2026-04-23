@@ -16,6 +16,7 @@ type ProgressCallback func(completed, total int, hashRate float64)
 type CreateOptions struct {
 	PieceLengthExp          *uint
 	MaxPieceLength          *uint
+	TargetPieceCount        *uint
 	Path                    string
 	Name                    string
 	TrackerURLs             []string

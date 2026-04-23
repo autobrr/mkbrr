@@ -46,21 +46,21 @@ type ProgressEvent struct {
 //
 // Optional fields (all others): Have sensible defaults if not specified
 type CreateRequest struct {
-	Path            string   `json:"path"`            // Required: source file/directory path
-	Name            string   `json:"name"`            // Optional: override torrent name (defaults to source name)
-	TrackerURLs     []string `json:"trackerUrls"`     // Optional: tracker announce URLs
-	WebSeeds        []string `json:"webSeeds"`        // Optional: web seed URLs
-	Comment         string   `json:"comment"`         // Optional: torrent comment
-	Source          string   `json:"source"`          // Optional: source tag
-	IsPrivate       *bool    `json:"isPrivate"`       // Optional: private flag (nil = true)
-	PieceLengthExp  uint     `json:"pieceLengthExp"`  // Optional: piece length as 2^exp (0 = auto)
-	MaxPieceLength  uint     `json:"maxPieceLength"`  // Optional: max piece length as 2^exp
-	OutputPath      string   `json:"outputPath"`      // Optional: full output path (mutually exclusive with OutputDir)
-	OutputDir       string   `json:"outputDir"`       // Optional: output directory (defaults to source dir)
-	NoDate          bool     `json:"noDate"`          // Optional: exclude creation date
-	NoCreator       bool     `json:"noCreator"`       // Optional: exclude creator string
-	Entropy         bool     `json:"entropy"`         // Optional: add random entropy for unique hash
-	SkipPrefix      bool     `json:"skipPrefix"`      // Optional: don't prefix output filename
+	Path                string   `json:"path"`                // Required: source file/directory path
+	Name                string   `json:"name"`                // Optional: override torrent name (defaults to source name)
+	TrackerURLs         []string `json:"trackerUrls"`         // Optional: tracker announce URLs
+	WebSeeds            []string `json:"webSeeds"`            // Optional: web seed URLs
+	Comment             string   `json:"comment"`             // Optional: torrent comment
+	Source              string   `json:"source"`              // Optional: source tag
+	IsPrivate           *bool    `json:"isPrivate"`           // Optional: private flag (nil = true)
+	PieceLengthExp      uint     `json:"pieceLengthExp"`      // Optional: piece length as 2^exp (0 = auto)
+	MaxPieceLength      uint     `json:"maxPieceLength"`      // Optional: max piece length as 2^exp
+	OutputPath          string   `json:"outputPath"`          // Optional: full output path (mutually exclusive with OutputDir)
+	OutputDir           string   `json:"outputDir"`           // Optional: output directory (defaults to source dir)
+	NoDate              bool     `json:"noDate"`              // Optional: exclude creation date
+	NoCreator           bool     `json:"noCreator"`           // Optional: exclude creator string
+	Entropy             bool     `json:"entropy"`             // Optional: add random entropy for unique hash
+	SkipPrefix          bool     `json:"skipPrefix"`          // Optional: don't prefix output filename
 	ExcludePatterns     []string `json:"excludePatterns"`     // Optional: file exclusion patterns
 	IncludePatterns     []string `json:"includePatterns"`     // Optional: file inclusion patterns
 	PresetName          string   `json:"presetName"`          // Optional: preset name to apply

@@ -25,14 +25,14 @@ var trackerConfigs = []TrackerConfig{
 			"anthelion.me",
 		},
 		MaxTorrentSize: 250 << 10, // 250 KiB torrent file size limit
-		DefaultSource: "ANT",
+		DefaultSource:  "ANT",
 	},
 	{
 		URLs: []string{
 			"nebulance.io",
 		},
 		MaxTorrentSize: 1024 << 10, // 1 MiB torrent file size limit
-		DefaultSource: "NBL",
+		DefaultSource:  "NBL",
 	},
 	{
 		URLs: []string{
@@ -205,7 +205,21 @@ var trackerConfigs = []TrackerConfig{
 		},
 		UseDefaultRanges: false,
 	},
-		{
+	{
+		URLs: []string{
+			"onlyencodes.cc",
+		},
+		MaxPieceLength: 24, // max 16 MiB pieces (2^24)
+		PieceSizeRanges: []PieceSizeRange{
+			{MaxSize: 1024 << 20, PieceExp: 20},  // 1 MiB < 1 GB
+			{MaxSize: 4096 << 20, PieceExp: 21},  // 2 MiB for 1-4 GB
+			{MaxSize: 12288 << 20, PieceExp: 22}, // 4 MiB for 4-12 GB
+			{MaxSize: 20480 << 20, PieceExp: 23}, // 8 MiB for 12-20 GB
+			{MaxSize: ^uint64(0), PieceExp: 24},  // 16 MiB for > 20 GB
+		},
+		UseDefaultRanges: false,
+	},
+	{
 		URLs: []string{
 			"lst.gg",
 		},
@@ -243,6 +257,27 @@ var trackerConfigs = []TrackerConfig{
 			"hawke.uno",
 		},
 		DefaultSource: "HUNO",
+	},
+	{
+		URLs: []string{
+			"tracker.torrentleech.org",
+			"tracker.tleechreload.org",
+		},
+		MaxPieceLength: 24, // max 16 MiB pieces (2^24)
+		PieceSizeRanges: []PieceSizeRange{
+			{MaxSize: 50 << 20, PieceExp: 15},    // 32 KiB for <= 50 MiB
+			{MaxSize: 150 << 20, PieceExp: 16},   // 64 KiB for 50-150 MiB
+			{MaxSize: 350 << 20, PieceExp: 17},   // 128 KiB for 150-350 MiB
+			{MaxSize: 512 << 20, PieceExp: 18},   // 256 KiB for 350-512 MiB
+			{MaxSize: 1024 << 20, PieceExp: 19},  // 512 KiB for 512 MiB-1 GiB
+			{MaxSize: 2048 << 20, PieceExp: 20},  // 1 MiB for 1-2 GiB
+			{MaxSize: 4096 << 20, PieceExp: 21},  // 2 MiB for 2-4 GiB
+			{MaxSize: 8192 << 20, PieceExp: 22},  // 4 MiB for 4-8 GiB
+			{MaxSize: 16384 << 20, PieceExp: 23}, // 8 MiB for 8-16 GiB
+			{MaxSize: ^uint64(0), PieceExp: 24},  // 16 MiB for 16+ GiB
+		},
+		UseDefaultRanges: false,
+		DefaultSource:    "TorrentLeech.org",
 	},
 }
 

@@ -29,9 +29,11 @@ type BatchJob struct {
 	ExcludePatterns     []string `yaml:"exclude_patterns"`
 	IncludePatterns     []string `yaml:"include_patterns"`
 	PieceLength         uint     `yaml:"piece_length"`
+	TargetPieceCount    uint     `yaml:"target_piece_count"`
 	Private             bool     `yaml:"private"`
 	NoDate              bool     `yaml:"no_date"`
 	SkipPrefix          bool     `yaml:"skip_prefix"`
+	Entropy             bool     `yaml:"entropy"`
 	FailOnSeasonWarning bool     `yaml:"fail_on_season_warning"`
 }
 
@@ -51,6 +53,7 @@ func (j *BatchJob) ToCreateOptions(verbose bool, quiet bool, infoOnly bool, vers
 		InfoOnly:                infoOnly,
 		Version:                 version,
 		SkipPrefix:              j.SkipPrefix,
+		Entropy:                 j.Entropy,
 		ExcludePatterns:         j.ExcludePatterns,
 		IncludePatterns:         j.IncludePatterns,
 		FailOnSeasonPackWarning: j.FailOnSeasonWarning,
@@ -59,6 +62,11 @@ func (j *BatchJob) ToCreateOptions(verbose bool, quiet bool, infoOnly bool, vers
 	if j.PieceLength != 0 {
 		pieceLen := j.PieceLength
 		opts.PieceLengthExp = &pieceLen
+	}
+
+	if j.TargetPieceCount != 0 {
+		count := j.TargetPieceCount
+		opts.TargetPieceCount = &count
 	}
 
 	return opts
@@ -106,7 +114,7 @@ func ProcessBatch(configPath string, verbose bool, quiet bool, infoOnly bool, ve
 	var wg sync.WaitGroup
 
 	// process jobs in parallel with a worker pool
-	workers := minInt(len(config.Jobs), 4) // limit concurrent jobs
+	workers := min(len(config.Jobs), 4) // limit concurrent jobs
 	jobs := make(chan int, len(config.Jobs))
 
 	// start workers
@@ -145,6 +153,10 @@ func validateJob(job BatchJob) error {
 
 	if job.PieceLength != 0 && (job.PieceLength < 14 || job.PieceLength > 24) {
 		return fmt.Errorf("piece length must be between 14 and 24")
+	}
+
+	if job.PieceLength != 0 && job.TargetPieceCount != 0 {
+		return fmt.Errorf("cannot set both piece_length and target_piece_count; use one or the other")
 	}
 
 	return nil

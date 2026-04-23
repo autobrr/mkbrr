@@ -3,6 +3,7 @@ package torrent
 import (
 	"crypto/rand"
 	"fmt"
+	"math/bits"
 	"os"
 	"path/filepath"
 	"sort"
@@ -17,14 +18,6 @@ import (
 	"github.com/autobrr/mkbrr/internal/trackers"
 )
 
-// max returns the larger of x or y
-func max(x, y int64) int64 {
-	if x > y {
-		return x
-	}
-	return y
-}
-
 // formatPieceSize returns a human readable piece size, using KiB for sizes < 1024 KiB and MiB for larger sizes
 func formatPieceSize(exp uint) string {
 	size := uint64(1) << (exp - 10) // convert to KiB
@@ -32,6 +25,63 @@ func formatPieceSize(exp uint) string {
 		return fmt.Sprintf("%d MiB", size/1024)
 	}
 	return fmt.Sprintf("%d KiB", size)
+}
+
+// calculatePieceLengthFromTarget derives a piece length exponent from a target piece count.
+// The result is clamped to [minExp, maxExp] where maxExp considers tracker and user constraints.
+func calculatePieceLengthFromTarget(totalSize int64, targetCount uint, maxPieceLength *uint, trackerURLs []string, verbose bool) uint {
+	minExp := uint(16) // 64 KiB minimum
+	maxExp := uint(24) // default max 16 MiB, same as auto-calc
+
+	// resolve ceiling: tracker hard cap (if any), then user max, then default 24
+	trackerCap := uint(0)
+	if len(trackerURLs) > 0 && trackerURLs[0] != "" {
+		if trackerMaxExp, ok := trackers.GetTrackerMaxPieceLength(trackerURLs[0]); ok {
+			trackerCap = trackerMaxExp
+		}
+	}
+
+	if maxPieceLength != nil {
+		userMax := min(*maxPieceLength, 27)
+		if trackerCap > 0 {
+			// tracker cap is a hard ceiling; user can lower but not exceed it
+			maxExp = min(userMax, trackerCap)
+		} else {
+			// no tracker cap: user max can raise above default 24
+			maxExp = userMax
+		}
+	} else if trackerCap > 0 {
+		maxExp = trackerCap
+	}
+
+	// ensure maxExp is at least minExp
+	maxExp = max(maxExp, minExp)
+
+	// guard: targetCount == 0 or totalSize < targetCount → ratio would be 0
+	ratio := uint64(0)
+	if targetCount > 0 && totalSize > 0 {
+		ratio = uint64(totalSize) / uint64(targetCount)
+	}
+
+	var exp uint
+	if ratio == 0 {
+		exp = minExp
+	} else {
+		// floor(log2(ratio)) via bit length
+		exp = uint(bits.Len64(ratio)) - 1
+	}
+
+	// clamp to bounds
+	clamped := min(max(exp, minExp), maxExp)
+
+	if verbose && clamped != exp {
+		display := NewDisplay(NewFormatter(verbose))
+		actualPieces := (uint64(totalSize) + (1 << clamped) - 1) / (1 << clamped)
+		display.ShowMessage(fmt.Sprintf("target piece count %d adjusted: using %s pieces (%d actual pieces) due to constraints",
+			targetCount, formatPieceSize(clamped), actualPieces))
+	}
+
+	return clamped
 }
 
 // calculatePieceLength calculates the optimal piece length based on total size.
@@ -49,12 +99,7 @@ func calculatePieceLength(totalSize int64, maxPieceLength *uint, trackerURLs []s
 		// check if tracker has specific piece size ranges
 		if exp, ok := trackers.GetTrackerPieceSizeExp(trackerURLs[0], uint64(totalSize)); ok {
 			// ensure we stay within bounds
-			if exp < minExp {
-				exp = minExp
-			}
-			if exp > maxExp {
-				exp = maxExp
-			}
+			exp = min(max(exp, minExp), maxExp)
 			if verbose {
 				display := NewDisplay(NewFormatter(verbose))
 				display.ShowMessage(fmt.Sprintf("using tracker-specific range for content size: %d MiB (recommended: %s pieces)",
@@ -69,11 +114,7 @@ func calculatePieceLength(totalSize int64, maxPieceLength *uint, trackerURLs []s
 		if *maxPieceLength < minExp {
 			return minExp
 		}
-		if *maxPieceLength > 27 {
-			maxExp = 27
-		} else {
-			maxExp = *maxPieceLength
-		}
+		maxExp = min(*maxPieceLength, 27)
 	}
 
 	// default calculation for automatic piece length using shared default ranges
@@ -88,14 +129,12 @@ func calculatePieceLength(totalSize int64, maxPieceLength *uint, trackerURLs []s
 	}
 
 	// if no manual piece length was specified, cap at 2^24
-	if maxPieceLength == nil && exp > 24 {
-		exp = 24
+	if maxPieceLength == nil {
+		exp = min(exp, 24)
 	}
 
 	// ensure we stay within bounds
-	if exp > maxExp {
-		exp = maxExp
-	}
+	exp = min(exp, maxExp)
 
 	return exp
 }
@@ -154,7 +193,19 @@ func CreateTorrent(opts CreateOptions) (*Torrent, error) {
 	var baseDir string
 	originalPaths := make(map[string]string) // map resolved path -> original path for metainfo
 
-	err := filepath.Walk(path, func(currentPath string, walkInfo os.FileInfo, walkErr error) error {
+	inputInfo, err := os.Stat(path)
+	if err != nil {
+		return nil, fmt.Errorf("error checking path: %w", err)
+	}
+
+	// Clean the base path for computing relative paths
+	cleanBasePath := filepath.Clean(path)
+	matchBasePath := cleanBasePath
+	if !inputInfo.IsDir() {
+		matchBasePath = filepath.Dir(cleanBasePath)
+	}
+
+	err = filepath.Walk(path, func(currentPath string, walkInfo os.FileInfo, walkErr error) error {
 		if walkErr != nil {
 			// check if the error is due to a broken symlink during walk
 			// if lstat works but stat fails, it's likely a broken link we might handle later
@@ -197,9 +248,31 @@ func CreateTorrent(opts CreateOptions) (*Torrent, error) {
 			resolvedInfo = statInfo
 		}
 
+		// Compute relative path from torrent root for glob matching
+		relPath, err := filepath.Rel(matchBasePath, currentPath)
+		if err != nil {
+			return fmt.Errorf("error calculating relative path for %q: %w", currentPath, err)
+		}
+		// Handle the root directory case
+		if relPath == "." {
+			relPath = ""
+		}
+
 		if resolvedInfo.IsDir() {
+			// Check hardcoded directory ignores (safety net)
 			if shouldIgnoreDir(currentPath) || shouldIgnoreDir(resolvedPath) {
 				return filepath.SkipDir
+			}
+
+			// Check user-defined exclude/include patterns for directories
+			if relPath != "" {
+				shouldSkip, err := shouldIgnoreEntry(relPath, true, opts.ExcludePatterns, opts.IncludePatterns)
+				if err != nil {
+					return fmt.Errorf("error processing directory patterns for %q: %w", currentPath, err)
+				}
+				if shouldSkip {
+					return filepath.SkipDir
+				}
 			}
 
 			if baseDir == "" && currentPath == path { // only set baseDir for the initial path if it's a dir
@@ -209,7 +282,7 @@ func CreateTorrent(opts CreateOptions) (*Torrent, error) {
 		}
 
 		// it's a file (or a link pointing to one)
-		shouldIgnore, err := shouldIgnoreFile(currentPath, opts.ExcludePatterns, opts.IncludePatterns) // ignore based on original path
+		shouldIgnore, err := shouldIgnoreEntry(relPath, false, opts.ExcludePatterns, opts.IncludePatterns)
 		if err != nil {
 			return fmt.Errorf("error processing file patterns for %q: %w", currentPath, err)
 		}
@@ -356,8 +429,32 @@ func CreateTorrent(opts CreateOptions) (*Torrent, error) {
 		return &Torrent{mi}, nil
 	}
 
+	// validate mutual exclusion at the API level (CLI validates this too, but exported callers may not)
+	if opts.PieceLengthExp != nil && opts.TargetPieceCount != nil {
+		return nil, fmt.Errorf("cannot use both piece length and target piece count; use one or the other")
+	}
+
 	var pieceLength uint
-	if opts.PieceLengthExp == nil {
+	if opts.PieceLengthExp == nil && opts.TargetPieceCount != nil {
+		if *opts.TargetPieceCount == 0 {
+			return nil, fmt.Errorf("target piece count must be greater than zero")
+		}
+		// validate max-piece-length the same way the automatic path does
+		if opts.MaxPieceLength != nil {
+			maxExp := uint(27)
+			if len(opts.TrackerURLs) > 0 && opts.TrackerURLs[0] != "" {
+				if trackerMaxExp, ok := trackers.GetTrackerMaxPieceLength(opts.TrackerURLs[0]); ok {
+					maxExp = trackerMaxExp
+				}
+			}
+			if *opts.MaxPieceLength < 14 || *opts.MaxPieceLength > maxExp {
+				return nil, fmt.Errorf("max piece length exponent must be between 14 (16 KiB) and %d (%d MiB), got: %d",
+					maxExp, 1<<(maxExp-20), *opts.MaxPieceLength)
+			}
+		}
+		// target piece count mode: derive piece length from target count
+		pieceLength = calculatePieceLengthFromTarget(totalSize, *opts.TargetPieceCount, opts.MaxPieceLength, opts.TrackerURLs, opts.Verbose)
+	} else if opts.PieceLengthExp == nil {
 		if opts.MaxPieceLength != nil {
 			// Get tracker's max piece length if available
 			maxExp := uint(27) // absolute max 128 MiB
@@ -473,14 +570,15 @@ func Create(opts CreateOptions) (*TorrentInfo, error) {
 		return nil, fmt.Errorf("invalid path %q: %w", opts.Path, err)
 	}
 
-	// set name if not provided
+	baseName := filepath.Base(filepath.Clean(opts.Path))
 	if opts.Name == "" {
-		opts.Name = filepath.Base(filepath.Clean(opts.Path))
+		opts.Name = baseName
 	}
 
+	// set name if not provided
 	fileName := opts.Name
 	if len(opts.TrackerURLs) == 1 && !opts.SkipPrefix {
-		fileName = preset.GetDomainPrefix(opts.TrackerURLs[0]) + "_" + opts.Name
+		fileName = preset.GetDomainPrefix(opts.TrackerURLs[0]) + "_" + fileName
 	}
 
 	if opts.OutputDir != "" {

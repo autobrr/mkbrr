@@ -75,7 +75,6 @@ mkbrr create path/to/file -t https://example-tracker.com/announce -e
   - [Speed Comparison](#speed-comparison)
   - [Consistency](#consistency)
   - [Hardware Specifications](#hardware-specifications)
-- [Support Development](#support-development)
 - [License](#license)
 
 ## Installation
@@ -89,7 +88,6 @@ Download a ready-to-use binary for your platform from the [releases page](https:
 ### Homebrew (macOS and Linux)
 
 ```bash
-brew tap autobrr/mkbrr
 brew install mkbrr
 ```
 
@@ -244,6 +242,9 @@ mkbrr create path/to/large-file -t https://example-tracker.com/announce --worker
 
 # Fail if a potentially incomplete season pack is detected
 mkbrr create path/to/season-pack -t https://example-tracker.com/announce --fail-on-season-warning
+
+# Create using a name property for the torrent
+mkbrr create path/to/file -t https://example-tracker.com/announce --name "Your torrent name"
 ```
 
 > [!NOTE]
@@ -306,6 +307,9 @@ mkbrr modify original.torrent -t https://first.com -t https://second.com -t http
 
 # Randomize info hash
 mkbrr modify original.torrent -e
+
+# Change the torrent's name property
+mkbrr modify original.torrent --name "My new torrent name"
 ```
 
 ## Advanced Usage
@@ -554,36 +558,6 @@ Summary
     1.12 ± 0.08 times faster than mktorrent ~/Desktop/Show.S01.1080p.SRC.WEB-DL.DDP5.1.H.264-GRP
 ```
 </details>
-
-## Support Development
-
-mkbrr is developed and maintained by volunteers. Your support helps us continue improving the project.
-
-- **soup**
-  - [GitHub Sponsors](https://github.com/s0up4200)
-  - [Buy Me a Coffee](https://buymeacoffee.com/s0up4200)
-- **zze0s**
-  - [GitHub Sponsors](https://github.com/zze0s)
-
-### Cryptocurrency
-
-#### Bitcoin (BTC)
-- soup: `bc1qfe093kmhvsa436v4ksz0udfcggg3vtnm2tjgem`
-- zze0s: `bc1q2nvdd83hrzelqn4vyjm8tvjwmsuuxsdlg4ws7x`
-
-#### Ethereum (ETH)
-- soup: `0xD8f517c395a68FEa8d19832398d4dA7b45cbc38F`
-- zze0s: `0xBF7d749574aabF17fC35b27232892d3F0ff4D423`
-
-#### Litecoin (LTC)
-- soup: `ltc1q86nx64mu2j22psj378amm58ghvy4c9dw80z88h`
-- zze0s: `ltc1qza9ffjr5y43uk8nj9ndjx9hkj0ph3rhur6wudn`
-
-#### Monero (XMR)
-- soup: `8AMPTPgjmLG9armLBvRA8NMZqPWuNT4US3kQoZrxDDVSU21kpYpFr1UCWmmtcBKGsvDCFA3KTphGXExWb3aHEu67JkcjAvC`
-- zze0s: `44AvbWXzFN3bnv2oj92AmEaR26PQf5Ys4W155zw3frvEJf2s4g325bk4tRBgH7umSVMhk88vkU3gw9cDvuCSHgpRPsuWVJp`
-
-Thank you for your support!
 
 ## License
 

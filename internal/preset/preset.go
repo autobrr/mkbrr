@@ -41,6 +41,7 @@ type Options struct {
 	IncludePatterns     []string `yaml:"include_patterns" json:"includePatterns,omitempty"`
 	PieceLength         uint     `yaml:"piece_length" json:"pieceLength,omitempty"`
 	MaxPieceLength      uint     `yaml:"max_piece_length" json:"maxPieceLength,omitempty"`
+	TargetPieceCount    uint     `yaml:"target_piece_count" json:"targetPieceCount,omitempty"`
 	Workers             int      `yaml:"workers" json:"workers,omitempty"`
 }
 
@@ -202,6 +203,7 @@ func (c *Config) GetPreset(name string) (*Options, error) {
 		merged.OutputDir = c.Default.OutputDir
 		merged.PieceLength = c.Default.PieceLength
 		merged.MaxPieceLength = c.Default.MaxPieceLength
+		merged.TargetPieceCount = c.Default.TargetPieceCount
 		merged.Workers = c.Default.Workers
 		if len(c.Default.ExcludePatterns) > 0 {
 			merged.ExcludePatterns = c.Default.ExcludePatterns
@@ -232,9 +234,14 @@ func (c *Config) GetPreset(name string) (*Options, error) {
 	}
 	if preset.PieceLength != 0 {
 		merged.PieceLength = preset.PieceLength
+		merged.TargetPieceCount = 0 // mutually exclusive: preset override clears inherited value
 	}
 	if preset.MaxPieceLength != 0 {
 		merged.MaxPieceLength = preset.MaxPieceLength
+	}
+	if preset.TargetPieceCount != 0 {
+		merged.TargetPieceCount = preset.TargetPieceCount
+		merged.PieceLength = 0 // mutually exclusive: preset override clears inherited value
 	}
 	if preset.Private != nil {
 		merged.Private = preset.Private
@@ -267,14 +274,18 @@ func (c *Config) GetPreset(name string) (*Options, error) {
 	return &merged, nil
 }
 
-// ApplyToMetaInfo applies preset options to a MetaInfo object
+// ApplyToMetaInfo applies preset options to a MetaInfo object.
+// Info-level changes are applied via raw map to preserve custom keys (e.g. entropy).
 func (o *Options) ApplyToMetaInfo(mi *metainfo.MetaInfo) (bool, error) {
 	wasModified := false
 
-	info, err := mi.UnmarshalInfo()
-	if err != nil {
-		return false, fmt.Errorf("could not unmarshal info: %w", err)
+	// track info-level changes to apply via raw map at the end
+	type infoChange struct {
+		key    string
+		value  any
+		remove bool
 	}
+	var infoChanges []infoChange
 
 	// Only modify values that are explicitly set in the preset
 	if len(o.Trackers) > 0 {
@@ -293,7 +304,7 @@ func (o *Options) ApplyToMetaInfo(mi *metainfo.MetaInfo) (bool, error) {
 	}
 
 	if o.Source != "" {
-		info.Source = o.Source
+		infoChanges = append(infoChanges, infoChange{key: "source", value: o.Source})
 		wasModified = true
 	}
 
@@ -303,10 +314,11 @@ func (o *Options) ApplyToMetaInfo(mi *metainfo.MetaInfo) (bool, error) {
 	}
 
 	if o.Private != nil {
-		if info.Private == nil {
-			info.Private = new(bool)
+		val := int64(0)
+		if *o.Private {
+			val = 1
 		}
-		*info.Private = *o.Private
+		infoChanges = append(infoChanges, infoChange{key: "private", value: val})
 		wasModified = true
 	}
 
@@ -328,11 +340,22 @@ func (o *Options) ApplyToMetaInfo(mi *metainfo.MetaInfo) (bool, error) {
 		wasModified = true
 	}
 
-	// re-marshal the modified info if needed
-	if wasModified {
-		infoBytes, err := bencode.Marshal(info)
+	// apply info-level changes via raw map to preserve custom keys
+	if len(infoChanges) > 0 {
+		infoMap := make(map[string]any)
+		if err := bencode.Unmarshal(mi.InfoBytes, &infoMap); err != nil {
+			return false, fmt.Errorf("could not unmarshal info map: %w", err)
+		}
+		for _, c := range infoChanges {
+			if c.remove {
+				delete(infoMap, c.key)
+			} else {
+				infoMap[c.key] = c.value
+			}
+		}
+		infoBytes, err := bencode.Marshal(infoMap)
 		if err != nil {
-			return false, fmt.Errorf("failed to marshal modified info: %w", err)
+			return false, fmt.Errorf("could not marshal info map: %w", err)
 		}
 		mi.InfoBytes = infoBytes
 	}

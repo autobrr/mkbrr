@@ -364,6 +364,7 @@ export namespace preset {
 	    includePatterns?: string[];
 	    pieceLength?: number;
 	    maxPieceLength?: number;
+	    targetPieceCount?: number;
 	    workers?: number;
 	
 	    static createFrom(source: any = {}) {
@@ -387,6 +388,7 @@ export namespace preset {
 	        this.includePatterns = source["includePatterns"];
 	        this.pieceLength = source["pieceLength"];
 	        this.maxPieceLength = source["maxPieceLength"];
+	        this.targetPieceCount = source["targetPieceCount"];
 	        this.workers = source["workers"];
 	    }
 	}
