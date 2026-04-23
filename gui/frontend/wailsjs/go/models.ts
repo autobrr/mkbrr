@@ -147,7 +147,7 @@ export namespace main {
 	    isPrivate?: boolean;
 	    noDate: boolean;
 	    noCreator: boolean;
-	    entropy: boolean;
+	    entropy?: boolean;
 	    skipPrefix: boolean;
 	    outputDir: string;
 	    outputPattern: string;

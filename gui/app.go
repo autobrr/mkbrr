@@ -156,7 +156,7 @@ type ModifyRequest struct {
 	IsPrivate     *bool    `json:"isPrivate"`     // Optional: set private flag (nil = unchanged)
 	NoDate        bool     `json:"noDate"`        // Optional: remove creation date
 	NoCreator     bool     `json:"noCreator"`     // Optional: remove creator string
-	Entropy       bool     `json:"entropy"`       // Optional: add entropy for unique hash
+	Entropy       *bool     `json:"entropy"`      // Optional: add entropy for unique hash
 	SkipPrefix    bool     `json:"skipPrefix"`    // Optional: don't prefix output filename
 	OutputDir     string   `json:"outputDir"`     // Optional: output directory for modified file
 	OutputPattern string   `json:"outputPattern"` // Optional: output filename pattern
