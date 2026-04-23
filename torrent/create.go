@@ -128,11 +128,6 @@ func calculatePieceLength(totalSize int64, maxPieceLength *uint, trackerURLs []s
 		}
 	}
 
-	// if no manual piece length was specified, cap at 2^24
-	if maxPieceLength == nil {
-		exp = min(exp, 24)
-	}
-
 	// ensure we stay within bounds
 	exp = min(exp, maxExp)
 
@@ -526,8 +521,27 @@ func CreateTorrent(opts CreateOptions) (*Torrent, error) {
 				return nil, fmt.Errorf("error marshaling torrent data: %w", err)
 			}
 
+			// Determine the effective max piece length ceiling
+			maxPieceLengthCeiling := uint(24) // default ceiling
+			hasTrackerCap := false
+			if len(opts.TrackerURLs) > 0 && opts.TrackerURLs[0] != "" {
+				if trackerMaxExp, ok := trackers.GetTrackerMaxPieceLength(opts.TrackerURLs[0]); ok {
+					maxPieceLengthCeiling = trackerMaxExp
+					hasTrackerCap = true
+				}
+			}
+			if opts.MaxPieceLength != nil {
+				if hasTrackerCap {
+					// tracker cap is a hard ceiling; user can lower but not exceed it
+					maxPieceLengthCeiling = min(*opts.MaxPieceLength, maxPieceLengthCeiling)
+				} else {
+					// no tracker cap; user can raise above default 24
+					maxPieceLengthCeiling = min(*opts.MaxPieceLength, 27)
+				}
+			}
+
 			// If it exceeds limit, try increasing piece length until it fits or we hit max
-			for uint64(len(torrentData)) > maxSize && pieceLength < 24 {
+			for uint64(len(torrentData)) > maxSize && pieceLength < maxPieceLengthCeiling {
 				if opts.Verbose || opts.InfoOnly {
 					display := NewDisplay(NewFormatter(opts.Verbose || opts.InfoOnly))
 					display.SetQuiet(opts.Quiet || opts.InfoOnly)
