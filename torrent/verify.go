@@ -386,7 +386,23 @@ func (v *pieceVerifier) verifyPieces(numWorkersOverride int) error {
 	v.display.ShowProgress(v.numPieces) // Show progress bar only if numPieces > 0
 
 	var wg sync.WaitGroup
-	for i := 0; i < numWorkers; i++ {
+
+	// Verify first piece immediately
+	if err := v.verifyPieceRange(0, 1, &completedPieces); err != nil {
+		errorsCh <- err
+	}
+	if piecesPerWorker > 1 {
+		// Start first worker job
+		wg.Add(1)
+		go func(startPiece, endPiece int) {
+			defer wg.Done()
+			if err := v.verifyPieceRange(startPiece, endPiece, &completedPieces); err != nil {
+				errorsCh <- err
+			}
+		}(1, piecesPerWorker) // Start from piece 1 since piece 0 is already processed
+	}
+	// Populate the other workers
+	for i := 1; i < numWorkers; i++ {
 		start := i * piecesPerWorker
 		end := start + piecesPerWorker
 		if end > v.numPieces {
@@ -402,9 +418,10 @@ func (v *pieceVerifier) verifyPieces(numWorkersOverride int) error {
 		}(start, end)
 	}
 
+	tickPeriod := 200 * time.Millisecond
 	// Progress monitoring goroutine
 	go func() {
-		ticker := time.NewTicker(200 * time.Millisecond)
+		ticker := time.NewTicker(tickPeriod)
 		defer ticker.Stop()
 		for {
 			select {
@@ -448,7 +465,7 @@ func (v *pieceVerifier) verifyPieces(numWorkersOverride int) error {
 		if elapsed > 0 {
 			rate = float64(atomic.LoadInt64(&v.bytesVerified)) / elapsed
 		}
-		v.progressCallback(int(atomic.LoadUint64(&completedPieces)), v.numPieces, rate/(1024*1024))
+		v.progressCallback(v.numPieces, v.numPieces, rate/(1024*1024)) // Shows 100% completion, convert to MiB/s
 	}
 	close(errorsCh)
 
