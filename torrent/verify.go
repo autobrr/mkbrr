@@ -426,7 +426,7 @@ func (v *pieceVerifier) verifyPieces(numWorkersOverride int) error {
 
 				// Call progress callback if provided
 				if v.progressCallback != nil {
-					v.progressCallback(int(completed), v.numPieces, rate/(1024*1024)) // Convert to MB/s
+					v.progressCallback(int(completed), v.numPieces, rate/(1024*1024)) // Convert to MiB/s
 				}
 
 				if completed >= uint64(v.numPieces) {
@@ -438,6 +438,18 @@ func (v *pieceVerifier) verifyPieces(numWorkersOverride int) error {
 
 	wg.Wait()
 	close(done) // Signal progress goroutine to stop
+
+	// Emit one final progress update so consumers observe 100% completion.
+	if v.progressCallback != nil {
+		v.mutex.RLock()
+		elapsed := time.Since(v.startTime).Seconds()
+		v.mutex.RUnlock()
+		var rate float64
+		if elapsed > 0 {
+			rate = float64(atomic.LoadInt64(&v.bytesVerified)) / elapsed
+		}
+		v.progressCallback(int(atomic.LoadUint64(&completedPieces)), v.numPieces, rate/(1024*1024))
+	}
 	close(errorsCh)
 
 	for err := range errorsCh {
