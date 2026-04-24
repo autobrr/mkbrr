@@ -418,9 +418,11 @@ func (v *pieceVerifier) verifyPieces(numWorkersOverride int) error {
 		}(start, end)
 	}
 
+	monitorDone := make(chan struct{}) // Channel to signal when the progress monitoring goroutine has fully exited
 	tickPeriod := 200 * time.Millisecond
 	// Progress monitoring goroutine
 	go func() {
+		defer close(monitorDone)
 		ticker := time.NewTicker(tickPeriod)
 		defer ticker.Stop()
 		for {
@@ -445,17 +447,13 @@ func (v *pieceVerifier) verifyPieces(numWorkersOverride int) error {
 				if v.progressCallback != nil {
 					v.progressCallback(int(completed), v.numPieces, rate/(1024*1024)) // Convert to MiB/s
 				}
-
-				if completed >= uint64(v.numPieces) {
-					return // Exit goroutine when all pieces are processed
-				}
 			}
 		}
 	}()
 
 	wg.Wait()
-	close(done) // Signal progress goroutine to stop
-
+	close(done)   // Signal progress goroutine to stop
+	<-monitorDone // Ensure the progress monitoring has fully exited before the final callback
 	// Emit one final progress update so consumers observe 100% completion.
 	if v.progressCallback != nil {
 		v.mutex.RLock()
