@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -300,23 +299,23 @@ func (v *pieceVerifier) optimizeForWorkload() (int, int) {
 			numWorkers = 1
 		} else if totalSize < 1<<30 {
 			readSize = 4 << 20
-			numWorkers = runtime.NumCPU()
+			numWorkers = defaultWorkerCount(false)
 		} else {
 			readSize = 8 << 20
-			numWorkers = runtime.NumCPU() * 2
+			numWorkers = defaultWorkerCount(true)
 		}
 	case avgFileSize < 1<<20:
 		readSize = 256 << 10
-		numWorkers = runtime.NumCPU()
+		numWorkers = defaultWorkerCount(false)
 	case avgFileSize < 10<<20:
 		readSize = 1 << 20
-		numWorkers = runtime.NumCPU()
+		numWorkers = defaultWorkerCount(false)
 	case avgFileSize < 1<<30:
 		readSize = 4 << 20
-		numWorkers = runtime.NumCPU() * 2
+		numWorkers = defaultWorkerCount(true)
 	default:
 		readSize = 8 << 20
-		numWorkers = runtime.NumCPU() * 2
+		numWorkers = defaultWorkerCount(true)
 	}
 
 	if numWorkers > v.numPieces {
@@ -370,10 +369,7 @@ func (v *pieceVerifier) verifyPieces(numWorkersOverride int) error {
 		},
 	}
 
-	v.mutex.Lock()
 	v.startTime = time.Now()
-	v.lastUpdate = v.startTime
-	v.mutex.Unlock()
 	v.bytesVerified = 0
 
 	v.display.ShowFiles(v.files, numWorkers)
@@ -484,10 +480,10 @@ func (v *pieceVerifier) verifyPieceRange(startPiece, endPiece int, completedPiec
 	defer v.bufferPool.Put(buf)
 
 	hasher := sha1.New()
-	readers := make(map[string]*fileReader)
+	readers := make([]*fileReader, len(v.files))
 	defer func() {
 		for _, r := range readers {
-			if r.file != nil {
+			if r != nil && r.file != nil {
 				r.file.Close()
 			}
 		}
@@ -520,6 +516,7 @@ func (v *pieceVerifier) verifyPieceRange(startPiece, endPiece int, completedPiec
 		// If not missing, proceed to hash and compare
 		hasher.Reset()
 		bytesHashedThisPiece := int64(0)
+		var actualHashBuf [sha1.Size]byte
 
 		foundStartFile := false
 		for fIdx := currentFileIndex; fIdx < len(v.files); fIdx++ {
@@ -559,8 +556,8 @@ func (v *pieceVerifier) verifyPieceRange(startPiece, endPiece int, completedPiec
 				continue
 			}
 
-			reader, ok := readers[file.path]
-			if !ok {
+			reader := readers[fIdx]
+			if reader == nil {
 				f, err := os.OpenFile(file.path, os.O_RDONLY, 0)
 				if err != nil {
 					// File became unreadable after initial check? Mark as bad.
@@ -571,7 +568,7 @@ func (v *pieceVerifier) verifyPieceRange(startPiece, endPiece int, completedPiec
 					goto nextPiece // Use goto to ensure completedPieces is incremented
 				}
 				reader = &fileReader{file: f, position: -1, length: file.length}
-				readers[file.path] = reader
+				readers[fIdx] = reader
 			}
 
 			if reader.position != readStartInFile {
@@ -607,13 +604,16 @@ func (v *pieceVerifier) verifyPieceRange(startPiece, endPiece int, completedPiec
 				bytesHashedThisPiece += int64(n)
 				reader.position += int64(n)
 				bytesToRead -= int64(n)
-				atomic.AddInt64(&v.bytesVerified, int64(n))
 			}
 			pieceOffset += readLength
 		}
 
+		if bytesHashedThisPiece > 0 {
+			atomic.AddInt64(&v.bytesVerified, bytesHashedThisPiece)
+		}
+
 		expectedHash = v.torrentInfo.Pieces[pieceIndex*20 : (pieceIndex+1)*20]
-		actualHash = hasher.Sum(nil)
+		actualHash = hasher.Sum(actualHashBuf[:0])
 
 		if bytes.Equal(actualHash, expectedHash) {
 			atomic.AddUint64(&v.goodPieces, 1)

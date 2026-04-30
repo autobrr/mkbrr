@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sync"
 	"testing"
 
@@ -170,8 +171,8 @@ func createTestFilesFast(t *testing.T, numFiles int, fileSize, pieceLen int64) (
 }
 
 // createTestFilesWithPattern creates test files filled with a deterministic pattern.
-func createTestFilesWithPattern(t *testing.T, tempDir string, fileSizes []int64, pieceLen int64) ([]fileEntry, [][]byte) {
-	t.Helper()
+func createTestFilesWithPattern(tb testing.TB, tempDir string, fileSizes []int64, pieceLen int64) ([]fileEntry, [][]byte) {
+	tb.Helper()
 
 	var files []fileEntry
 	var allExpectedHashes [][]byte
@@ -188,7 +189,7 @@ func createTestFilesWithPattern(t *testing.T, tempDir string, fileSizes []int64,
 		path := filepath.Join(tempDir, fmt.Sprintf("boundary_test_file_%d", i))
 		f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0644)
 		if err != nil {
-			t.Fatalf("failed to create file %s: %v", path, err)
+			tb.Fatalf("failed to create file %s: %v", path, err)
 		}
 
 		// write the pattern repeatedly to fill the file
@@ -201,7 +202,7 @@ func createTestFilesWithPattern(t *testing.T, tempDir string, fileSizes []int64,
 			n, err := f.Write(pattern[:toWrite])
 			if err != nil {
 				f.Close()
-				t.Fatalf("failed to write pattern to %s: %v", path, err)
+				tb.Fatalf("failed to write pattern to %s: %v", path, err)
 			}
 			// also write to global buffer for hash calculation
 			globalBuffer.Write(pattern[:toWrite])
@@ -248,6 +249,51 @@ func verifyHashes(t *testing.T, got, want [][]byte) {
 		if !bytes.Equal(got[i], want[i]) {
 			t.Errorf("piece %d hash mismatch:\ngot  %x\nwant %x", i, got[i], want[i])
 		}
+	}
+}
+
+func TestNewPieceHasher_PrecomputesPieceLayout(t *testing.T) {
+	files := []fileEntry{
+		{path: "a", length: 3, offset: 0},
+		{path: "b", length: 5, offset: 3},
+		{path: "c", length: 2, offset: 8},
+	}
+
+	hasher := NewPieceHasher(files, 4, 3, &mockDisplay{}, false)
+
+	if hasher.totalSize != 10 {
+		t.Fatalf("expected total size 10, got %d", hasher.totalSize)
+	}
+
+	if hasher.lastPieceLength != 2 {
+		t.Fatalf("expected last piece length 2, got %d", hasher.lastPieceLength)
+	}
+
+	wantStartFiles := []int{0, 1, 2}
+	if !slices.Equal(hasher.pieceStartFiles, wantStartFiles) {
+		t.Fatalf("unexpected piece start files: got %v want %v", hasher.pieceStartFiles, wantStartFiles)
+	}
+}
+
+func TestNewPieceHasher_PreallocatesPieceHashStorage(t *testing.T) {
+	hasher := NewPieceHasher(nil, 1<<16, 3, &mockDisplay{}, false)
+
+	if len(hasher.pieceHashStorage) != 3*sha1.Size {
+		t.Fatalf("expected hash storage size %d, got %d", 3*sha1.Size, len(hasher.pieceHashStorage))
+	}
+
+	for i, piece := range hasher.pieces {
+		if len(piece) != sha1.Size {
+			t.Fatalf("piece %d len = %d, want %d", i, len(piece), sha1.Size)
+		}
+		if cap(piece) != sha1.Size {
+			t.Fatalf("piece %d cap = %d, want %d", i, cap(piece), sha1.Size)
+		}
+	}
+
+	hasher.pieces[0][0] = 1
+	if hasher.pieces[1][0] != 0 {
+		t.Fatal("piece hash storage overlaps between pieces")
 	}
 }
 
@@ -420,6 +466,33 @@ func TestPieceHasher_ZeroWorkers(t *testing.T) {
 	err = hasher.hashPieces(0)
 	if err != nil {
 		t.Errorf("hashPieces(0) should not return an error (should optimize or default to 1 worker), but got: %v", err)
+	}
+}
+
+func TestPieceHasher_OptimizeForWorkload_RespectsPlatformWorkerCap(t *testing.T) {
+	cpuCount := runtime.NumCPU()
+	if cpuCount < 2 {
+		t.Skip("need at least 2 CPUs to verify worker capping")
+	}
+
+	files := make([]fileEntry, 0, 8)
+	var offset int64
+	for i := 0; i < 8; i++ {
+		files = append(files, fileEntry{
+			path:   fmt.Sprintf("file-%d", i),
+			length: 128 << 20,
+			offset: offset,
+		})
+		offset += 128 << 20
+	}
+
+	numPieces := int((offset + (1 << 20) - 1) / (1 << 20))
+	hasher := NewPieceHasher(files, 1<<20, numPieces, &mockDisplay{}, false)
+
+	_, workers := hasher.optimizeForWorkload()
+	maxWorkers := autoWorkerCount(cpuCount, true, runtime.GOOS)
+	if workers > maxWorkers {
+		t.Fatalf("expected workers <= platform cap (%d), got %d", maxWorkers, workers)
 	}
 }
 

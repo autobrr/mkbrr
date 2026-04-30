@@ -5,25 +5,26 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
 )
 
 type pieceHasher struct {
-	startTime  time.Time
-	lastUpdate time.Time
-	display    Displayer
-	bufferPool *sync.Pool
-	pieces     [][]byte
-	files      []fileEntry
-	pieceLen   int64
-	numPieces  int
-	readSize   int
+	display          Displayer
+	bufferPool       *sync.Pool
+	pieces           [][]byte
+	pieceHashStorage []byte
+	files            []fileEntry
+	pieceLen         int64
+	numPieces        int
+	readSize         int
+	totalSize        int64
+	lastPieceLength  int64
+	pieceStartFiles  []int
 
+	startTime               time.Time
 	bytesProcessed          int64
-	mutex                   sync.RWMutex
 	failOnSeasonPackWarning bool
 }
 
@@ -38,44 +39,41 @@ func (h *pieceHasher) optimizeForWorkload() (int, int) {
 		return 0, 0
 	}
 
-	// calculate total and maximum file sizes for optimization decisions
-	var totalSize int64
 	maxFileSize := int64(0)
 	for _, f := range h.files {
-		totalSize += f.length
 		if f.length > maxFileSize {
 			maxFileSize = f.length
 		}
 	}
-	avgFileSize := totalSize / int64(len(h.files))
+	avgFileSize := h.totalSize / int64(len(h.files))
 
 	var readSize, numWorkers int
 
 	// optimize buffer size and worker count based on file characteristics
 	switch {
 	case len(h.files) == 1:
-		if totalSize < 1<<20 {
+		if h.totalSize < 1<<20 {
 			readSize = 64 << 10 // 64 KiB for very small files
 			numWorkers = 1
-		} else if totalSize < 1<<30 { // < 1 GiB
+		} else if h.totalSize < 1<<30 { // < 1 GiB
 			readSize = 4 << 20 // 4 MiB
-			numWorkers = runtime.NumCPU()
+			numWorkers = defaultWorkerCount(false)
 		} else {
-			readSize = 8 << 20                // 8 MiB for large files
-			numWorkers = runtime.NumCPU() * 2 // over-subscription for better I/O utilization
+			readSize = 8 << 20
+			numWorkers = defaultWorkerCount(true)
 		}
 	case avgFileSize < 1<<20: // avg < 1 MiB
 		readSize = 256 << 10 // 256 KiB
-		numWorkers = runtime.NumCPU()
+		numWorkers = defaultWorkerCount(false)
 	case avgFileSize < 10<<20: // avg < 10 MiB
 		readSize = 1 << 20 // 1 MiB
-		numWorkers = runtime.NumCPU()
+		numWorkers = defaultWorkerCount(false)
 	case avgFileSize < 1<<30: // avg < 1 GiB
 		readSize = 4 << 20 // 4 MiB
-		numWorkers = runtime.NumCPU() * 2
+		numWorkers = defaultWorkerCount(true)
 	default: // avg >= 1 GiB
 		readSize = 8 << 20 // 8 MiB
-		numWorkers = runtime.NumCPU() * 2
+		numWorkers = defaultWorkerCount(true)
 	}
 
 	// ensure we don't create more workers than pieces to process
@@ -126,10 +124,7 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 		},
 	}
 
-	h.mutex.Lock()
 	h.startTime = time.Now()
-	h.lastUpdate = h.startTime
-	h.mutex.Unlock()
 	h.bytesProcessed = 0
 
 	h.display.ShowFiles(h.files, numWorkers)
@@ -167,28 +162,38 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 	}
 
 	// monitor and update progress bar in separate goroutine
+	stopProgress := make(chan struct{})
+	progressDone := make(chan struct{})
 	go func() {
+		defer close(progressDone)
+		ticker := time.NewTicker(200 * time.Millisecond)
+		defer ticker.Stop()
+
 		for {
-			completed := atomic.LoadUint64(&completedPieces)
-			if completed >= uint64(h.numPieces) {
-				break
-			}
+			select {
+			case <-stopProgress:
+				return
+			case <-ticker.C:
+				completed := atomic.LoadUint64(&completedPieces)
+				bytesProcessed := atomic.LoadInt64(&h.bytesProcessed)
+				elapsed := time.Since(h.startTime).Seconds()
 
-			bytesProcessed := atomic.LoadInt64(&h.bytesProcessed)
-			h.mutex.RLock()
-			elapsed := time.Since(h.startTime).Seconds()
-			h.mutex.RUnlock()
-			var hashrate float64
-			if elapsed > 0 {
-				hashrate = float64(bytesProcessed) / elapsed
-			}
+				var hashrate float64
+				if elapsed > 0 {
+					hashrate = float64(bytesProcessed) / elapsed
+				}
 
-			h.display.UpdateProgress(int(completed), hashrate)
-			time.Sleep(200 * time.Millisecond)
+				h.display.UpdateProgress(int(completed), hashrate)
+				if completed >= uint64(h.numPieces) {
+					return
+				}
+			}
 		}
 	}()
 
 	wg.Wait()
+	close(stopProgress)
+	<-progressDone
 	close(errorsCh)
 
 	for err := range errorsCh {
@@ -218,57 +223,39 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 	defer h.bufferPool.Put(buf)
 
 	hasher := sha1.New()
-	// track open file handles to avoid reopening the same file
-	readers := make(map[string]*fileReader)
+	readers := make([]*fileReader, len(h.files))
 	defer func() {
-		for _, r := range readers {
-			r.file.Close()
+		for _, reader := range readers {
+			if reader != nil {
+				_ = reader.file.Close()
+			}
 		}
 	}()
 
 	for pieceIndex := startPiece; pieceIndex < endPiece; pieceIndex++ {
 		pieceOffset := int64(pieceIndex) * h.pieceLen
-		pieceLength := h.pieceLen
-
-		// handle last piece which may be shorter than others
-		if pieceIndex == h.numPieces-1 {
-			var totalLength int64
-			for _, f := range h.files {
-				totalLength += f.length
-			}
-			remaining := totalLength - pieceOffset
-			if remaining < pieceLength {
-				pieceLength = remaining
-			}
-		}
-
+		pieceReadOffset := pieceOffset
+		pieceLength := h.pieceLengthFor(pieceIndex)
 		hasher.Reset()
 		remainingPiece := pieceLength
+		bytesHashed := int64(0)
 
-		for _, file := range h.files {
-			// skip files that don't contain data for this piece
-			if pieceOffset >= file.offset+file.length {
+		startFile := h.startFileForPiece(pieceIndex)
+		for fileIndex := startFile; fileIndex < len(h.files) && remainingPiece > 0; fileIndex++ {
+			file := h.files[fileIndex]
+			if pieceReadOffset >= file.offset+file.length {
 				continue
 			}
-			if remainingPiece <= 0 {
-				break
+
+			readStart := max(int64(0), pieceReadOffset-file.offset)
+			readLength := min(file.length-readStart, remainingPiece)
+			if readLength <= 0 {
+				continue
 			}
 
-			// calculate read boundaries within the current file
-			readStart := pieceOffset - file.offset
-			if readStart < 0 {
-				readStart = 0
-			}
-
-			readLength := file.length - readStart
-			if readLength > remainingPiece {
-				readLength = remainingPiece
-			}
-
-			// reuse or create new file reader
-			reader, ok := readers[file.path]
-			if !ok {
-				f, err := os.OpenFile(file.path, os.O_RDONLY, 0)
+			reader := readers[fileIndex]
+			if reader == nil {
+				f, err := os.Open(file.path)
 				if err != nil {
 					return fmt.Errorf("failed to open file %s: %w", file.path, err)
 				}
@@ -277,18 +264,16 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 					position: 0,
 					length:   file.length,
 				}
-				readers[file.path] = reader
+				readers[fileIndex] = reader
 			}
 
-			// ensure correct file position before reading
 			if reader.position != readStart {
-				if _, err := reader.file.Seek(readStart, 0); err != nil {
+				if _, err := reader.file.Seek(readStart, io.SeekStart); err != nil {
 					return fmt.Errorf("failed to seek in file %s: %w", file.path, err)
 				}
 				reader.position = readStart
 			}
 
-			// read file data in chunks to avoid large memory allocations
 			remaining := readLength
 			for remaining > 0 {
 				n := int(remaining)
@@ -300,39 +285,98 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 				if err != nil && err != io.ErrUnexpectedEOF {
 					return fmt.Errorf("failed to read file %s: %w", file.path, err)
 				}
+				if read == 0 {
+					return fmt.Errorf("short read while hashing file %s", file.path)
+				}
 
 				hasher.Write(buf[:read])
 				remaining -= int64(read)
 				remainingPiece -= int64(read)
+				pieceReadOffset += int64(read)
 				reader.position += int64(read)
-				pieceOffset += int64(read)
-
-				atomic.AddInt64(&h.bytesProcessed, int64(read))
+				bytesHashed += int64(read)
 			}
 		}
 
-		// store piece hash and update progress
-		h.pieces[pieceIndex] = hasher.Sum(nil)
+		if remainingPiece != 0 {
+			return fmt.Errorf("failed to hash piece %d completely: %d bytes remaining", pieceIndex, remainingPiece)
+		}
+
+		if bytesHashed > 0 {
+			atomic.AddInt64(&h.bytesProcessed, bytesHashed)
+		}
+
+		h.pieces[pieceIndex] = hasher.Sum(h.pieces[pieceIndex][:0])
 		atomic.AddUint64(completedPieces, 1)
 	}
 
 	return nil
 }
 
-func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Displayer, failOnSeasonPackWarning bool) *pieceHasher {
-	bufferPool := &sync.Pool{
-		New: func() interface{} {
-			buf := make([]byte, pieceLen)
-			return buf
-		},
+func (h *pieceHasher) pieceLengthFor(pieceIndex int) int64 {
+	if pieceIndex == h.numPieces-1 {
+		return h.lastPieceLength
 	}
+	return h.pieceLen
+}
+
+func (h *pieceHasher) startFileForPiece(pieceIndex int) int {
+	if pieceIndex < 0 || pieceIndex >= len(h.pieceStartFiles) {
+		return len(h.files)
+	}
+	return h.pieceStartFiles[pieceIndex]
+}
+
+func buildPieceLayout(files []fileEntry, pieceLen int64, numPieces int) (int64, int64, []int) {
+	var totalSize int64
+	for _, file := range files {
+		totalSize += file.length
+	}
+
+	if numPieces == 0 {
+		return totalSize, 0, nil
+	}
+
+	lastPieceLength := totalSize - (int64(numPieces-1) * pieceLen)
+	switch {
+	case lastPieceLength < 0:
+		lastPieceLength = 0
+	case lastPieceLength > pieceLen:
+		lastPieceLength = pieceLen
+	}
+
+	pieceStartFiles := make([]int, numPieces)
+	fileIndex := 0
+	for pieceIndex := 0; pieceIndex < numPieces; pieceIndex++ {
+		pieceOffset := int64(pieceIndex) * pieceLen
+		for fileIndex < len(files) && pieceOffset >= files[fileIndex].offset+files[fileIndex].length {
+			fileIndex++
+		}
+		pieceStartFiles[pieceIndex] = fileIndex
+	}
+
+	return totalSize, lastPieceLength, pieceStartFiles
+}
+
+func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Displayer, failOnSeasonPackWarning bool) *pieceHasher {
+	totalSize, lastPieceLength, pieceStartFiles := buildPieceLayout(files, pieceLen, numPieces)
+	pieceHashStorage := make([]byte, numPieces*sha1.Size)
+	pieces := make([][]byte, numPieces)
+	for i := range pieces {
+		start := i * sha1.Size
+		pieces[i] = pieceHashStorage[start : start+sha1.Size : start+sha1.Size]
+	}
+
 	return &pieceHasher{
-		pieces:                  make([][]byte, numPieces),
+		pieces:                  pieces,
+		pieceHashStorage:        pieceHashStorage,
 		pieceLen:                pieceLen,
 		numPieces:               numPieces,
 		files:                   files,
 		display:                 display,
-		bufferPool:              bufferPool,
+		totalSize:               totalSize,
+		lastPieceLength:         lastPieceLength,
+		pieceStartFiles:         pieceStartFiles,
 		failOnSeasonPackWarning: failOnSeasonPackWarning,
 	}
 }
