@@ -130,8 +130,11 @@ func LoadOrCreate(configPath string) (*Config, error) {
 func Save(configPath string, config *Config) error {
 	// Ensure directory exists
 	dir := filepath.Dir(configPath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("could not create config directory: %w", err)
+	}
+	if err := os.Chmod(dir, 0o700); err != nil {
+		return fmt.Errorf("could not secure config directory: %w", err)
 	}
 
 	// Marshal to YAML
@@ -141,8 +144,11 @@ func Save(configPath string, config *Config) error {
 	}
 
 	// Write file
-	if err := os.WriteFile(configPath, data, 0644); err != nil {
+	if err := os.WriteFile(configPath, data, 0o600); err != nil {
 		return fmt.Errorf("could not write config file: %w", err)
+	}
+	if err := os.Chmod(configPath, 0o600); err != nil {
+		return fmt.Errorf("could not secure config file: %w", err)
 	}
 
 	return nil
