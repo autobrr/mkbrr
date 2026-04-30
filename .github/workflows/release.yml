@@ -55,7 +55,7 @@ jobs:
         run: make test-race
 
       - name: Generate Test Summary
-        run: go run gotest.tools/gotestsum@latest --junitfile unit-tests.xml --format pkgname -- ./torrent ./internal/...
+        run: go run gotest.tools/gotestsum@latest --junitfile unit-tests.xml --format pkgname
 
       - name: Test Summary
         uses: test-summary/action@v2
@@ -91,17 +91,17 @@ jobs:
         if: matrix.os == 'macos-latest'
         env:
           CGO_ENABLED: 0
-        run: go test ./torrent ./internal/...
+        run: go test ./...
 
       - name: Run Tests (Windows)
         if: matrix.os == 'windows-latest'
         env:
           CGO_ENABLED: 0
-        run: go test -short ./torrent ./internal/...
+        run: go test -short ./...
 
       - name: Generate Test Summary
         if: matrix.os != 'windows-latest'
-        run: go run gotest.tools/gotestsum@latest --junitfile unit-tests.xml --format pkgname -- ./torrent ./internal/...
+        run: go run gotest.tools/gotestsum@latest --junitfile unit-tests.xml --format pkgname
 
       - name: Test Summary
         uses: test-summary/action@v2
@@ -161,7 +161,10 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version-file: go.mod
+          go-version-file: gui/go.mod
+          cache-dependency-path: |
+            go.sum
+            gui/go.sum
           cache: true
 
       - name: Set up Node.js
@@ -170,10 +173,10 @@ jobs:
           node-version: '20'
 
       - name: Install Wails CLI
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
 
       - name: Install frontend dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
         working-directory: gui/frontend
 
       - name: Build Wails App (macOS)

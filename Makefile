@@ -88,17 +88,17 @@ install-pgo:
 		install -m 755 ${BUILD_DIR}/${BINARY_NAME} ${GOBIN}/; \
 	fi
 
-# run all tests (excluding large tests and gui)
+# run all tests (excluding large tests)
 .PHONY: test
 test:
 	@echo "Running tests..."
-	$(GO) test -v ./torrent ./internal/...
+	$(GO) test -v ./...
 
 # run quick tests with race detector (for CI and quick feedback)
 .PHONY: test-race-short
 test-race-short:
 	@echo "Running quick tests with race detector..."
-	GORACE="$(GORACE)" $(GO) test -race -short ./torrent -v 
+	GORACE="$(GORACE)" $(GO) test -race -short ./torrent -v
 	@if [ -f "./race_report.log" ]; then \
 		echo "Race conditions detected! Check race_report.log"; \
 		cat "./race_report.log"; \
@@ -124,11 +124,11 @@ test-large:
 		cat "./race_report.log"; \
 	fi
 
-# run tests with coverage (excluding gui)
+# run tests with coverage
 .PHONY: test-coverage
 test-coverage:
 	@echo "Running tests with coverage..."
-	GORACE="$(GORACE)" $(GO) test -v -race -coverprofile=coverage.txt -covermode=atomic ./torrent ./internal/...
+	GORACE="$(GORACE)" $(GO) test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
 	$(GO) tool cover -html=coverage.txt -o coverage.html
 	@if [ -f "./race_report.log" ]; then \
 		echo "Race conditions detected! Check race_report.log"; \
@@ -154,12 +154,13 @@ clean:
 
 # GUI targets
 WAILS=$(GOBIN)/wails
+WAILS_VERSION=v2.12.0
 
 # install wails cli
 .PHONY: install-wails
 install-wails:
 	@echo "Installing Wails CLI..."
-	$(GO) install github.com/wailsapp/wails/v2/cmd/wails@latest
+	$(GO) install github.com/wailsapp/wails/v2/cmd/wails@$(WAILS_VERSION)
 
 # run gui in development mode
 .PHONY: gui-dev
