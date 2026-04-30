@@ -6,10 +6,10 @@ import (
 	"github.com/anacrolix/torrent/metainfo"
 )
 
-// ProgressCallback is called during torrent creation to report progress.
+// ProgressCallback is called during hashing to report progress.
 // completed: number of pieces hashed so far
 // total: total number of pieces to hash
-// hashRate: current hashing rate in bytes per second
+// hashRate: current hashing rate in MiB per second
 type ProgressCallback func(completed, total int, hashRate float64)
 
 // CreateOptions contains all options for creating a torrent
@@ -107,7 +107,7 @@ func (c *callbackDisplayer) ShowProgress(total int) {
 // UpdateProgress implements Displayer interface
 func (c *callbackDisplayer) UpdateProgress(completed int, hashrate float64) {
 	if c.callback != nil {
-		c.callback(completed, c.total, hashrate)
+		c.callback(completed, c.total, hashrate/(1024*1024))
 	}
 }
 

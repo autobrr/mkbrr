@@ -254,6 +254,20 @@ func TestCreateTorrent_TargetPieceCount(t *testing.T) {
 	}
 }
 
+func TestGetRecommendedPieceLengthExpMatchesCreateMinimum(t *testing.T) {
+	got := GetRecommendedPieceLengthExp("https://beyond-hd.me/announce?passkey=123", 32<<20)
+	if got != 16 {
+		t.Fatalf("GetRecommendedPieceLengthExp() = %d, want 16", got)
+	}
+}
+
+func TestGetRecommendedPieceLengthExpUnknownTracker(t *testing.T) {
+	got := GetRecommendedPieceLengthExp("https://unknown.tracker/announce", 32<<20)
+	if got != 0 {
+		t.Fatalf("GetRecommendedPieceLengthExp() = %d, want 0", got)
+	}
+}
+
 func TestCreateTorrent_TargetPieceCountZero(t *testing.T) {
 	dir := t.TempDir()
 	data := make([]byte, 1<<20)

@@ -2,6 +2,8 @@ package preset
 
 import (
 	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -176,5 +178,83 @@ presets:
 				t.Errorf("TargetPieceCount = %d, want %d", preset.TargetPieceCount, tt.wantTargetCount)
 			}
 		})
+	}
+}
+
+func TestSaveRestrictsPresetFilePermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX file modes are not meaningful on Windows")
+	}
+
+	configPath := filepath.Join(t.TempDir(), "mkbrr", "presets.yaml")
+	config := &Config{
+		Version: 1,
+		Presets: map[string]Options{
+			"private-tracker": {
+				Trackers: []string{"https://tracker.example/announce?passkey=secret"},
+			},
+		},
+	}
+
+	if err := Save(configPath, config); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	fileInfo, err := os.Stat(configPath)
+	if err != nil {
+		t.Fatalf("stat saved preset file: %v", err)
+	}
+	if got := fileInfo.Mode().Perm(); got != 0o600 {
+		t.Fatalf("preset file mode = %o, want 600", got)
+	}
+
+	dirInfo, err := os.Stat(filepath.Dir(configPath))
+	if err != nil {
+		t.Fatalf("stat preset dir: %v", err)
+	}
+	if got := dirInfo.Mode().Perm(); got != 0o700 {
+		t.Fatalf("preset dir mode = %o, want 700", got)
+	}
+}
+
+func TestSaveFixesExistingPresetFilePermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX file modes are not meaningful on Windows")
+	}
+
+	configDir := filepath.Join(t.TempDir(), "mkbrr")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatalf("create config dir: %v", err)
+	}
+	if err := os.Chmod(configDir, 0o755); err != nil {
+		t.Fatalf("chmod config dir: %v", err)
+	}
+
+	configPath := filepath.Join(configDir, "presets.yaml")
+	if err := os.WriteFile(configPath, []byte("version: 1\n"), 0o644); err != nil {
+		t.Fatalf("write existing config: %v", err)
+	}
+	if err := os.Chmod(configPath, 0o644); err != nil {
+		t.Fatalf("chmod existing config: %v", err)
+	}
+
+	if err := Save(configPath, &Config{Version: 1, Presets: map[string]Options{}}); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	fileInfo, err := os.Stat(configPath)
+	if err != nil {
+		t.Fatalf("stat saved preset file: %v", err)
+	}
+	if got := fileInfo.Mode().Perm(); got != 0o600 {
+		t.Fatalf("preset file mode = %o, want 600", got)
+	}
+
+	dirInfo, err := os.Stat(configDir)
+	if err != nil {
+		t.Fatalf("stat preset dir: %v", err)
+	}
+	if got := dirInfo.Mode().Perm(); got != 0o700 {
+		t.Fatalf("preset dir mode = %o, want 700", got)
 	}
 }
