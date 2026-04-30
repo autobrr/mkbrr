@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/url"
@@ -313,7 +314,7 @@ func (a *App) CreateTorrent(req CreateRequest) (*TorrentResult, error) {
 			runtime.EventsEmit(a.ctx, "create:progress", ProgressEvent{
 				Completed: completed,
 				Total:     total,
-				HashRate:  hashRate / (1024 * 1024), // Convert bytes/s to MB/s
+				HashRate:  hashRate,
 				Percent:   percent,
 			})
 		},
@@ -544,7 +545,7 @@ func (a *App) ListPresets() ([]string, error) {
 	configPath, err := preset.FindPresetFile("")
 	if err != nil {
 		// Only ignore "not found" errors - other errors should be reported
-		if err == preset.ErrPresetFileNotFound {
+		if errors.Is(err, preset.ErrPresetFileNotFound) {
 			return []string{}, nil
 		}
 		return nil, fmt.Errorf("failed to locate preset file: %w", err)
@@ -582,7 +583,7 @@ func (a *App) GetAllPresets() (*PresetsResult, error) {
 	configPath, err := preset.FindPresetFile("")
 	if err != nil {
 		// Only ignore "not found" errors - other errors should be reported
-		if err == preset.ErrPresetFileNotFound {
+		if errors.Is(err, preset.ErrPresetFileNotFound) {
 			return result, nil
 		}
 		return nil, fmt.Errorf("failed to locate preset file: %w", err)
@@ -724,11 +725,7 @@ func (a *App) GetTrackerInfo(url string) *TrackerInfo {
 
 // GetRecommendedPieceSize returns the recommended piece size for a tracker and content size
 func (a *App) GetRecommendedPieceSize(trackerURL string, contentSize uint64) uint {
-	exp, found := trackers.GetTrackerPieceSizeExp(trackerURL, contentSize)
-	if found {
-		return exp
-	}
-	return 0 // Let the library determine automatically
+	return torrent.GetRecommendedPieceLengthExp(trackerURL, contentSize)
 }
 
 // GetContentSize returns the total size of the content at the given path

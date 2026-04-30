@@ -134,6 +134,27 @@ func calculatePieceLength(totalSize int64, maxPieceLength *uint, trackerURLs []s
 	return exp
 }
 
+// GetRecommendedPieceLengthExp returns the effective tracker-specific piece
+// length exponent for display. It mirrors the automatic create path's bounds.
+func GetRecommendedPieceLengthExp(trackerURL string, contentSize uint64) uint {
+	if trackerURL == "" {
+		return 0
+	}
+
+	exp, ok := trackers.GetTrackerPieceSizeExp(trackerURL, contentSize)
+	if !ok {
+		return 0
+	}
+
+	minExp := uint(16)
+	maxExp := uint(24)
+	if trackerMaxExp, ok := trackers.GetTrackerMaxPieceLength(trackerURL); ok {
+		maxExp = trackerMaxExp
+	}
+
+	return min(max(exp, minExp), maxExp)
+}
+
 func (t *Torrent) GetInfo() *metainfo.Info {
 	info := &metainfo.Info{}
 	_ = bencode.Unmarshal(t.InfoBytes, info)
