@@ -19,11 +19,12 @@ import (
 
 // VerifyOptions holds options for the verification process
 type VerifyOptions struct {
-	TorrentPath string
-	ContentPath string
-	Verbose     bool
-	Quiet       bool
-	Workers     int // Number of worker goroutines for verification
+	TorrentPath      string
+	ContentPath      string
+	Verbose          bool
+	Quiet            bool
+	Workers          int              // Number of worker goroutines for verification
+	ProgressCallback ProgressCallback // Optional callback for progress updates
 }
 
 type pieceVerifier struct {
@@ -35,9 +36,10 @@ type pieceVerifier struct {
 	contentPath string
 	files       []fileEntry // Mapped files based on contentPath
 
-	badPieceIndices []int
-	missingFiles    []string
-	missingRanges   [][2]int64 // Byte ranges [start, end) of missing/mismatched files
+	badPieceIndices  []int
+	missingFiles     []string
+	missingRanges    [][2]int64       // Byte ranges [start, end) of missing/mismatched files
+	progressCallback ProgressCallback // Optional callback for progress updates
 
 	pieceLen  int64
 	numPieces int
@@ -206,13 +208,14 @@ func VerifyData(opts VerifyOptions) (*VerificationResult, error) {
 	// 4. Initialize Verifier
 	numPieces := len(info.Pieces) / 20
 	verifier := &pieceVerifier{
-		torrentInfo:  &info,
-		contentPath:  opts.ContentPath,
-		pieceLen:     info.PieceLength,
-		numPieces:    numPieces,
-		files:        mappedFiles,
-		display:      NewDisplay(NewFormatter(opts.Verbose)),
-		missingFiles: missingFiles,
+		torrentInfo:      &info,
+		contentPath:      opts.ContentPath,
+		pieceLen:         info.PieceLength,
+		numPieces:        numPieces,
+		files:            mappedFiles,
+		display:          NewDisplay(NewFormatter(opts.Verbose)),
+		missingFiles:     missingFiles,
+		progressCallback: opts.ProgressCallback,
 	}
 	verifier.display.SetQuiet(opts.Quiet)
 
@@ -378,11 +381,28 @@ func (v *pieceVerifier) verifyPieces(numWorkersOverride int) error {
 	var completedPieces uint64
 	piecesPerWorker := (v.numPieces + numWorkers - 1) / numWorkers
 	errorsCh := make(chan error, numWorkers)
+	done := make(chan struct{}) // Signal channel to stop progress monitoring
 
 	v.display.ShowProgress(v.numPieces) // Show progress bar only if numPieces > 0
 
 	var wg sync.WaitGroup
-	for i := 0; i < numWorkers; i++ {
+
+	// Verify first piece immediately
+	if err := v.verifyPieceRange(0, 1, &completedPieces); err != nil {
+		errorsCh <- err
+	}
+	if piecesPerWorker > 1 {
+		// Start first worker job
+		wg.Add(1)
+		go func(startPiece, endPiece int) {
+			defer wg.Done()
+			if err := v.verifyPieceRange(startPiece, endPiece, &completedPieces); err != nil {
+				errorsCh <- err
+			}
+		}(1, piecesPerWorker) // Start from piece 1 since piece 0 is already processed
+	}
+	// Populate the other workers
+	for i := 1; i < numWorkers; i++ {
 		start := i * piecesPerWorker
 		end := start + piecesPerWorker
 		if end > v.numPieces {
@@ -398,34 +418,53 @@ func (v *pieceVerifier) verifyPieces(numWorkersOverride int) error {
 		}(start, end)
 	}
 
+	monitorDone := make(chan struct{}) // Channel to signal when the progress monitoring goroutine has fully exited
+	tickPeriod := 200 * time.Millisecond
 	// Progress monitoring goroutine
 	go func() {
-		ticker := time.NewTicker(200 * time.Millisecond)
+		defer close(monitorDone)
+		ticker := time.NewTicker(tickPeriod)
 		defer ticker.Stop()
-		for range ticker.C {
-			completed := atomic.LoadUint64(&completedPieces)
-			// Update display
-			// We might need to adjust UpdateProgress or pass different values
-			// For now, let's pass the overall completed count (good+bad+missing)
-			v.mutex.RLock()
-			elapsed := time.Since(v.startTime).Seconds()
-			v.mutex.RUnlock()
-			var rate float64
-			if elapsed > 0 {
-				bytesVerified := atomic.LoadInt64(&v.bytesVerified)
-				rate = float64(bytesVerified) / elapsed
-			}
-			// Pass total completed count and rate to UpdateProgress
-			// Note: UpdateProgress might need adjustment if it expects percentage instead of count
-			v.display.UpdateProgress(int(completed), rate)
+		for {
+			select {
+			case <-done:
+				return // Clean exit when verification completes or errors
+			case <-ticker.C:
+				completed := atomic.LoadUint64(&completedPieces)
+				// Update display
+				v.mutex.RLock()
+				elapsed := time.Since(v.startTime).Seconds()
+				v.mutex.RUnlock()
+				var rate float64
+				if elapsed > 0 {
+					bytesVerified := atomic.LoadInt64(&v.bytesVerified)
+					rate = float64(bytesVerified) / elapsed
+				}
+				// Pass total completed count and rate to UpdateProgress
+				v.display.UpdateProgress(int(completed), rate)
 
-			if completed >= uint64(v.numPieces) {
-				return // Exit goroutine when all pieces are processed
+				// Call progress callback if provided
+				if v.progressCallback != nil {
+					v.progressCallback(int(completed), v.numPieces, rate/(1024*1024)) // Convert to MiB/s
+				}
 			}
 		}
 	}()
 
 	wg.Wait()
+	close(done)   // Signal progress goroutine to stop
+	<-monitorDone // Ensure the progress monitoring has fully exited before the final callback
+	// Emit one final progress update so consumers observe 100% completion.
+	if v.progressCallback != nil {
+		v.mutex.RLock()
+		elapsed := time.Since(v.startTime).Seconds()
+		v.mutex.RUnlock()
+		var rate float64
+		if elapsed > 0 {
+			rate = float64(atomic.LoadInt64(&v.bytesVerified)) / elapsed
+		}
+		v.progressCallback(v.numPieces, v.numPieces, rate/(1024*1024)) // Shows 100% completion, convert to MiB/s
+	}
 	close(errorsCh)
 
 	for err := range errorsCh {

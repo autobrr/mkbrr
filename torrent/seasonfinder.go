@@ -1,6 +1,7 @@
 package torrent
 
 import (
+	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -169,4 +170,79 @@ func extractMultiEpisodes(filename string) []int {
 	}
 
 	return episodes
+}
+
+// AnalyzeSeasonPackFromPath analyzes a path for season pack completeness.
+// This is a public convenience function for GUI and other tools that need
+// to check season pack status without creating a torrent.
+func AnalyzeSeasonPackFromPath(path string) (*SeasonPackInfo, error) {
+	files, err := collectFilesForSeasonAnalysis(path)
+	if err != nil {
+		return nil, err
+	}
+	return AnalyzeSeasonPack(files), nil
+}
+
+// collectFilesForSeasonAnalysis walks a path and collects file entries for season pack analysis.
+func collectFilesForSeasonAnalysis(path string) ([]fileEntry, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var files []fileEntry
+
+	if !info.IsDir() {
+		// Single file
+		files = append(files, fileEntry{
+			path:   path,
+			length: info.Size(),
+		})
+		return files, nil
+	}
+
+	// Walk directory
+	err = filepath.Walk(path, func(currentPath string, fileInfo os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if fileInfo.IsDir() {
+			return nil
+		}
+
+		// Resolve symlinks
+		resolvedPath := currentPath
+		if fileInfo.Mode()&os.ModeSymlink != 0 {
+			resolved, err := filepath.EvalSymlinks(currentPath)
+			if err != nil {
+				return nil // Skip broken symlinks
+			}
+			resolvedInfo, err := os.Stat(resolved)
+			if err != nil {
+				return nil
+			}
+			if resolvedInfo.IsDir() {
+				return nil
+			}
+			resolvedPath = resolved
+			fileInfo = resolvedInfo
+		}
+
+		files = append(files, fileEntry{
+			path:   resolvedPath,
+			length: fileInfo.Size(),
+		})
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Sort files for consistent analysis
+	sort.Slice(files, func(i, j int) bool {
+		return files[i].path < files[j].path
+	})
+
+	return files, nil
 }
