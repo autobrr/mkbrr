@@ -144,7 +144,7 @@ jobs:
         working-directory: .
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 9
 
@@ -168,7 +168,7 @@ jobs:
           cache: true
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
 
@@ -217,7 +217,7 @@ jobs:
           tar -czvf mkbrr-gui_${{ steps.version.outputs.version }}_${{ matrix.build.archive-suffix }}.tar.gz mkbrr-gui
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: wails-gui-${{ matrix.build.os }}
           path: gui/build/bin/mkbrr-gui_${{ steps.version.outputs.version }}_${{ matrix.build.archive-suffix }}.${{ matrix.build.archive-ext }}
@@ -342,7 +342,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download all GUI artifacts
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v8
         with:
           pattern: wails-gui-*
           path: gui-dist
