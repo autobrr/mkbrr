@@ -163,7 +163,7 @@ export function CreatePage() {
   const [dialogOpen, setDialogOpen] = useState(false);
 
   useEffect(() => {
-    ListPresets().then(setPresets).catch((e) => toast.error('Failed to load presets: ' + String(e)));
+    ListPresets().then((names) => setPresets(names ?? [])).catch((e) => toast.error('Failed to load presets: ' + String(e)));
   }, []);
 
   // Save form state to localStorage whenever values change

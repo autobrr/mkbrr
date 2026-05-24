@@ -556,7 +556,7 @@ func (a *App) ListPresets() ([]string, error) {
 		return nil, err
 	}
 
-	var names []string
+	names := make([]string, 0, len(config.Presets))
 	for name := range config.Presets {
 		names = append(names, name)
 	}
