@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { FolderOpen, File, Loader2, CheckCircle, XCircle } from 'lucide-react';
+import { FolderOpen, File, Loader2, CheckCircle, XCircle, X } from 'lucide-react';
 import { SelectTorrentFile, SelectPath, SelectFile, VerifyTorrent } from '../../wailsjs/go/main/App';
 import { EventsOn } from '../../wailsjs/runtime/runtime';
 import { main } from '../../wailsjs/go/models';
@@ -183,13 +183,25 @@ export function CheckPage() {
             <div className="space-y-1.5">
               <Label>Torrent File</Label>
               <div className="flex gap-2">
-                <Input
-                  value={torrentPath}
-                  onChange={(e) => setTorrentPath(e.target.value)}
-                  placeholder="Select a .torrent file"
-                  className="flex-1"
-                />
-                <Button variant="outline" onClick={handleSelectTorrent}>
+                <div className="relative flex-1">
+                  <Input
+                    value={torrentPath}
+                    onChange={(e) => setTorrentPath(e.target.value)}
+                    placeholder="Select a .torrent file"
+                    className={torrentPath ? 'pr-8' : ''}
+                  />
+                  {torrentPath && (
+                    <button
+                      type="button"
+                      onClick={() => setTorrentPath('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      title="Clear"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+                <Button variant="outline" size="icon" onClick={handleSelectTorrent}>
                   <FolderOpen className="h-4 w-4" />
                 </Button>
               </div>
@@ -199,12 +211,24 @@ export function CheckPage() {
             <div className="space-y-1.5">
               <Label>Content Path</Label>
               <div className="flex gap-2">
-                <Input
-                  value={contentPath}
-                  onChange={(e) => setContentPath(e.target.value)}
-                  placeholder="Select the content folder or file"
-                  className="flex-1"
-                />
+                <div className="relative flex-1">
+                  <Input
+                    value={contentPath}
+                    onChange={(e) => setContentPath(e.target.value)}
+                    placeholder="Select the content folder or file"
+                    className={contentPath ? 'pr-8' : ''}
+                  />
+                  {contentPath && (
+                    <button
+                      type="button"
+                      onClick={() => setContentPath('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      title="Clear"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button variant="outline" size="icon" onClick={handleSelectContentFile}>

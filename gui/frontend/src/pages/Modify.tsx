@@ -270,13 +270,25 @@ export function ModifyPage() {
             <div className="space-y-1.5">
               <Label>Input Torrent</Label>
               <div className="flex gap-2">
-                <Input
-                  value={torrentPath}
-                  onChange={(e) => setTorrentPath(e.target.value)}
-                  placeholder="Select a .torrent file"
-                  className="flex-1"
-                />
-                <Button variant="outline" onClick={handleSelectInput}>
+                <div className="relative flex-1">
+                  <Input
+                    value={torrentPath}
+                    onChange={(e) => setTorrentPath(e.target.value)}
+                    placeholder="Select a .torrent file"
+                    className={torrentPath ? 'pr-8' : ''}
+                  />
+                  {torrentPath && (
+                    <button
+                      type="button"
+                      onClick={() => setTorrentPath('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      title="Clear"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+                <Button variant="outline" size="icon" onClick={handleSelectInput}>
                   <FolderOpen className="h-4 w-4" />
                 </Button>
               </div>
@@ -371,12 +383,24 @@ export function ModifyPage() {
             <div className="space-y-1.5">
               <Label>Output Directory</Label>
               <div className="flex gap-2">
-                <Input
-                  value={outputDir}
-                  onChange={(e) => setOutputDir(e.target.value)}
-                  placeholder={getDirectory(torrentPath) || 'Same as input file'}
-                  className="flex-1"
-                />
+                <div className="relative flex-1">
+                  <Input
+                    value={outputDir}
+                    onChange={(e) => setOutputDir(e.target.value)}
+                    placeholder={getDirectory(torrentPath) || 'Same as input file'}
+                    className={outputDir ? 'pr-8' : ''}
+                  />
+                  {outputDir && (
+                    <button
+                      type="button"
+                      onClick={() => setOutputDir('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      title="Clear"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
                 <Button variant="outline" size="icon" onClick={handleSelectOutputDir}>
                   <FolderOpen className="h-4 w-4" />
                 </Button>
