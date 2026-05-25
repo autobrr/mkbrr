@@ -7,7 +7,7 @@ interface DropOverlayProps {
 
 /**
  * Full-screen overlay displayed while the user drags files over the window.
- * Rendered via a React portal so it sits above all page content.
+ * Uses fixed positioning (z-50) to sit above all page content.
  */
 export function DropOverlay({ visible, label = 'Drop files here' }: DropOverlayProps) {
   if (!visible) return null;
