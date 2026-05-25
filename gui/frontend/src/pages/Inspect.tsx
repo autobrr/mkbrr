@@ -7,6 +7,8 @@ import { Input } from '@/components/ui/input';
 import { FileSearch, FolderOpen, File, Folder, Loader2, ChevronDown, ChevronRight, Lock, Globe, Copy, Check, RotateCcw, Search, X, ChevronsUpDown, Tag, User, Calendar } from 'lucide-react';
 import { SelectTorrentFile, InspectTorrent } from '../../wailsjs/go/main/App';
 import { main } from '../../wailsjs/go/models';
+import { useFileDrop } from '@/hooks/useFileDrop';
+import { DropOverlay } from '@/components/ui/drop-overlay';
 
 type InspectResult = main.InspectResult;
 type FileInfo = main.FileInfo;
@@ -352,6 +354,26 @@ export function InspectPage() {
   const [trackersOpen, setTrackersOpen] = useState(true);
   const [filesOpen, setFilesOpen] = useState(true);
 
+  // Drag-and-drop: accept .torrent files and inspect them immediately.
+  const { isDragging } = useFileDrop(async (paths) => {
+    const torrentPath = paths.find((p) => p.toLowerCase().endsWith('.torrent')) ?? paths[0];
+    if (!torrentPath.toLowerCase().endsWith('.torrent')) {
+      toast.error('Please drop a .torrent file');
+      return;
+    }
+    try {
+      setError('');
+      setIsLoading(true);
+      const info = await InspectTorrent(torrentPath);
+      setTorrentInfo(info);
+    } catch (e) {
+      setError(String(e));
+      setTorrentInfo(null);
+    } finally {
+      setIsLoading(false);
+    }
+  });
+
   // Load persisted state on mount
   useEffect(() => {
     const savedInfo = loadInspectState();
@@ -394,6 +416,7 @@ export function InspectPage() {
 
   return (
     <div className="h-full overflow-auto">
+      <DropOverlay visible={isDragging} label="Drop a .torrent file to inspect it" />
       <div className="p-6 space-y-4">
         <div className="flex items-center justify-between">
           <div>

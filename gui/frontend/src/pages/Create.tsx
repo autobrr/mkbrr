@@ -15,6 +15,8 @@ import { FolderOpen, File, Plus, X, Loader2, ChevronDown, Sparkles, FileSearch, 
 import { SelectPath, SelectFile, CreateTorrent, ListPresets, GetPreset, GetTrackerInfo, GetContentSize, GetRecommendedPieceSize, InspectTorrent } from '../../wailsjs/go/main/App';
 import { EventsOn } from '../../wailsjs/runtime/runtime';
 import { getEffectiveWorkers } from './Settings';
+import { useFileDrop } from '@/hooks/useFileDrop';
+import { DropOverlay } from '@/components/ui/drop-overlay';
 
 import { main, preset as presetTypes } from '../../wailsjs/go/models';
 
@@ -161,6 +163,12 @@ export function CreatePage() {
   const [contentSize, setContentSize] = useState<number>(0);
   const [recommendedPieceSize, setRecommendedPieceSize] = useState<number>(0);
   const [dialogOpen, setDialogOpen] = useState(false);
+
+  // Drag-and-drop: accept any file or folder and use it as the source path.
+  const { isDragging } = useFileDrop((paths) => {
+    setPath(paths[0]);
+    toast.success('Path set from dropped item');
+  });
 
   useEffect(() => {
     ListPresets().then(setPresets).catch((e) => toast.error('Failed to load presets: ' + String(e)));
@@ -477,6 +485,7 @@ export function CreatePage() {
 
   return (
     <div className="flex flex-col h-full">
+      <DropOverlay visible={isDragging} label="Drop a file or folder to set the source path" />
       <div className="flex-1 overflow-auto p-6 space-y-4">
         <div>
           <h1 className="text-2xl font-semibold">Create Torrent</h1>

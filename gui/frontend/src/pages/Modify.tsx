@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -9,6 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { FolderOpen, Plus, X, Loader2, ChevronDown, FileSearch } from 'lucide-react';
 import { SelectTorrentFile, SelectPath, ModifyTorrent, ListPresets, GetPreset, InspectTorrent } from '../../wailsjs/go/main/App';
+import { useFileDrop } from '@/hooks/useFileDrop';
+import { DropOverlay } from '@/components/ui/drop-overlay';
 
 import { main, preset as presetTypes } from '../../wailsjs/go/models';
 
@@ -83,6 +86,17 @@ export function ModifyPage() {
   const [result, setResult] = useState<ModifyResult | null>(null);
   const [error, setError] = useState('');
   const [advancedOpen, setAdvancedOpen] = useState(false);
+
+  // Drag-and-drop: accept .torrent files and populate the input field.
+  const { isDragging } = useFileDrop((paths) => {
+    const dropped = paths[0];
+    if (!dropped.toLowerCase().endsWith('.torrent')) {
+      toast.error('Please drop a .torrent file');
+      return;
+    }
+    setTorrentPath(dropped);
+    toast.success('Torrent file set');
+  });
 
   // Load presets on mount
   useEffect(() => {
@@ -240,6 +254,7 @@ export function ModifyPage() {
 
   return (
     <div className="flex flex-col h-full">
+      <DropOverlay visible={isDragging} label="Drop a .torrent file to modify it" />
       <div className="flex-1 overflow-auto p-6 space-y-4">
         <div>
           <h1 className="text-2xl font-semibold">Modify Torrent</h1>

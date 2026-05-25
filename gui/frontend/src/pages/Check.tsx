@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -9,6 +10,8 @@ import { FolderOpen, File, Loader2, CheckCircle, XCircle } from 'lucide-react';
 import { SelectTorrentFile, SelectPath, SelectFile, VerifyTorrent } from '../../wailsjs/go/main/App';
 import { EventsOn } from '../../wailsjs/runtime/runtime';
 import { main } from '../../wailsjs/go/models';
+import { useFileDrop } from '@/hooks/useFileDrop';
+import { DropOverlay } from '@/components/ui/drop-overlay';
 
 type VerifyRequest = main.VerifyRequest;
 type VerifyResult = main.VerifyResult;
@@ -69,6 +72,18 @@ export function CheckPage() {
   const [progress, setProgress] = useState<ProgressEvent | null>(null);
   const [result, setResult] = useState<VerifyResult | null>(null);
   const [error, setError] = useState('');
+
+  // Drag-and-drop: .torrent → torrent field; everything else → content field.
+  const { isDragging } = useFileDrop((paths) => {
+    const dropped = paths[0];
+    if (dropped.toLowerCase().endsWith('.torrent')) {
+      setTorrentPath(dropped);
+      toast.success('Torrent file set');
+    } else {
+      setContentPath(dropped);
+      toast.success('Content path set');
+    }
+  });
 
   // Save form state to localStorage whenever values change
   useEffect(() => {
@@ -154,6 +169,7 @@ export function CheckPage() {
 
   return (
     <div className="flex flex-col h-full">
+      <DropOverlay visible={isDragging} label="Drop a .torrent or content file/folder" />
       <div className="flex-1 overflow-auto p-6 space-y-4">
         <div>
           <h1 className="text-2xl font-semibold">Check Torrent</h1>
