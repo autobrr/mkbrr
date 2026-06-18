@@ -139,7 +139,9 @@ export function CreatePage() {
 
   const [path, setPath] = useState(savedState.path ?? '');
   const [name, setName] = useState(savedState.name ?? '');
-  const [trackers, setTrackers] = useState<string[]>(savedState.trackers ?? ['']);
+  const [trackers, setTrackers] = useState<string[]>(
+    Array.isArray(savedState.trackers) && savedState.trackers.length > 0 ? savedState.trackers : ['']
+  );
   const [isPrivate, setIsPrivate] = useState(savedState.isPrivate ?? true);
   const [comment, setComment] = useState(savedState.comment ?? '');
   const [source, setSource] = useState(savedState.source ?? '');

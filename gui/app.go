@@ -377,8 +377,10 @@ func (a *App) InspectTorrent(path string) (*InspectResult, error) {
 	// Get info using the GetInfo method
 	info := t.GetInfo()
 
-	// Collect trackers (flat list for backwards compatibility)
-	var trackerList []string
+	// Collect trackers (flat list for backwards compatibility).
+	// Initialise non-nil so an empty list marshals to [] not null, which would
+	// crash the frontend when it dereferences .length/.map (see #168).
+	trackerList := []string{}
 	if t.Announce != "" {
 		trackerList = append(trackerList, t.Announce)
 	}
@@ -390,8 +392,8 @@ func (a *App) InspectTorrent(path string) (*InspectResult, error) {
 		}
 	}
 
-	// Collect trackers by tier
-	var trackerTiers []TrackerTier
+	// Collect trackers by tier (non-nil so an empty list marshals to [] not null)
+	trackerTiers := []TrackerTier{}
 	if t.Announce != "" && len(t.AnnounceList) == 0 {
 		// Only announce URL, no announce list - single tier
 		trackerTiers = append(trackerTiers, TrackerTier{
@@ -429,6 +431,12 @@ func (a *App) InspectTorrent(path string) (*InspectResult, error) {
 	// Compute info hash
 	infoHash := t.HashInfoBytes().String()
 
+	// Normalise web seeds so an absent list marshals to [] not null
+	webSeeds := t.UrlList
+	if webSeeds == nil {
+		webSeeds = []string{}
+	}
+
 	return &InspectResult{
 		Name:         info.Name,
 		InfoHash:     infoHash,
@@ -437,7 +445,7 @@ func (a *App) InspectTorrent(path string) (*InspectResult, error) {
 		PieceCount:   info.NumPieces(),
 		Trackers:     trackerList,
 		TrackerTiers: trackerTiers,
-		WebSeeds:     t.UrlList,
+		WebSeeds:     webSeeds,
 		IsPrivate:    info.Private != nil && *info.Private,
 		Source:       info.Source,
 		Comment:      t.Comment,
@@ -485,13 +493,19 @@ func (a *App) VerifyTorrent(req VerifyRequest) (*VerifyResult, error) {
 		return nil, err
 	}
 
+	// Normalise so an empty list marshals to [] not null
+	missingFiles := result.MissingFiles
+	if missingFiles == nil {
+		missingFiles = []string{}
+	}
+
 	return &VerifyResult{
 		Completion:    result.Completion,
 		TotalPieces:   result.TotalPieces,
 		GoodPieces:    result.GoodPieces,
 		BadPieces:     result.BadPieces,
 		MissingPieces: result.MissingPieces,
-		MissingFiles:  result.MissingFiles,
+		MissingFiles:  missingFiles,
 	}, nil
 }
 
