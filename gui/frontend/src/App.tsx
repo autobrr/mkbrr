@@ -11,22 +11,27 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { WindowGetSize, WindowSetSize } from '../wailsjs/runtime/runtime';
 
 const WINDOW_SIZE_KEY = 'mkbrr-window-size';
+// Mirror MinWidth/MinHeight in gui/main.go — keep these in sync.
 const MIN_WIDTH = 900;
 const MIN_HEIGHT = 600;
 
 function App() {
   // Restore saved window size on startup, and persist it whenever the window is resized.
   useEffect(() => {
-    const saved = localStorage.getItem(WINDOW_SIZE_KEY);
-    if (saved) {
-      try {
+    try {
+      const saved = localStorage.getItem(WINDOW_SIZE_KEY);
+      if (saved) {
         const { w, h } = JSON.parse(saved);
-        if (w >= MIN_WIDTH && h >= MIN_HEIGHT) {
-          WindowSetSize(w, h);
+        if (Number.isFinite(w) && Number.isFinite(h) && w >= MIN_WIDTH && h >= MIN_HEIGHT) {
+          // Clamp to the available screen so a size saved on a larger display
+          // can't restore the window oversized or off-screen.
+          const maxW = window.screen.availWidth || w;
+          const maxH = window.screen.availHeight || h;
+          WindowSetSize(Math.min(w, maxW), Math.min(h, maxH));
         }
-      } catch {
-        // Ignore malformed data.
       }
+    } catch {
+      // Ignore malformed data or unavailable storage.
     }
 
     let saveTimer: ReturnType<typeof setTimeout>;

@@ -193,8 +193,9 @@ export function CheckPage() {
                   {torrentPath && (
                     <button
                       type="button"
-                      onClick={() => setTorrentPath('')}
+                      onClick={() => { setTorrentPath(''); setResult(null); setError(''); }}
                       className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      aria-label="Clear"
                       title="Clear"
                     >
                       <X className="h-4 w-4" />
@@ -221,8 +222,9 @@ export function CheckPage() {
                   {contentPath && (
                     <button
                       type="button"
-                      onClick={() => setContentPath('')}
+                      onClick={() => { setContentPath(''); setResult(null); setError(''); }}
                       className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      aria-label="Clear"
                       title="Clear"
                     >
                       <X className="h-4 w-4" />
