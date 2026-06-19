@@ -21,7 +21,7 @@ type PresetOptions = presetTypes.Options;
 
 // Get directory from path (works for both Unix and Windows paths)
 function getDirectory(path: string): string {
-  if (!path) return '';
+  if (!path || typeof path !== 'string') return '';
   // Handle both forward and backslashes
   const lastSlash = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
   return lastSlash > 0 ? path.substring(0, lastSlash) : path;
@@ -73,7 +73,9 @@ export function ModifyPage() {
   const savedState = loadFormState();
   const [torrentPath, setTorrentPath] = useState(savedState.torrentPath ?? '');
   const [outputDir, setOutputDir] = useState(savedState.outputDir ?? '');
-  const [trackers, setTrackers] = useState<string[]>(savedState.trackers ?? ['']);
+  const [trackers, setTrackers] = useState<string[]>(
+    Array.isArray(savedState.trackers) && savedState.trackers.length > 0 ? savedState.trackers : ['']
+  );
   const [setPrivate, setSetPrivate] = useState<boolean | undefined>(savedState.setPrivate);
   const [source, setSource] = useState(savedState.source ?? '');
   const [comment, setComment] = useState(savedState.comment ?? '');

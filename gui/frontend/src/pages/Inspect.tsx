@@ -16,12 +16,52 @@ type TrackerTier = main.TrackerTier;
 
 const STORAGE_KEY = 'mkbrr-inspect-state';
 
+// Coerce a restored (possibly stale or malformed) inspect result into a shape
+// the render code can safely read. Persisted state from an older GUI version or
+// a tampered value must never crash the page on mount.
+function sanitizeInspectResult(info: unknown): InspectResult | null {
+  if (!info || typeof info !== 'object') return null;
+  const i = info as Record<string, unknown>;
+  const toStr = (v: unknown) => (typeof v === 'string' ? v : '');
+  const toNum = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+  const toStrArr = (v: unknown) =>
+    Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+
+  const files = Array.isArray(i.files)
+    ? (i.files as unknown[])
+        .filter((f): f is Record<string, unknown> => !!f && typeof f === 'object' && typeof (f as Record<string, unknown>).path === 'string')
+        .map((f) => ({ path: f.path as string, size: toNum(f.size) }))
+    : [];
+
+  return {
+    name: toStr(i.name),
+    infoHash: toStr(i.infoHash),
+    size: toNum(i.size),
+    pieceLength: toNum(i.pieceLength),
+    pieceCount: toNum(i.pieceCount),
+    trackers: toStrArr(i.trackers),
+    trackerTiers: Array.isArray(i.trackerTiers)
+      ? (i.trackerTiers as unknown[])
+          .filter((t): t is Record<string, unknown> => !!t && typeof t === 'object')
+          .map((t) => ({ tier: toNum(t.tier), trackers: toStrArr(t.trackers) }))
+      : [],
+    webSeeds: toStrArr(i.webSeeds),
+    isPrivate: Boolean(i.isPrivate),
+    source: toStr(i.source),
+    comment: toStr(i.comment),
+    createdBy: toStr(i.createdBy),
+    creationDate: toNum(i.creationDate),
+    fileCount: toNum(i.fileCount) || files.length,
+    files,
+  } as InspectResult;
+}
+
 function loadInspectState(): InspectResult | null {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);
-      return parsed.torrentInfo || null;
+      return sanitizeInspectResult(parsed?.torrentInfo);
     }
     return null;
   } catch (e) {
