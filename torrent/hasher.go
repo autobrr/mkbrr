@@ -3,8 +3,8 @@ package torrent
 import (
 	"crypto/sha1"
 	"fmt"
-	"io"
 	"os"
+	"runtime/debug"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -22,6 +22,7 @@ type pieceHasher struct {
 	totalSize        int64
 	lastPieceLength  int64
 	pieceStartFiles  []int
+	strategy         hashStrategy
 
 	startTime               time.Time
 	bytesProcessed          int64
@@ -116,11 +117,14 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 		return nil
 	}
 
-	// initialize buffer pool
+	// initialize buffer pool. Pool stores *[]byte rather than []byte so Put
+	// does not box the slice header into an interface (and allocate) on each
+	// return — see staticcheck SA6002. Only the buffered (read) chunk reader
+	// draws from this pool; the mmap path takes no buffer at all.
 	h.bufferPool = &sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			buf := make([]byte, h.readSize)
-			return buf
+			return &buf
 		},
 	}
 
@@ -217,10 +221,22 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 //	startPiece: first piece index to process
 //	endPiece: last piece index to process (exclusive)
 //	completedPieces: atomic counter for progress tracking
-func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *uint64) error {
-	// reuse buffer from pool to minimize allocations
-	buf := h.bufferPool.Get().([]byte)
-	defer h.bufferPool.Put(buf)
+func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *uint64) (retErr error) {
+	cr := h.strategy.newChunkReader(h.bufferPool)
+	defer cr.release()
+
+	if h.strategy.useMmap && mmapSupported {
+		// A file truncated while it is mapped would fault (SIGBUS) when sha1
+		// reads the mapped page. SetPanicOnFault turns that into a recoverable
+		// panic for this goroutine; recover it into a clean error so a file
+		// changing mid-hash aborts the operation instead of crashing.
+		debug.SetPanicOnFault(true)
+		defer func() {
+			if r := recover(); r != nil {
+				retErr = fmt.Errorf("hashing failed (file changed during hashing?): %v", r)
+			}
+		}()
+	}
 
 	hasher := sha1.New()
 	readers := make([]*fileReader, len(h.files))
@@ -267,35 +283,13 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 				readers[fileIndex] = reader
 			}
 
-			if reader.position != readStart {
-				if _, err := reader.file.Seek(readStart, io.SeekStart); err != nil {
-					return fmt.Errorf("failed to seek in file %s: %w", file.path, err)
-				}
-				reader.position = readStart
+			if err := cr.feed(hasher, reader, readStart, readLength); err != nil {
+				return fmt.Errorf("failed to read file %s: %w", file.path, err)
 			}
 
-			remaining := readLength
-			for remaining > 0 {
-				n := int(remaining)
-				if n > len(buf) {
-					n = len(buf)
-				}
-
-				read, err := io.ReadFull(reader.file, buf[:n])
-				if err != nil && err != io.ErrUnexpectedEOF {
-					return fmt.Errorf("failed to read file %s: %w", file.path, err)
-				}
-				if read == 0 {
-					return fmt.Errorf("short read while hashing file %s", file.path)
-				}
-
-				hasher.Write(buf[:read])
-				remaining -= int64(read)
-				remainingPiece -= int64(read)
-				pieceReadOffset += int64(read)
-				reader.position += int64(read)
-				bytesHashed += int64(read)
-			}
+			remainingPiece -= readLength
+			pieceReadOffset += readLength
+			bytesHashed += readLength
 		}
 
 		if remainingPiece != 0 {
@@ -367,6 +361,12 @@ func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Di
 		pieces[i] = pieceHashStorage[start : start+sha1.Size : start+sha1.Size]
 	}
 
+	strategy := resolveHashStrategy()
+	// For tiny inputs the map/unmap syscalls outweigh a couple of read()s.
+	if totalSize < minMmapFileSize {
+		strategy.useMmap = false
+	}
+
 	return &pieceHasher{
 		pieces:                  pieces,
 		pieceHashStorage:        pieceHashStorage,
@@ -377,6 +377,7 @@ func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Di
 		totalSize:               totalSize,
 		lastPieceLength:         lastPieceLength,
 		pieceStartFiles:         pieceStartFiles,
+		strategy:                strategy,
 		failOnSeasonPackWarning: failOnSeasonPackWarning,
 	}
 }
