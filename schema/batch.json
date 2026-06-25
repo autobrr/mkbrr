@@ -70,6 +70,11 @@
             "description": "Don't write creation date",
             "default": false
           },
+          "skip_prefix": {
+            "type": "boolean",
+            "description": "Don't add tracker domain prefix to output filename",
+            "default": false
+          },
           "entropy": {
             "type": "boolean",
             "description": "Randomize info hash by adding entropy field",
@@ -88,6 +93,11 @@
             "items": {
               "type": "string"
             }
+          },
+          "fail_on_season_warning": {
+            "type": "boolean",
+            "description": "Exit with error if season pack completeness check detects missing episodes",
+            "default": false
           }
         }
       }
