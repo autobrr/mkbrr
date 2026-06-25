@@ -88,13 +88,21 @@ func (b *bufferedChunkReader) release() {
 // hashStrategy captures how a hasher reads file bytes.
 type hashStrategy struct {
 	useMmap    bool
+	forced     bool // mmap explicitly requested via env; bypasses the FUSE auto-disable
 	mmapWindow int64
 }
+
+// fuseDetect reports whether a path lives on a FUSE mount. Indirected so tests
+// can simulate a FUSE filesystem.
+var fuseDetect = isFUSEPath
 
 // resolveHashStrategy decides whether to use mmap based on platform support and
 // the MKBRR_HASH_MMAP / MKBRR_MMAP_WINDOW environment overrides. mmap is the
 // default on unix; it can be disabled with MKBRR_HASH_MMAP=0 (escape hatch for
 // unusual filesystems) and its window tuned with MKBRR_MMAP_WINDOW=<bytes>.
+// NewPieceHasher additionally disables mmap on FUSE mounts (where it reads
+// slower than read(); see isFUSEPath) unless MKBRR_HASH_MMAP explicitly forced
+// it on.
 func resolveHashStrategy() hashStrategy {
 	s := hashStrategy{useMmap: mmapSupported, mmapWindow: defaultMmapWindow}
 
@@ -103,6 +111,7 @@ func resolveHashStrategy() hashStrategy {
 		s.useMmap = false
 	case "1", "true", "on", "yes":
 		s.useMmap = mmapSupported // never enable where unsupported
+		s.forced = mmapSupported
 	}
 
 	if v := os.Getenv("MKBRR_MMAP_WINDOW"); v != "" {

@@ -373,6 +373,12 @@ func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Di
 	if totalSize < minMmapFileSize {
 		strategy.useMmap = false
 	}
+	// mmap reads fault page-by-page on FUSE/network mounts (no read() readahead
+	// batching), which measured ~10% slower wall time than read() on mergerfs.
+	// Auto-disable there unless mmap was explicitly forced on via env.
+	if strategy.useMmap && !strategy.forced && len(files) > 0 && fuseDetect(files[0].path) {
+		strategy.useMmap = false
+	}
 
 	return &pieceHasher{
 		pieces:                  pieces,

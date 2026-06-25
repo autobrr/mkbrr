@@ -59,6 +59,9 @@ func TestResolveHashStrategy(t *testing.T) {
 // supported) for larger ones.
 func TestNewPieceHasherMmapSizeGate(t *testing.T) {
 	t.Setenv("MKBRR_HASH_MMAP", "") // default-on where supported
+	orig := fuseDetect              // pin to non-FUSE so the result doesn't depend on the test host's FS
+	fuseDetect = func(string) bool { return false }
+	defer func() { fuseDetect = orig }()
 
 	dir := t.TempDir()
 	tiny := writeLayoutFiles(t, dir, []int64{minMmapFileSize - 1})
@@ -71,5 +74,41 @@ func TestNewPieceHasherMmapSizeGate(t *testing.T) {
 	numPieces := int((total + (1 << 14) - 1) / (1 << 14))
 	if h := NewPieceHasher(big, 1<<14, numPieces, &mockDisplay{}, false); h.strategy.useMmap != mmapSupported {
 		t.Fatalf("large input useMmap=%v want %v", h.strategy.useMmap, mmapSupported)
+	}
+}
+
+// TestNewPieceHasherFUSEGate verifies mmap is auto-disabled on FUSE mounts by
+// default (where it reads slower than read()) but can still be forced on.
+func TestNewPieceHasherFUSEGate(t *testing.T) {
+	if !mmapSupported {
+		t.Skip("mmap unsupported on this platform")
+	}
+	dir := t.TempDir()
+	files := writeLayoutFiles(t, dir, []int64{minMmapFileSize + 4096})
+	total := minMmapFileSize + 4096
+	numPieces := int((total + (1 << 14) - 1) / (1 << 14))
+
+	orig := fuseDetect
+	defer func() { fuseDetect = orig }()
+	build := func() *pieceHasher { return NewPieceHasher(files, 1<<14, numPieces, &mockDisplay{}, false) }
+
+	// simulated FUSE, default env -> mmap auto-disabled
+	t.Setenv("MKBRR_HASH_MMAP", "")
+	fuseDetect = func(string) bool { return true }
+	if build().strategy.useMmap {
+		t.Fatal("mmap should be auto-disabled on FUSE by default")
+	}
+
+	// simulated FUSE, explicit force -> mmap stays on
+	t.Setenv("MKBRR_HASH_MMAP", "1")
+	if !build().strategy.useMmap {
+		t.Fatal("MKBRR_HASH_MMAP=1 should force mmap on even on FUSE")
+	}
+
+	// non-FUSE, default env -> mmap stays on
+	t.Setenv("MKBRR_HASH_MMAP", "")
+	fuseDetect = func(string) bool { return false }
+	if !build().strategy.useMmap {
+		t.Fatal("mmap should stay on for non-FUSE paths by default")
 	}
 }
