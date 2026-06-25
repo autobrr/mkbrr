@@ -229,10 +229,17 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 		// A file truncated while it is mapped would fault (SIGBUS) when sha1
 		// reads the mapped page. SetPanicOnFault turns that into a recoverable
 		// panic for this goroutine; recover it into a clean error so a file
-		// changing mid-hash aborts the operation instead of crashing.
-		debug.SetPanicOnFault(true)
+		// changing mid-hash aborts the operation instead of crashing. Restore
+		// the previous setting on exit, and only swallow genuine memory faults
+		// (which carry an Addr() method) — re-panic anything else so a real bug
+		// keeps its stack trace instead of being mislabeled as a file change.
+		prev := debug.SetPanicOnFault(true)
 		defer func() {
+			debug.SetPanicOnFault(prev)
 			if r := recover(); r != nil {
+				if _, isFault := r.(interface{ Addr() uintptr }); !isFault {
+					panic(r)
+				}
 				retErr = fmt.Errorf("hashing failed (file changed during hashing?): %v", r)
 			}
 		}()
