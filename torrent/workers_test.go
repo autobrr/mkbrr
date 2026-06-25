@@ -18,11 +18,11 @@ func TestAutoWorkerCount(t *testing.T) {
 			want:               12,
 		},
 		{
-			name:               "linux no longer oversubscribes for large workloads",
+			name:               "linux oversubscribes for large workloads",
 			cpuCount:           12,
 			allowOversubscribe: true,
 			goos:               "linux",
-			want:               12,
+			want:               24,
 		},
 		{
 			name:               "small workload stays at cpu count",
