@@ -45,7 +45,7 @@ export interface DefaultSettings {
 }
 
 const DEFAULT_SETTINGS: DefaultSettings = {
-  workers: 1,
+  workers: 0,
 };
 
 export function loadDefaultSettings(): DefaultSettings {
@@ -72,7 +72,7 @@ export function saveDefaultSettings(settings: DefaultSettings): void {
 /**
  * Get the effective workers count, considering preset override and default settings.
  * @param presetWorkers - Workers value from a preset (0 means "use default")
- * @returns The effective number of workers to use
+ * @returns The effective number of workers to use (0 means automatic)
  */
 export function getEffectiveWorkers(presetWorkers?: number): number {
   const defaults = loadDefaultSettings();
@@ -200,7 +200,7 @@ export function SettingsPage() {
 
   // Save default settings when they change
   const handleDefaultWorkersChange = (value: number) => {
-    const newValue = Math.max(1, Math.min(32, value || 1)); // Clamp between 1-32
+    const newValue = Math.max(0, Math.min(64, Number.isNaN(value) ? 0 : value)); // Clamp between 0-64 (0 = auto)
     setDefaultWorkers(newValue);
     saveDefaultSettings({ workers: newValue });
   };
@@ -369,15 +369,16 @@ export function SettingsPage() {
               <Input
                 id="default-workers"
                 type="number"
-                min={1}
-                max={32}
+                min={0}
+                max={64}
                 value={defaultWorkers}
-                onChange={(e) => handleDefaultWorkersChange(parseInt(e.target.value) || 1)}
+                onChange={(e) => handleDefaultWorkersChange(parseInt(e.target.value))}
+                placeholder="0 = automatic"
                 className="w-32"
               />
               <p className="text-xs text-muted-foreground">
-                Number of parallel workers for hashing. Used when creating torrents without a preset,
-                or when the preset doesn't override this value.
+                Number of parallel workers for hashing. Set to 0 for automatic selection based on CPU count.
+                Used when creating torrents without a preset, or when the preset doesn't override this value.
               </p>
             </div>
           </CardContent>
@@ -460,7 +461,7 @@ export function SettingsPage() {
                               {((opts.trackers && opts.trackers.length > 0) || ((opts as any).Trackers && (opts as any).Trackers.length > 0)) && (
                                 <span>Trackers: {opts.trackers?.length || (opts as any).Trackers?.length}</span>
                               )}
-                              <span>Workers: {(opts.workers ?? (opts as any).Workers) || `default (${defaultWorkers})`}</span>
+                              <span>Workers: {(opts.workers ?? (opts as any).Workers) || `default (${defaultWorkers === 0 ? 'auto' : defaultWorkers})`}</span>
                             </div>
                           </div>
                         );
@@ -617,7 +618,7 @@ export function SettingsPage() {
                     id="preset-workers"
                     type="number"
                     min={0}
-                    max={32}
+                    max={64}
                     value={formData.workers}
                     onChange={(e) => setFormData({ ...formData, workers: parseInt(e.target.value) || 0 })}
                     placeholder="0 = use default"
@@ -625,7 +626,7 @@ export function SettingsPage() {
                   />
                   <p className="text-xs text-muted-foreground">
                     Override the default workers setting for this preset.
-                    Set to 0 to use the default ({defaultWorkers} workers).
+                    Set to 0 to use the default ({defaultWorkers === 0 ? 'auto' : `${defaultWorkers} workers`}).
                   </p>
                 </div>
               </CollapsibleContent>
