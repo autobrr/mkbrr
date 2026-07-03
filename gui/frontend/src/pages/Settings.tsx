@@ -620,7 +620,11 @@ export function SettingsPage() {
                     min={0}
                     max={64}
                     value={formData.workers}
-                    onChange={(e) => setFormData({ ...formData, workers: parseInt(e.target.value) || 0 })}
+                    onChange={(e) => {
+                      const parsed = parseInt(e.target.value);
+                      const clamped = Math.max(0, Math.min(64, Number.isNaN(parsed) ? 0 : parsed));
+                      setFormData({ ...formData, workers: clamped });
+                    }}
                     placeholder="0 = use default"
                     className="w-32"
                   />
