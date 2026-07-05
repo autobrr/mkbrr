@@ -12,7 +12,9 @@ updates:
           - "*"
 
   - package-ecosystem: gomod
-    directory: /
+    directories:
+      - /
+      - /gui
     schedule:
       interval: monthly
     groups:
