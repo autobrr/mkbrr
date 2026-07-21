@@ -292,7 +292,7 @@ This shows:
 
 ### Updating Torrents
 
-Update a v1 torrent after files are added, removed, resized, or renamed without rehashing piece ranges that are provably unchanged:
+Structurally sync a v1 torrent after files are added, removed, resized, or renamed without rehashing files assumed to be unchanged:
 
 ```bash
 # Update the torrent in place
@@ -310,7 +310,9 @@ mkbrr update-torrent release.torrent /path/to/release \
   --rename old-name.mkv=new-name.mkv
 ```
 
-Files with matching paths and sizes are trusted to be unchanged. Removed files disappear from the torrent, while new files and resized files are hashed. An unmapped rename is treated safely as a deletion plus an addition and is rehashed; use repeatable `--rename old=new` mappings only when you know a renamed file is unchanged and want to reuse its hashes. Pieces containing new data or changed boundaries are rehashed, while exactly matching old piece ranges reuse their existing hashes. The input torrent is replaced atomically unless `--output` is set.
+**Important:** This is a structural sync, not content-change detection. Files with matching paths and sizes are assumed to have identical bytes and are not rehashed. If an existing file may have been edited or replaced without changing its size, run `create` again to perform a full rehash. You can run `check` after updating to validate the torrent against the files on disk.
+
+Removed files disappear from the torrent, while new files and resized files are hashed. An unmapped rename is treated safely as a deletion plus an addition and is rehashed; use repeatable `--rename old=new` mappings only when you know a renamed file is unchanged and want to reuse its hashes. Pieces containing new data or changed boundaries are rehashed, while structurally matching old piece ranges reuse their existing hashes. The input torrent is replaced atomically unless `--output` is set.
 
 The update command uses the same `--exclude` and `--include` syntax as `create`. Repeat those filters because glob patterns are not stored in a torrent file. Tracker URLs, creation date, creator, private/source fields, and piece length are read from and preserved in the existing torrent, so they do not need to be supplied again. Running `create` again would perform a full rehash.
 

@@ -49,9 +49,9 @@ type pieceReuse struct {
 	reused      int
 }
 
-// UpdateTorrent updates the file list and piece hashes of an existing v1 torrent.
-// Existing files are trusted to be unchanged when their path and length match.
-// Renamed files reuse hashes only when explicitly mapped; otherwise they are safely rehashed.
+// UpdateTorrent structurally synchronizes an existing v1 torrent with content on disk.
+// Same-path, same-length files and explicit renames are assumed to be byte-identical;
+// callers must perform a full recreate when file bytes may change without changing size.
 func UpdateTorrent(opts UpdateOptions) (*UpdateResult, error) {
 	if opts.TorrentPath == "" {
 		return nil, fmt.Errorf("torrent path is required")

@@ -23,14 +23,17 @@ var updateTorrentOpts updateTorrentOptions
 
 var updateTorrentCmd = &cobra.Command{
 	Use:   "update-torrent <torrent-file> <content-path>",
-	Short: "Sync a v1 torrent after its content changes",
-	Long: `Update an existing v1 torrent from its content directory.
+	Short: "Sync a v1 torrent after structural file changes",
+	Long: `Structurally sync an existing v1 torrent with its content directory.
 
-Piece hashes are reused when a piece still maps exactly to unchanged existing
-content. Only pieces containing new data or changed piece boundaries are hashed.
-Existing files are trusted to be unchanged when their path and size match.
+Piece hashes are reused when a piece maps to files assumed to be unchanged.
+Same-path, same-size files are not read and are assumed to be byte-identical.
 Removed files are dropped; new, resized, and unmapped renamed files are hashed.
 Use --rename old=new only when a renamed file is known to be unchanged.
+
+This command does not detect in-place edits that preserve file size. Recreate
+the torrent for a full rehash when existing file bytes may have changed. Run
+mkbrr check afterward when you need to validate the updated torrent against disk.
 
 Discovery filters are not stored in torrent metadata. Repeat any --exclude or
 --include values used by create. Trackers, creation date, creator, private/source
