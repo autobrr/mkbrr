@@ -63,6 +63,8 @@ mkbrr create path/to/file -t https://example-tracker.com/announce -e
 - [Usage](#usage)
   - [Creating Torrents](#creating-torrents)
   - [Inspecting Torrents](#inspecting-torrents)
+  - [Checking Torrents](#checking-torrents-verifying-data)
+  - [Updating Torrents](#updating-torrents)
   - [Modifying Torrents](#modifying-torrents)
 - [Advanced Usage](#advanced-usage)
   - [Preset Mode](#preset-mode)
@@ -287,6 +289,30 @@ This shows:
 - Creation date
 - Magnet link
 - File list (for multi-file torrents)
+
+### Updating Torrents
+
+Update a v1 torrent after files are added or renamed without rehashing pieces whose byte ranges are unchanged:
+
+```bash
+# Update the torrent in place
+mkbrr update-torrent release.torrent /path/to/release
+
+# Write to a different torrent file
+mkbrr update-torrent release.torrent /path/to/release --output updated.torrent
+
+# Reuse the same folder and filters from the original create command
+mkbrr update-torrent /home/ubuntu/manga-no-images.torrent /home/ubuntu/manga \
+  --exclude "*.jpg,*.jpeg,*.png,*.pdf,*.gif,*.webp,*.bmp"
+
+# Disambiguate renamed files that have the same size
+mkbrr update-torrent release.torrent /path/to/release \
+  --rename old-name.mkv=new-name.mkv
+```
+
+Files with matching paths and sizes are trusted to be unchanged. A rename is detected automatically when its size uniquely identifies the old file; use repeatable `--rename old=new` mappings when equal-size files make the rename ambiguous. Pieces containing new data or changed boundaries are rehashed, while exactly matching old piece ranges reuse their existing hashes. The input torrent is replaced atomically unless `--output` is set.
+
+The update command uses the same `--exclude` and `--include` syntax as `create`. Repeat those filters because glob patterns are not stored in a torrent file. Tracker URLs, creation date, creator, private/source fields, and piece length are read from and preserved in the existing torrent, so they do not need to be supplied again. Running `create` again would perform a full rehash.
 
 ### Modifying Torrents
 
