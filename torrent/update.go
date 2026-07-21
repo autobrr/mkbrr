@@ -51,7 +51,7 @@ type pieceReuse struct {
 
 // UpdateTorrent updates the file list and piece hashes of an existing v1 torrent.
 // Existing files are trusted to be unchanged when their path and length match.
-// Renamed files are matched explicitly or, when unambiguous, by length.
+// Renamed files reuse hashes only when explicitly mapped; otherwise they are safely rehashed.
 func UpdateTorrent(opts UpdateOptions) (*UpdateResult, error) {
 	if opts.TorrentPath == "" {
 		return nil, fmt.Errorf("torrent path is required")
@@ -294,7 +294,7 @@ func describeNewFiles(files []fileEntry, originalPaths map[string]string, baseDi
 	return newFiles, nil
 }
 
-// matchFiles pairs every original file with its current path, applying explicit renames before automatic matches.
+// matchFiles maps files that can safely reuse old bytes; unmatched entries are additions or deletions.
 func (r *pieceReuse) matchFiles(newFiles []reuseFile) ([]int, error) {
 	mapping := make([]int, len(newFiles))
 	for i := range mapping {
@@ -350,41 +350,10 @@ func (r *pieceReuse) matchFiles(newFiles []reuseFile) ([]int, error) {
 			continue
 		}
 		if r.oldFiles[oldIndex].length != newFile.length {
-			return nil, fmt.Errorf("existing file %q changed size from %d to %d bytes", newFile.path, r.oldFiles[oldIndex].length, newFile.length)
+			continue
 		}
 		mapping[newIndex] = oldIndex
 		oldUsed[oldIndex] = true
-	}
-
-	oldByLength := make(map[int64][]int)
-	newByLength := make(map[int64][]int)
-	for oldIndex, oldFile := range r.oldFiles {
-		if !oldUsed[oldIndex] {
-			oldByLength[oldFile.length] = append(oldByLength[oldFile.length], oldIndex)
-		}
-	}
-	for newIndex, newFile := range newFiles {
-		if mapping[newIndex] < 0 {
-			newByLength[newFile.length] = append(newByLength[newFile.length], newIndex)
-		}
-	}
-	for length, oldIndices := range oldByLength {
-		newIndices := newByLength[length]
-		if len(oldIndices) == 1 && len(newIndices) == 1 {
-			mapping[newIndices[0]] = oldIndices[0]
-			oldUsed[oldIndices[0]] = true
-		}
-	}
-
-	missing := make([]string, 0)
-	for oldIndex, used := range oldUsed {
-		if !used {
-			missing = append(missing, r.oldFiles[oldIndex].path)
-		}
-	}
-	if len(missing) > 0 {
-		sort.Strings(missing)
-		return nil, fmt.Errorf("could not match existing file %q; use --rename old=new when a rename is ambiguous", missing[0])
 	}
 
 	return mapping, nil

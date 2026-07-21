@@ -292,7 +292,7 @@ This shows:
 
 ### Updating Torrents
 
-Update a v1 torrent after files are added or renamed without rehashing pieces whose byte ranges are unchanged:
+Update a v1 torrent after files are added, removed, resized, or renamed without rehashing piece ranges that are provably unchanged:
 
 ```bash
 # Update the torrent in place
@@ -305,12 +305,12 @@ mkbrr update-torrent release.torrent /path/to/release --output updated.torrent
 mkbrr update-torrent /home/ubuntu/manga-no-images.torrent /home/ubuntu/manga \
   --exclude "*.jpg,*.jpeg,*.png,*.pdf,*.gif,*.webp,*.bmp"
 
-# Disambiguate renamed files that have the same size
+# Reuse hashes for a known file rename
 mkbrr update-torrent release.torrent /path/to/release \
   --rename old-name.mkv=new-name.mkv
 ```
 
-Files with matching paths and sizes are trusted to be unchanged. A rename is detected automatically when its size uniquely identifies the old file; use repeatable `--rename old=new` mappings when equal-size files make the rename ambiguous. Pieces containing new data or changed boundaries are rehashed, while exactly matching old piece ranges reuse their existing hashes. The input torrent is replaced atomically unless `--output` is set.
+Files with matching paths and sizes are trusted to be unchanged. Removed files disappear from the torrent, while new files and resized files are hashed. An unmapped rename is treated safely as a deletion plus an addition and is rehashed; use repeatable `--rename old=new` mappings only when you know a renamed file is unchanged and want to reuse its hashes. Pieces containing new data or changed boundaries are rehashed, while exactly matching old piece ranges reuse their existing hashes. The input torrent is replaced atomically unless `--output` is set.
 
 The update command uses the same `--exclude` and `--include` syntax as `create`. Repeat those filters because glob patterns are not stored in a torrent file. Tracker URLs, creation date, creator, private/source fields, and piece length are read from and preserved in the existing torrent, so they do not need to be supplied again. Running `create` again would perform a full rehash.
 
