@@ -169,10 +169,19 @@ func generateRandomString() (string, error) {
 	return fmt.Sprintf("%x", b), nil
 }
 
+type createTorrentOptions struct {
+	pieceLengthBytes int64
+	pieceReuse       *pieceReuse
+}
+
 // CreateTorrent creates a new torrent file from the given options.
 // Returns a Torrent struct containing the metainfo.
 // This is the lower-level function; use Create() for a higher-level interface.
 func CreateTorrent(opts CreateOptions) (*Torrent, error) {
+	return createTorrent(opts, createTorrentOptions{})
+}
+
+func createTorrent(opts CreateOptions, internalOpts createTorrentOptions) (*Torrent, error) {
 	path := filepath.ToSlash(opts.Path)
 	name := opts.Name
 	if name == "" {
@@ -339,7 +348,10 @@ func CreateTorrent(opts CreateOptions) (*Torrent, error) {
 
 	// Function to create torrent with given piece length
 	createWithPieceLength := func(pieceLength uint) (*Torrent, error) {
-		pieceLenInt := int64(1) << pieceLength
+		pieceLenInt := internalOpts.pieceLengthBytes
+		if pieceLenInt == 0 {
+			pieceLenInt = int64(1) << pieceLength
+		}
 		numPieces := (totalSize + pieceLenInt - 1) / pieceLenInt
 
 		var display Displayer
@@ -355,6 +367,13 @@ func CreateTorrent(opts CreateOptions) (*Torrent, error) {
 
 		var pieceHashes [][]byte
 		hasher := NewPieceHasher(files, pieceLenInt, int(numPieces), display, opts.FailOnSeasonPackWarning)
+		if internalOpts.pieceReuse != nil {
+			reusablePieces, err := internalOpts.pieceReuse.findReusablePieces(files, originalPaths, baseDir, inputInfo.IsDir(), pieceLenInt)
+			if err != nil {
+				return nil, err
+			}
+			hasher.reusablePieces = reusablePieces
+		}
 		// Pass the specified or default worker count from opts
 		if err := hasher.hashPieces(opts.Workers); err != nil {
 			return nil, err
@@ -443,6 +462,10 @@ func CreateTorrent(opts CreateOptions) (*Torrent, error) {
 		}
 
 		return &Torrent{mi}, nil
+	}
+
+	if internalOpts.pieceLengthBytes > 0 {
+		return createWithPieceLength(0)
 	}
 
 	// validate mutual exclusion at the API level (CLI validates this too, but exported callers may not)

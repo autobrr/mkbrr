@@ -23,6 +23,7 @@ func init() {
 	rootCmd.AddCommand(checkCmd)
 	rootCmd.AddCommand(inspectCmd)
 	rootCmd.AddCommand(modifyCmd)
+	rootCmd.AddCommand(updateTorrentCmd)
 	rootCmd.AddCommand(updateCmd)
 	rootCmd.AddCommand(versionCmd)
 }
