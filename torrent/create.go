@@ -181,6 +181,7 @@ func CreateTorrent(opts CreateOptions) (*Torrent, error) {
 	return createTorrent(opts, createTorrentOptions{})
 }
 
+// createTorrent contains the shared creation pipeline with optional internal hash-reuse controls.
 func createTorrent(opts CreateOptions, internalOpts createTorrentOptions) (*Torrent, error) {
 	path := filepath.ToSlash(opts.Path)
 	name := opts.Name

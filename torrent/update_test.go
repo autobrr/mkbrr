@@ -11,6 +11,7 @@ import (
 	"github.com/anacrolix/torrent/metainfo"
 )
 
+// TestUpdateTorrentRenameAndAppendReusesPieces verifies mixed hash reuse and boundary rehashing against a clean rebuild.
 func TestUpdateTorrentRenameAndAppendReusesPieces(t *testing.T) {
 	contentDir := t.TempDir()
 	writeUpdateTestFile(t, filepath.Join(contentDir, "a.bin"), bytes.Repeat([]byte{'a'}, 70_000))
@@ -98,6 +99,7 @@ func TestUpdateTorrentRenameAndAppendReusesPieces(t *testing.T) {
 	}
 }
 
+// TestUpdateTorrentAmbiguousRenamesRequireMapping verifies that equal-size rename ambiguity is never guessed.
 func TestUpdateTorrentAmbiguousRenamesRequireMapping(t *testing.T) {
 	contentDir := t.TempDir()
 	writeUpdateTestFile(t, filepath.Join(contentDir, "a.bin"), bytes.Repeat([]byte{'a'}, 65_536))
@@ -152,6 +154,7 @@ func TestUpdateTorrentAmbiguousRenamesRequireMapping(t *testing.T) {
 	}
 }
 
+// writeUpdateTestFile creates content fixtures with deterministic bytes.
 func writeUpdateTestFile(t *testing.T, filePath string, content []byte) {
 	t.Helper()
 	if err := os.WriteFile(filePath, content, 0o644); err != nil {
@@ -159,6 +162,7 @@ func writeUpdateTestFile(t *testing.T, filePath string, content []byte) {
 	}
 }
 
+// writeUpdateTestTorrent serializes metainfo for update tests.
 func writeUpdateTestTorrent(t *testing.T, torrentPath string, mi *metainfo.MetaInfo) {
 	t.Helper()
 	file, err := os.Create(torrentPath)
@@ -174,6 +178,7 @@ func writeUpdateTestTorrent(t *testing.T, torrentPath string, mi *metainfo.MetaI
 	}
 }
 
+// addUpdateTestInfoValue injects a custom info key to verify lossless metadata preservation.
 func addUpdateTestInfoValue(t *testing.T, mi *metainfo.MetaInfo, key string, value any) {
 	t.Helper()
 	infoMap := make(map[string]any)
@@ -188,6 +193,7 @@ func addUpdateTestInfoValue(t *testing.T, mi *metainfo.MetaInfo, key string, val
 	mi.InfoBytes = infoBytes
 }
 
+// updateTestPaths flattens metainfo path components for readable comparisons.
 func updateTestPaths(files []metainfo.FileInfo) []string {
 	paths := make([]string, len(files))
 	for i, file := range files {
@@ -196,6 +202,7 @@ func updateTestPaths(files []metainfo.FileInfo) []string {
 	return paths
 }
 
+// equalUpdateTestStrings compares ordered path lists without introducing an assertion dependency.
 func equalUpdateTestStrings(left, right []string) bool {
 	if len(left) != len(right) {
 		return false

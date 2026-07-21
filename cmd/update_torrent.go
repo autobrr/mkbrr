@@ -42,6 +42,7 @@ The torrent is replaced atomically unless --output specifies another path.`,
 	SilenceUsage:          true,
 }
 
+// init registers the update-torrent flags and usage template.
 func init() {
 	updateTorrentCmd.Flags().SortFlags = false
 	updateTorrentCmd.Flags().StringVarP(&updateTorrentOpts.OutputPath, "output", "o", "", "output path (default: replace the input torrent)")
@@ -65,6 +66,7 @@ Flags:
 `)
 }
 
+// runUpdateTorrent translates CLI arguments into the reusable torrent update API.
 func runUpdateTorrent(_ *cobra.Command, args []string) error {
 	renames, err := parseRenamePairs(updateTorrentOpts.RenamePairs)
 	if err != nil {
@@ -94,6 +96,7 @@ func runUpdateTorrent(_ *cobra.Command, args []string) error {
 	return nil
 }
 
+// parseRenamePairs validates repeatable old=new path mappings.
 func parseRenamePairs(pairs []string) (map[string]string, error) {
 	renames := make(map[string]string, len(pairs))
 	for _, pair := range pairs {

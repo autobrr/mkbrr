@@ -149,6 +149,7 @@ func UpdateTorrent(opts UpdateOptions) (*UpdateResult, error) {
 	}, nil
 }
 
+// newPieceReuse validates the original v1 piece layout and prepares normalized file mappings.
 func newPieceReuse(info metainfo.Info, renames map[string]string) (*pieceReuse, error) {
 	if info.PieceLength <= 0 {
 		return nil, fmt.Errorf("torrent has invalid piece length %d", info.PieceLength)
@@ -194,6 +195,7 @@ func newPieceReuse(info metainfo.Info, renames map[string]string) (*pieceReuse, 
 	}, nil
 }
 
+// findReusablePieces maps each new piece to an identical old piece hash when its full byte range is unchanged.
 func (r *pieceReuse) findReusablePieces(files []fileEntry, originalPaths map[string]string, baseDir string, inputIsDir bool, pieceLength int64) (map[int][]byte, error) {
 	if pieceLength != r.pieceLength {
 		return nil, fmt.Errorf("piece length changed from %d to %d", r.pieceLength, pieceLength)
@@ -271,6 +273,7 @@ func (r *pieceReuse) findReusablePieces(files []fileEntry, originalPaths map[str
 	return reusable, nil
 }
 
+// describeNewFiles converts filesystem entries into torrent-relative files while retaining stream offsets.
 func describeNewFiles(files []fileEntry, originalPaths map[string]string, baseDir string, inputIsDir bool) ([]reuseFile, error) {
 	newFiles := make([]reuseFile, len(files))
 	for i, file := range files {
@@ -291,6 +294,7 @@ func describeNewFiles(files []fileEntry, originalPaths map[string]string, baseDi
 	return newFiles, nil
 }
 
+// matchFiles pairs every original file with its current path, applying explicit renames before automatic matches.
 func (r *pieceReuse) matchFiles(newFiles []reuseFile) ([]int, error) {
 	mapping := make([]int, len(newFiles))
 	for i := range mapping {
@@ -386,6 +390,7 @@ func (r *pieceReuse) matchFiles(newFiles []reuseFile) ([]int, error) {
 	return mapping, nil
 }
 
+// fileListLength returns the total concatenated length represented by an ordered file list.
 func fileListLength(files []reuseFile) int64 {
 	if len(files) == 0 {
 		return 0
@@ -394,6 +399,7 @@ func fileListLength(files []reuseFile) int64 {
 	return last.offset + last.length
 }
 
+// normalizeTorrentPath canonicalizes user and metainfo paths to relative forward-slash form.
 func normalizeTorrentPath(filePath string) string {
 	filePath = strings.ReplaceAll(strings.TrimSpace(filePath), "\\", "/")
 	filePath = strings.TrimPrefix(filePath, "./")
@@ -408,6 +414,7 @@ func normalizeTorrentPath(filePath string) string {
 	return cleaned
 }
 
+// writeTorrentAtomically writes metainfo through a same-directory temporary file before replacing the destination.
 func writeTorrentAtomically(mi *metainfo.MetaInfo, outputPath string) error {
 	dir := filepath.Dir(outputPath)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
