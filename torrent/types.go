@@ -38,9 +38,10 @@ type CreateOptions struct {
 	InfoOnly                bool
 	SkipPrefix              bool
 	FailOnSeasonPackWarning bool
+
 	// ProgressCallback is called during hashing to report progress.
 	// If nil, no progress callbacks will be made.
-	ProgressCallback        ProgressCallback
+	ProgressCallback ProgressCallback
 }
 
 // Torrent represents a torrent file with additional functionality

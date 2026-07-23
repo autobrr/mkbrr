@@ -22,6 +22,7 @@ type pieceHasher struct {
 	totalSize        int64
 	lastPieceLength  int64
 	pieceStartFiles  []int
+	reusablePieces   map[int][]byte
 
 	startTime               time.Time
 	bytesProcessed          int64
@@ -233,6 +234,15 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 	}()
 
 	for pieceIndex := startPiece; pieceIndex < endPiece; pieceIndex++ {
+		if piece, ok := h.reusablePieces[pieceIndex]; ok {
+			if len(piece) != sha1.Size {
+				return fmt.Errorf("invalid reused hash for piece %d: got %d bytes, want %d", pieceIndex, len(piece), sha1.Size)
+			}
+			copy(h.pieces[pieceIndex], piece)
+			atomic.AddUint64(completedPieces, 1)
+			continue
+		}
+
 		pieceOffset := int64(pieceIndex) * h.pieceLen
 		pieceReadOffset := pieceOffset
 		pieceLength := h.pieceLengthFor(pieceIndex)
