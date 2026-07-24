@@ -3,7 +3,7 @@ package torrent
 import (
 	"os"
 
-	"github.com/anacrolix/torrent/metainfo"
+	"github.com/autobrr/go-torrent/metainfo"
 )
 
 // ProgressCallback is called during hashing to report progress.
@@ -40,7 +40,7 @@ type CreateOptions struct {
 	FailOnSeasonPackWarning bool
 	// ProgressCallback is called during hashing to report progress.
 	// If nil, no progress callbacks will be made.
-	ProgressCallback        ProgressCallback
+	ProgressCallback ProgressCallback
 }
 
 // Torrent represents a torrent file with additional functionality
