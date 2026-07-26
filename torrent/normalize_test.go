@@ -244,6 +244,52 @@ func TestVerifyData_SingleFileNormalizationMismatch(t *testing.T) {
 	}
 }
 
+// TestVerifyData_ExactNameBeatsNormalizedTwin pins the byte-exact preference in
+// verification: when a directory holds both spellings of a name, the file the
+// torrent actually names must win, and a stale twin in the other normalization
+// form must never shadow it.
+func TestVerifyData_ExactNameBeatsNormalizedTwin(t *testing.T) {
+	tempDir := t.TempDir()
+	source := filepath.Join(tempDir, "source", "pack")
+	target := filepath.Join(tempDir, "target", "pack")
+
+	writeContentFile(t, source, "", nfcFile, 256*1024)
+	writeContentFile(t, target, "", nfcFile, 256*1024)
+
+	if normalizationInsensitiveFS(t, target) {
+		t.Skip("filesystem cannot hold both spellings of the same name")
+	}
+	// stale twin: same name in the other normalization form, wrong size
+	writeContentFile(t, target, "", nfdFile, 64*1024)
+
+	pieceLenExp := uint(16)
+	torrentPath := filepath.Join(tempDir, "out.torrent")
+	if _, err := Create(CreateOptions{
+		Path:           source,
+		OutputPath:     torrentPath,
+		PieceLengthExp: &pieceLenExp,
+		NoCreator:      true,
+		NoDate:         true,
+	}); err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+
+	result, err := VerifyData(VerifyOptions{
+		TorrentPath: torrentPath,
+		ContentPath: target,
+		Quiet:       true,
+	})
+	if err != nil {
+		t.Fatalf("VerifyData failed: %v", err)
+	}
+	if len(result.MissingFiles) != 0 {
+		t.Errorf("expected the byte-exact file to match, got missing: %v", result.MissingFiles)
+	}
+	if result.Completion != 100.0 {
+		t.Errorf("expected 100%% completion, got %.2f", result.Completion)
+	}
+}
+
 // TestNFCPath_LeavesNonDecomposedNamesAlone pins the cases where NFC is not a
 // harmless no-op. Canonical singletons and composition exclusions would rewrite
 // names that were never decomposition artifacts, creating on another platform
@@ -289,6 +335,16 @@ func TestDecomposedNames(t *testing.T) {
 	}{
 		{"all precomposed", metainfo.Info{Name: nfcFile}, 0},
 		{"decomposed name", metainfo.Info{Name: nfdFile}, 1},
+		// not NFC, but not a decomposition artifact either: nfcPath preserves
+		// these on create, so warning about them would be a false alarm
+		{"canonical singleton", metainfo.Info{Name: "\u212Bngstrom.mkv"}, 0}, // ANGSTROM SIGN
+		{
+			"singleton path component",
+			metainfo.Info{Name: "pack", Files: []metainfo.FileInfo{
+				{Path: []string{"2\u2126.mkv"}}, // OHM SIGN
+			}},
+			0,
+		},
 		{
 			"decomposed path component",
 			metainfo.Info{Name: "pack", Files: []metainfo.FileInfo{

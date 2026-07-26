@@ -9,17 +9,35 @@ import (
 	"golang.org/x/text/unicode/norm"
 )
 
+// decomposed reports whether s differs from its NFC form only by combining
+// marks — the class of names macOS reports for precomposed content, which a
+// byte-exact client cannot find. NFC also rewrites canonical singletons
+// (U+212B ANGSTROM SIGN, the CJK compatibility ideographs) and composition
+// exclusions, but those bytes are what the filesystem genuinely holds, not
+// decomposition artifacts, so they do not count.
+func decomposed(s string) bool {
+	if norm.NFC.IsNormalString(s) {
+		return false
+	}
+	for _, r := range s {
+		if r >= utf8.RuneSelf && norm.NFC.String(string(r)) != string(r) {
+			return false
+		}
+	}
+	return true
+}
+
 // decomposedNames counts the names a torrent stores in decomposed (NFD) form.
 // Those are the names a byte-exact client will fail to find when the content
 // itself is stored precomposed, as it is nearly everywhere but macOS.
 func decomposedNames(info *metainfo.Info) int {
 	count := 0
-	if !norm.NFC.IsNormalString(info.Name) {
+	if decomposed(info.Name) {
 		count++
 	}
 	for _, f := range info.Files {
 		for _, component := range f.Path {
-			if !norm.NFC.IsNormalString(component) {
+			if decomposed(component) {
 				count++
 				break
 			}
@@ -38,21 +56,12 @@ func decomposedNames(info *metainfo.Info) int {
 // the same file there; on a filesystem that genuinely holds decomposed bytes it
 // does not, and we keep the on-disk name so the creator can still seed.
 func nfcPath(dir, rel string) string {
-	nfc := norm.NFC.String(rel)
-	if nfc == rel {
+	// rewriting anything but a decomposition artifact would invent a name no
+	// filesystem holds
+	if !decomposed(rel) {
 		return rel
 	}
-
-	// NFC also rewrites canonical singletons (U+212B ANGSTROM SIGN, the CJK
-	// compatibility ideographs) and composition exclusions, which are not
-	// decomposition artifacts. Rewriting those would invent a name no
-	// filesystem holds, so only accept differences that come from composing
-	// a base character with its combining marks.
-	for _, r := range rel {
-		if r >= utf8.RuneSelf && norm.NFC.String(string(r)) != string(r) {
-			return rel
-		}
-	}
+	nfc := norm.NFC.String(rel)
 
 	onDisk, err := os.Lstat(filepath.Join(dir, rel))
 	if err != nil {
