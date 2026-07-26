@@ -66,6 +66,16 @@ func VerifyData(opts VerifyOptions) (*VerificationResult, error) {
 		return nil, fmt.Errorf("could not unmarshal info dictionary from %q: %w", opts.TorrentPath, err)
 	}
 
+	// A torrent holding decomposed names verifies fine here, because the content
+	// is present either way, but no byte-exact client will find those files.
+	// macOS reports decomposed names for content a network mount stores as
+	// precomposed, so this is easy to produce and invisible unless said out loud.
+	if decomposed := decomposedNames(&info); decomposed > 0 && !opts.Quiet {
+		fmt.Fprintf(os.Stderr,
+			"Warning: %d name(s) in this torrent are Unicode-decomposed (NFD); clients that compare names byte-for-byte will report them missing\n",
+			decomposed)
+	}
+
 	mappedFiles := make([]fileEntry, 0)
 	var totalSize int64
 	var missingFiles []string
@@ -75,9 +85,9 @@ func VerifyData(opts VerifyOptions) (*VerificationResult, error) {
 		// Multi-file torrent
 		expectedFiles := make(map[string]int64) // Map relative path (using '/') to expected size
 		for _, f := range info.Files {
-			// Ensure the key uses forward slashes, consistent with torrent format
-			relPathKey := filepath.ToSlash(filepath.Join(f.Path...))
-			expectedFiles[relPathKey] = f.Length
+			// Keys use forward slashes and a single Unicode normalization form, so
+			// that a torrent written as NFD still matches NFC content and vice versa
+			expectedFiles[pathKey(filepath.Join(f.Path...))] = f.Length
 		}
 
 		// Walk the content directory provided by the user
@@ -97,7 +107,7 @@ func VerifyData(opts VerifyOptions) (*VerificationResult, error) {
 			if err != nil {
 				return fmt.Errorf("failed to get relative path for %q: %w", currentPath, err)
 			}
-			relPath = filepath.ToSlash(relPath) // Ensure consistent slashes
+			relPath = pathKey(relPath) // Ensure consistent slashes and normalization
 
 			if expectedSize, ok := expectedFiles[relPath]; ok {
 				if fileInfo.Size() != expectedSize {
@@ -138,6 +148,13 @@ func VerifyData(opts VerifyOptions) (*VerificationResult, error) {
 			if contentFileInfo.IsDir() {
 				filePathInDir := filepath.Join(baseContentPath, info.Name)
 				contentFileInfo, err = os.Stat(filePathInDir)
+				if os.IsNotExist(err) {
+					// the torrent and the filesystem may disagree on NFC vs NFD
+					if onDisk, ok := resolveNormalized(baseContentPath, info.Name); ok {
+						filePathInDir = filepath.Join(baseContentPath, onDisk)
+						contentFileInfo, err = os.Stat(filePathInDir)
+					}
+				}
 				if err != nil {
 					if os.IsNotExist(err) {
 						missingFiles = append(missingFiles, info.Name)
@@ -175,12 +192,12 @@ func VerifyData(opts VerifyOptions) (*VerificationResult, error) {
 	if info.IsDir() && len(info.Files) > 0 && len(mappedFiles) > 1 {
 		originalOrder := make(map[string]int)
 		for i, f := range info.Files {
-			originalOrder[filepath.ToSlash(filepath.Join(f.Path...))] = i
+			originalOrder[pathKey(filepath.Join(f.Path...))] = i
 		}
 		sort.SliceStable(mappedFiles, func(i, j int) bool {
 			relPathI, _ := filepath.Rel(baseContentPath, mappedFiles[i].path)
 			relPathJ, _ := filepath.Rel(baseContentPath, mappedFiles[j].path)
-			return originalOrder[filepath.ToSlash(relPathI)] < originalOrder[filepath.ToSlash(relPathJ)]
+			return originalOrder[pathKey(relPathI)] < originalOrder[pathKey(relPathJ)]
 		})
 	}
 
@@ -190,8 +207,7 @@ func VerifyData(opts VerifyOptions) (*VerificationResult, error) {
 		torrentOffsets := make(map[string]int64)
 		currentOffset := int64(0)
 		for _, f := range info.Files {
-			relPath := filepath.ToSlash(filepath.Join(f.Path...))
-			torrentOffsets[relPath] = currentOffset
+			torrentOffsets[pathKey(filepath.Join(f.Path...))] = currentOffset
 			currentOffset += f.Length
 		}
 		for i := range mappedFiles {
@@ -199,8 +215,7 @@ func VerifyData(opts VerifyOptions) (*VerificationResult, error) {
 			if err != nil {
 				return nil, fmt.Errorf("failed to get relative path for %q: %w", mappedFiles[i].path, err)
 			}
-			relPath = filepath.ToSlash(relPath)
-			mappedFiles[i].offset = torrentOffsets[relPath]
+			mappedFiles[i].offset = torrentOffsets[pathKey(relPath)]
 		}
 	}
 
@@ -229,7 +244,7 @@ func VerifyData(opts VerifyOptions) (*VerificationResult, error) {
 		currentOffset := int64(0)
 		if info.IsDir() {
 			for _, f := range info.Files {
-				relPath := filepath.ToSlash(filepath.Join(f.Path...))
+				relPath := pathKey(filepath.Join(f.Path...))
 				fileEndOffset := currentOffset + f.Length
 				if missingFileSet[relPath] {
 					verifier.missingRanges = append(verifier.missingRanges, [2]int64{currentOffset, fileEndOffset})
