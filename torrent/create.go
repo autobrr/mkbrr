@@ -179,8 +179,9 @@ func CreateTorrent(opts CreateOptions) (*Torrent, error) {
 		// preserve the folder name even for single-file torrents
 		name = filepath.Base(filepath.Clean(path))
 	}
-	// for a single-file torrent the name is the filename, so it has to resolve
-	// on a byte-exact filesystem just like the entries in info.files do
+	// the name has to resolve on a byte-exact filesystem just like the entries
+	// in info.files do: it is the filename for a single-file torrent and the
+	// root folder for a multi-file one
 	name = nfcPath(filepath.Dir(filepath.Clean(path)), name)
 
 	mi := &metainfo.MetaInfo{

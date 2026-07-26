@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -77,62 +76,79 @@ func VerifyData(opts VerifyOptions) (*VerificationResult, error) {
 	}
 
 	mappedFiles := make([]fileEntry, 0)
-	var totalSize int64
 	var missingFiles []string
 	baseContentPath := filepath.Clean(opts.ContentPath)
 
 	if info.IsDir() {
-		// Multi-file torrent
-		expectedFiles := make(map[string]int64) // Map relative path (using '/') to expected size
-		for _, f := range info.Files {
-			// Keys use forward slashes and a single Unicode normalization form, so
-			// that a torrent written as NFD still matches NFC content and vice versa
-			expectedFiles[pathKey(filepath.Join(f.Path...))] = f.Length
+		// Multi-file torrent: index what is on disk once, then match each torrent
+		// entry in torrent order — by exact name first, with a normalization-
+		// insensitive fallback only when the exact name is absent, so that a
+		// torrent written as NFD still matches NFC content and vice versa while a
+		// stale NFC/NFD twin can never shadow the file the torrent actually names.
+		type diskFile struct {
+			path string
+			size int64
 		}
+		onDisk := make(map[string]diskFile) // byte-exact relative path ('/'-separated)
+		byNorm := make(map[string][]string) // pathKey -> byte-exact relative paths
 
-		// Walk the content directory provided by the user
 		err = filepath.Walk(baseContentPath, func(currentPath string, fileInfo os.FileInfo, walkErr error) error {
 			if walkErr != nil {
 				fmt.Fprintf(os.Stderr, "Warning: error walking path %q: %v\n", currentPath, walkErr)
 				return nil
 			}
 			if fileInfo.IsDir() {
-				if currentPath == baseContentPath {
-					return nil
-				}
 				return nil
 			}
-
 			relPath, err := filepath.Rel(baseContentPath, currentPath)
 			if err != nil {
 				return fmt.Errorf("failed to get relative path for %q: %w", currentPath, err)
 			}
-			relPath = pathKey(relPath) // Ensure consistent slashes and normalization
-
-			if expectedSize, ok := expectedFiles[relPath]; ok {
-				if fileInfo.Size() != expectedSize {
-					missingFiles = append(missingFiles, relPath+" (size mismatch)")
-					delete(expectedFiles, relPath)
-					return nil
-				}
-
-				mappedFiles = append(mappedFiles, fileEntry{
-					path:   currentPath,
-					length: fileInfo.Size(),
-					offset: totalSize,
-				})
-				totalSize += fileInfo.Size()
-				delete(expectedFiles, relPath)
-			}
+			relPath = filepath.ToSlash(relPath)
+			onDisk[relPath] = diskFile{path: currentPath, size: fileInfo.Size()}
+			byNorm[pathKey(relPath)] = append(byNorm[pathKey(relPath)], relPath)
 			return nil
 		})
-
 		if err != nil {
 			return nil, fmt.Errorf("error walking content path %q: %w", baseContentPath, err)
 		}
 
-		for relPathKey := range expectedFiles {
-			missingFiles = append(missingFiles, relPathKey)
+		torrentNames := make(map[string]bool, len(info.Files))
+		for _, f := range info.Files {
+			torrentNames[filepath.ToSlash(filepath.Join(f.Path...))] = true
+		}
+
+		currentOffset := int64(0)
+		for _, f := range info.Files {
+			exact := filepath.ToSlash(filepath.Join(f.Path...))
+			df, found := onDisk[exact]
+			if found {
+				delete(onDisk, exact)
+			} else {
+				// the torrent and the filesystem may disagree on NFC vs NFD; never
+				// take a file some other torrent entry names byte-exactly
+				for _, candidate := range byNorm[pathKey(exact)] {
+					if _, present := onDisk[candidate]; present && !torrentNames[candidate] {
+						df, found = onDisk[candidate], true
+						delete(onDisk, candidate)
+						break
+					}
+				}
+			}
+
+			switch {
+			case !found:
+				missingFiles = append(missingFiles, exact)
+			case df.size != f.Length:
+				missingFiles = append(missingFiles, exact+" (size mismatch)")
+			default:
+				mappedFiles = append(mappedFiles, fileEntry{
+					path:   df.path,
+					length: df.size,
+					offset: currentOffset,
+				})
+			}
+			currentOffset += f.Length
 		}
 
 	} else {
@@ -171,7 +187,6 @@ func VerifyData(opts VerifyOptions) (*VerificationResult, error) {
 						length: contentFileInfo.Size(),
 						offset: 0,
 					})
-					totalSize = contentFileInfo.Size()
 				}
 			} else {
 				if contentFileInfo.Size() != info.Length {
@@ -182,40 +197,8 @@ func VerifyData(opts VerifyOptions) (*VerificationResult, error) {
 						length: contentFileInfo.Size(),
 						offset: 0,
 					})
-					totalSize = contentFileInfo.Size()
 				}
 			}
-		}
-	}
-
-	// Sort mapped files based on original torrent order before recalculating offsets
-	if info.IsDir() && len(info.Files) > 0 && len(mappedFiles) > 1 {
-		originalOrder := make(map[string]int)
-		for i, f := range info.Files {
-			originalOrder[pathKey(filepath.Join(f.Path...))] = i
-		}
-		sort.SliceStable(mappedFiles, func(i, j int) bool {
-			relPathI, _ := filepath.Rel(baseContentPath, mappedFiles[i].path)
-			relPathJ, _ := filepath.Rel(baseContentPath, mappedFiles[j].path)
-			return originalOrder[pathKey(relPathI)] < originalOrder[pathKey(relPathJ)]
-		})
-	}
-
-	// Assign torrent-level byte offsets (not compacted) so piece verification
-	// uses the correct position in the torrent's logical byte stream.
-	if info.IsDir() && len(info.Files) > 0 {
-		torrentOffsets := make(map[string]int64)
-		currentOffset := int64(0)
-		for _, f := range info.Files {
-			torrentOffsets[pathKey(filepath.Join(f.Path...))] = currentOffset
-			currentOffset += f.Length
-		}
-		for i := range mappedFiles {
-			relPath, err := filepath.Rel(baseContentPath, mappedFiles[i].path)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get relative path for %q: %w", mappedFiles[i].path, err)
-			}
-			mappedFiles[i].offset = torrentOffsets[pathKey(relPath)]
 		}
 	}
 
@@ -244,7 +227,7 @@ func VerifyData(opts VerifyOptions) (*VerificationResult, error) {
 		currentOffset := int64(0)
 		if info.IsDir() {
 			for _, f := range info.Files {
-				relPath := pathKey(filepath.Join(f.Path...))
+				relPath := filepath.ToSlash(filepath.Join(f.Path...))
 				fileEndOffset := currentOffset + f.Length
 				if missingFileSet[relPath] {
 					verifier.missingRanges = append(verifier.missingRanges, [2]int64{currentOffset, fileEndOffset})
