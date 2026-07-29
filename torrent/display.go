@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/anacrolix/torrent/metainfo"
+	"github.com/autobrr/go-torrent/metainfo"
 	humanize "github.com/dustin/go-humanize"
 	"github.com/fatih/color"
 	progressbar "github.com/schollz/progressbar/v3"
@@ -256,7 +256,7 @@ func (d *Display) ShowTorrentInfo(t *Torrent, info *metainfo.Info) {
 	fmt.Fprintf(d.output, "  %-13s %s\n", label("Piece length:"), d.formatter.FormatBytes(info.PieceLength))
 	fmt.Fprintf(d.output, "  %-13s %d\n", label("Pieces:"), len(info.Pieces)/20)
 
-	magnet, err := t.MagnetV2()
+	magnet, err := t.Magnet()
 	if err == nil {
 		fmt.Fprintf(d.output, "  %-13s %s\n", label("Magnet:"), magnet.String())
 	}

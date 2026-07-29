@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/anacrolix/torrent/bencode"
+	"github.com/autobrr/go-torrent/bencode"
 )
 
 func TestModifyTorrent_OutputDirPriority(t *testing.T) {

@@ -3,7 +3,7 @@ package torrent
 import (
 	"os"
 
-	"github.com/anacrolix/torrent/metainfo"
+	"github.com/autobrr/go-torrent/metainfo"
 )
 
 // ProgressCallback is called during hashing to report progress.

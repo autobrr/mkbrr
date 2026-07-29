@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/anacrolix/torrent/bencode"
-	"github.com/anacrolix/torrent/metainfo"
+	"github.com/autobrr/go-torrent/bencode"
+	"github.com/autobrr/go-torrent/metainfo"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
