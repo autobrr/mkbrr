@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/anacrolix/torrent/bencode"
-	"github.com/anacrolix/torrent/metainfo"
+	"github.com/autobrr/go-torrent/bencode"
+	"github.com/autobrr/go-torrent/metainfo"
 )
 
 // TestUpdateTorrentRenameAndAppendReusesPieces verifies mixed hash reuse and boundary rehashing against a clean rebuild.
@@ -164,6 +164,7 @@ func TestUpdateTorrentAmbiguousRenamesFallbackToHashing(t *testing.T) {
 	if got := explicitResult.HashedPieces; got != 0 {
 		t.Errorf("UpdateTorrent(explicit renames).HashedPieces = %d, want 0", got)
 	}
+	assertUpdateMatchesFullRehash(t, explicitTorrentPath, contentDir, "release", pieceLength, []string{"c.bin", "d.bin"})
 }
 
 // TestUpdateTorrentSameSizeReplacementRehashes verifies size alone never inherits stale hashes.
@@ -296,8 +297,188 @@ func TestUpdateTorrentRemovesNonEmptyFile(t *testing.T) {
 	assertUpdateMatchesFullRehash(t, torrentPath, contentDir, "release", pieceLength, []string{"a.bin", "c.bin"})
 }
 
+// TestUpdateTorrentSingleFileSameSizeReplacementRehashes verifies basenames gate single-file reuse.
+func TestUpdateTorrentSingleFileSameSizeReplacementRehashes(t *testing.T) {
+	originalPath := filepath.Join(t.TempDir(), "original.bin")
+	replacementPath := filepath.Join(t.TempDir(), "replacement.bin")
+	writeUpdateTestFile(t, originalPath, bytes.Repeat([]byte{'a'}, 131_073))
+	writeUpdateTestFile(t, replacementPath, bytes.Repeat([]byte{'b'}, 131_073))
+
+	pieceLength := uint(16)
+	original, err := CreateTorrent(CreateOptions{
+		Path:           originalPath,
+		PieceLengthExp: &pieceLength,
+		Quiet:          true,
+	})
+	if err != nil {
+		t.Fatalf("CreateTorrent(original) error: %v", err)
+	}
+	torrentPath := filepath.Join(t.TempDir(), "original.torrent")
+	outputPath := filepath.Join(t.TempDir(), "updated.torrent")
+	writeUpdateTestTorrent(t, torrentPath, original.MetaInfo)
+
+	result, err := UpdateTorrent(UpdateOptions{
+		TorrentPath: torrentPath,
+		ContentPath: replacementPath,
+		OutputPath:  outputPath,
+		Quiet:       true,
+	})
+	if err != nil {
+		t.Fatalf("UpdateTorrent() error: %v", err)
+	}
+	if got := result.ReusedPieces; got != 0 {
+		t.Errorf("UpdateTorrent().ReusedPieces = %d, want 0", got)
+	}
+	if got, want := result.HashedPieces, result.TotalPieces; got != want {
+		t.Errorf("UpdateTorrent().HashedPieces = %d, want all %d pieces hashed", got, want)
+	}
+	assertUpdateMatchesFullRehash(t, outputPath, replacementPath, "original.bin", pieceLength, nil)
+
+	outputInfo, err := os.Stat(outputPath)
+	if err != nil {
+		t.Fatalf("Stat(output) error: %v", err)
+	}
+	if got, want := outputInfo.Mode().Perm(), os.FileMode(0o644); got != want {
+		t.Errorf("UpdateTorrent() output mode = %o, want %o", got, want)
+	}
+}
+
+// TestUpdateTorrentNormalizesUnicodePathsAndRenames verifies NFC keys match decomposed disk names.
+func TestUpdateTorrentNormalizesUnicodePathsAndRenames(t *testing.T) {
+	contentDir := t.TempDir()
+	oldDiskName := "cafe\u0301.bin"
+	oldTorrentName := "caf\u00e9.bin"
+	writeUpdateTestFile(t, filepath.Join(contentDir, oldDiskName), bytes.Repeat([]byte{'a'}, 65_536))
+
+	pieceLength := uint(16)
+	original, err := CreateTorrent(CreateOptions{
+		Path:           contentDir,
+		Name:           "release",
+		PieceLengthExp: &pieceLength,
+		Quiet:          true,
+	})
+	if err != nil {
+		t.Fatalf("CreateTorrent(original) error: %v", err)
+	}
+	addUpdateTestFileValues(t, original.MetaInfo, 0, map[string]any{
+		"path": []string{oldTorrentName},
+	})
+
+	unchangedTorrentPath := filepath.Join(t.TempDir(), "unchanged.torrent")
+	renamedTorrentPath := filepath.Join(t.TempDir(), "renamed.torrent")
+	writeUpdateTestTorrent(t, unchangedTorrentPath, original.MetaInfo)
+	writeUpdateTestTorrent(t, renamedTorrentPath, original.MetaInfo)
+
+	unchangedResult, err := UpdateTorrent(UpdateOptions{
+		TorrentPath: unchangedTorrentPath,
+		ContentPath: contentDir,
+		Quiet:       true,
+	})
+	if err != nil {
+		t.Fatalf("UpdateTorrent(unchanged NFD path) error: %v", err)
+	}
+	if got, want := unchangedResult.ReusedPieces, unchangedResult.TotalPieces; got != want {
+		t.Errorf("UpdateTorrent(unchanged NFD path).ReusedPieces = %d, want all %d pieces reused", got, want)
+	}
+	assertUpdateMatchesFullRehash(t, unchangedTorrentPath, contentDir, "release", pieceLength, nil)
+
+	newDiskName := "renome\u0301.bin"
+	newTorrentName := "renom\u00e9.bin"
+	if err := os.Rename(filepath.Join(contentDir, oldDiskName), filepath.Join(contentDir, newDiskName)); err != nil {
+		t.Fatalf("Rename(NFD path) error: %v", err)
+	}
+	renamedResult, err := UpdateTorrent(UpdateOptions{
+		TorrentPath: renamedTorrentPath,
+		ContentPath: contentDir,
+		Renames: map[string]string{
+			oldTorrentName: newTorrentName,
+		},
+		Quiet: true,
+	})
+	if err != nil {
+		t.Fatalf("UpdateTorrent(NFC rename) error: %v", err)
+	}
+	if got, want := renamedResult.ReusedPieces, renamedResult.TotalPieces; got != want {
+		t.Errorf("UpdateTorrent(NFC rename).ReusedPieces = %d, want all %d pieces reused", got, want)
+	}
+	assertUpdateMatchesFullRehash(t, renamedTorrentPath, contentDir, "release", pieceLength, nil)
+}
+
+// TestUpdateTorrentNestedRenamePreservesFileKeys verifies mapped entries retain non-structural metadata.
+func TestUpdateTorrentNestedRenamePreservesFileKeys(t *testing.T) {
+	contentDir := t.TempDir()
+	oldPath := filepath.Join(contentDir, "season", "episode.bin")
+	newPath := filepath.Join(contentDir, "archive", "episode.bin")
+	if err := os.MkdirAll(filepath.Dir(oldPath), 0o755); err != nil {
+		t.Fatalf("MkdirAll(old path) error: %v", err)
+	}
+	writeUpdateTestFile(t, oldPath, bytes.Repeat([]byte{'a'}, 65_536))
+
+	pieceLength := uint(16)
+	original, err := CreateTorrent(CreateOptions{
+		Path:           contentDir,
+		Name:           "release",
+		PieceLengthExp: &pieceLength,
+		Quiet:          true,
+	})
+	if err != nil {
+		t.Fatalf("CreateTorrent(original) error: %v", err)
+	}
+	addUpdateTestFileValues(t, original.MetaInfo, 0, map[string]any{
+		"attr":            "p",
+		"md5sum":          "keep-md5",
+		"sha1":            "keep-sha1",
+		"custom-file-key": "keep-custom",
+	})
+	torrentPath := filepath.Join(t.TempDir(), "release.torrent")
+	writeUpdateTestTorrent(t, torrentPath, original.MetaInfo)
+
+	if err := os.MkdirAll(filepath.Dir(newPath), 0o755); err != nil {
+		t.Fatalf("MkdirAll(new path) error: %v", err)
+	}
+	if err := os.Rename(oldPath, newPath); err != nil {
+		t.Fatalf("Rename(nested path) error: %v", err)
+	}
+	result, err := UpdateTorrent(UpdateOptions{
+		TorrentPath: torrentPath,
+		ContentPath: contentDir,
+		Renames: map[string]string{
+			"season/episode.bin": "archive/episode.bin",
+		},
+		Quiet: true,
+	})
+	if err != nil {
+		t.Fatalf("UpdateTorrent() error: %v", err)
+	}
+	if got, want := result.ReusedPieces, result.TotalPieces; got != want {
+		t.Errorf("UpdateTorrent().ReusedPieces = %d, want all %d pieces reused", got, want)
+	}
+	assertUpdateMatchesFullRehash(t, torrentPath, contentDir, "release", pieceLength, []string{"archive/episode.bin"})
+
+	updated, err := metainfo.LoadFromFile(torrentPath)
+	if err != nil {
+		t.Fatalf("LoadFromFile(updated) error: %v", err)
+	}
+	infoMap := make(map[string]any)
+	if err := bencode.Unmarshal(updated.InfoBytes, &infoMap); err != nil {
+		t.Fatalf("Unmarshal(updated.InfoBytes) error: %v", err)
+	}
+	files := infoMap["files"].([]any)
+	fileMap := files[0].(map[string]any)
+	for key, want := range map[string]any{
+		"attr":            "p",
+		"md5sum":          "keep-md5",
+		"sha1":            "keep-sha1",
+		"custom-file-key": "keep-custom",
+	} {
+		if got := fileMap[key]; got != want {
+			t.Errorf("UpdateTorrent() file key %q = %v, want %v", key, got, want)
+		}
+	}
+}
+
 // assertUpdateMatchesFullRehash verifies updated metadata and hashes against a clean rebuild.
-func assertUpdateMatchesFullRehash(t *testing.T, torrentPath, contentDir, name string, pieceLength uint, wantPaths []string) {
+func assertUpdateMatchesFullRehash(t *testing.T, torrentPath, contentPath, name string, pieceLength uint, wantPaths []string) {
 	t.Helper()
 	updated, err := metainfo.LoadFromFile(torrentPath)
 	if err != nil {
@@ -308,7 +489,7 @@ func assertUpdateMatchesFullRehash(t *testing.T, torrentPath, contentDir, name s
 		t.Fatalf("UnmarshalInfo(updated) error: %v", err)
 	}
 	fullyHashed, err := CreateTorrent(CreateOptions{
-		Path:           contentDir,
+		Path:           contentPath,
 		Name:           name,
 		PieceLengthExp: &pieceLength,
 		Quiet:          true,
@@ -323,8 +504,10 @@ func assertUpdateMatchesFullRehash(t *testing.T, torrentPath, contentDir, name s
 	if !bytes.Equal(updatedInfo.Pieces, fullyHashedInfo.Pieces) {
 		t.Error("UpdateTorrent() piece hashes differ from a full rehash")
 	}
-	if got := updateTestPaths(updatedInfo.Files); !equalUpdateTestStrings(got, wantPaths) {
-		t.Errorf("UpdateTorrent() paths = %v, want %v", got, wantPaths)
+	if wantPaths != nil {
+		if got := updateTestPaths(updatedInfo.Files); !equalUpdateTestStrings(got, wantPaths) {
+			t.Errorf("UpdateTorrent() paths = %v, want %v", got, wantPaths)
+		}
 	}
 }
 
@@ -360,6 +543,31 @@ func addUpdateTestInfoValue(t *testing.T, mi *metainfo.MetaInfo, key string, val
 		t.Fatalf("Unmarshal(InfoBytes) error: %v", err)
 	}
 	infoMap[key] = value
+	infoBytes, err := bencode.Marshal(infoMap)
+	if err != nil {
+		t.Fatalf("Marshal(infoMap) error: %v", err)
+	}
+	mi.InfoBytes = infoBytes
+}
+
+// addUpdateTestFileValues injects raw per-file keys into a multi-file torrent fixture.
+func addUpdateTestFileValues(t *testing.T, mi *metainfo.MetaInfo, fileIndex int, values map[string]any) {
+	t.Helper()
+	infoMap := make(map[string]any)
+	if err := bencode.Unmarshal(mi.InfoBytes, &infoMap); err != nil {
+		t.Fatalf("Unmarshal(InfoBytes) error: %v", err)
+	}
+	files, ok := infoMap["files"].([]any)
+	if !ok || fileIndex < 0 || fileIndex >= len(files) {
+		t.Fatalf("torrent files metadata does not contain index %d", fileIndex)
+	}
+	fileMap, ok := files[fileIndex].(map[string]any)
+	if !ok {
+		t.Fatalf("torrent file %d metadata has unexpected type %T", fileIndex, files[fileIndex])
+	}
+	for key, value := range values {
+		fileMap[key] = value
+	}
 	infoBytes, err := bencode.Marshal(infoMap)
 	if err != nil {
 		t.Fatalf("Marshal(infoMap) error: %v", err)

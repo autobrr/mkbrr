@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"path"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -105,9 +106,12 @@ func parseRenamePairs(pairs []string) (map[string]string, error) {
 	renames := make(map[string]string, len(pairs))
 	for _, pair := range pairs {
 		oldPath, newPath, ok := strings.Cut(pair, "=")
-		oldPath = strings.TrimSpace(oldPath)
-		newPath = strings.TrimSpace(newPath)
-		if !ok || oldPath == "" || newPath == "" {
+		if !ok {
+			return nil, fmt.Errorf("invalid rename %q: expected old=new", pair)
+		}
+		oldPath = normalizeRenamePath(oldPath)
+		newPath = normalizeRenamePath(newPath)
+		if oldPath == "" || newPath == "" {
 			return nil, fmt.Errorf("invalid rename %q: expected old=new", pair)
 		}
 		if _, exists := renames[oldPath]; exists {
@@ -116,4 +120,19 @@ func parseRenamePairs(pairs []string) (map[string]string, error) {
 		renames[oldPath] = newPath
 	}
 	return renames, nil
+}
+
+// normalizeRenamePath canonicalizes CLI rename paths before duplicate validation.
+func normalizeRenamePath(filePath string) string {
+	filePath = strings.ReplaceAll(strings.TrimSpace(filePath), "\\", "/")
+	filePath = strings.TrimPrefix(filePath, "./")
+	filePath = strings.TrimPrefix(filePath, "/")
+	if filePath == "" {
+		return ""
+	}
+	cleaned := path.Clean(filePath)
+	if cleaned == "." {
+		return ""
+	}
+	return cleaned
 }

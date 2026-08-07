@@ -8,8 +8,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/anacrolix/torrent/bencode"
-	"github.com/anacrolix/torrent/metainfo"
+	"github.com/autobrr/go-torrent/bencode"
+	"github.com/autobrr/go-torrent/metainfo"
 )
 
 // UpdateOptions contains options for updating an existing v1 torrent from content on disk.
@@ -42,11 +42,12 @@ type reuseFile struct {
 }
 
 type pieceReuse struct {
-	oldFiles    []reuseFile
-	oldPieces   []byte
-	pieceLength int64
-	renames     map[string]string
-	reused      int
+	oldFiles     []reuseFile
+	oldPieces    []byte
+	pieceLength  int64
+	renames      map[string]string
+	matchedFiles []int
+	reused       int
 }
 
 // UpdateTorrent structurally synchronizes an existing v1 torrent with content on disk.
@@ -110,6 +111,10 @@ func UpdateTorrent(opts UpdateOptions) (*UpdateResult, error) {
 		return nil, fmt.Errorf("decode updated torrent info: %w", err)
 	}
 
+	if err := preserveMappedFileInfoKeys(oldInfoMap, newInfoMap, reuse.matchedFiles); err != nil {
+		return nil, err
+	}
+
 	delete(oldInfoMap, "files")
 	delete(oldInfoMap, "length")
 	if files, ok := newInfoMap["files"]; ok {
@@ -164,7 +169,10 @@ func newPieceReuse(info metainfo.Info, renames map[string]string) (*pieceReuse, 
 		if info.Length <= 0 {
 			return nil, fmt.Errorf("torrent contains no v1 file data")
 		}
-		oldFiles = append(oldFiles, reuseFile{length: info.Length})
+		oldFiles = append(oldFiles, reuseFile{
+			path:   normalizeTorrentPath(info.Name),
+			length: info.Length,
+		})
 		offset = info.Length
 	} else {
 		for _, file := range info.Files {
@@ -184,7 +192,11 @@ func newPieceReuse(info metainfo.Info, renames map[string]string) (*pieceReuse, 
 
 	normalizedRenames := make(map[string]string, len(renames))
 	for oldPath, newPath := range renames {
-		normalizedRenames[normalizeTorrentPath(oldPath)] = normalizeTorrentPath(newPath)
+		normalizedOldPath := normalizeTorrentPath(oldPath)
+		if _, exists := normalizedRenames[normalizedOldPath]; exists {
+			return nil, fmt.Errorf("duplicate normalized rename source %q", normalizedOldPath)
+		}
+		normalizedRenames[normalizedOldPath] = normalizeTorrentPath(newPath)
 	}
 
 	return &pieceReuse{
@@ -209,6 +221,7 @@ func (r *pieceReuse) findReusablePieces(files []fileEntry, originalPaths map[str
 	if err != nil {
 		return nil, err
 	}
+	r.matchedFiles = mapping
 
 	oldTotal := fileListLength(r.oldFiles)
 	newTotal := fileListLength(newFiles)
@@ -277,17 +290,20 @@ func (r *pieceReuse) findReusablePieces(files []fileEntry, originalPaths map[str
 func describeNewFiles(files []fileEntry, originalPaths map[string]string, baseDir string, inputIsDir bool) ([]reuseFile, error) {
 	newFiles := make([]reuseFile, len(files))
 	for i, file := range files {
-		filePath := ""
+		originalPath := originalPaths[file.path]
+		if originalPath == "" {
+			originalPath = file.path
+		}
+
+		var filePath string
 		if inputIsDir {
-			originalPath := originalPaths[file.path]
-			if originalPath == "" {
-				originalPath = file.path
-			}
 			relPath, err := filepath.Rel(baseDir, originalPath)
 			if err != nil {
 				return nil, fmt.Errorf("calculate torrent path for %q: %w", originalPath, err)
 			}
-			filePath = normalizeTorrentPath(filepath.ToSlash(relPath))
+			filePath = normalizeTorrentPath(relPath)
+		} else {
+			filePath = normalizeTorrentPath(filepath.Base(originalPath))
 		}
 		newFiles[i] = reuseFile{path: filePath, length: file.length, offset: file.offset}
 	}
@@ -359,6 +375,53 @@ func (r *pieceReuse) matchFiles(newFiles []reuseFile) ([]int, error) {
 	return mapping, nil
 }
 
+// preserveMappedFileInfoKeys carries custom per-file keys to unchanged or explicitly renamed files.
+func preserveMappedFileInfoKeys(oldInfoMap, newInfoMap map[string]any, mapping []int) error {
+	oldValue, oldHasFiles := oldInfoMap["files"]
+	newValue, newHasFiles := newInfoMap["files"]
+	if !oldHasFiles || !newHasFiles {
+		return nil
+	}
+
+	oldFiles, ok := oldValue.([]any)
+	if !ok {
+		return fmt.Errorf("existing torrent files metadata has unexpected type %T", oldValue)
+	}
+	newFiles, ok := newValue.([]any)
+	if !ok {
+		return fmt.Errorf("updated torrent files metadata has unexpected type %T", newValue)
+	}
+	if len(mapping) != len(newFiles) {
+		return fmt.Errorf("updated torrent has %d file mappings for %d files", len(mapping), len(newFiles))
+	}
+
+	for newIndex, oldIndex := range mapping {
+		if oldIndex < 0 {
+			continue
+		}
+		if oldIndex >= len(oldFiles) {
+			return fmt.Errorf("mapped old file index %d exceeds %d files", oldIndex, len(oldFiles))
+		}
+		oldFile, ok := oldFiles[oldIndex].(map[string]any)
+		if !ok {
+			return fmt.Errorf("existing torrent file %d metadata has unexpected type %T", oldIndex, oldFiles[oldIndex])
+		}
+		newFile, ok := newFiles[newIndex].(map[string]any)
+		if !ok {
+			return fmt.Errorf("updated torrent file %d metadata has unexpected type %T", newIndex, newFiles[newIndex])
+		}
+		for key, value := range oldFile {
+			switch key {
+			case "length", "path", "path.utf-8":
+				continue
+			default:
+				newFile[key] = value
+			}
+		}
+	}
+	return nil
+}
+
 // fileListLength returns the total concatenated length represented by an ordered file list.
 func fileListLength(files []reuseFile) int64 {
 	if len(files) == 0 {
@@ -380,7 +443,7 @@ func normalizeTorrentPath(filePath string) string {
 	if cleaned == "." {
 		return ""
 	}
-	return cleaned
+	return pathKey(cleaned)
 }
 
 // writeTorrentAtomically writes metainfo through a same-directory temporary file before replacing the destination.
@@ -399,11 +462,13 @@ func writeTorrentAtomically(mi *metainfo.MetaInfo, outputPath string) error {
 		_ = os.Remove(tempPath)
 	}()
 
+	mode := os.FileMode(0o644)
 	if existing, statErr := os.Stat(outputPath); statErr == nil {
-		if err := tempFile.Chmod(existing.Mode().Perm()); err != nil {
-			_ = tempFile.Close()
-			return fmt.Errorf("preserve torrent permissions: %w", err)
-		}
+		mode = existing.Mode().Perm()
+	}
+	if err := tempFile.Chmod(mode); err != nil {
+		_ = tempFile.Close()
+		return fmt.Errorf("set torrent permissions: %w", err)
 	}
 	if err := mi.Write(tempFile); err != nil {
 		_ = tempFile.Close()
