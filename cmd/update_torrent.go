@@ -43,8 +43,11 @@ Discovery filters are not stored in torrent metadata. Repeat any --exclude or
 fields, and piece length are preserved from the input torrent.
 
 By default, output is written beside the input with ".updated" before the
-extension. Use --in-place to replace the input atomically. Multi-piece updates
-that reuse no hashes are rejected unless --force explicitly permits them.`,
+extension and must not already exist. Output must be outside the content
+directory; this also applies to the input selected by --in-place. Use --output
+to choose a destination or --in-place to replace the input atomically.
+Multi-piece updates that reuse no hashes are rejected unless --force explicitly
+permits them.`,
 	Args:                  cobra.ExactArgs(2),
 	RunE:                  runUpdateTorrent,
 	DisableFlagsInUseLine: true,

@@ -18,6 +18,36 @@ import (
 	"github.com/autobrr/mkbrr/internal/trackers"
 )
 
+const maxTorrentDataSize = int64(^uint64(0) >> 1)
+
+func pieceCountForSize(totalSize, pieceLength int64) (int, error) {
+	if totalSize < 0 {
+		return 0, fmt.Errorf("content size must not be negative")
+	}
+	if pieceLength <= 0 {
+		return 0, fmt.Errorf("piece length must be positive")
+	}
+	pieces := totalSize / pieceLength
+	if totalSize%pieceLength != 0 {
+		pieces++
+	}
+	maxInt := int64(^uint(0) >> 1)
+	if pieces > maxInt/20 {
+		return 0, fmt.Errorf("torrent requires too many pieces: %d", pieces)
+	}
+	return int(pieces), nil
+}
+
+func addTorrentFileSize(totalSize, fileSize int64) (int64, error) {
+	if fileSize < 0 {
+		return 0, fmt.Errorf("file size must not be negative")
+	}
+	if fileSize > maxTorrentDataSize-totalSize {
+		return 0, fmt.Errorf("total content size exceeds %d bytes", maxTorrentDataSize)
+	}
+	return totalSize + fileSize, nil
+}
+
 // formatPieceSize returns a human readable piece size, using KiB for sizes < 1024 KiB and MiB for larger sizes
 func formatPieceSize(exp uint) string {
 	size := uint64(1) << (exp - 10) // convert to KiB
@@ -221,21 +251,28 @@ func createTorrent(opts CreateOptions, internalOpts createTorrentOptions) (*Torr
 	files := make([]fileEntry, 0, 1)
 	var totalSize int64
 	var baseDir string
-	originalPaths := make(map[string]string) // map resolved path -> original path for metainfo
 
 	inputInfo, err := os.Stat(path)
 	if err != nil {
 		return nil, fmt.Errorf("error checking path: %w", err)
 	}
 
-	// Clean the base path for computing relative paths
-	cleanBasePath := filepath.Clean(path)
-	matchBasePath := cleanBasePath
+	// Walk a directory target rather than the root symlink itself. Nested
+	// directory symlinks remain intentionally untraversed to avoid cycles and
+	// escaping the selected content tree.
+	walkPath := filepath.Clean(path)
+	if inputInfo.IsDir() {
+		walkPath, err = filepath.EvalSymlinks(walkPath)
+		if err != nil {
+			return nil, fmt.Errorf("resolve input directory: %w", err)
+		}
+	}
+	matchBasePath := walkPath
 	if !inputInfo.IsDir() {
-		matchBasePath = filepath.Dir(cleanBasePath)
+		matchBasePath = filepath.Dir(walkPath)
 	}
 
-	err = filepath.Walk(path, func(currentPath string, walkInfo os.FileInfo, walkErr error) error {
+	err = filepath.Walk(walkPath, func(currentPath string, walkInfo os.FileInfo, walkErr error) error {
 		if walkErr != nil {
 			// check if the error is due to a broken symlink during walk
 			// if lstat works but stat fails, it's likely a broken link we might handle later
@@ -305,7 +342,7 @@ func createTorrent(opts CreateOptions, internalOpts createTorrentOptions) (*Torr
 				}
 			}
 
-			if baseDir == "" && currentPath == path { // only set baseDir for the initial path if it's a dir
+			if baseDir == "" && currentPath == walkPath {
 				baseDir = currentPath
 			}
 			return nil
@@ -320,23 +357,37 @@ func createTorrent(opts CreateOptions, internalOpts createTorrentOptions) (*Torr
 			return nil
 		}
 
-		// add the file using the resolved path for hashing, but store the original path for metainfo
+		fileSize := resolvedInfo.Size()
+		updatedTotalSize, err := addTorrentFileSize(totalSize, fileSize)
+		if err != nil {
+			return fmt.Errorf("file %q: %w", currentPath, err)
+		}
+
+		// Hash the resolved target while retaining the walked path for torrent metadata.
 		files = append(files, fileEntry{
-			path:   resolvedPath, // use the actual content path for hashing
-			length: resolvedInfo.Size(),
-			offset: totalSize,
+			path:       resolvedPath,
+			sourcePath: currentPath,
+			length:     fileSize,
+			offset:     totalSize,
 		})
-		originalPaths[resolvedPath] = currentPath
-		totalSize += resolvedInfo.Size()
+		totalSize = updatedTotalSize
 		return nil
 	})
 	if err != nil {
 		return nil, fmt.Errorf("error walking path: %w", err)
 	}
 
-	// sort files to ensure consistent order
+	// Sort by torrent-visible paths; resolved targets are not unique for symlink aliases.
 	sort.Slice(files, func(i, j int) bool {
-		return files[i].path < files[j].path
+		leftPath := files[i].sourcePath
+		if leftPath == "" {
+			leftPath = files[i].path
+		}
+		rightPath := files[j].sourcePath
+		if rightPath == "" {
+			rightPath = files[j].path
+		}
+		return leftPath < rightPath
 	})
 
 	// recalculate offsets based on the sorted file order
@@ -357,7 +408,10 @@ func createTorrent(opts CreateOptions, internalOpts createTorrentOptions) (*Torr
 		if pieceLenInt == 0 {
 			pieceLenInt = int64(1) << pieceLength
 		}
-		numPieces := (totalSize + pieceLenInt - 1) / pieceLenInt
+		numPieces, err := pieceCountForSize(totalSize, pieceLenInt)
+		if err != nil {
+			return nil, err
+		}
 
 		var display Displayer
 		if opts.ProgressCallback != nil {
@@ -371,9 +425,9 @@ func createTorrent(opts CreateOptions, internalOpts createTorrentOptions) (*Torr
 		}
 
 		var pieceHashes [][]byte
-		hasher := NewPieceHasher(files, pieceLenInt, int(numPieces), display, opts.FailOnSeasonPackWarning)
+		hasher := NewPieceHasher(files, pieceLenInt, numPieces, display, opts.FailOnSeasonPackWarning)
 		if internalOpts.pieceReuse != nil {
-			reusablePieces, err := internalOpts.pieceReuse.findReusablePieces(files, originalPaths, baseDir, inputInfo.IsDir(), pieceLenInt)
+			reusablePieces, err := internalOpts.pieceReuse.findReusablePieces(files, baseDir, inputInfo.IsDir(), pieceLenInt)
 			if err != nil {
 				return nil, err
 			}
@@ -410,10 +464,9 @@ func createTorrent(opts CreateOptions, internalOpts createTorrentOptions) (*Torr
 			if pathInfo.IsDir() {
 				// if it's a directory, use the folder structure even for single files
 				info.Files = make([]metainfo.FileInfo, 1)
-				// Use the original path for calculating relative path in metainfo
-				originalFilepath := originalPaths[files[0].path]
+				originalFilepath := files[0].sourcePath
 				if originalFilepath == "" {
-					originalFilepath = files[0].path // Fallback if mapping missing
+					originalFilepath = files[0].path
 				}
 				relPath, _ := filepath.Rel(baseDir, originalFilepath)
 				relPath = nfcPath(baseDir, relPath)
@@ -429,10 +482,9 @@ func createTorrent(opts CreateOptions, internalOpts createTorrentOptions) (*Torr
 		} else {
 			info.Files = make([]metainfo.FileInfo, len(files))
 			for i, f := range files {
-				// Use the original path for calculating relative path in metainfo
-				originalFilepath := originalPaths[f.path]
+				originalFilepath := f.sourcePath
 				if originalFilepath == "" {
-					originalFilepath = f.path // Fallback if mapping missing
+					originalFilepath = f.path
 				}
 				relPath, _ := filepath.Rel(baseDir, originalFilepath)
 				relPath = nfcPath(baseDir, relPath)

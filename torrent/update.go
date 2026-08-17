@@ -67,6 +67,29 @@ func UpdateTorrent(opts UpdateOptions) (*UpdateResult, error) {
 		return nil, fmt.Errorf("in-place update and output path are mutually exclusive")
 	}
 
+	outputPath := opts.OutputPath
+	defaultOutput := !opts.InPlace && outputPath == ""
+	switch {
+	case opts.InPlace:
+		outputPath = opts.TorrentPath
+	case defaultOutput:
+		outputPath = defaultUpdateOutputPath(opts.TorrentPath)
+	}
+	if defaultOutput {
+		if _, err := os.Lstat(outputPath); err == nil {
+			return nil, fmt.Errorf("default output %q already exists; choose an output path or use in-place update", outputPath)
+		} else if !os.IsNotExist(err) {
+			return nil, fmt.Errorf("check default output %q: %w", outputPath, err)
+		}
+	}
+	if err := validateUpdateOutputPath(opts.TorrentPath, opts.ContentPath, outputPath, opts.InPlace); err != nil {
+		return nil, err
+	}
+	writeOutputPath, err := updateOutputWritePath(outputPath)
+	if err != nil {
+		return nil, fmt.Errorf("resolve output parent: %w", err)
+	}
+
 	torrentData, err := os.ReadFile(opts.TorrentPath)
 	if err != nil {
 		return nil, fmt.Errorf("load torrent: %w", err)
@@ -85,9 +108,17 @@ func UpdateTorrent(opts UpdateOptions) (*UpdateResult, error) {
 		return nil, fmt.Errorf("decode torrent info: %w", err)
 	}
 
-	oldInfoMap := make(map[string]any)
+	oldInfoMap := make(map[string]bencode.Bytes)
 	if err := bencode.Unmarshal(oldInfoBytes, &oldInfoMap); err != nil {
 		return nil, fmt.Errorf("decode raw torrent info: %w", err)
+	}
+	_, hasFiles := oldInfoMap["files"]
+	_, hasLength := oldInfoMap["length"]
+	if hasFiles == hasLength {
+		if hasFiles {
+			return nil, fmt.Errorf("torrent info must not contain both files and length")
+		}
+		return nil, fmt.Errorf("torrent info must contain either files or length")
 	}
 	if _, ok := oldInfoMap["meta version"]; ok {
 		return nil, fmt.Errorf("updating v2 or hybrid torrents is not supported")
@@ -120,7 +151,7 @@ func UpdateTorrent(opts UpdateOptions) (*UpdateResult, error) {
 		return nil, fmt.Errorf("update torrent content: %w", err)
 	}
 
-	newInfoMap := make(map[string]any)
+	newInfoMap := make(map[string]bencode.Bytes)
 	if err := bencode.Unmarshal(generated.InfoBytes, &newInfoMap); err != nil {
 		return nil, fmt.Errorf("decode updated torrent info: %w", err)
 	}
@@ -151,18 +182,19 @@ func UpdateTorrent(opts UpdateOptions) (*UpdateResult, error) {
 		return nil, fmt.Errorf("decode updated torrent info: %w", err)
 	}
 	totalPieces := len(updatedInfo.Pieces) / 20
-	if totalPieces > 1 && reuse.reused == 0 && !opts.Force {
-		return nil, fmt.Errorf("refusing update with 0 of %d reusable pieces; verify the content path or use --force", totalPieces)
+	oldTotalPieces := len(oldInfo.Pieces) / 20
+	if max(oldTotalPieces, totalPieces) > 1 && reuse.reused == 0 && !opts.Force {
+		return nil, fmt.Errorf("refusing update with 0 reusable pieces (existing torrent: %d, updated torrent: %d); verify the content path or use --force", oldTotalPieces, totalPieces)
 	}
 
-	outputPath := opts.OutputPath
-	switch {
-	case opts.InPlace:
-		outputPath = opts.TorrentPath
-	case outputPath == "":
-		outputPath = defaultUpdateOutputPath(opts.TorrentPath)
+	currentWriteOutputPath, err := updateOutputWritePath(outputPath)
+	if err != nil {
+		return nil, fmt.Errorf("re-resolve output parent: %w", err)
 	}
-	if err := writeTorrentAtomically(rootMap, outputPath); err != nil {
+	if currentWriteOutputPath != writeOutputPath {
+		return nil, fmt.Errorf("output parent changed during update")
+	}
+	if err := writeTorrentAtomically(rootMap, writeOutputPath); err != nil {
 		return nil, err
 	}
 
@@ -210,6 +242,124 @@ func defaultUpdateOutputPath(torrentPath string) string {
 	return strings.TrimSuffix(torrentPath, extension) + ".updated" + extension
 }
 
+func validateUpdateOutputPath(torrentPath, contentPath, outputPath string, inPlace bool) error {
+	outputWritePath, err := updateOutputWritePath(outputPath)
+	if err != nil {
+		return fmt.Errorf("resolve output path: %w", err)
+	}
+
+	if !inPlace {
+		torrentWritePath, err := updateOutputWritePath(torrentPath)
+		if err != nil {
+			return fmt.Errorf("resolve torrent path: %w", err)
+		}
+		torrentInfo, torrentErr := os.Lstat(torrentPath)
+		outputInfo, outputErr := os.Lstat(outputPath)
+		sameExistingEntry := torrentErr == nil && outputErr == nil && os.SameFile(torrentInfo, outputInfo)
+		if outputWritePath == torrentWritePath || sameExistingEntry {
+			return fmt.Errorf("output path refers to the input torrent; use in-place update instead")
+		}
+	}
+
+	contentInfo, err := os.Stat(contentPath)
+	if err != nil {
+		return nil
+	}
+	contentResolved, err := resolvedUpdatePath(contentPath)
+	if err != nil {
+		return fmt.Errorf("resolve content path: %w", err)
+	}
+	if !contentInfo.IsDir() {
+		outputInfo, outputErr := os.Lstat(outputPath)
+		if outputWritePath == contentResolved || outputErr == nil && os.SameFile(contentInfo, outputInfo) {
+			return fmt.Errorf("output path must not replace the content file")
+		}
+		return nil
+	}
+
+	insideContent, err := updatePathInsideDirectory(contentResolved, outputWritePath, contentInfo)
+	if err != nil {
+		return fmt.Errorf("compare output and content paths: %w", err)
+	}
+	if insideContent {
+		if inPlace {
+			return fmt.Errorf("input torrent must be outside the content directory for in-place update")
+		}
+		return fmt.Errorf("output path must not be inside the content directory")
+	}
+	return nil
+}
+
+func updatePathInsideDirectory(directoryPath, candidatePath string, directoryInfo os.FileInfo) (bool, error) {
+	relative, err := filepath.Rel(directoryPath, candidatePath)
+	if err == nil && (relative == "." || relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))) {
+		return true, nil
+	}
+
+	if candidateInfo, statErr := os.Lstat(candidatePath); statErr == nil {
+		if candidateInfo.IsDir() && os.SameFile(directoryInfo, candidateInfo) {
+			return true, nil
+		}
+	} else if !os.IsNotExist(statErr) {
+		return false, statErr
+	}
+
+	for current := filepath.Dir(candidatePath); ; current = filepath.Dir(current) {
+		currentInfo, statErr := os.Stat(current)
+		if statErr == nil {
+			if os.SameFile(directoryInfo, currentInfo) {
+				return true, nil
+			}
+		} else if !os.IsNotExist(statErr) {
+			return false, statErr
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			return false, nil
+		}
+	}
+}
+
+func resolvedUpdatePath(filePath string) (string, error) {
+	absolute, err := filepath.Abs(filePath)
+	if err != nil {
+		return "", err
+	}
+	absolute = filepath.Clean(absolute)
+
+	current := absolute
+	suffix := make([]string, 0, 2)
+	for {
+		resolved, err := filepath.EvalSymlinks(current)
+		if err == nil {
+			for index := len(suffix) - 1; index >= 0; index-- {
+				resolved = filepath.Join(resolved, suffix[index])
+			}
+			return filepath.Clean(resolved), nil
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			return absolute, nil
+		}
+		suffix = append(suffix, filepath.Base(current))
+		current = parent
+	}
+}
+
+// updateOutputWritePath pins the resolved parent while preserving the final
+// path component, so replacing an existing output symlink remains atomic.
+func updateOutputWritePath(filePath string) (string, error) {
+	absolute, err := filepath.Abs(filePath)
+	if err != nil {
+		return "", err
+	}
+	parent, err := resolvedUpdatePath(filepath.Dir(filepath.Clean(absolute)))
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(parent, filepath.Base(absolute)), nil
+}
+
 // newPieceReuse validates the original v1 piece layout and prepares normalized file mappings.
 func newPieceReuse(info metainfo.Info, renames map[string]string) (*pieceReuse, error) {
 	if info.PieceLength <= 0 {
@@ -219,6 +369,11 @@ func newPieceReuse(info metainfo.Info, renames map[string]string) (*pieceReuse, 
 		return nil, fmt.Errorf("torrent has invalid v1 piece hashes")
 	}
 
+	torrentName := normalizeTorrentPath(info.Name)
+	if torrentName == "" || strings.Contains(torrentName, "/") {
+		return nil, fmt.Errorf("torrent has invalid name %q", info.Name)
+	}
+
 	oldFiles := make([]reuseFile, 0, max(1, len(info.Files)))
 	var offset int64
 	if len(info.Files) == 0 {
@@ -226,14 +381,24 @@ func newPieceReuse(info metainfo.Info, renames map[string]string) (*pieceReuse, 
 			return nil, fmt.Errorf("torrent contains no v1 file data")
 		}
 		oldFiles = append(oldFiles, reuseFile{
-			path:   normalizeTorrentPath(info.Name),
+			path:   torrentName,
 			length: info.Length,
 		})
 		offset = info.Length
 	} else {
-		for _, file := range info.Files {
+		for index, file := range info.Files {
+			if file.Length < 0 {
+				return nil, fmt.Errorf("torrent file %d has invalid negative length %d", index, file.Length)
+			}
+			if file.Length > maxTorrentDataSize-offset {
+				return nil, fmt.Errorf("torrent file lengths exceed %d bytes", maxTorrentDataSize)
+			}
+			filePath := normalizeTorrentPath(strings.Join(file.Path, "/"))
+			if filePath == "" {
+				return nil, fmt.Errorf("torrent file %d has an invalid path", index)
+			}
 			oldFiles = append(oldFiles, reuseFile{
-				path:   normalizeTorrentPath(strings.Join(file.Path, "/")),
+				path:   filePath,
 				length: file.Length,
 				offset: offset,
 			})
@@ -241,8 +406,11 @@ func newPieceReuse(info metainfo.Info, renames map[string]string) (*pieceReuse, 
 		}
 	}
 
-	expectedPieces := int((offset + info.PieceLength - 1) / info.PieceLength)
-	if len(info.Pieces) != expectedPieces*20 {
+	expectedPieces, err := pieceCountForSize(offset, info.PieceLength)
+	if err != nil {
+		return nil, fmt.Errorf("validate torrent piece layout: %w", err)
+	}
+	if len(info.Pieces)/20 != expectedPieces {
 		return nil, fmt.Errorf("torrent has %d piece hashes, want %d for its content length", len(info.Pieces)/20, expectedPieces)
 	}
 
@@ -274,12 +442,12 @@ func newPieceReuse(info metainfo.Info, renames map[string]string) (*pieceReuse, 
 }
 
 // findReusablePieces maps each new piece to an identical old piece hash when its full byte range is unchanged.
-func (r *pieceReuse) findReusablePieces(files []fileEntry, originalPaths map[string]string, baseDir string, inputIsDir bool, pieceLength int64) (map[int][]byte, error) {
+func (r *pieceReuse) findReusablePieces(files []fileEntry, baseDir string, inputIsDir bool, pieceLength int64) (map[int][]byte, error) {
 	if pieceLength != r.pieceLength {
 		return nil, fmt.Errorf("piece length changed from %d to %d", r.pieceLength, pieceLength)
 	}
 
-	newFiles, err := describeNewFiles(files, originalPaths, baseDir, inputIsDir)
+	newFiles, err := describeNewFiles(files, baseDir, inputIsDir)
 	if err != nil {
 		return nil, err
 	}
@@ -291,13 +459,19 @@ func (r *pieceReuse) findReusablePieces(files []fileEntry, originalPaths map[str
 
 	oldTotal := fileListLength(r.oldFiles)
 	newTotal := fileListLength(newFiles)
-	totalPieces := int((newTotal + pieceLength - 1) / pieceLength)
+	totalPieces, err := pieceCountForSize(newTotal, pieceLength)
+	if err != nil {
+		return nil, fmt.Errorf("validate updated piece layout: %w", err)
+	}
 	reusable := make(map[int][]byte)
 	startFile := 0
 
 	for pieceIndex := range totalPieces {
 		newStart := int64(pieceIndex) * pieceLength
-		newEnd := min(newStart+pieceLength, newTotal)
+		newEnd := newTotal
+		if newTotal-newStart > pieceLength {
+			newEnd = newStart + pieceLength
+		}
 		for startFile < len(newFiles) && newFiles[startFile].offset+newFiles[startFile].length <= newStart {
 			startFile++
 		}
@@ -336,7 +510,10 @@ func (r *pieceReuse) findReusablePieces(files []fileEntry, originalPaths map[str
 		if !canReuse || position != newEnd || oldStart < 0 || oldStart%pieceLength != 0 {
 			continue
 		}
-		oldEnd := min(oldStart+pieceLength, oldTotal)
+		oldEnd := oldTotal
+		if oldTotal-oldStart > pieceLength {
+			oldEnd = oldStart + pieceLength
+		}
 		if oldEnd-oldStart != pieceSize {
 			continue
 		}
@@ -353,10 +530,10 @@ func (r *pieceReuse) findReusablePieces(files []fileEntry, originalPaths map[str
 }
 
 // describeNewFiles converts filesystem entries into torrent-relative files while retaining stream offsets.
-func describeNewFiles(files []fileEntry, originalPaths map[string]string, baseDir string, inputIsDir bool) ([]reuseFile, error) {
+func describeNewFiles(files []fileEntry, baseDir string, inputIsDir bool) ([]reuseFile, error) {
 	newFiles := make([]reuseFile, len(files))
 	for i, file := range files {
-		originalPath := originalPaths[file.path]
+		originalPath := file.sourcePath
 		if originalPath == "" {
 			originalPath = file.path
 		}
@@ -483,21 +660,21 @@ func (r *pieceReuse) matchFiles(newFiles []reuseFile) ([]int, error) {
 	return mapping, nil
 }
 
-// preserveMappedFileInfoKeys carries custom per-file keys to unchanged or explicitly renamed files.
-func preserveMappedFileInfoKeys(oldInfoMap, newInfoMap map[string]any, mapping []int) error {
+// preserveMappedFileInfoKeys carries raw custom per-file keys to unchanged or explicitly renamed files.
+func preserveMappedFileInfoKeys(oldInfoMap, newInfoMap map[string]bencode.Bytes, mapping []int) error {
 	oldValue, oldHasFiles := oldInfoMap["files"]
 	newValue, newHasFiles := newInfoMap["files"]
 	if !oldHasFiles || !newHasFiles {
 		return nil
 	}
 
-	oldFiles, ok := oldValue.([]any)
-	if !ok {
-		return fmt.Errorf("existing torrent files metadata has unexpected type %T", oldValue)
+	var oldFiles []map[string]bencode.Bytes
+	if err := bencode.Unmarshal(oldValue, &oldFiles); err != nil {
+		return fmt.Errorf("decode existing torrent files metadata: %w", err)
 	}
-	newFiles, ok := newValue.([]any)
-	if !ok {
-		return fmt.Errorf("updated torrent files metadata has unexpected type %T", newValue)
+	var newFiles []map[string]bencode.Bytes
+	if err := bencode.Unmarshal(newValue, &newFiles); err != nil {
+		return fmt.Errorf("decode updated torrent files metadata: %w", err)
 	}
 	if len(mapping) != len(newFiles) {
 		return fmt.Errorf("updated torrent has %d file mappings for %d files", len(mapping), len(newFiles))
@@ -510,23 +687,21 @@ func preserveMappedFileInfoKeys(oldInfoMap, newInfoMap map[string]any, mapping [
 		if oldIndex >= len(oldFiles) {
 			return fmt.Errorf("mapped old file index %d exceeds %d files", oldIndex, len(oldFiles))
 		}
-		oldFile, ok := oldFiles[oldIndex].(map[string]any)
-		if !ok {
-			return fmt.Errorf("existing torrent file %d metadata has unexpected type %T", oldIndex, oldFiles[oldIndex])
-		}
-		newFile, ok := newFiles[newIndex].(map[string]any)
-		if !ok {
-			return fmt.Errorf("updated torrent file %d metadata has unexpected type %T", newIndex, newFiles[newIndex])
-		}
-		for key, value := range oldFile {
+		for key, value := range oldFiles[oldIndex] {
 			switch key {
 			case "length", "path", "path.utf-8":
 				continue
 			default:
-				newFile[key] = value
+				newFiles[newIndex][key] = value
 			}
 		}
 	}
+
+	filesBytes, err := bencode.Marshal(newFiles)
+	if err != nil {
+		return fmt.Errorf("encode updated torrent files metadata: %w", err)
+	}
+	newInfoMap["files"] = filesBytes
 	return nil
 }
 

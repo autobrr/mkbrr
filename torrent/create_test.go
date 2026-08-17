@@ -15,6 +15,30 @@ import (
 	"github.com/autobrr/mkbrr/internal/preset"
 )
 
+func TestPieceCountForSizeHandlesIntegerBoundaries(t *testing.T) {
+	if got, err := pieceCountForSize(2, maxTorrentDataSize); err != nil || got != 1 {
+		t.Fatalf("pieceCountForSize(2, MaxInt64) = %d, %v; want 1, nil", got, err)
+	}
+	if _, err := pieceCountForSize(maxTorrentDataSize, 1); err == nil {
+		t.Fatal("pieceCountForSize(MaxInt64, 1) error = nil, want excessive piece count error")
+	}
+	if _, err := pieceCountForSize(-1, 1); err == nil {
+		t.Fatal("pieceCountForSize(-1, 1) error = nil, want negative size error")
+	}
+}
+
+func TestAddTorrentFileSizeRejectsOverflow(t *testing.T) {
+	if got, err := addTorrentFileSize(maxTorrentDataSize-1, 1); err != nil || got != maxTorrentDataSize {
+		t.Fatalf("addTorrentFileSize(MaxInt64-1, 1) = %d, %v; want MaxInt64, nil", got, err)
+	}
+	if _, err := addTorrentFileSize(maxTorrentDataSize, 1); err == nil {
+		t.Fatal("addTorrentFileSize(MaxInt64, 1) error = nil, want overflow error")
+	}
+	if _, err := addTorrentFileSize(0, -1); err == nil {
+		t.Fatal("addTorrentFileSize(0, -1) error = nil, want negative size error")
+	}
+}
+
 func Test_calculatePieceLength(t *testing.T) {
 	tests := []struct {
 		name           string

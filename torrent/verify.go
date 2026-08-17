@@ -80,6 +80,9 @@ func VerifyData(opts VerifyOptions) (*VerificationResult, error) {
 	baseContentPath := filepath.Clean(opts.ContentPath)
 
 	if info.IsDir() {
+		if resolvedContentPath, resolveErr := filepath.EvalSymlinks(baseContentPath); resolveErr == nil {
+			baseContentPath = resolvedContentPath
+		}
 		// Multi-file torrent: index what is on disk once, then match each torrent
 		// entry in torrent order — by exact name first, with a normalization-
 		// insensitive fallback only when the exact name is absent, so that a
@@ -97,7 +100,16 @@ func VerifyData(opts VerifyOptions) (*VerificationResult, error) {
 				fmt.Fprintf(os.Stderr, "Warning: error walking path %q: %v\n", currentPath, walkErr)
 				return nil
 			}
-			if fileInfo.IsDir() {
+			contentInfo := fileInfo
+			if fileInfo.Mode()&os.ModeSymlink != 0 {
+				targetInfo, err := os.Stat(currentPath)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Warning: could not stat symlink target for %q: %v\n", currentPath, err)
+					return nil
+				}
+				contentInfo = targetInfo
+			}
+			if contentInfo.IsDir() {
 				return nil
 			}
 			relPath, err := filepath.Rel(baseContentPath, currentPath)
@@ -105,7 +117,7 @@ func VerifyData(opts VerifyOptions) (*VerificationResult, error) {
 				return fmt.Errorf("failed to get relative path for %q: %w", currentPath, err)
 			}
 			relPath = filepath.ToSlash(relPath)
-			onDisk[relPath] = diskFile{path: currentPath, size: fileInfo.Size()}
+			onDisk[relPath] = diskFile{path: currentPath, size: contentInfo.Size()}
 			byNorm[pathKey(relPath)] = append(byNorm[pathKey(relPath)], relPath)
 			return nil
 		})

@@ -58,9 +58,10 @@ type FileEntry struct {
 
 // internal file entry for processing
 type fileEntry struct {
-	path   string
-	length int64
-	offset int64
+	path       string
+	sourcePath string
+	length     int64
+	offset     int64
 }
 
 // internal file reader for processing
