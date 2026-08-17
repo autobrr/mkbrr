@@ -11,31 +11,63 @@ import (
 	"testing"
 
 	"github.com/autobrr/go-torrent/metainfo"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/autobrr/mkbrr/internal/preset"
 )
 
 func TestPieceCountForSizeHandlesIntegerBoundaries(t *testing.T) {
-	if got, err := pieceCountForSize(2, maxTorrentDataSize); err != nil || got != 1 {
-		t.Fatalf("pieceCountForSize(2, MaxInt64) = %d, %v; want 1, nil", got, err)
+	tests := []struct {
+		name        string
+		totalSize   int64
+		pieceLength int64
+		want        int
+		wantErr     bool
+	}{
+		{name: "maximum piece length", totalSize: 2, pieceLength: maxTorrentDataSize, want: 1},
+		{name: "excessive piece count", totalSize: maxTorrentDataSize, pieceLength: 1, wantErr: true},
+		{name: "negative total size", totalSize: -1, pieceLength: 1, wantErr: true},
 	}
-	if _, err := pieceCountForSize(maxTorrentDataSize, 1); err == nil {
-		t.Fatal("pieceCountForSize(MaxInt64, 1) error = nil, want excessive piece count error")
-	}
-	if _, err := pieceCountForSize(-1, 1); err == nil {
-		t.Fatal("pieceCountForSize(-1, 1) error = nil, want negative size error")
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := pieceCountForSize(test.totalSize, test.pieceLength)
+			if test.wantErr {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, test.want, got)
+		})
 	}
 }
 
 func TestAddTorrentFileSizeRejectsOverflow(t *testing.T) {
-	if got, err := addTorrentFileSize(maxTorrentDataSize-1, 1); err != nil || got != maxTorrentDataSize {
-		t.Fatalf("addTorrentFileSize(MaxInt64-1, 1) = %d, %v; want MaxInt64, nil", got, err)
+	tests := []struct {
+		name      string
+		totalSize int64
+		fileSize  int64
+		want      int64
+		wantErr   bool
+	}{
+		{name: "maximum total size", totalSize: maxTorrentDataSize - 1, fileSize: 1, want: maxTorrentDataSize},
+		{name: "overflow", totalSize: maxTorrentDataSize, fileSize: 1, wantErr: true},
+		{name: "negative file size", totalSize: 0, fileSize: -1, wantErr: true},
 	}
-	if _, err := addTorrentFileSize(maxTorrentDataSize, 1); err == nil {
-		t.Fatal("addTorrentFileSize(MaxInt64, 1) error = nil, want overflow error")
-	}
-	if _, err := addTorrentFileSize(0, -1); err == nil {
-		t.Fatal("addTorrentFileSize(0, -1) error = nil, want negative size error")
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := addTorrentFileSize(test.totalSize, test.fileSize)
+			if test.wantErr {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, test.want, got)
+		})
 	}
 }
 

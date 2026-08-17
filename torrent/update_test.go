@@ -10,6 +10,8 @@ import (
 
 	"github.com/autobrr/go-torrent/bencode"
 	"github.com/autobrr/go-torrent/metainfo"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestUpdateTorrentRenameAndAppendReusesPieces verifies mixed hash reuse and boundary rehashing against a clean rebuild.
@@ -26,18 +28,13 @@ func TestUpdateTorrentRenameAndAppendReusesPieces(t *testing.T) {
 		Source:         "source-tag",
 		Quiet:          true,
 	})
-	if err != nil {
-		t.Fatalf("CreateTorrent(original) error: %v", err)
-	}
+	require.NoError(t, err)
 	original.Comment = "keep-comment"
 	addUpdateTestInfoValue(t, original.MetaInfo, "custom-key", "keep-value")
 
 	torrentPath := filepath.Join(t.TempDir(), "release.torrent")
 	writeUpdateTestTorrent(t, torrentPath, original.MetaInfo)
-
-	if err := os.Rename(filepath.Join(contentDir, "a.bin"), filepath.Join(contentDir, "b.bin")); err != nil {
-		t.Fatalf("Rename(a.bin, b.bin) error: %v", err)
-	}
+	require.NoError(t, os.Rename(filepath.Join(contentDir, "a.bin"), filepath.Join(contentDir, "b.bin")))
 	writeUpdateTestFile(t, filepath.Join(contentDir, "z.bin"), bytes.Repeat([]byte{'z'}, 20_000))
 
 	result, err := UpdateTorrent(UpdateOptions{
@@ -49,59 +46,29 @@ func TestUpdateTorrentRenameAndAppendReusesPieces(t *testing.T) {
 		Quiet:   true,
 		InPlace: true,
 	})
-	if err != nil {
-		t.Fatalf("UpdateTorrent() error: %v", err)
-	}
-	if got, want := result.ReusedPieces, 2; got != want {
-		t.Errorf("UpdateTorrent().ReusedPieces = %d, want %d", got, want)
-	}
-	if got, want := result.HashedPieces, 1; got != want {
-		t.Errorf("UpdateTorrent().HashedPieces = %d, want %d", got, want)
-	}
-
+	require.NoError(t, err)
+	assert.Equal(t, 2, result.ReusedPieces)
+	assert.Equal(t, 1, result.HashedPieces)
 	updated, err := metainfo.LoadFromFile(torrentPath)
-	if err != nil {
-		t.Fatalf("LoadFromFile(updated) error: %v", err)
-	}
+	require.NoError(t, err)
 	updatedInfo, err := updated.UnmarshalInfo()
-	if err != nil {
-		t.Fatalf("UnmarshalInfo(updated) error: %v", err)
-	}
-
+	require.NoError(t, err)
 	fullyHashed, err := CreateTorrent(CreateOptions{
 		Path:           contentDir,
 		Name:           "release",
 		PieceLengthExp: &pieceLength,
 		Quiet:          true,
 	})
-	if err != nil {
-		t.Fatalf("CreateTorrent(fully hashed) error: %v", err)
-	}
+	require.NoError(t, err)
 	fullyHashedInfo, err := fullyHashed.UnmarshalInfo()
-	if err != nil {
-		t.Fatalf("UnmarshalInfo(fully hashed) error: %v", err)
-	}
-
-	if !bytes.Equal(updatedInfo.Pieces, fullyHashedInfo.Pieces) {
-		t.Error("UpdateTorrent() piece hashes differ from a full rehash")
-	}
-	if got, want := updateTestPaths(updatedInfo.Files), []string{"b.bin", "m.bin", "z.bin"}; !equalUpdateTestStrings(got, want) {
-		t.Errorf("UpdateTorrent() paths = %v, want %v", got, want)
-	}
-	if got, want := updated.Comment, "keep-comment"; got != want {
-		t.Errorf("UpdateTorrent() comment = %q, want %q", got, want)
-	}
-
+	require.NoError(t, err)
+	assert.Equal(t, fullyHashedInfo.Pieces, updatedInfo.Pieces)
+	assert.Equal(t, []string{"b.bin", "m.bin", "z.bin"}, updateTestPaths(updatedInfo.Files))
+	assert.Equal(t, "keep-comment", updated.Comment)
 	infoMap := make(map[string]any)
-	if err := bencode.Unmarshal(updated.InfoBytes, &infoMap); err != nil {
-		t.Fatalf("Unmarshal(updated.InfoBytes) error: %v", err)
-	}
-	if got, want := infoMap["custom-key"], "keep-value"; got != want {
-		t.Errorf("UpdateTorrent() custom-key = %v, want %v", got, want)
-	}
-	if got, want := infoMap["source"], "source-tag"; got != want {
-		t.Errorf("UpdateTorrent() source = %v, want %v", got, want)
-	}
+	require.NoError(t, bencode.Unmarshal(updated.InfoBytes, &infoMap))
+	assert.Equal(t, "keep-value", infoMap["custom-key"])
+	assert.Equal(t, "source-tag", infoMap["source"])
 }
 
 // TestUpdateTorrentPrefersExactPaths prevents normalized aliases from stealing an exact match.
@@ -117,27 +84,18 @@ func TestUpdateTorrentPrefersExactPaths(t *testing.T) {
 		PieceLengthExp: &pieceLength,
 		Quiet:          true,
 	})
-	if err != nil {
-		t.Fatalf("CreateTorrent(original) error: %v", err)
-	}
+	require.NoError(t, err)
 	torrentPath := filepath.Join(t.TempDir(), "release.torrent")
 	writeUpdateTestTorrent(t, torrentPath, original.MetaInfo)
-
-	if err := os.Remove(filepath.Join(contentDir, " a.bin")); err != nil {
-		t.Fatalf("Remove(space-prefixed file) error: %v", err)
-	}
+	require.NoError(t, os.Remove(filepath.Join(contentDir, " a.bin")))
 	result, err := UpdateTorrent(UpdateOptions{
 		TorrentPath: torrentPath,
 		ContentPath: contentDir,
 		InPlace:     true,
 		Quiet:       true,
 	})
-	if err != nil {
-		t.Fatalf("UpdateTorrent() error: %v", err)
-	}
-	if got, want := result.ReusedPieces, 1; got != want {
-		t.Errorf("UpdateTorrent().ReusedPieces = %d, want %d", got, want)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.ReusedPieces)
 	assertUpdateMatchesFullRehash(t, torrentPath, contentDir, "release", pieceLength, []string{"a.bin"})
 }
 
@@ -153,9 +111,7 @@ func TestUpdateTorrentPreservesRootKeys(t *testing.T) {
 		PieceLengthExp: &pieceLength,
 		Quiet:          true,
 	})
-	if err != nil {
-		t.Fatalf("CreateTorrent(original) error: %v", err)
-	}
+	require.NoError(t, err)
 	torrentPath := filepath.Join(t.TempDir(), "release.torrent")
 	writeUpdateTestTorrent(t, torrentPath, original.MetaInfo)
 
@@ -165,25 +121,18 @@ func TestUpdateTorrentPreservesRootKeys(t *testing.T) {
 		"x_cross_seed": "keep-me",
 	}
 	addUpdateTestRootValues(t, torrentPath, rootValues)
-
-	if _, err := UpdateTorrent(UpdateOptions{
+	_, err = UpdateTorrent(UpdateOptions{
 		TorrentPath: torrentPath,
 		ContentPath: contentDir,
 		InPlace:     true,
 		Quiet:       true,
-	}); err != nil {
-		t.Fatalf("UpdateTorrent() error: %v", err)
-	}
-
+	})
+	require.NoError(t, err)
 	rootMap := readUpdateTestRoot(t, torrentPath)
 	for key, value := range rootValues {
 		want, err := bencode.Marshal(value)
-		if err != nil {
-			t.Fatalf("Marshal(root value %q) error: %v", key, err)
-		}
-		if got := rootMap[key]; !bytes.Equal(got, want) {
-			t.Errorf("UpdateTorrent() root key %q = %q, want %q", key, got, want)
-		}
+		require.NoError(t, err)
+		assert.Equal(t, bencode.Bytes(want), rootMap[key])
 	}
 }
 
@@ -199,9 +148,7 @@ func TestUpdateTorrentPreservesRawInfoValues(t *testing.T) {
 		PieceLengthExp: &pieceLength,
 		Quiet:          true,
 	})
-	if err != nil {
-		t.Fatalf("CreateTorrent(original) error: %v", err)
-	}
+	require.NoError(t, err)
 	torrentPath := filepath.Join(t.TempDir(), "release.torrent")
 	writeUpdateTestTorrent(t, torrentPath, original.MetaInfo)
 
@@ -211,26 +158,18 @@ func TestUpdateTorrentPreservesRawInfoValues(t *testing.T) {
 		0,
 		map[string]bencode.Bytes{"x-file-bigint": bigInteger},
 	)
-	if _, err := UpdateTorrent(UpdateOptions{
+	_, err = UpdateTorrent(UpdateOptions{
 		TorrentPath: torrentPath,
 		ContentPath: contentDir,
 		InPlace:     true,
 		Quiet:       true,
-	}); err != nil {
-		t.Fatalf("UpdateTorrent() error: %v", err)
-	}
-
+	})
+	require.NoError(t, err)
 	infoMap := readUpdateTestRawInfo(t, torrentPath)
-	if got := infoMap["x-bigint"]; !bytes.Equal(got, bigInteger) {
-		t.Errorf("UpdateTorrent() x-bigint = %q, want %q", got, bigInteger)
-	}
+	assert.Equal(t, bigInteger, infoMap["x-bigint"])
 	var files []map[string]bencode.Bytes
-	if err := bencode.Unmarshal(infoMap["files"], &files); err != nil {
-		t.Fatalf("Unmarshal(files) error: %v", err)
-	}
-	if got := files[0]["x-file-bigint"]; !bytes.Equal(got, bigInteger) {
-		t.Errorf("UpdateTorrent() x-file-bigint = %q, want %q", got, bigInteger)
-	}
+	require.NoError(t, bencode.Unmarshal(infoMap["files"], &files))
+	assert.Equal(t, bigInteger, files[0]["x-file-bigint"])
 }
 
 // TestUpdateTorrentRejectsUnsafeOutputPaths verifies output cannot replace or enter the content set.
@@ -267,9 +206,7 @@ func TestUpdateTorrentRejectsUnsafeOutputPaths(t *testing.T) {
 					PieceLengthExp: &pieceLength,
 					Quiet:          true,
 				})
-				if err != nil {
-					t.Fatalf("CreateTorrent(original) error: %v", err)
-				}
+				require.NoError(t, err)
 				torrentPath := filepath.Join(t.TempDir(), "input.torrent")
 				writeUpdateTestTorrent(t, torrentPath, original.MetaInfo)
 
@@ -279,16 +216,10 @@ func TestUpdateTorrentRejectsUnsafeOutputPaths(t *testing.T) {
 					OutputPath:  test.setup(t, contentPath),
 					Quiet:       true,
 				})
-				if err == nil || !strings.Contains(err.Error(), "must not replace the content file") {
-					t.Fatalf("UpdateTorrent() error = %v, want content output refusal", err)
-				}
+				require.ErrorContains(t, err, "must not replace the content file")
 				got, err := os.ReadFile(contentPath)
-				if err != nil {
-					t.Fatalf("ReadFile(content) error: %v", err)
-				}
-				if !bytes.Equal(got, contentBytes) {
-					t.Error("UpdateTorrent() changed content after refusing output path")
-				}
+				require.NoError(t, err)
+				assert.Equal(t, contentBytes, got)
 			})
 		}
 	})
@@ -302,9 +233,7 @@ func TestUpdateTorrentRejectsUnsafeOutputPaths(t *testing.T) {
 			PieceLengthExp: &pieceLength,
 			Quiet:          true,
 		})
-		if err != nil {
-			t.Fatalf("CreateTorrent(original) error: %v", err)
-		}
+		require.NoError(t, err)
 		torrentPath := filepath.Join(t.TempDir(), "input.torrent")
 		writeUpdateTestTorrent(t, torrentPath, original.MetaInfo)
 		outputPath := filepath.Join(contentDir, "nested", "output.data")
@@ -315,12 +244,9 @@ func TestUpdateTorrentRejectsUnsafeOutputPaths(t *testing.T) {
 			OutputPath:  outputPath,
 			Quiet:       true,
 		})
-		if err == nil || !strings.Contains(err.Error(), "must not be inside the content directory") {
-			t.Fatalf("UpdateTorrent() error = %v, want nested output refusal", err)
-		}
-		if _, err := os.Stat(outputPath); !os.IsNotExist(err) {
-			t.Fatalf("Stat(output) error = %v, want nonexistent output", err)
-		}
+		require.ErrorContains(t, err, "must not be inside the content directory")
+		_, err = os.Stat(outputPath)
+		require.True(t, os.IsNotExist(err))
 	})
 }
 
@@ -334,49 +260,33 @@ func TestUpdateTorrentReplacesOutputSymlinkWithoutFollowingTarget(t *testing.T) 
 		PieceLengthExp: &pieceLength,
 		Quiet:          true,
 	})
-	if err != nil {
-		t.Fatalf("CreateTorrent(original) error: %v", err)
-	}
+	require.NoError(t, err)
 	torrentPath := filepath.Join(t.TempDir(), "input.torrent")
 	writeUpdateTestTorrent(t, torrentPath, original.MetaInfo)
 	outputPath := filepath.Join(t.TempDir(), "output.torrent")
 	if err := os.Symlink(contentPath, outputPath); err != nil {
 		t.Skipf("symbolic links unavailable: %v", err)
 	}
-
-	if _, err := UpdateTorrent(UpdateOptions{
+	_, err = UpdateTorrent(UpdateOptions{
 		TorrentPath: torrentPath,
 		ContentPath: contentPath,
 		OutputPath:  outputPath,
 		Quiet:       true,
-	}); err != nil {
-		t.Fatalf("UpdateTorrent() error: %v", err)
-	}
+	})
+	require.NoError(t, err)
 	gotContent, err := os.ReadFile(contentPath)
-	if err != nil {
-		t.Fatalf("ReadFile(content) error: %v", err)
-	}
-	if !bytes.Equal(gotContent, contentBytes) {
-		t.Error("UpdateTorrent() followed the output symlink and replaced content")
-	}
+	require.NoError(t, err)
+	assert.Equal(t, contentBytes, gotContent)
 	outputInfo, err := os.Lstat(outputPath)
-	if err != nil {
-		t.Fatalf("Lstat(output) error: %v", err)
-	}
-	if outputInfo.Mode()&os.ModeSymlink != 0 {
-		t.Error("UpdateTorrent() did not atomically replace the output symlink")
-	}
+	require.NoError(t, err)
+	assert.Zero(t, outputInfo.Mode()&os.ModeSymlink)
 	verification, err := VerifyData(VerifyOptions{
 		TorrentPath: outputPath,
 		ContentPath: contentPath,
 		Quiet:       true,
 	})
-	if err != nil {
-		t.Fatalf("VerifyData() error: %v", err)
-	}
-	if verification.Completion != 100 {
-		t.Errorf("VerifyData().Completion = %.2f, want 100", verification.Completion)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, float64(100), verification.Completion)
 }
 
 func TestUpdateTorrentRejectsEquivalentContentDirectorySpellings(t *testing.T) {
@@ -391,14 +301,10 @@ func TestUpdateTorrentRejectsEquivalentContentDirectorySpellings(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			parent := t.TempDir()
 			contentDir := filepath.Join(parent, test.directoryName)
-			if err := os.Mkdir(contentDir, 0o755); err != nil {
-				t.Fatalf("Mkdir(content) error: %v", err)
-			}
+			require.NoError(t, os.Mkdir(contentDir, 0o755))
 			contentAlias := filepath.Join(parent, test.aliasName)
 			contentInfo, err := os.Stat(contentDir)
-			if err != nil {
-				t.Fatalf("Stat(content) error: %v", err)
-			}
+			require.NoError(t, err)
 			aliasInfo, err := os.Stat(contentAlias)
 			if err != nil || !os.SameFile(contentInfo, aliasInfo) {
 				t.Skip("filesystem treats the alternate spelling as a different path")
@@ -410,9 +316,7 @@ func TestUpdateTorrentRejectsEquivalentContentDirectorySpellings(t *testing.T) {
 				PieceLengthExp: &pieceLength,
 				Quiet:          true,
 			})
-			if err != nil {
-				t.Fatalf("CreateTorrent(original) error: %v", err)
-			}
+			require.NoError(t, err)
 			torrentPath := filepath.Join(t.TempDir(), "input.torrent")
 			writeUpdateTestTorrent(t, torrentPath, original.MetaInfo)
 			outputPath := filepath.Join(contentAlias, "output.torrent")
@@ -423,12 +327,9 @@ func TestUpdateTorrentRejectsEquivalentContentDirectorySpellings(t *testing.T) {
 				OutputPath:  outputPath,
 				Quiet:       true,
 			})
-			if err == nil || !strings.Contains(err.Error(), "inside the content directory") {
-				t.Fatalf("UpdateTorrent() error = %v, want equivalent-path containment refusal", err)
-			}
-			if _, err := os.Stat(outputPath); !os.IsNotExist(err) {
-				t.Fatalf("Stat(output) error = %v, want nonexistent output", err)
-			}
+			require.ErrorContains(t, err, "inside the content directory")
+			_, err = os.Stat(outputPath)
+			require.True(t, os.IsNotExist(err))
 		})
 	}
 }
@@ -446,9 +347,7 @@ func TestUpdateTorrentRefusesChangedOutputParent(t *testing.T) {
 		PieceLengthExp: &pieceLength,
 		Quiet:          true,
 	})
-	if err != nil {
-		t.Fatalf("CreateTorrent(original) error: %v", err)
-	}
+	require.NoError(t, err)
 	torrentPath := filepath.Join(t.TempDir(), "input.torrent")
 	writeUpdateTestTorrent(t, torrentPath, original.MetaInfo)
 
@@ -469,27 +368,16 @@ func TestUpdateTorrentRefusesChangedOutputParent(t *testing.T) {
 				return
 			}
 			swapped = true
-			if removeErr := os.Remove(outputParent); removeErr != nil {
-				t.Fatalf("Remove(output parent symlink) error: %v", removeErr)
-			}
-			if symlinkErr := os.Symlink(contentDir, outputParent); symlinkErr != nil {
-				t.Fatalf("Symlink(swapped output parent) error: %v", symlinkErr)
-			}
+			require.NoError(t, os.Remove(outputParent))
+			require.NoError(t, os.Symlink(contentDir, outputParent))
 		},
 	})
-	if err == nil || !strings.Contains(err.Error(), "output parent changed during update") {
-		t.Fatalf("UpdateTorrent() error = %v, want changed-parent refusal", err)
-	}
+	require.ErrorContains(t, err, "output parent changed during update")
 	gotContent, err := os.ReadFile(contentPath)
-	if err != nil {
-		t.Fatalf("ReadFile(content) error: %v", err)
-	}
-	if !bytes.Equal(gotContent, contentBytes) {
-		t.Error("UpdateTorrent() replaced content after output parent changed")
-	}
-	if _, err := os.Stat(filepath.Join(safeOutputDir, "victim.bin")); !os.IsNotExist(err) {
-		t.Fatalf("Stat(safe output) error = %v, want nonexistent output", err)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, contentBytes, gotContent)
+	_, err = os.Stat(filepath.Join(safeOutputDir, "victim.bin"))
+	require.True(t, os.IsNotExist(err))
 }
 
 // TestUpdateTorrentRejectsNegativeFileLengths verifies malformed offsets cannot reuse stale hashes.
@@ -503,17 +391,12 @@ func TestUpdateTorrentRejectsNegativeFileLengths(t *testing.T) {
 		PieceLengthExp: &pieceLength,
 		Quiet:          true,
 	})
-	if err != nil {
-		t.Fatalf("CreateTorrent(original) error: %v", err)
-	}
+	require.NoError(t, err)
 	addUpdateTestFileValues(t, original.MetaInfo, 0, map[string]any{"length": int64(-1)})
 	torrentPath := filepath.Join(t.TempDir(), "malformed.torrent")
 	writeUpdateTestTorrent(t, torrentPath, original.MetaInfo)
 	before, err := os.ReadFile(torrentPath)
-	if err != nil {
-		t.Fatalf("ReadFile(torrent) error: %v", err)
-	}
-
+	require.NoError(t, err)
 	_, err = UpdateTorrent(UpdateOptions{
 		TorrentPath: torrentPath,
 		ContentPath: contentDir,
@@ -521,16 +404,10 @@ func TestUpdateTorrentRejectsNegativeFileLengths(t *testing.T) {
 		Force:       true,
 		Quiet:       true,
 	})
-	if err == nil || !strings.Contains(err.Error(), "negative length") {
-		t.Fatalf("UpdateTorrent() error = %v, want negative-length rejection", err)
-	}
+	require.ErrorContains(t, err, "negative length")
 	after, err := os.ReadFile(torrentPath)
-	if err != nil {
-		t.Fatalf("ReadFile(torrent after refusal) error: %v", err)
-	}
-	if !bytes.Equal(after, before) {
-		t.Error("UpdateTorrent() changed malformed torrent after refusing it")
-	}
+	require.NoError(t, err)
+	assert.Equal(t, before, after)
 }
 
 func TestUpdateTorrentRejectsConflictingFileLayouts(t *testing.T) {
@@ -543,19 +420,14 @@ func TestUpdateTorrentRejectsConflictingFileLayouts(t *testing.T) {
 		PieceLengthExp: &pieceLength,
 		Quiet:          true,
 	})
-	if err != nil {
-		t.Fatalf("CreateTorrent(original) error: %v", err)
-	}
+	require.NoError(t, err)
 	torrentPath := filepath.Join(t.TempDir(), "malformed.torrent")
 	writeUpdateTestTorrent(t, torrentPath, original.MetaInfo)
 	addUpdateTestRawInfoValues(t, torrentPath, map[string]bencode.Bytes{
 		"length": bencode.Bytes("i0e"),
 	}, 0, nil)
 	before, err := os.ReadFile(torrentPath)
-	if err != nil {
-		t.Fatalf("ReadFile(torrent) error: %v", err)
-	}
-
+	require.NoError(t, err)
 	_, err = UpdateTorrent(UpdateOptions{
 		TorrentPath: torrentPath,
 		ContentPath: contentDir,
@@ -563,16 +435,10 @@ func TestUpdateTorrentRejectsConflictingFileLayouts(t *testing.T) {
 		Force:       true,
 		Quiet:       true,
 	})
-	if err == nil || !strings.Contains(err.Error(), "both files and length") {
-		t.Fatalf("UpdateTorrent() error = %v, want conflicting-layout rejection", err)
-	}
+	require.ErrorContains(t, err, "both files and length")
 	after, err := os.ReadFile(torrentPath)
-	if err != nil {
-		t.Fatalf("ReadFile(torrent after refusal) error: %v", err)
-	}
-	if !bytes.Equal(after, before) {
-		t.Error("UpdateTorrent() changed malformed torrent after refusing conflicting layout")
-	}
+	require.NoError(t, err)
+	assert.Equal(t, before, after)
 }
 
 func TestUpdateTorrentRejectsInvalidMultiFileName(t *testing.T) {
@@ -585,19 +451,14 @@ func TestUpdateTorrentRejectsInvalidMultiFileName(t *testing.T) {
 		PieceLengthExp: &pieceLength,
 		Quiet:          true,
 	})
-	if err != nil {
-		t.Fatalf("CreateTorrent(original) error: %v", err)
-	}
+	require.NoError(t, err)
 	torrentPath := filepath.Join(t.TempDir(), "malformed.torrent")
 	writeUpdateTestTorrent(t, torrentPath, original.MetaInfo)
 	addUpdateTestRawInfoValues(t, torrentPath, map[string]bencode.Bytes{
 		"name": bencode.Bytes("0:"),
 	}, 0, nil)
 	before, err := os.ReadFile(torrentPath)
-	if err != nil {
-		t.Fatalf("ReadFile(torrent) error: %v", err)
-	}
-
+	require.NoError(t, err)
 	_, err = UpdateTorrent(UpdateOptions{
 		TorrentPath: torrentPath,
 		ContentPath: contentDir,
@@ -605,16 +466,10 @@ func TestUpdateTorrentRejectsInvalidMultiFileName(t *testing.T) {
 		Force:       true,
 		Quiet:       true,
 	})
-	if err == nil || !strings.Contains(err.Error(), "invalid name") {
-		t.Fatalf("UpdateTorrent() error = %v, want invalid-name rejection", err)
-	}
+	require.ErrorContains(t, err, "invalid name")
 	after, err := os.ReadFile(torrentPath)
-	if err != nil {
-		t.Fatalf("ReadFile(torrent after refusal) error: %v", err)
-	}
-	if !bytes.Equal(after, before) {
-		t.Error("UpdateTorrent() changed malformed torrent after refusing invalid name")
-	}
+	require.NoError(t, err)
+	assert.Equal(t, before, after)
 }
 
 // TestUpdateTorrentHandlesExtremePieceLength verifies ceil division cannot overflow into a panic.
@@ -627,9 +482,7 @@ func TestUpdateTorrentHandlesExtremePieceLength(t *testing.T) {
 		Length:      1,
 		Pieces:      make([]byte, 20),
 	})
-	if err != nil {
-		t.Fatalf("Marshal(info) error: %v", err)
-	}
+	require.NoError(t, err)
 	torrentPath := filepath.Join(t.TempDir(), "extreme.torrent")
 	writeUpdateTestTorrent(t, torrentPath, &metainfo.MetaInfo{InfoBytes: infoBytes})
 
@@ -640,23 +493,15 @@ func TestUpdateTorrentHandlesExtremePieceLength(t *testing.T) {
 		Force:       true,
 		Quiet:       true,
 	})
-	if err != nil {
-		t.Fatalf("UpdateTorrent() error: %v", err)
-	}
-	if result.TotalPieces != 1 || result.HashedPieces != 1 {
-		t.Errorf("UpdateTorrent() pieces = total %d, hashed %d; want 1, 1", result.TotalPieces, result.HashedPieces)
-	}
+	require.NoError(t, err)
+	assert.False(t, result.TotalPieces != 1 || result.HashedPieces != 1)
 	verification, err := VerifyData(VerifyOptions{
 		TorrentPath: torrentPath,
 		ContentPath: contentPath,
 		Quiet:       true,
 	})
-	if err != nil {
-		t.Fatalf("VerifyData() error: %v", err)
-	}
-	if verification.Completion != 100 {
-		t.Errorf("VerifyData().Completion = %.2f, want 100", verification.Completion)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, float64(100), verification.Completion)
 }
 
 // TestUpdateTorrentReusesSymlinkAliases verifies torrent-visible aliases remain distinct.
@@ -676,18 +521,11 @@ func TestUpdateTorrentReusesSymlinkAliases(t *testing.T) {
 		PieceLengthExp: &pieceLength,
 		Quiet:          true,
 	})
-	if err != nil {
-		t.Fatalf("CreateTorrent(original) error: %v", err)
-	}
+	require.NoError(t, err)
 	originalInfo, err := original.UnmarshalInfo()
-	if err != nil {
-		t.Fatalf("UnmarshalInfo(original) error: %v", err)
-	}
+	require.NoError(t, err)
 	wantPaths := []string{"link1.bin", "link2.bin", "real.bin"}
-	if got := updateTestPaths(originalInfo.Files); !equalUpdateTestStrings(got, wantPaths) {
-		t.Fatalf("CreateTorrent() paths = %v, want %v", got, wantPaths)
-	}
-
+	require.Equal(t, wantPaths, updateTestPaths(originalInfo.Files))
 	torrentPath := filepath.Join(t.TempDir(), "release.torrent")
 	writeUpdateTestTorrent(t, torrentPath, original.MetaInfo)
 	result, err := UpdateTorrent(UpdateOptions{
@@ -696,24 +534,16 @@ func TestUpdateTorrentReusesSymlinkAliases(t *testing.T) {
 		InPlace:     true,
 		Quiet:       true,
 	})
-	if err != nil {
-		t.Fatalf("UpdateTorrent() error: %v", err)
-	}
-	if result.ReusedPieces != result.TotalPieces {
-		t.Errorf("UpdateTorrent().ReusedPieces = %d, want all %d", result.ReusedPieces, result.TotalPieces)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, result.TotalPieces, result.ReusedPieces)
 	assertUpdateMatchesFullRehash(t, torrentPath, contentDir, "release", pieceLength, wantPaths)
 	verification, err := VerifyData(VerifyOptions{
 		TorrentPath: torrentPath,
 		ContentPath: contentDir,
 		Quiet:       true,
 	})
-	if err != nil {
-		t.Fatalf("VerifyData() error: %v", err)
-	}
-	if verification.Completion != 100 {
-		t.Errorf("VerifyData().Completion = %.2f, want 100", verification.Completion)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, float64(100), verification.Completion)
 }
 
 func TestUpdateTorrentSupportsSymlinkedContentRoot(t *testing.T) {
@@ -731,9 +561,7 @@ func TestUpdateTorrentSupportsSymlinkedContentRoot(t *testing.T) {
 		PieceLengthExp: &pieceLength,
 		Quiet:          true,
 	})
-	if err != nil {
-		t.Fatalf("CreateTorrent(original) error: %v", err)
-	}
+	require.NoError(t, err)
 	torrentPath := filepath.Join(t.TempDir(), "release.torrent")
 	writeUpdateTestTorrent(t, torrentPath, original.MetaInfo)
 
@@ -743,23 +571,15 @@ func TestUpdateTorrentSupportsSymlinkedContentRoot(t *testing.T) {
 		InPlace:     true,
 		Quiet:       true,
 	})
-	if err != nil {
-		t.Fatalf("UpdateTorrent() error: %v", err)
-	}
-	if result.ReusedPieces != result.TotalPieces {
-		t.Errorf("UpdateTorrent().ReusedPieces = %d, want all %d", result.ReusedPieces, result.TotalPieces)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, result.TotalPieces, result.ReusedPieces)
 	verification, err := VerifyData(VerifyOptions{
 		TorrentPath: torrentPath,
 		ContentPath: contentAlias,
 		Quiet:       true,
 	})
-	if err != nil {
-		t.Fatalf("VerifyData() error: %v", err)
-	}
-	if verification.Completion != 100 {
-		t.Errorf("VerifyData().Completion = %.2f, want 100", verification.Completion)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, float64(100), verification.Completion)
 }
 
 // TestUpdateTorrentDefaultsToSeparateOutput verifies the input is untouched without --in-place.
@@ -774,53 +594,33 @@ func TestUpdateTorrentDefaultsToSeparateOutput(t *testing.T) {
 		PieceLengthExp: &pieceLength,
 		Quiet:          true,
 	})
-	if err != nil {
-		t.Fatalf("CreateTorrent(original) error: %v", err)
-	}
+	require.NoError(t, err)
 	torrentPath := filepath.Join(t.TempDir(), "release.torrent")
 	writeUpdateTestTorrent(t, torrentPath, original.MetaInfo)
 	originalBytes, err := os.ReadFile(torrentPath)
-	if err != nil {
-		t.Fatalf("ReadFile(original torrent) error: %v", err)
-	}
-
+	require.NoError(t, err)
 	result, err := UpdateTorrent(UpdateOptions{
 		TorrentPath: torrentPath,
 		ContentPath: contentDir,
 		Quiet:       true,
 	})
-	if err != nil {
-		t.Fatalf("UpdateTorrent() error: %v", err)
-	}
-	if got, want := result.OutputPath, filepath.Join(filepath.Dir(torrentPath), "release.updated.torrent"); got != want {
-		t.Errorf("UpdateTorrent().OutputPath = %q, want %q", got, want)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(filepath.Dir(torrentPath), "release.updated.torrent"), result.OutputPath)
 	afterBytes, err := os.ReadFile(torrentPath)
-	if err != nil {
-		t.Fatalf("ReadFile(input torrent) error: %v", err)
-	}
-	if !bytes.Equal(afterBytes, originalBytes) {
-		t.Error("UpdateTorrent() changed the input torrent without InPlace")
-	}
+	require.NoError(t, err)
+	assert.Equal(t, originalBytes, afterBytes)
 	assertUpdateMatchesFullRehash(t, result.OutputPath, contentDir, "release", pieceLength, []string{"a.bin"})
 	outputBytes, err := os.ReadFile(result.OutputPath)
-	if err != nil {
-		t.Fatalf("ReadFile(default output) error: %v", err)
-	}
-	if _, err := UpdateTorrent(UpdateOptions{
+	require.NoError(t, err)
+	_, err = UpdateTorrent(UpdateOptions{
 		TorrentPath: torrentPath,
 		ContentPath: contentDir,
 		Quiet:       true,
-	}); err == nil || !strings.Contains(err.Error(), "default output") {
-		t.Fatalf("UpdateTorrent(existing default output) error = %v, want refusal", err)
-	}
+	})
+	require.ErrorContains(t, err, "default output")
 	afterRefusal, err := os.ReadFile(result.OutputPath)
-	if err != nil {
-		t.Fatalf("ReadFile(default output after refusal) error: %v", err)
-	}
-	if !bytes.Equal(afterRefusal, outputBytes) {
-		t.Error("UpdateTorrent() replaced an existing default output")
-	}
+	require.NoError(t, err)
+	assert.Equal(t, outputBytes, afterRefusal)
 }
 
 // TestUpdateTorrentRequiresForceForZeroReuse verifies a wrong content path cannot replace the input by default.
@@ -846,16 +646,11 @@ func TestUpdateTorrentRequiresForceForZeroReuse(t *testing.T) {
 				PieceLengthExp: &pieceLength,
 				Quiet:          true,
 			})
-			if err != nil {
-				t.Fatalf("CreateTorrent(original) error: %v", err)
-			}
+			require.NoError(t, err)
 			torrentPath := filepath.Join(t.TempDir(), "release.torrent")
 			writeUpdateTestTorrent(t, torrentPath, original.MetaInfo)
 			originalBytes, err := os.ReadFile(torrentPath)
-			if err != nil {
-				t.Fatalf("ReadFile(original torrent) error: %v", err)
-			}
-
+			require.NoError(t, err)
 			_, err = UpdateTorrent(UpdateOptions{
 				TorrentPath: torrentPath,
 				ContentPath: unrelatedDir,
@@ -863,17 +658,10 @@ func TestUpdateTorrentRequiresForceForZeroReuse(t *testing.T) {
 				Quiet:       true,
 			})
 			wantError := fmt.Sprintf("0 reusable pieces (existing torrent: 3, updated torrent: %d)", test.updatedPieces)
-			if err == nil || !strings.Contains(err.Error(), wantError) {
-				t.Fatalf("UpdateTorrent() error = %v, want %q", err, wantError)
-			}
+			require.ErrorContains(t, err, wantError)
 			afterRefusal, err := os.ReadFile(torrentPath)
-			if err != nil {
-				t.Fatalf("ReadFile(refused torrent) error: %v", err)
-			}
-			if !bytes.Equal(afterRefusal, originalBytes) {
-				t.Error("UpdateTorrent() changed the input torrent after refusing zero reuse")
-			}
-
+			require.NoError(t, err)
+			assert.Equal(t, originalBytes, afterRefusal)
 			result, err := UpdateTorrent(UpdateOptions{
 				TorrentPath: torrentPath,
 				ContentPath: unrelatedDir,
@@ -881,12 +669,8 @@ func TestUpdateTorrentRequiresForceForZeroReuse(t *testing.T) {
 				Force:       true,
 				Quiet:       true,
 			})
-			if err != nil {
-				t.Fatalf("UpdateTorrent(Force) error: %v", err)
-			}
-			if got := result.ReusedPieces; got != 0 {
-				t.Errorf("UpdateTorrent(Force).ReusedPieces = %d, want 0", got)
-			}
+			require.NoError(t, err)
+			assert.Equal(t, 0, result.ReusedPieces)
 			assertUpdateMatchesFullRehash(t, torrentPath, unrelatedDir, "release", pieceLength, []string{"unrelated.bin"})
 		})
 	}
@@ -905,21 +689,13 @@ func TestUpdateTorrentAmbiguousRenamesFallbackToHashing(t *testing.T) {
 		PieceLengthExp: &pieceLength,
 		Quiet:          true,
 	})
-	if err != nil {
-		t.Fatalf("CreateTorrent(original) error: %v", err)
-	}
+	require.NoError(t, err)
 	fallbackTorrentPath := filepath.Join(t.TempDir(), "fallback.torrent")
 	explicitTorrentPath := filepath.Join(t.TempDir(), "explicit.torrent")
 	writeUpdateTestTorrent(t, fallbackTorrentPath, original.MetaInfo)
 	writeUpdateTestTorrent(t, explicitTorrentPath, original.MetaInfo)
-
-	if err := os.Rename(filepath.Join(contentDir, "a.bin"), filepath.Join(contentDir, "c.bin")); err != nil {
-		t.Fatalf("Rename(a.bin, c.bin) error: %v", err)
-	}
-	if err := os.Rename(filepath.Join(contentDir, "b.bin"), filepath.Join(contentDir, "d.bin")); err != nil {
-		t.Fatalf("Rename(b.bin, d.bin) error: %v", err)
-	}
-
+	require.NoError(t, os.Rename(filepath.Join(contentDir, "a.bin"), filepath.Join(contentDir, "c.bin")))
+	require.NoError(t, os.Rename(filepath.Join(contentDir, "b.bin"), filepath.Join(contentDir, "d.bin")))
 	fallbackResult, err := UpdateTorrent(UpdateOptions{
 		TorrentPath: fallbackTorrentPath,
 		ContentPath: contentDir,
@@ -927,15 +703,9 @@ func TestUpdateTorrentAmbiguousRenamesFallbackToHashing(t *testing.T) {
 		InPlace:     true,
 		Force:       true,
 	})
-	if err != nil {
-		t.Fatalf("UpdateTorrent(ambiguous rename) error: %v", err)
-	}
-	if got := fallbackResult.ReusedPieces; got != 0 {
-		t.Errorf("UpdateTorrent(ambiguous rename).ReusedPieces = %d, want 0", got)
-	}
-	if got, want := fallbackResult.HashedPieces, 2; got != want {
-		t.Errorf("UpdateTorrent(ambiguous rename).HashedPieces = %d, want %d", got, want)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, 0, fallbackResult.ReusedPieces)
+	assert.Equal(t, 2, fallbackResult.HashedPieces)
 	assertUpdateMatchesFullRehash(t, fallbackTorrentPath, contentDir, "release", pieceLength, []string{"c.bin", "d.bin"})
 
 	explicitResult, err := UpdateTorrent(UpdateOptions{
@@ -948,15 +718,9 @@ func TestUpdateTorrentAmbiguousRenamesFallbackToHashing(t *testing.T) {
 		Quiet:   true,
 		InPlace: true,
 	})
-	if err != nil {
-		t.Fatalf("UpdateTorrent(explicit renames) error: %v", err)
-	}
-	if got, want := explicitResult.ReusedPieces, 2; got != want {
-		t.Errorf("UpdateTorrent(explicit renames).ReusedPieces = %d, want %d", got, want)
-	}
-	if got := explicitResult.HashedPieces; got != 0 {
-		t.Errorf("UpdateTorrent(explicit renames).HashedPieces = %d, want 0", got)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, 2, explicitResult.ReusedPieces)
+	assert.Equal(t, 0, explicitResult.HashedPieces)
 	assertUpdateMatchesFullRehash(t, explicitTorrentPath, contentDir, "release", pieceLength, []string{"c.bin", "d.bin"})
 }
 
@@ -972,15 +736,10 @@ func TestUpdateTorrentSameSizeReplacementRehashes(t *testing.T) {
 		PieceLengthExp: &pieceLength,
 		Quiet:          true,
 	})
-	if err != nil {
-		t.Fatalf("CreateTorrent(original) error: %v", err)
-	}
+	require.NoError(t, err)
 	torrentPath := filepath.Join(t.TempDir(), "release.torrent")
 	writeUpdateTestTorrent(t, torrentPath, original.MetaInfo)
-
-	if err := os.Remove(filepath.Join(contentDir, "old.bin")); err != nil {
-		t.Fatalf("Remove(old.bin) error: %v", err)
-	}
+	require.NoError(t, os.Remove(filepath.Join(contentDir, "old.bin")))
 	writeUpdateTestFile(t, filepath.Join(contentDir, "new.bin"), bytes.Repeat([]byte{'b'}, 65_536))
 
 	result, err := UpdateTorrent(UpdateOptions{
@@ -989,15 +748,9 @@ func TestUpdateTorrentSameSizeReplacementRehashes(t *testing.T) {
 		Quiet:       true,
 		InPlace:     true,
 	})
-	if err != nil {
-		t.Fatalf("UpdateTorrent() error: %v", err)
-	}
-	if got := result.ReusedPieces; got != 0 {
-		t.Errorf("UpdateTorrent().ReusedPieces = %d, want 0", got)
-	}
-	if got, want := result.HashedPieces, 1; got != want {
-		t.Errorf("UpdateTorrent().HashedPieces = %d, want %d", got, want)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, 0, result.ReusedPieces)
+	assert.Equal(t, 1, result.HashedPieces)
 	assertUpdateMatchesFullRehash(t, torrentPath, contentDir, "release", pieceLength, []string{"new.bin"})
 }
 
@@ -1022,16 +775,12 @@ func TestUpdateTorrentRemovesZeroLengthFiles(t *testing.T) {
 		PieceLengthExp: &pieceLength,
 		Quiet:          true,
 	})
-	if err != nil {
-		t.Fatalf("CreateTorrent(original) error: %v", err)
-	}
+	require.NoError(t, err)
 	torrentPath := filepath.Join(t.TempDir(), "release.torrent")
 	writeUpdateTestTorrent(t, torrentPath, original.MetaInfo)
 
 	for _, filePath := range removedPaths {
-		if err := os.Remove(filepath.Join(contentDir, filePath)); err != nil {
-			t.Fatalf("Remove(%q) error: %v", filePath, err)
-		}
+		require.NoError(t, os.Remove(filepath.Join(contentDir, filePath)))
 	}
 
 	result, err := UpdateTorrent(UpdateOptions{
@@ -1040,15 +789,9 @@ func TestUpdateTorrentRemovesZeroLengthFiles(t *testing.T) {
 		Quiet:       true,
 		InPlace:     true,
 	})
-	if err != nil {
-		t.Fatalf("UpdateTorrent() error: %v", err)
-	}
-	if got, want := result.ReusedPieces, result.TotalPieces; got != want {
-		t.Errorf("UpdateTorrent().ReusedPieces = %d, want all %d pieces reused", got, want)
-	}
-	if got := result.HashedPieces; got != 0 {
-		t.Errorf("UpdateTorrent().HashedPieces = %d, want 0", got)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, result.TotalPieces, result.ReusedPieces)
+	assert.Equal(t, 0, result.HashedPieces)
 	assertUpdateMatchesFullRehash(t, torrentPath, contentDir, "release", pieceLength, []string{"volume1.cbz", "volume2.cbz"})
 }
 
@@ -1066,30 +809,19 @@ func TestUpdateTorrentRemovesNonEmptyFile(t *testing.T) {
 		PieceLengthExp: &pieceLength,
 		Quiet:          true,
 	})
-	if err != nil {
-		t.Fatalf("CreateTorrent(original) error: %v", err)
-	}
+	require.NoError(t, err)
 	torrentPath := filepath.Join(t.TempDir(), "release.torrent")
 	writeUpdateTestTorrent(t, torrentPath, original.MetaInfo)
-
-	if err := os.Remove(filepath.Join(contentDir, "b.bin")); err != nil {
-		t.Fatalf("Remove(b.bin) error: %v", err)
-	}
+	require.NoError(t, os.Remove(filepath.Join(contentDir, "b.bin")))
 	result, err := UpdateTorrent(UpdateOptions{
 		TorrentPath: torrentPath,
 		ContentPath: contentDir,
 		Quiet:       true,
 		InPlace:     true,
 	})
-	if err != nil {
-		t.Fatalf("UpdateTorrent() error: %v", err)
-	}
-	if got, want := result.ReusedPieces, 1; got != want {
-		t.Errorf("UpdateTorrent().ReusedPieces = %d, want %d", got, want)
-	}
-	if got, want := result.HashedPieces, 1; got != want {
-		t.Errorf("UpdateTorrent().HashedPieces = %d, want %d", got, want)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.ReusedPieces)
+	assert.Equal(t, 1, result.HashedPieces)
 	assertUpdateMatchesFullRehash(t, torrentPath, contentDir, "release", pieceLength, []string{"a.bin", "c.bin"})
 }
 
@@ -1106,9 +838,7 @@ func TestUpdateTorrentSingleFileSameSizeReplacementRehashes(t *testing.T) {
 		PieceLengthExp: &pieceLength,
 		Quiet:          true,
 	})
-	if err != nil {
-		t.Fatalf("CreateTorrent(original) error: %v", err)
-	}
+	require.NoError(t, err)
 	torrentPath := filepath.Join(t.TempDir(), "original.torrent")
 	outputPath := filepath.Join(t.TempDir(), "updated.torrent")
 	writeUpdateTestTorrent(t, torrentPath, original.MetaInfo)
@@ -1120,24 +850,14 @@ func TestUpdateTorrentSingleFileSameSizeReplacementRehashes(t *testing.T) {
 		Quiet:       true,
 		Force:       true,
 	})
-	if err != nil {
-		t.Fatalf("UpdateTorrent() error: %v", err)
-	}
-	if got := result.ReusedPieces; got != 0 {
-		t.Errorf("UpdateTorrent().ReusedPieces = %d, want 0", got)
-	}
-	if got, want := result.HashedPieces, result.TotalPieces; got != want {
-		t.Errorf("UpdateTorrent().HashedPieces = %d, want all %d pieces hashed", got, want)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, 0, result.ReusedPieces)
+	assert.Equal(t, result.TotalPieces, result.HashedPieces)
 	assertUpdateMatchesFullRehash(t, outputPath, replacementPath, "original.bin", pieceLength, nil)
 
 	outputInfo, err := os.Stat(outputPath)
-	if err != nil {
-		t.Fatalf("Stat(output) error: %v", err)
-	}
-	if got, want := outputInfo.Mode().Perm(), os.FileMode(0o644); got != want {
-		t.Errorf("UpdateTorrent() output mode = %o, want %o", got, want)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o644), outputInfo.Mode().Perm())
 }
 
 // TestUpdateTorrentNormalizesUnicodePathsAndRenames verifies NFC keys match decomposed disk names.
@@ -1154,9 +874,7 @@ func TestUpdateTorrentNormalizesUnicodePathsAndRenames(t *testing.T) {
 		PieceLengthExp: &pieceLength,
 		Quiet:          true,
 	})
-	if err != nil {
-		t.Fatalf("CreateTorrent(original) error: %v", err)
-	}
+	require.NoError(t, err)
 	addUpdateTestFileValues(t, original.MetaInfo, 0, map[string]any{
 		"path": []string{oldTorrentName},
 	})
@@ -1172,19 +890,13 @@ func TestUpdateTorrentNormalizesUnicodePathsAndRenames(t *testing.T) {
 		Quiet:       true,
 		InPlace:     true,
 	})
-	if err != nil {
-		t.Fatalf("UpdateTorrent(unchanged NFD path) error: %v", err)
-	}
-	if got, want := unchangedResult.ReusedPieces, unchangedResult.TotalPieces; got != want {
-		t.Errorf("UpdateTorrent(unchanged NFD path).ReusedPieces = %d, want all %d pieces reused", got, want)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, unchangedResult.TotalPieces, unchangedResult.ReusedPieces)
 	assertUpdateMatchesFullRehash(t, unchangedTorrentPath, contentDir, "release", pieceLength, nil)
 
 	newDiskName := "renome\u0301.bin"
 	newTorrentName := "renom\u00e9.bin"
-	if err := os.Rename(filepath.Join(contentDir, oldDiskName), filepath.Join(contentDir, newDiskName)); err != nil {
-		t.Fatalf("Rename(NFD path) error: %v", err)
-	}
+	require.NoError(t, os.Rename(filepath.Join(contentDir, oldDiskName), filepath.Join(contentDir, newDiskName)))
 	renamedResult, err := UpdateTorrent(UpdateOptions{
 		TorrentPath: renamedTorrentPath,
 		ContentPath: contentDir,
@@ -1194,12 +906,8 @@ func TestUpdateTorrentNormalizesUnicodePathsAndRenames(t *testing.T) {
 		Quiet:   true,
 		InPlace: true,
 	})
-	if err != nil {
-		t.Fatalf("UpdateTorrent(NFC rename) error: %v", err)
-	}
-	if got, want := renamedResult.ReusedPieces, renamedResult.TotalPieces; got != want {
-		t.Errorf("UpdateTorrent(NFC rename).ReusedPieces = %d, want all %d pieces reused", got, want)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, renamedResult.TotalPieces, renamedResult.ReusedPieces)
 	assertUpdateMatchesFullRehash(t, renamedTorrentPath, contentDir, "release", pieceLength, nil)
 }
 
@@ -1208,9 +916,7 @@ func TestUpdateTorrentNestedRenamePreservesFileKeys(t *testing.T) {
 	contentDir := t.TempDir()
 	oldPath := filepath.Join(contentDir, "season", "episode.bin")
 	newPath := filepath.Join(contentDir, "archive", "episode.bin")
-	if err := os.MkdirAll(filepath.Dir(oldPath), 0o755); err != nil {
-		t.Fatalf("MkdirAll(old path) error: %v", err)
-	}
+	require.NoError(t, os.MkdirAll(filepath.Dir(oldPath), 0o755))
 	writeUpdateTestFile(t, oldPath, bytes.Repeat([]byte{'a'}, 65_536))
 
 	pieceLength := uint(16)
@@ -1220,9 +926,7 @@ func TestUpdateTorrentNestedRenamePreservesFileKeys(t *testing.T) {
 		PieceLengthExp: &pieceLength,
 		Quiet:          true,
 	})
-	if err != nil {
-		t.Fatalf("CreateTorrent(original) error: %v", err)
-	}
+	require.NoError(t, err)
 	addUpdateTestFileValues(t, original.MetaInfo, 0, map[string]any{
 		"attr":            "p",
 		"md5sum":          "keep-md5",
@@ -1231,13 +935,8 @@ func TestUpdateTorrentNestedRenamePreservesFileKeys(t *testing.T) {
 	})
 	torrentPath := filepath.Join(t.TempDir(), "release.torrent")
 	writeUpdateTestTorrent(t, torrentPath, original.MetaInfo)
-
-	if err := os.MkdirAll(filepath.Dir(newPath), 0o755); err != nil {
-		t.Fatalf("MkdirAll(new path) error: %v", err)
-	}
-	if err := os.Rename(oldPath, newPath); err != nil {
-		t.Fatalf("Rename(nested path) error: %v", err)
-	}
+	require.NoError(t, os.MkdirAll(filepath.Dir(newPath), 0o755))
+	require.NoError(t, os.Rename(oldPath, newPath))
 	result, err := UpdateTorrent(UpdateOptions{
 		TorrentPath: torrentPath,
 		ContentPath: contentDir,
@@ -1247,22 +946,14 @@ func TestUpdateTorrentNestedRenamePreservesFileKeys(t *testing.T) {
 		Quiet:   true,
 		InPlace: true,
 	})
-	if err != nil {
-		t.Fatalf("UpdateTorrent() error: %v", err)
-	}
-	if got, want := result.ReusedPieces, result.TotalPieces; got != want {
-		t.Errorf("UpdateTorrent().ReusedPieces = %d, want all %d pieces reused", got, want)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, result.TotalPieces, result.ReusedPieces)
 	assertUpdateMatchesFullRehash(t, torrentPath, contentDir, "release", pieceLength, []string{"archive/episode.bin"})
 
 	updated, err := metainfo.LoadFromFile(torrentPath)
-	if err != nil {
-		t.Fatalf("LoadFromFile(updated) error: %v", err)
-	}
+	require.NoError(t, err)
 	infoMap := make(map[string]any)
-	if err := bencode.Unmarshal(updated.InfoBytes, &infoMap); err != nil {
-		t.Fatalf("Unmarshal(updated.InfoBytes) error: %v", err)
-	}
+	require.NoError(t, bencode.Unmarshal(updated.InfoBytes, &infoMap))
 	files := infoMap["files"].([]any)
 	fileMap := files[0].(map[string]any)
 	for key, want := range map[string]any{
@@ -1271,9 +962,7 @@ func TestUpdateTorrentNestedRenamePreservesFileKeys(t *testing.T) {
 		"sha1":            "keep-sha1",
 		"custom-file-key": "keep-custom",
 	} {
-		if got := fileMap[key]; got != want {
-			t.Errorf("UpdateTorrent() file key %q = %v, want %v", key, got, want)
-		}
+		assert.Equal(t, want, fileMap[key])
 	}
 }
 
@@ -1281,71 +970,50 @@ func TestUpdateTorrentNestedRenamePreservesFileKeys(t *testing.T) {
 func assertUpdateMatchesFullRehash(t *testing.T, torrentPath, contentPath, name string, pieceLength uint, wantPaths []string) {
 	t.Helper()
 	updated, err := metainfo.LoadFromFile(torrentPath)
-	if err != nil {
-		t.Fatalf("LoadFromFile(updated) error: %v", err)
-	}
+	require.NoError(t, err)
 	updatedInfo, err := updated.UnmarshalInfo()
-	if err != nil {
-		t.Fatalf("UnmarshalInfo(updated) error: %v", err)
-	}
+	require.NoError(t, err)
 	fullyHashed, err := CreateTorrent(CreateOptions{
 		Path:           contentPath,
 		Name:           name,
 		PieceLengthExp: &pieceLength,
 		Quiet:          true,
 	})
-	if err != nil {
-		t.Fatalf("CreateTorrent(fully hashed) error: %v", err)
-	}
+	require.NoError(t, err)
 	fullyHashedInfo, err := fullyHashed.UnmarshalInfo()
-	if err != nil {
-		t.Fatalf("UnmarshalInfo(fully hashed) error: %v", err)
-	}
-	if !bytes.Equal(updatedInfo.Pieces, fullyHashedInfo.Pieces) {
-		t.Error("UpdateTorrent() piece hashes differ from a full rehash")
-	}
+	require.NoError(t, err)
+	assert.Equal(t, fullyHashedInfo.Pieces, updatedInfo.Pieces)
 	if wantPaths != nil {
-		if got := updateTestPaths(updatedInfo.Files); !equalUpdateTestStrings(got, wantPaths) {
-			t.Errorf("UpdateTorrent() paths = %v, want %v", got, wantPaths)
-		}
+		assert.Equal(t, wantPaths, updateTestPaths(updatedInfo.Files))
 	}
 }
 
 // writeUpdateTestFile creates content fixtures with deterministic bytes.
 func writeUpdateTestFile(t *testing.T, filePath string, content []byte) {
 	t.Helper()
-	if err := os.WriteFile(filePath, content, 0o644); err != nil {
-		t.Fatalf("WriteFile(%q) error: %v", filePath, err)
-	}
+	require.NoError(t, os.WriteFile(filePath, content, 0o644))
 }
 
 // writeUpdateTestTorrent serializes metainfo for update tests.
 func writeUpdateTestTorrent(t *testing.T, torrentPath string, mi *metainfo.MetaInfo) {
 	t.Helper()
 	file, err := os.Create(torrentPath)
+	require.NoError(t, err)
+	err = mi.Write(file)
 	if err != nil {
-		t.Fatalf("Create(%q) error: %v", torrentPath, err)
-	}
-	if err := mi.Write(file); err != nil {
 		_ = file.Close()
-		t.Fatalf("MetaInfo.Write(%q) error: %v", torrentPath, err)
 	}
-	if err := file.Close(); err != nil {
-		t.Fatalf("Close(%q) error: %v", torrentPath, err)
-	}
+	require.NoError(t, err)
+	require.NoError(t, file.Close())
 }
 
 // readUpdateTestRoot decodes the raw root dictionary without discarding unknown keys.
 func readUpdateTestRoot(t *testing.T, torrentPath string) map[string]bencode.Bytes {
 	t.Helper()
 	data, err := os.ReadFile(torrentPath)
-	if err != nil {
-		t.Fatalf("ReadFile(%q) error: %v", torrentPath, err)
-	}
+	require.NoError(t, err)
 	rootMap := make(map[string]bencode.Bytes)
-	if err := bencode.Unmarshal(data, &rootMap); err != nil {
-		t.Fatalf("Unmarshal(root %q) error: %v", torrentPath, err)
-	}
+	require.NoError(t, bencode.Unmarshal(data, &rootMap))
 	return rootMap
 }
 
@@ -1353,9 +1021,7 @@ func readUpdateTestRawInfo(t *testing.T, torrentPath string) map[string]bencode.
 	t.Helper()
 	rootMap := readUpdateTestRoot(t, torrentPath)
 	infoMap := make(map[string]bencode.Bytes)
-	if err := bencode.Unmarshal(rootMap["info"], &infoMap); err != nil {
-		t.Fatalf("Unmarshal(raw info) error: %v", err)
-	}
+	require.NoError(t, bencode.Unmarshal(rootMap["info"], &infoMap))
 	return infoMap
 }
 
@@ -1369,41 +1035,27 @@ func addUpdateTestRawInfoValues(
 	t.Helper()
 	rootMap := readUpdateTestRoot(t, torrentPath)
 	infoMap := make(map[string]bencode.Bytes)
-	if err := bencode.Unmarshal(rootMap["info"], &infoMap); err != nil {
-		t.Fatalf("Unmarshal(raw info) error: %v", err)
-	}
+	require.NoError(t, bencode.Unmarshal(rootMap["info"], &infoMap))
 	for key, value := range infoValues {
 		infoMap[key] = value
 	}
 	if fileValues != nil {
 		var files []map[string]bencode.Bytes
-		if err := bencode.Unmarshal(infoMap["files"], &files); err != nil {
-			t.Fatalf("Unmarshal(raw files) error: %v", err)
-		}
-		if fileIndex < 0 || fileIndex >= len(files) {
-			t.Fatalf("raw file index %d exceeds %d files", fileIndex, len(files))
-		}
+		require.NoError(t, bencode.Unmarshal(infoMap["files"], &files))
+		require.False(t, fileIndex < 0 || fileIndex >= len(files))
 		for key, value := range fileValues {
 			files[fileIndex][key] = value
 		}
 		filesBytes, err := bencode.Marshal(files)
-		if err != nil {
-			t.Fatalf("Marshal(raw files) error: %v", err)
-		}
+		require.NoError(t, err)
 		infoMap["files"] = filesBytes
 	}
 	infoBytes, err := bencode.Marshal(infoMap)
-	if err != nil {
-		t.Fatalf("Marshal(raw info) error: %v", err)
-	}
+	require.NoError(t, err)
 	rootMap["info"] = infoBytes
 	data, err := bencode.Marshal(rootMap)
-	if err != nil {
-		t.Fatalf("Marshal(root map) error: %v", err)
-	}
-	if err := os.WriteFile(torrentPath, data, 0o644); err != nil {
-		t.Fatalf("WriteFile(%q) error: %v", torrentPath, err)
-	}
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(torrentPath, data, 0o644))
 }
 
 // addUpdateTestRootValues injects raw root keys into a torrent fixture.
@@ -1412,32 +1064,22 @@ func addUpdateTestRootValues(t *testing.T, torrentPath string, values map[string
 	rootMap := readUpdateTestRoot(t, torrentPath)
 	for key, value := range values {
 		rawValue, err := bencode.Marshal(value)
-		if err != nil {
-			t.Fatalf("Marshal(root value %q) error: %v", key, err)
-		}
+		require.NoError(t, err)
 		rootMap[key] = rawValue
 	}
 	data, err := bencode.Marshal(rootMap)
-	if err != nil {
-		t.Fatalf("Marshal(root map) error: %v", err)
-	}
-	if err := os.WriteFile(torrentPath, data, 0o644); err != nil {
-		t.Fatalf("WriteFile(%q) error: %v", torrentPath, err)
-	}
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(torrentPath, data, 0o644))
 }
 
 // addUpdateTestInfoValue injects a custom info key to verify lossless metadata preservation.
 func addUpdateTestInfoValue(t *testing.T, mi *metainfo.MetaInfo, key string, value any) {
 	t.Helper()
 	infoMap := make(map[string]any)
-	if err := bencode.Unmarshal(mi.InfoBytes, &infoMap); err != nil {
-		t.Fatalf("Unmarshal(InfoBytes) error: %v", err)
-	}
+	require.NoError(t, bencode.Unmarshal(mi.InfoBytes, &infoMap))
 	infoMap[key] = value
 	infoBytes, err := bencode.Marshal(infoMap)
-	if err != nil {
-		t.Fatalf("Marshal(infoMap) error: %v", err)
-	}
+	require.NoError(t, err)
 	mi.InfoBytes = infoBytes
 }
 
@@ -1445,24 +1087,16 @@ func addUpdateTestInfoValue(t *testing.T, mi *metainfo.MetaInfo, key string, val
 func addUpdateTestFileValues(t *testing.T, mi *metainfo.MetaInfo, fileIndex int, values map[string]any) {
 	t.Helper()
 	infoMap := make(map[string]any)
-	if err := bencode.Unmarshal(mi.InfoBytes, &infoMap); err != nil {
-		t.Fatalf("Unmarshal(InfoBytes) error: %v", err)
-	}
+	require.NoError(t, bencode.Unmarshal(mi.InfoBytes, &infoMap))
 	files, ok := infoMap["files"].([]any)
-	if !ok || fileIndex < 0 || fileIndex >= len(files) {
-		t.Fatalf("torrent files metadata does not contain index %d", fileIndex)
-	}
+	require.False(t, !ok || fileIndex < 0 || fileIndex >= len(files))
 	fileMap, ok := files[fileIndex].(map[string]any)
-	if !ok {
-		t.Fatalf("torrent file %d metadata has unexpected type %T", fileIndex, files[fileIndex])
-	}
+	require.True(t, ok)
 	for key, value := range values {
 		fileMap[key] = value
 	}
 	infoBytes, err := bencode.Marshal(infoMap)
-	if err != nil {
-		t.Fatalf("Marshal(infoMap) error: %v", err)
-	}
+	require.NoError(t, err)
 	mi.InfoBytes = infoBytes
 }
 
@@ -1473,17 +1107,4 @@ func updateTestPaths(files []metainfo.FileInfo) []string {
 		paths[i] = strings.Join(file.Path, "/")
 	}
 	return paths
-}
-
-// equalUpdateTestStrings compares ordered path lists without introducing an assertion dependency.
-func equalUpdateTestStrings(left, right []string) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for i := range left {
-		if left[i] != right[i] {
-			return false
-		}
-	}
-	return true
 }
