@@ -539,16 +539,14 @@ func fileListLength(files []reuseFile) int64 {
 	return last.offset + last.length
 }
 
-// normalizeTorrentPath canonicalizes path syntax without changing filename bytes.
+// normalizeTorrentPath accepts only relative path syntax without changing filename bytes.
 func normalizeTorrentPath(filePath string) string {
 	filePath = strings.ReplaceAll(filePath, "\\", "/")
-	filePath = strings.TrimPrefix(filePath, "./")
-	filePath = strings.TrimPrefix(filePath, "/")
-	if filePath == "" {
+	if filePath == "" || strings.HasPrefix(filePath, "/") {
 		return ""
 	}
 	cleaned := path.Clean(filePath)
-	if cleaned == "." {
+	if cleaned == "." || cleaned == ".." || strings.HasPrefix(cleaned, "../") {
 		return ""
 	}
 	return cleaned

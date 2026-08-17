@@ -131,16 +131,14 @@ func parseRenamePairs(pairs []string) (map[string]string, error) {
 	return renames, nil
 }
 
-// normalizeRenamePath canonicalizes CLI rename syntax without changing filename bytes.
+// normalizeRenamePath accepts only relative paths within the torrent content root.
 func normalizeRenamePath(filePath string) string {
 	filePath = strings.ReplaceAll(filePath, "\\", "/")
-	filePath = strings.TrimPrefix(filePath, "./")
-	filePath = strings.TrimPrefix(filePath, "/")
-	if filePath == "" {
+	if filePath == "" || strings.HasPrefix(filePath, "/") {
 		return ""
 	}
 	cleaned := path.Clean(filePath)
-	if cleaned == "." {
+	if cleaned == "." || cleaned == ".." || strings.HasPrefix(cleaned, "../") {
 		return ""
 	}
 	return cleaned

@@ -19,7 +19,7 @@ func TestParseRenamePairsNormalizesBeforeDuplicateValidation(t *testing.T) {
 }
 
 func TestParseRenamePairsReturnsCanonicalPathsWithoutTrimmingNames(t *testing.T) {
-	renames, err := parseRenamePairs([]string{`./nested\\old.bin=/archive/../new.bin`, ` old.bin= new.bin`})
+	renames, err := parseRenamePairs([]string{`./nested\\old.bin=archive/../new.bin`, ` old.bin= new.bin`})
 	if err != nil {
 		t.Fatalf("parseRenamePairs() error: %v", err)
 	}
@@ -28,5 +28,20 @@ func TestParseRenamePairsReturnsCanonicalPathsWithoutTrimmingNames(t *testing.T)
 	}
 	if got, want := renames[" old.bin"], " new.bin"; got != want {
 		t.Errorf("parseRenamePairs() whitespace mapping = %q, want %q", got, want)
+	}
+}
+
+func TestParseRenamePairsRejectsNonRelativePaths(t *testing.T) {
+	for _, pair := range []string{
+		"../outside.bin=new.bin",
+		"/absolute.bin=new.bin",
+		"old.bin=///",
+		"nested/../../outside.bin=new.bin",
+	} {
+		t.Run(pair, func(t *testing.T) {
+			if _, err := parseRenamePairs([]string{pair}); err == nil {
+				t.Fatalf("parseRenamePairs(%q) error = nil, want invalid rename error", pair)
+			}
+		})
 	}
 }
