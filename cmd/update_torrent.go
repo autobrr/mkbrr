@@ -12,6 +12,8 @@ import (
 
 type updateTorrentOptions struct {
 	OutputPath      string
+	InPlace         bool
+	Force           bool
 	RenamePairs     []string
 	ExcludePatterns []string
 	IncludePatterns []string
@@ -40,7 +42,9 @@ Discovery filters are not stored in torrent metadata. Repeat any --exclude or
 --include values used by create. Trackers, creation date, creator, private/source
 fields, and piece length are preserved from the input torrent.
 
-The torrent is replaced atomically unless --output specifies another path.`,
+By default, output is written beside the input with ".updated" before the
+extension. Use --in-place to replace the input atomically. Multi-piece updates
+that reuse no hashes are rejected unless --force explicitly permits them.`,
 	Args:                  cobra.ExactArgs(2),
 	RunE:                  runUpdateTorrent,
 	DisableFlagsInUseLine: true,
@@ -50,13 +54,16 @@ The torrent is replaced atomically unless --output specifies another path.`,
 // init registers the update-torrent flags and usage template.
 func init() {
 	updateTorrentCmd.Flags().SortFlags = false
-	updateTorrentCmd.Flags().StringVarP(&updateTorrentOpts.OutputPath, "output", "o", "", "output path (default: replace the input torrent)")
+	updateTorrentCmd.Flags().StringVarP(&updateTorrentOpts.OutputPath, "output", "o", "", `output path (default: add ".updated" before the input extension)`)
+	updateTorrentCmd.Flags().BoolVar(&updateTorrentOpts.InPlace, "in-place", false, "replace the input torrent atomically")
+	updateTorrentCmd.Flags().BoolVar(&updateTorrentOpts.Force, "force", false, "allow a multi-piece update that reuses no hashes")
 	updateTorrentCmd.Flags().StringArrayVar(&updateTorrentOpts.RenamePairs, "rename", nil, "map an old torrent path to a new path as old=new (repeatable)")
 	updateTorrentCmd.Flags().StringArrayVar(&updateTorrentOpts.ExcludePatterns, "exclude", nil, "exclude files matching these patterns (comma-separated or repeatable)")
 	updateTorrentCmd.Flags().StringArrayVar(&updateTorrentOpts.IncludePatterns, "include", nil, "include only files matching these patterns (comma-separated or repeatable)")
 	updateTorrentCmd.Flags().IntVar(&updateTorrentOpts.Workers, "workers", 0, "number of worker goroutines for hashing (0 for automatic)")
 	updateTorrentCmd.Flags().BoolVarP(&updateTorrentOpts.Verbose, "verbose", "v", false, "be verbose")
 	updateTorrentCmd.Flags().BoolVarP(&updateTorrentOpts.Quiet, "quiet", "q", false, "print only the updated torrent path")
+	updateTorrentCmd.MarkFlagsMutuallyExclusive("output", "in-place")
 	updateTorrentCmd.MarkFlagsMutuallyExclusive("verbose", "quiet")
 
 	updateTorrentCmd.SetUsageTemplate(`Usage:
@@ -82,6 +89,8 @@ func runUpdateTorrent(_ *cobra.Command, args []string) error {
 		TorrentPath:     args[0],
 		ContentPath:     args[1],
 		OutputPath:      updateTorrentOpts.OutputPath,
+		InPlace:         updateTorrentOpts.InPlace,
+		Force:           updateTorrentOpts.Force,
 		Renames:         renames,
 		ExcludePatterns: updateTorrentOpts.ExcludePatterns,
 		IncludePatterns: updateTorrentOpts.IncludePatterns,
@@ -122,9 +131,9 @@ func parseRenamePairs(pairs []string) (map[string]string, error) {
 	return renames, nil
 }
 
-// normalizeRenamePath canonicalizes CLI rename paths before duplicate validation.
+// normalizeRenamePath canonicalizes CLI rename syntax without changing filename bytes.
 func normalizeRenamePath(filePath string) string {
-	filePath = strings.ReplaceAll(strings.TrimSpace(filePath), "\\", "/")
+	filePath = strings.ReplaceAll(filePath, "\\", "/")
 	filePath = strings.TrimPrefix(filePath, "./")
 	filePath = strings.TrimPrefix(filePath, "/")
 	if filePath == "" {

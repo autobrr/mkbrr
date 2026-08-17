@@ -1,6 +1,7 @@
 package torrent
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -17,6 +18,8 @@ type UpdateOptions struct {
 	TorrentPath      string
 	ContentPath      string
 	OutputPath       string
+	InPlace          bool
+	Force            bool
 	Renames          map[string]string
 	ExcludePatterns  []string
 	IncludePatterns  []string
@@ -60,19 +63,30 @@ func UpdateTorrent(opts UpdateOptions) (*UpdateResult, error) {
 	if opts.ContentPath == "" {
 		return nil, fmt.Errorf("content path is required")
 	}
+	if opts.InPlace && opts.OutputPath != "" {
+		return nil, fmt.Errorf("in-place update and output path are mutually exclusive")
+	}
 
-	mi, err := metainfo.LoadFromFile(opts.TorrentPath)
+	torrentData, err := os.ReadFile(opts.TorrentPath)
 	if err != nil {
 		return nil, fmt.Errorf("load torrent: %w", err)
 	}
-
-	oldInfo, err := mi.UnmarshalInfo()
+	rootMap, err := decodeTorrentRoot(torrentData)
 	if err != nil {
+		return nil, fmt.Errorf("decode torrent root: %w", err)
+	}
+	oldInfoBytes, ok := rootMap["info"]
+	if !ok {
+		return nil, fmt.Errorf("torrent has no info dictionary")
+	}
+
+	var oldInfo metainfo.Info
+	if err := bencode.Unmarshal(oldInfoBytes, &oldInfo); err != nil {
 		return nil, fmt.Errorf("decode torrent info: %w", err)
 	}
 
 	oldInfoMap := make(map[string]any)
-	if err := bencode.Unmarshal(mi.InfoBytes, &oldInfoMap); err != nil {
+	if err := bencode.Unmarshal(oldInfoBytes, &oldInfoMap); err != nil {
 		return nil, fmt.Errorf("decode raw torrent info: %w", err)
 	}
 	if _, ok := oldInfoMap["meta version"]; ok {
@@ -130,28 +144,70 @@ func UpdateTorrent(opts UpdateOptions) (*UpdateResult, error) {
 	if err != nil {
 		return nil, fmt.Errorf("encode updated torrent info: %w", err)
 	}
-	mi.InfoBytes = infoBytes
+	rootMap["info"] = infoBytes
+
+	var updatedInfo metainfo.Info
+	if err := bencode.Unmarshal(infoBytes, &updatedInfo); err != nil {
+		return nil, fmt.Errorf("decode updated torrent info: %w", err)
+	}
+	totalPieces := len(updatedInfo.Pieces) / 20
+	if totalPieces > 1 && reuse.reused == 0 && !opts.Force {
+		return nil, fmt.Errorf("refusing update with 0 of %d reusable pieces; verify the content path or use --force", totalPieces)
+	}
 
 	outputPath := opts.OutputPath
-	if outputPath == "" {
+	switch {
+	case opts.InPlace:
 		outputPath = opts.TorrentPath
+	case outputPath == "":
+		outputPath = defaultUpdateOutputPath(opts.TorrentPath)
 	}
-	if err := writeTorrentAtomically(mi, outputPath); err != nil {
+	if err := writeTorrentAtomically(rootMap, outputPath); err != nil {
 		return nil, err
 	}
 
-	updatedInfo, err := mi.UnmarshalInfo()
-	if err != nil {
-		return nil, fmt.Errorf("decode written torrent info: %w", err)
-	}
-	totalPieces := len(updatedInfo.Pieces) / 20
 	return &UpdateResult{
 		OutputPath:   outputPath,
-		InfoHash:     mi.HashInfoBytes().String(),
+		InfoHash:     metainfo.HashBytes(infoBytes).String(),
 		TotalPieces:  totalPieces,
 		ReusedPieces: reuse.reused,
 		HashedPieces: totalPieces - reuse.reused,
 	}, nil
+}
+
+func decodeTorrentRoot(data []byte) (map[string]bencode.Bytes, error) {
+	rootMap := make(map[string]bencode.Bytes)
+	err := bencode.Unmarshal(data, &rootMap)
+	if err == nil {
+		return rootMap, nil
+	}
+
+	var trailing bencode.ErrUnusedTrailingBytes
+	if !errors.As(err, &trailing) {
+		return nil, err
+	}
+	contentEnd := len(data) - trailing.NumUnusedBytes
+	for _, value := range data[contentEnd:] {
+		switch value {
+		case ' ', '\t', '\r', '\n', 0:
+		default:
+			return nil, err
+		}
+	}
+
+	rootMap = make(map[string]bencode.Bytes)
+	if err := bencode.Unmarshal(data[:contentEnd], &rootMap); err != nil {
+		return nil, err
+	}
+	return rootMap, nil
+}
+
+func defaultUpdateOutputPath(torrentPath string) string {
+	extension := filepath.Ext(torrentPath)
+	if extension == "" {
+		return torrentPath + ".updated.torrent"
+	}
+	return strings.TrimSuffix(torrentPath, extension) + ".updated" + extension
 }
 
 // newPieceReuse validates the original v1 piece layout and prepares normalized file mappings.
@@ -191,12 +247,22 @@ func newPieceReuse(info metainfo.Info, renames map[string]string) (*pieceReuse, 
 	}
 
 	normalizedRenames := make(map[string]string, len(renames))
+	renameSourceKeys := make(map[string]string, len(renames))
 	for oldPath, newPath := range renames {
 		normalizedOldPath := normalizeTorrentPath(oldPath)
+		normalizedNewPath := normalizeTorrentPath(newPath)
+		if normalizedOldPath == "" || normalizedNewPath == "" {
+			return nil, fmt.Errorf("rename paths must not be empty")
+		}
 		if _, exists := normalizedRenames[normalizedOldPath]; exists {
 			return nil, fmt.Errorf("duplicate normalized rename source %q", normalizedOldPath)
 		}
-		normalizedRenames[normalizedOldPath] = normalizeTorrentPath(newPath)
+		sourceKey := pathKey(normalizedOldPath)
+		if existing, exists := renameSourceKeys[sourceKey]; exists {
+			return nil, fmt.Errorf("rename sources %q and %q are ambiguous after Unicode normalization", existing, normalizedOldPath)
+		}
+		renameSourceKeys[sourceKey] = normalizedOldPath
+		normalizedRenames[normalizedOldPath] = normalizedNewPath
 	}
 
 	return &pieceReuse{
@@ -310,6 +376,33 @@ func describeNewFiles(files []fileEntry, originalPaths map[string]string, baseDi
 	return newFiles, nil
 }
 
+// findUniquePath returns the sole unused exact or Unicode-normalized path match.
+func findUniquePath(files []reuseFile, used []bool, filePath string, normalized bool) (int, bool) {
+	want := filePath
+	if normalized {
+		want = pathKey(filePath)
+	}
+
+	match := -1
+	for index, file := range files {
+		if used[index] {
+			continue
+		}
+		candidate := file.path
+		if normalized {
+			candidate = pathKey(candidate)
+		}
+		if candidate != want {
+			continue
+		}
+		if match >= 0 {
+			return -1, true
+		}
+		match = index
+	}
+	return match, false
+}
+
 // matchFiles maps files that can safely reuse old bytes; unmatched entries are additions or deletions.
 func (r *pieceReuse) matchFiles(newFiles []reuseFile) ([]int, error) {
 	mapping := make([]int, len(newFiles))
@@ -317,36 +410,44 @@ func (r *pieceReuse) matchFiles(newFiles []reuseFile) ([]int, error) {
 		mapping[i] = -1
 	}
 	oldUsed := make([]bool, len(r.oldFiles))
-
-	findOld := func(filePath string) int {
-		for i, file := range r.oldFiles {
-			if !oldUsed[i] && file.path == filePath {
-				return i
-			}
-		}
-		return -1
-	}
-	findNew := func(filePath string) int {
-		for i, file := range newFiles {
-			if mapping[i] < 0 && file.path == filePath {
-				return i
-			}
-		}
-		return -1
-	}
+	newUsed := make([]bool, len(newFiles))
 
 	renameKeys := make([]string, 0, len(r.renames))
 	for oldPath := range r.renames {
 		renameKeys = append(renameKeys, oldPath)
 	}
 	sort.Strings(renameKeys)
+
+	pendingRenames := make([]string, 0, len(renameKeys))
 	for _, oldPath := range renameKeys {
 		newPath := r.renames[oldPath]
-		oldIndex := findOld(oldPath)
+		oldIndex, oldAmbiguous := findUniquePath(r.oldFiles, oldUsed, oldPath, false)
+		newIndex, newAmbiguous := findUniquePath(newFiles, newUsed, newPath, false)
+		if oldAmbiguous || newAmbiguous || oldIndex < 0 || newIndex < 0 {
+			pendingRenames = append(pendingRenames, oldPath)
+			continue
+		}
+		if r.oldFiles[oldIndex].length != newFiles[newIndex].length {
+			return nil, fmt.Errorf("renamed file %q changed size from %d to %d bytes", oldPath, r.oldFiles[oldIndex].length, newFiles[newIndex].length)
+		}
+		mapping[newIndex] = oldIndex
+		oldUsed[oldIndex] = true
+		newUsed[newIndex] = true
+	}
+
+	for _, oldPath := range pendingRenames {
+		newPath := r.renames[oldPath]
+		oldIndex, oldAmbiguous := findUniquePath(r.oldFiles, oldUsed, oldPath, true)
+		if oldAmbiguous {
+			return nil, fmt.Errorf("rename source %q is ambiguous after Unicode normalization", oldPath)
+		}
 		if oldIndex < 0 {
 			return nil, fmt.Errorf("rename source %q is not an unmatched file in the torrent", oldPath)
 		}
-		newIndex := findNew(newPath)
+		newIndex, newAmbiguous := findUniquePath(newFiles, newUsed, newPath, true)
+		if newAmbiguous {
+			return nil, fmt.Errorf("rename destination %q is ambiguous after Unicode normalization", newPath)
+		}
 		if newIndex < 0 {
 			return nil, fmt.Errorf("rename destination %q is not an unmatched file in the content", newPath)
 		}
@@ -355,22 +456,29 @@ func (r *pieceReuse) matchFiles(newFiles []reuseFile) ([]int, error) {
 		}
 		mapping[newIndex] = oldIndex
 		oldUsed[oldIndex] = true
+		newUsed[newIndex] = true
 	}
 
-	for newIndex, newFile := range newFiles {
-		if mapping[newIndex] >= 0 {
-			continue
+	matchUnchanged := func(normalized bool) {
+		for newIndex, newFile := range newFiles {
+			if newUsed[newIndex] {
+				continue
+			}
+			uniqueNewIndex, newAmbiguous := findUniquePath(newFiles, newUsed, newFile.path, normalized)
+			if newAmbiguous || uniqueNewIndex != newIndex {
+				continue
+			}
+			oldIndex, oldAmbiguous := findUniquePath(r.oldFiles, oldUsed, newFile.path, normalized)
+			if oldAmbiguous || oldIndex < 0 || r.oldFiles[oldIndex].length != newFile.length {
+				continue
+			}
+			mapping[newIndex] = oldIndex
+			oldUsed[oldIndex] = true
+			newUsed[newIndex] = true
 		}
-		oldIndex := findOld(newFile.path)
-		if oldIndex < 0 {
-			continue
-		}
-		if r.oldFiles[oldIndex].length != newFile.length {
-			continue
-		}
-		mapping[newIndex] = oldIndex
-		oldUsed[oldIndex] = true
 	}
+	matchUnchanged(false)
+	matchUnchanged(true)
 
 	return mapping, nil
 }
@@ -431,9 +539,9 @@ func fileListLength(files []reuseFile) int64 {
 	return last.offset + last.length
 }
 
-// normalizeTorrentPath canonicalizes user and metainfo paths to relative forward-slash form.
+// normalizeTorrentPath canonicalizes path syntax without changing filename bytes.
 func normalizeTorrentPath(filePath string) string {
-	filePath = strings.ReplaceAll(strings.TrimSpace(filePath), "\\", "/")
+	filePath = strings.ReplaceAll(filePath, "\\", "/")
 	filePath = strings.TrimPrefix(filePath, "./")
 	filePath = strings.TrimPrefix(filePath, "/")
 	if filePath == "" {
@@ -443,11 +551,11 @@ func normalizeTorrentPath(filePath string) string {
 	if cleaned == "." {
 		return ""
 	}
-	return pathKey(cleaned)
+	return cleaned
 }
 
-// writeTorrentAtomically writes metainfo through a same-directory temporary file before replacing the destination.
-func writeTorrentAtomically(mi *metainfo.MetaInfo, outputPath string) error {
+// writeTorrentAtomically writes a raw root dictionary through a same-directory temporary file.
+func writeTorrentAtomically(rootMap map[string]bencode.Bytes, outputPath string) error {
 	dir := filepath.Dir(outputPath)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("create output directory: %w", err)
@@ -470,7 +578,7 @@ func writeTorrentAtomically(mi *metainfo.MetaInfo, outputPath string) error {
 		_ = tempFile.Close()
 		return fmt.Errorf("set torrent permissions: %w", err)
 	}
-	if err := mi.Write(tempFile); err != nil {
+	if err := bencode.NewEncoder(tempFile).Encode(rootMap); err != nil {
 		_ = tempFile.Close()
 		return fmt.Errorf("write updated torrent: %w", err)
 	}

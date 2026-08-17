@@ -18,12 +18,15 @@ func TestParseRenamePairsNormalizesBeforeDuplicateValidation(t *testing.T) {
 	}
 }
 
-func TestParseRenamePairsReturnsCanonicalPaths(t *testing.T) {
-	renames, err := parseRenamePairs([]string{` ./nested\\old.bin = /archive/../new.bin `})
+func TestParseRenamePairsReturnsCanonicalPathsWithoutTrimmingNames(t *testing.T) {
+	renames, err := parseRenamePairs([]string{`./nested\\old.bin=/archive/../new.bin`, ` old.bin= new.bin`})
 	if err != nil {
 		t.Fatalf("parseRenamePairs() error: %v", err)
 	}
 	if got, want := renames["nested/old.bin"], "new.bin"; got != want {
 		t.Errorf("parseRenamePairs() mapping = %q, want %q", got, want)
+	}
+	if got, want := renames[" old.bin"], " new.bin"; got != want {
+		t.Errorf("parseRenamePairs() whitespace mapping = %q, want %q", got, want)
 	}
 }

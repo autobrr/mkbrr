@@ -295,10 +295,13 @@ This shows:
 Structurally sync a v1 torrent after files are added, removed, resized, or renamed without rehashing files assumed to be unchanged:
 
 ```bash
-# Update the torrent in place
+# Write release.updated.torrent and leave release.torrent untouched
 mkbrr update-torrent release.torrent /path/to/release
 
-# Write to a different torrent file
+# Explicitly replace the input torrent
+mkbrr update-torrent release.torrent /path/to/release --in-place
+
+# Choose a different output file
 mkbrr update-torrent release.torrent /path/to/release --output updated.torrent
 
 # Reuse the same folder and filters from the original create command
@@ -312,9 +315,11 @@ mkbrr update-torrent release.torrent /path/to/release \
 
 **Important:** This is a structural sync, not content-change detection. Files with matching paths and sizes are assumed to have identical bytes and are not rehashed. If an existing file may have been edited or replaced without changing its size, run `create` again to perform a full rehash. You can run `check` after updating to validate the torrent against the files on disk.
 
-Removed files disappear from the torrent, while new files and resized files are hashed. An unmapped rename is treated safely as a deletion plus an addition and is rehashed; use repeatable `--rename old=new` mappings only when you know a renamed file is unchanged and want to reuse its hashes. Pieces containing new data or changed boundaries are rehashed, while structurally matching old piece ranges reuse their existing hashes. The input torrent is replaced atomically unless `--output` is set.
+Removed files disappear from the torrent, while new files and resized files are hashed. An unmapped rename is treated safely as a deletion plus an addition and is rehashed; use repeatable `--rename old=new` mappings only when you know a renamed file is unchanged and want to reuse its hashes. Pieces containing new data or changed boundaries are rehashed, while structurally matching old piece ranges reuse their existing hashes.
 
-The update command uses the same `--exclude` and `--include` syntax as `create`. Repeat those filters because glob patterns are not stored in a torrent file. Tracker URLs, creation date, creator, private/source fields, and piece length are read from and preserved in the existing torrent, so they do not need to be supplied again. Running `create` again would perform a full rehash.
+The default output adds `.updated` before the input extension and leaves the original torrent untouched. Use `--in-place` to replace the input atomically. As a wrong content path can otherwise look like a complete replacement, a multi-piece update that reuses no hashes is rejected; after verifying the content path, pass `--force` to allow that full rehash.
+
+The update command uses the same `--exclude` and `--include` syntax as `create`. Repeat those filters because glob patterns are not stored in a torrent file. Tracker URLs, creation date, creator, private/source fields, per-file custom fields, unknown root keys, and piece length are preserved from the existing torrent, so they do not need to be supplied again. Running `create` again would perform a full rehash.
 
 ### Modifying Torrents
 

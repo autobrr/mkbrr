@@ -45,7 +45,8 @@ func TestUpdateTorrentRenameAndAppendReusesPieces(t *testing.T) {
 		Renames: map[string]string{
 			"a.bin": "b.bin",
 		},
-		Quiet: true,
+		Quiet:   true,
+		InPlace: true,
 	})
 	if err != nil {
 		t.Fatalf("UpdateTorrent() error: %v", err)
@@ -102,6 +103,189 @@ func TestUpdateTorrentRenameAndAppendReusesPieces(t *testing.T) {
 	}
 }
 
+// TestUpdateTorrentPrefersExactPaths prevents normalized aliases from stealing an exact match.
+func TestUpdateTorrentPrefersExactPaths(t *testing.T) {
+	contentDir := t.TempDir()
+	writeUpdateTestFile(t, filepath.Join(contentDir, " a.bin"), bytes.Repeat([]byte{'a'}, 65_536))
+	writeUpdateTestFile(t, filepath.Join(contentDir, "a.bin"), bytes.Repeat([]byte{'b'}, 65_536))
+
+	pieceLength := uint(16)
+	original, err := CreateTorrent(CreateOptions{
+		Path:           contentDir,
+		Name:           "release",
+		PieceLengthExp: &pieceLength,
+		Quiet:          true,
+	})
+	if err != nil {
+		t.Fatalf("CreateTorrent(original) error: %v", err)
+	}
+	torrentPath := filepath.Join(t.TempDir(), "release.torrent")
+	writeUpdateTestTorrent(t, torrentPath, original.MetaInfo)
+
+	if err := os.Remove(filepath.Join(contentDir, " a.bin")); err != nil {
+		t.Fatalf("Remove(space-prefixed file) error: %v", err)
+	}
+	result, err := UpdateTorrent(UpdateOptions{
+		TorrentPath: torrentPath,
+		ContentPath: contentDir,
+		InPlace:     true,
+		Quiet:       true,
+	})
+	if err != nil {
+		t.Fatalf("UpdateTorrent() error: %v", err)
+	}
+	if got, want := result.ReusedPieces, 1; got != want {
+		t.Errorf("UpdateTorrent().ReusedPieces = %d, want %d", got, want)
+	}
+	assertUpdateMatchesFullRehash(t, torrentPath, contentDir, "release", pieceLength, []string{"a.bin"})
+}
+
+// TestUpdateTorrentPreservesRootKeys verifies known and unknown root metadata survives.
+func TestUpdateTorrentPreservesRootKeys(t *testing.T) {
+	contentDir := t.TempDir()
+	writeUpdateTestFile(t, filepath.Join(contentDir, "a.bin"), bytes.Repeat([]byte{'a'}, 65_536))
+
+	pieceLength := uint(16)
+	original, err := CreateTorrent(CreateOptions{
+		Path:           contentDir,
+		Name:           "release",
+		PieceLengthExp: &pieceLength,
+		Quiet:          true,
+	})
+	if err != nil {
+		t.Fatalf("CreateTorrent(original) error: %v", err)
+	}
+	torrentPath := filepath.Join(t.TempDir(), "release.torrent")
+	writeUpdateTestTorrent(t, torrentPath, original.MetaInfo)
+
+	rootValues := map[string]any{
+		"httpseeds":    []string{"https://seed.example/content"},
+		"url-list":     []string{"https://webseed.example/content"},
+		"x_cross_seed": "keep-me",
+	}
+	addUpdateTestRootValues(t, torrentPath, rootValues)
+
+	if _, err := UpdateTorrent(UpdateOptions{
+		TorrentPath: torrentPath,
+		ContentPath: contentDir,
+		InPlace:     true,
+		Quiet:       true,
+	}); err != nil {
+		t.Fatalf("UpdateTorrent() error: %v", err)
+	}
+
+	rootMap := readUpdateTestRoot(t, torrentPath)
+	for key, value := range rootValues {
+		want, err := bencode.Marshal(value)
+		if err != nil {
+			t.Fatalf("Marshal(root value %q) error: %v", key, err)
+		}
+		if got := rootMap[key]; !bytes.Equal(got, want) {
+			t.Errorf("UpdateTorrent() root key %q = %q, want %q", key, got, want)
+		}
+	}
+}
+
+// TestUpdateTorrentDefaultsToSeparateOutput verifies the input is untouched without --in-place.
+func TestUpdateTorrentDefaultsToSeparateOutput(t *testing.T) {
+	contentDir := t.TempDir()
+	writeUpdateTestFile(t, filepath.Join(contentDir, "a.bin"), bytes.Repeat([]byte{'a'}, 131_072))
+
+	pieceLength := uint(16)
+	original, err := CreateTorrent(CreateOptions{
+		Path:           contentDir,
+		Name:           "release",
+		PieceLengthExp: &pieceLength,
+		Quiet:          true,
+	})
+	if err != nil {
+		t.Fatalf("CreateTorrent(original) error: %v", err)
+	}
+	torrentPath := filepath.Join(t.TempDir(), "release.torrent")
+	writeUpdateTestTorrent(t, torrentPath, original.MetaInfo)
+	originalBytes, err := os.ReadFile(torrentPath)
+	if err != nil {
+		t.Fatalf("ReadFile(original torrent) error: %v", err)
+	}
+
+	result, err := UpdateTorrent(UpdateOptions{
+		TorrentPath: torrentPath,
+		ContentPath: contentDir,
+		Quiet:       true,
+	})
+	if err != nil {
+		t.Fatalf("UpdateTorrent() error: %v", err)
+	}
+	if got, want := result.OutputPath, filepath.Join(filepath.Dir(torrentPath), "release.updated.torrent"); got != want {
+		t.Errorf("UpdateTorrent().OutputPath = %q, want %q", got, want)
+	}
+	afterBytes, err := os.ReadFile(torrentPath)
+	if err != nil {
+		t.Fatalf("ReadFile(input torrent) error: %v", err)
+	}
+	if !bytes.Equal(afterBytes, originalBytes) {
+		t.Error("UpdateTorrent() changed the input torrent without InPlace")
+	}
+	assertUpdateMatchesFullRehash(t, result.OutputPath, contentDir, "release", pieceLength, []string{"a.bin"})
+}
+
+// TestUpdateTorrentRequiresForceForZeroReuse verifies a wrong content path cannot replace the input by default.
+func TestUpdateTorrentRequiresForceForZeroReuse(t *testing.T) {
+	originalDir := t.TempDir()
+	unrelatedDir := t.TempDir()
+	writeUpdateTestFile(t, filepath.Join(originalDir, "original.bin"), bytes.Repeat([]byte{'a'}, 196_608))
+	writeUpdateTestFile(t, filepath.Join(unrelatedDir, "unrelated.bin"), bytes.Repeat([]byte{'b'}, 196_608))
+
+	pieceLength := uint(16)
+	original, err := CreateTorrent(CreateOptions{
+		Path:           originalDir,
+		Name:           "release",
+		PieceLengthExp: &pieceLength,
+		Quiet:          true,
+	})
+	if err != nil {
+		t.Fatalf("CreateTorrent(original) error: %v", err)
+	}
+	torrentPath := filepath.Join(t.TempDir(), "release.torrent")
+	writeUpdateTestTorrent(t, torrentPath, original.MetaInfo)
+	originalBytes, err := os.ReadFile(torrentPath)
+	if err != nil {
+		t.Fatalf("ReadFile(original torrent) error: %v", err)
+	}
+
+	_, err = UpdateTorrent(UpdateOptions{
+		TorrentPath: torrentPath,
+		ContentPath: unrelatedDir,
+		InPlace:     true,
+		Quiet:       true,
+	})
+	if err == nil || !strings.Contains(err.Error(), "0 of 3 reusable pieces") {
+		t.Fatalf("UpdateTorrent() error = %v, want zero-reuse refusal", err)
+	}
+	afterRefusal, err := os.ReadFile(torrentPath)
+	if err != nil {
+		t.Fatalf("ReadFile(refused torrent) error: %v", err)
+	}
+	if !bytes.Equal(afterRefusal, originalBytes) {
+		t.Error("UpdateTorrent() changed the input torrent after refusing zero reuse")
+	}
+
+	result, err := UpdateTorrent(UpdateOptions{
+		TorrentPath: torrentPath,
+		ContentPath: unrelatedDir,
+		InPlace:     true,
+		Force:       true,
+		Quiet:       true,
+	})
+	if err != nil {
+		t.Fatalf("UpdateTorrent(Force) error: %v", err)
+	}
+	if got := result.ReusedPieces; got != 0 {
+		t.Errorf("UpdateTorrent(Force).ReusedPieces = %d, want 0", got)
+	}
+	assertUpdateMatchesFullRehash(t, torrentPath, unrelatedDir, "release", pieceLength, []string{"unrelated.bin"})
+}
+
 // TestUpdateTorrentAmbiguousRenamesFallbackToHashing verifies ambiguity never blocks a valid update.
 func TestUpdateTorrentAmbiguousRenamesFallbackToHashing(t *testing.T) {
 	contentDir := t.TempDir()
@@ -134,6 +318,8 @@ func TestUpdateTorrentAmbiguousRenamesFallbackToHashing(t *testing.T) {
 		TorrentPath: fallbackTorrentPath,
 		ContentPath: contentDir,
 		Quiet:       true,
+		InPlace:     true,
+		Force:       true,
 	})
 	if err != nil {
 		t.Fatalf("UpdateTorrent(ambiguous rename) error: %v", err)
@@ -153,7 +339,8 @@ func TestUpdateTorrentAmbiguousRenamesFallbackToHashing(t *testing.T) {
 			"a.bin": "c.bin",
 			"b.bin": "d.bin",
 		},
-		Quiet: true,
+		Quiet:   true,
+		InPlace: true,
 	})
 	if err != nil {
 		t.Fatalf("UpdateTorrent(explicit renames) error: %v", err)
@@ -194,6 +381,7 @@ func TestUpdateTorrentSameSizeReplacementRehashes(t *testing.T) {
 		TorrentPath: torrentPath,
 		ContentPath: contentDir,
 		Quiet:       true,
+		InPlace:     true,
 	})
 	if err != nil {
 		t.Fatalf("UpdateTorrent() error: %v", err)
@@ -244,6 +432,7 @@ func TestUpdateTorrentRemovesZeroLengthFiles(t *testing.T) {
 		TorrentPath: torrentPath,
 		ContentPath: contentDir,
 		Quiet:       true,
+		InPlace:     true,
 	})
 	if err != nil {
 		t.Fatalf("UpdateTorrent() error: %v", err)
@@ -284,6 +473,7 @@ func TestUpdateTorrentRemovesNonEmptyFile(t *testing.T) {
 		TorrentPath: torrentPath,
 		ContentPath: contentDir,
 		Quiet:       true,
+		InPlace:     true,
 	})
 	if err != nil {
 		t.Fatalf("UpdateTorrent() error: %v", err)
@@ -322,6 +512,7 @@ func TestUpdateTorrentSingleFileSameSizeReplacementRehashes(t *testing.T) {
 		ContentPath: replacementPath,
 		OutputPath:  outputPath,
 		Quiet:       true,
+		Force:       true,
 	})
 	if err != nil {
 		t.Fatalf("UpdateTorrent() error: %v", err)
@@ -373,6 +564,7 @@ func TestUpdateTorrentNormalizesUnicodePathsAndRenames(t *testing.T) {
 		TorrentPath: unchangedTorrentPath,
 		ContentPath: contentDir,
 		Quiet:       true,
+		InPlace:     true,
 	})
 	if err != nil {
 		t.Fatalf("UpdateTorrent(unchanged NFD path) error: %v", err)
@@ -393,7 +585,8 @@ func TestUpdateTorrentNormalizesUnicodePathsAndRenames(t *testing.T) {
 		Renames: map[string]string{
 			oldTorrentName: newTorrentName,
 		},
-		Quiet: true,
+		Quiet:   true,
+		InPlace: true,
 	})
 	if err != nil {
 		t.Fatalf("UpdateTorrent(NFC rename) error: %v", err)
@@ -445,7 +638,8 @@ func TestUpdateTorrentNestedRenamePreservesFileKeys(t *testing.T) {
 		Renames: map[string]string{
 			"season/episode.bin": "archive/episode.bin",
 		},
-		Quiet: true,
+		Quiet:   true,
+		InPlace: true,
 	})
 	if err != nil {
 		t.Fatalf("UpdateTorrent() error: %v", err)
@@ -532,6 +726,40 @@ func writeUpdateTestTorrent(t *testing.T, torrentPath string, mi *metainfo.MetaI
 	}
 	if err := file.Close(); err != nil {
 		t.Fatalf("Close(%q) error: %v", torrentPath, err)
+	}
+}
+
+// readUpdateTestRoot decodes the raw root dictionary without discarding unknown keys.
+func readUpdateTestRoot(t *testing.T, torrentPath string) map[string]bencode.Bytes {
+	t.Helper()
+	data, err := os.ReadFile(torrentPath)
+	if err != nil {
+		t.Fatalf("ReadFile(%q) error: %v", torrentPath, err)
+	}
+	rootMap := make(map[string]bencode.Bytes)
+	if err := bencode.Unmarshal(data, &rootMap); err != nil {
+		t.Fatalf("Unmarshal(root %q) error: %v", torrentPath, err)
+	}
+	return rootMap
+}
+
+// addUpdateTestRootValues injects raw root keys into a torrent fixture.
+func addUpdateTestRootValues(t *testing.T, torrentPath string, values map[string]any) {
+	t.Helper()
+	rootMap := readUpdateTestRoot(t, torrentPath)
+	for key, value := range values {
+		rawValue, err := bencode.Marshal(value)
+		if err != nil {
+			t.Fatalf("Marshal(root value %q) error: %v", key, err)
+		}
+		rootMap[key] = rawValue
+	}
+	data, err := bencode.Marshal(rootMap)
+	if err != nil {
+		t.Fatalf("Marshal(root map) error: %v", err)
+	}
+	if err := os.WriteFile(torrentPath, data, 0o644); err != nil {
+		t.Fatalf("WriteFile(%q) error: %v", torrentPath, err)
 	}
 }
 
