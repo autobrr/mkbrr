@@ -173,6 +173,47 @@ func TestUpdateTorrentPreservesRawInfoValues(t *testing.T) {
 	assert.Equal(t, bigInteger, files[0]["x-file-bigint"])
 }
 
+func TestUpdateTorrentKeepsOnlyValidSingleFileMD5(t *testing.T) {
+	originalPath := filepath.Join(t.TempDir(), "original.bin")
+	replacementPath := filepath.Join(t.TempDir(), "replacement.bin")
+	writeUpdateTestFile(t, originalPath, bytes.Repeat([]byte{'a'}, 131_072))
+	writeUpdateTestFile(t, replacementPath, bytes.Repeat([]byte{'b'}, 131_072))
+
+	pieceLength := uint(16)
+	original, err := CreateTorrent(CreateOptions{
+		Path:           originalPath,
+		PieceLengthExp: &pieceLength,
+		Quiet:          true,
+	})
+	require.NoError(t, err)
+	addUpdateTestInfoValue(t, original.MetaInfo, "md5sum", "keep-md5")
+	torrentPath := filepath.Join(t.TempDir(), "original.torrent")
+	writeUpdateTestTorrent(t, torrentPath, original.MetaInfo)
+
+	unchangedOutputPath := filepath.Join(t.TempDir(), "unchanged.torrent")
+	_, err = UpdateTorrent(UpdateOptions{
+		TorrentPath: torrentPath,
+		ContentPath: originalPath,
+		OutputPath:  unchangedOutputPath,
+		Quiet:       true,
+	})
+	require.NoError(t, err)
+	_, hasMD5 := readUpdateTestRawInfo(t, unchangedOutputPath)["md5sum"]
+	assert.True(t, hasMD5)
+
+	changedOutputPath := filepath.Join(t.TempDir(), "changed.torrent")
+	_, err = UpdateTorrent(UpdateOptions{
+		TorrentPath: torrentPath,
+		ContentPath: replacementPath,
+		OutputPath:  changedOutputPath,
+		Force:       true,
+		Quiet:       true,
+	})
+	require.NoError(t, err)
+	_, hasMD5 = readUpdateTestRawInfo(t, changedOutputPath)["md5sum"]
+	assert.False(t, hasMD5)
+}
+
 // TestUpdateTorrentRejectsUnsafeOutputPaths verifies output cannot replace or enter the content set.
 func TestUpdateTorrentRejectsUnsafeOutputPaths(t *testing.T) {
 	t.Run("content file identities", func(t *testing.T) {
@@ -223,6 +264,39 @@ func TestUpdateTorrentRejectsUnsafeOutputPaths(t *testing.T) {
 				assert.Equal(t, contentBytes, got)
 			})
 		}
+	})
+
+	t.Run("content symbolic link entry", func(t *testing.T) {
+		targetPath := filepath.Join(t.TempDir(), "target.bin")
+		contentPath := filepath.Join(t.TempDir(), "content-link.bin")
+		contentBytes := []byte("original content bytes")
+		writeUpdateTestFile(t, targetPath, contentBytes)
+		if err := os.Symlink(targetPath, contentPath); err != nil {
+			t.Skipf("symbolic links unavailable: %v", err)
+		}
+		pieceLength := uint(16)
+		original, err := CreateTorrent(CreateOptions{
+			Path:           contentPath,
+			PieceLengthExp: &pieceLength,
+			Quiet:          true,
+		})
+		require.NoError(t, err)
+		torrentPath := filepath.Join(t.TempDir(), "input.torrent")
+		writeUpdateTestTorrent(t, torrentPath, original.MetaInfo)
+
+		_, err = UpdateTorrent(UpdateOptions{
+			TorrentPath: torrentPath,
+			ContentPath: contentPath,
+			OutputPath:  contentPath,
+			Quiet:       true,
+		})
+		require.ErrorContains(t, err, "must not replace the content file")
+		contentInfo, err := os.Lstat(contentPath)
+		require.NoError(t, err)
+		assert.NotZero(t, contentInfo.Mode()&os.ModeSymlink)
+		got, err := os.ReadFile(targetPath)
+		require.NoError(t, err)
+		assert.Equal(t, contentBytes, got)
 	})
 
 	t.Run("inside content directory", func(t *testing.T) {
@@ -624,6 +698,43 @@ func TestUpdateTorrentDefaultsToSeparateOutput(t *testing.T) {
 	assert.Equal(t, outputBytes, afterRefusal)
 }
 
+func TestUpdateTorrentDefaultOutputDoesNotReplaceRacedFile(t *testing.T) {
+	contentPath := filepath.Join(t.TempDir(), "content.bin")
+	writeUpdateTestFile(t, contentPath, bytes.Repeat([]byte{'a'}, 131_072))
+
+	pieceLength := uint(16)
+	original, err := CreateTorrent(CreateOptions{
+		Path:           contentPath,
+		PieceLengthExp: &pieceLength,
+		Quiet:          true,
+	})
+	require.NoError(t, err)
+	torrentPath := filepath.Join(t.TempDir(), "release.torrent")
+	writeUpdateTestTorrent(t, torrentPath, original.MetaInfo)
+	outputPath := defaultUpdateOutputPath(torrentPath)
+	sentinel := []byte("do not replace")
+	created := false
+
+	_, err = UpdateTorrent(UpdateOptions{
+		TorrentPath: torrentPath,
+		ContentPath: contentPath,
+		Quiet:       true,
+		ProgressCallback: func(_, _ int, _ float64) {
+			if created {
+				return
+			}
+			created = true
+			require.NoError(t, os.WriteFile(outputPath, sentinel, 0o644))
+		},
+	})
+	require.ErrorIs(t, err, os.ErrExist)
+	require.ErrorContains(t, err, "create torrent")
+	assert.True(t, created)
+	got, err := os.ReadFile(outputPath)
+	require.NoError(t, err)
+	assert.Equal(t, sentinel, got)
+}
+
 // TestUpdateTorrentRequiresForceForZeroReuse verifies a wrong content path cannot replace the input by default.
 func TestUpdateTorrentRequiresForceForZeroReuse(t *testing.T) {
 	for _, test := range []struct {
@@ -652,14 +763,19 @@ func TestUpdateTorrentRequiresForceForZeroReuse(t *testing.T) {
 			writeUpdateTestTorrent(t, torrentPath, original.MetaInfo)
 			originalBytes, err := os.ReadFile(torrentPath)
 			require.NoError(t, err)
+			hashStarted := false
 			_, err = UpdateTorrent(UpdateOptions{
 				TorrentPath: torrentPath,
 				ContentPath: unrelatedDir,
 				InPlace:     true,
 				Quiet:       true,
+				ProgressCallback: func(_, _ int, _ float64) {
+					hashStarted = true
+				},
 			})
 			wantError := fmt.Sprintf("0 reusable pieces (existing torrent: 3, updated torrent: %d)", test.updatedPieces)
 			require.ErrorContains(t, err, wantError)
+			assert.False(t, hashStarted)
 			afterRefusal, err := os.ReadFile(torrentPath)
 			require.NoError(t, err)
 			assert.Equal(t, originalBytes, afterRefusal)
@@ -843,6 +959,9 @@ func TestUpdateTorrentSingleFileSameSizeReplacementRehashes(t *testing.T) {
 	torrentPath := filepath.Join(t.TempDir(), "original.torrent")
 	outputPath := filepath.Join(t.TempDir(), "updated.torrent")
 	writeUpdateTestTorrent(t, torrentPath, original.MetaInfo)
+	if runtime.GOOS != "windows" {
+		require.NoError(t, os.Chmod(torrentPath, 0o600))
+	}
 
 	result, err := UpdateTorrent(UpdateOptions{
 		TorrentPath: torrentPath,
@@ -856,14 +975,14 @@ func TestUpdateTorrentSingleFileSameSizeReplacementRehashes(t *testing.T) {
 	assert.Equal(t, result.TotalPieces, result.HashedPieces)
 	assertUpdateMatchesFullRehash(t, outputPath, replacementPath, "original.bin", pieceLength, nil)
 
-	t.Run("sets default POSIX permissions", func(t *testing.T) {
+	t.Run("preserves input POSIX permissions", func(t *testing.T) {
 		if runtime.GOOS == "windows" {
 			t.Skip("POSIX file modes are not meaningful on Windows")
 		}
 
 		outputInfo, err := os.Stat(outputPath)
 		require.NoError(t, err)
-		assert.Equal(t, os.FileMode(0o644), outputInfo.Mode().Perm())
+		assert.Equal(t, os.FileMode(0o600), outputInfo.Mode().Perm())
 	})
 }
 
