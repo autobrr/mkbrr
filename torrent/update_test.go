@@ -714,6 +714,7 @@ func TestUpdateTorrentDefaultOutputDoesNotReplaceRacedFile(t *testing.T) {
 	outputPath := defaultUpdateOutputPath(torrentPath)
 	sentinel := []byte("do not replace")
 	created := false
+	var writeErr error
 
 	_, err = UpdateTorrent(UpdateOptions{
 		TorrentPath: torrentPath,
@@ -724,9 +725,10 @@ func TestUpdateTorrentDefaultOutputDoesNotReplaceRacedFile(t *testing.T) {
 				return
 			}
 			created = true
-			require.NoError(t, os.WriteFile(outputPath, sentinel, 0o644))
+			writeErr = os.WriteFile(outputPath, sentinel, 0o644)
 		},
 	})
+	require.NoError(t, writeErr)
 	require.ErrorIs(t, err, os.ErrExist)
 	require.ErrorContains(t, err, "create torrent")
 	assert.True(t, created)
