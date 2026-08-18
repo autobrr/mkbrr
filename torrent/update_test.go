@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -855,9 +856,15 @@ func TestUpdateTorrentSingleFileSameSizeReplacementRehashes(t *testing.T) {
 	assert.Equal(t, result.TotalPieces, result.HashedPieces)
 	assertUpdateMatchesFullRehash(t, outputPath, replacementPath, "original.bin", pieceLength, nil)
 
-	outputInfo, err := os.Stat(outputPath)
-	require.NoError(t, err)
-	assert.Equal(t, os.FileMode(0o644), outputInfo.Mode().Perm())
+	t.Run("sets default POSIX permissions", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("POSIX file modes are not meaningful on Windows")
+		}
+
+		outputInfo, err := os.Stat(outputPath)
+		require.NoError(t, err)
+		assert.Equal(t, os.FileMode(0o644), outputInfo.Mode().Perm())
+	})
 }
 
 // TestUpdateTorrentNormalizesUnicodePathsAndRenames verifies NFC keys match decomposed disk names.
