@@ -68,7 +68,6 @@ type fileEntry struct {
 type fileReader struct {
 	file     *os.File
 	position int64
-	length   int64
 }
 
 // TorrentInfo contains summary information about the created torrent

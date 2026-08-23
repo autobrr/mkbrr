@@ -40,12 +40,6 @@ func (h *pieceHasher) optimizeForWorkload() (int, int) {
 		return 0, 0
 	}
 
-	maxFileSize := int64(0)
-	for _, f := range h.files {
-		if f.length > maxFileSize {
-			maxFileSize = f.length
-		}
-	}
 	avgFileSize := h.totalSize / int64(len(h.files))
 
 	var readSize, numWorkers int
@@ -76,6 +70,9 @@ func (h *pieceHasher) optimizeForWorkload() (int, int) {
 		readSize = 8 << 20 // 8 MiB
 		numWorkers = defaultWorkerCount(true)
 	}
+
+	// reads never exceed pieceLen, so a larger buffer is wasted memory per worker
+	readSize = min(readSize, int(h.pieceLen))
 
 	// ensure we don't create more workers than pieces to process
 	if numWorkers > h.numPieces {
@@ -224,12 +221,13 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 	defer h.bufferPool.Put(buf)
 
 	hasher := sha1.New()
-	readers := make([]*fileReader, len(h.files))
+	// pieces and the files within them are processed in ascending order, so a
+	// single open reader suffices: one FD per worker regardless of file count
+	var reader *fileReader
+	readerIndex := -1
 	defer func() {
-		for _, reader := range readers {
-			if reader != nil {
-				_ = reader.file.Close()
-			}
+		if reader != nil {
+			_ = reader.file.Close()
 		}
 	}()
 
@@ -263,8 +261,10 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 				continue
 			}
 
-			reader := readers[fileIndex]
-			if reader == nil {
+			if readerIndex != fileIndex {
+				if reader != nil {
+					_ = reader.file.Close()
+				}
 				f, err := os.Open(file.path)
 				if err != nil {
 					return fmt.Errorf("failed to open file %s: %w", file.path, err)
@@ -272,9 +272,8 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 				reader = &fileReader{
 					file:     f,
 					position: 0,
-					length:   file.length,
 				}
-				readers[fileIndex] = reader
+				readerIndex = fileIndex
 			}
 
 			if reader.position != readStart {

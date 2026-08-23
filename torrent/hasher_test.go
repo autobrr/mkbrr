@@ -489,10 +489,13 @@ func TestPieceHasher_OptimizeForWorkload_RespectsPlatformWorkerCap(t *testing.T)
 	numPieces := int((offset + (1 << 20) - 1) / (1 << 20))
 	hasher := NewPieceHasher(files, 1<<20, numPieces, &mockDisplay{}, false)
 
-	_, workers := hasher.optimizeForWorkload()
+	readSize, workers := hasher.optimizeForWorkload()
 	maxWorkers := autoWorkerCount(cpuCount, true, runtime.GOOS)
 	if workers > maxWorkers {
 		t.Fatalf("expected workers <= platform cap (%d), got %d", maxWorkers, workers)
+	}
+	if int64(readSize) > hasher.pieceLen {
+		t.Fatalf("expected readSize <= piece length (%d), got %d", hasher.pieceLen, readSize)
 	}
 }
 
