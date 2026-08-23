@@ -30,7 +30,7 @@ type pieceVerifier struct {
 	lastUpdate  time.Time
 	torrentInfo *metainfo.Info
 	display     *Display // Changed to concrete type
-	bufferPool  *sync.Pool
+	bufferArena *BufferArena
 	contentPath string
 	files       []fileEntry // Mapped files based on contentPath
 
@@ -49,6 +49,28 @@ type pieceVerifier struct {
 
 	bytesVerified int64
 	mutex         sync.RWMutex
+}
+
+// NewPieceVerifier creates a new piece verifier with pre-allocated buffer arena.
+// The arena is reused across multiple verifyPieces calls for zero-allocation steady-state performance.
+func NewPieceVerifier(torrentInfo *metainfo.Info, contentPath string, pieceLen int64, numPieces int, files []fileEntry, missingFiles []string, verbose, quiet bool, progressCallback ProgressCallback) *pieceVerifier {
+	display := NewDisplay(NewFormatter(verbose))
+	display.SetQuiet(quiet)
+
+	// Pre-create arena with default capacity (will be resized in verifyPieces if needed)
+	bufferArena := NewBufferArena(32, 0)
+
+	return &pieceVerifier{
+		torrentInfo:      torrentInfo,
+		contentPath:      contentPath,
+		pieceLen:         pieceLen,
+		numPieces:        numPieces,
+		files:            files,
+		display:          display,
+		missingFiles:     missingFiles,
+		progressCallback: progressCallback,
+		bufferArena:      bufferArena,
+	}
 }
 
 // VerifyData checks the integrity of content files against a torrent file.
@@ -216,17 +238,7 @@ func VerifyData(opts VerifyOptions) (*VerificationResult, error) {
 
 	// 4. Initialize Verifier
 	numPieces := len(info.Pieces) / 20
-	verifier := &pieceVerifier{
-		torrentInfo:      &info,
-		contentPath:      opts.ContentPath,
-		pieceLen:         info.PieceLength,
-		numPieces:        numPieces,
-		files:            mappedFiles,
-		display:          NewDisplay(NewFormatter(opts.Verbose)),
-		missingFiles:     missingFiles,
-		progressCallback: opts.ProgressCallback,
-	}
-	verifier.display.SetQuiet(opts.Quiet)
+	verifier := NewPieceVerifier(&info, opts.ContentPath, info.PieceLength, numPieces, mappedFiles, missingFiles, opts.Verbose, opts.Quiet, opts.ProgressCallback)
 
 	// Calculate missing ranges *before* verification starts
 	if len(verifier.missingFiles) > 0 {
@@ -368,15 +380,11 @@ func (v *pieceVerifier) verifyPieces(numWorkersOverride int) error {
 		numWorkers = 1
 	}
 
-	v.bufferPool = &sync.Pool{
-		New: func() interface{} {
-			allocSize := v.readSize
-			if allocSize < 64<<10 {
-				allocSize = 64 << 10
-			}
-			buf := make([]byte, allocSize)
-			return buf
-		},
+	// Ensure arena has enough capacity for the current workload
+	// Resize if needed (create new arena with larger capacity)
+	requiredCapacity := numWorkers * 4
+	if v.bufferArena == nil || cap(v.bufferArena.byteBufs) < requiredCapacity {
+		v.bufferArena = NewBufferArena(requiredCapacity, 0)
 	}
 
 	v.startTime = time.Now()
@@ -486,8 +494,9 @@ func (v *pieceVerifier) verifyPieces(numWorkersOverride int) error {
 
 // verifyPieceRange processes and verifies a specific range of pieces.
 func (v *pieceVerifier) verifyPieceRange(startPiece, endPiece int, completedPieces *uint64) error {
-	buf := v.bufferPool.Get().([]byte)
-	defer v.bufferPool.Put(buf)
+	// reuse buffer from arena for better cache locality and reduced GC pressure
+	buf := v.bufferArena.GetBytes(v.readSize)
+	defer v.bufferArena.PutBytes(buf)
 
 	hasher := sha1.New()
 	readers := make([]*fileReader, len(v.files))

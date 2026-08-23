@@ -40,20 +40,30 @@ func benchmarkPieceVerifier(b *testing.B, name string, fileSizes []int64, pieceL
 		b.SetBytes(totalSize)
 		b.ResetTimer()
 
-		for i := 0; i < b.N; i++ {
-			display := NewDisplay(NewFormatter(false))
-			display.SetQuiet(true)
+		// Create verifier once to measure steady-state performance (arena reuse)
+		verifier := NewPieceVerifier(
+			&metainfo.Info{
+				PieceLength: pieceLen,
+				Pieces:      pieces,
+			},
+			"", // contentPath not used in benchmark
+			pieceLen,
+			len(expectedHashes),
+			append([]fileEntry(nil), files...),
+			nil, // missingFiles
+			false, // verbose
+			true, // quiet
+			nil, // progressCallback
+		)
 
-			verifier := &pieceVerifier{
-				torrentInfo: &metainfo.Info{
-					PieceLength: pieceLen,
-					Pieces:      pieces,
-				},
-				display:   display,
-				files:     append([]fileEntry(nil), files...),
-				pieceLen:  pieceLen,
-				numPieces: len(expectedHashes),
-			}
+		for i := 0; i < b.N; i++ {
+			// Reset verifier state for each iteration
+			verifier.goodPieces = 0
+			verifier.badPieces = 0
+			verifier.missingPieces = 0
+			verifier.bytesVerified = 0
+			verifier.badPieceIndices = verifier.badPieceIndices[:0]
+			verifier.missingRanges = verifier.missingRanges[:0]
 
 			if err := verifier.verifyPieces(0); err != nil {
 				b.Fatalf("verifyPieces failed: %v", err)
