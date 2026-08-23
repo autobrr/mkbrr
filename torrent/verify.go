@@ -510,6 +510,11 @@ func (v *pieceVerifier) verifyPieceRange(startPiece, endPiece int, completedPiec
 
 	currentFileIndex := 0
 
+	// Batch progress updates to reduce atomic contention
+	const progressBatchSize = 64
+	var localCompleted uint64
+	var localBytesVerified int64
+
 	for pieceIndex := startPiece; pieceIndex < endPiece; pieceIndex++ {
 		var expectedHash []byte
 		var actualHash []byte
@@ -528,7 +533,11 @@ func (v *pieceVerifier) verifyPieceRange(startPiece, endPiece int, completedPiec
 
 		if isMissing {
 			atomic.AddUint64(&v.missingPieces, 1)
-			atomic.AddUint64(completedPieces, 1)
+			localCompleted++
+			if localCompleted >= progressBatchSize {
+				atomic.AddUint64(completedPieces, localCompleted)
+				localCompleted = 0
+			}
 			continue // Skip hashing/comparison for missing pieces
 		}
 
@@ -552,7 +561,11 @@ func (v *pieceVerifier) verifyPieceRange(startPiece, endPiece int, completedPiec
 			v.mutex.Lock()
 			v.badPieceIndices = append(v.badPieceIndices, pieceIndex)
 			v.mutex.Unlock()
-			atomic.AddUint64(completedPieces, 1)
+			localCompleted++
+			if localCompleted >= progressBatchSize {
+				atomic.AddUint64(completedPieces, localCompleted)
+				localCompleted = 0
+			}
 			continue
 		}
 
@@ -628,7 +641,11 @@ func (v *pieceVerifier) verifyPieceRange(startPiece, endPiece int, completedPiec
 		}
 
 		if bytesHashedThisPiece > 0 {
-			atomic.AddInt64(&v.bytesVerified, bytesHashedThisPiece)
+			localBytesVerified += bytesHashedThisPiece
+			if localBytesVerified >= 1<<20 { // Flush every 1 MiB
+				atomic.AddInt64(&v.bytesVerified, localBytesVerified)
+				localBytesVerified = 0
+			}
 		}
 
 		expectedHash = v.torrentInfo.Pieces[pieceIndex*20 : (pieceIndex+1)*20]
@@ -644,7 +661,19 @@ func (v *pieceVerifier) verifyPieceRange(startPiece, endPiece int, completedPiec
 		}
 
 	nextPiece:
-		atomic.AddUint64(completedPieces, 1)
+		localCompleted++
+		if localCompleted >= progressBatchSize {
+			atomic.AddUint64(completedPieces, localCompleted)
+			localCompleted = 0
+		}
+	}
+
+	// Flush remaining batched updates
+	if localCompleted > 0 {
+		atomic.AddUint64(completedPieces, localCompleted)
+	}
+	if localBytesVerified > 0 {
+		atomic.AddInt64(&v.bytesVerified, localBytesVerified)
 	}
 
 	return nil

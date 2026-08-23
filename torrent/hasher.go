@@ -233,13 +233,22 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 		}
 	}()
 
+	// Batch progress updates to reduce atomic contention
+	const progressBatchSize = 64
+	var localCompleted uint64
+	var localBytesProcessed int64
+
 	for pieceIndex := startPiece; pieceIndex < endPiece; pieceIndex++ {
 		if piece, ok := h.reusablePieces[pieceIndex]; ok {
 			if len(piece) != sha1.Size {
 				return fmt.Errorf("invalid reused hash for piece %d: got %d bytes, want %d", pieceIndex, len(piece), sha1.Size)
 			}
 			copy(h.pieces[pieceIndex], piece)
-			atomic.AddUint64(completedPieces, 1)
+			localCompleted++
+			if localCompleted >= progressBatchSize {
+				atomic.AddUint64(completedPieces, localCompleted)
+				localCompleted = 0
+			}
 			continue
 		}
 
@@ -313,11 +322,27 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 		}
 
 		if bytesHashed > 0 {
-			atomic.AddInt64(&h.bytesProcessed, bytesHashed)
+			localBytesProcessed += bytesHashed
+			if localBytesProcessed >= 1<<20 { // Flush every 1 MiB
+				atomic.AddInt64(&h.bytesProcessed, localBytesProcessed)
+				localBytesProcessed = 0
+			}
 		}
 
 		h.pieces[pieceIndex] = hasher.Sum(h.pieces[pieceIndex][:0])
-		atomic.AddUint64(completedPieces, 1)
+		localCompleted++
+		if localCompleted >= progressBatchSize {
+			atomic.AddUint64(completedPieces, localCompleted)
+			localCompleted = 0
+		}
+	}
+
+	// Flush remaining batched updates
+	if localCompleted > 0 {
+		atomic.AddUint64(completedPieces, localCompleted)
+	}
+	if localBytesProcessed > 0 {
+		atomic.AddInt64(&h.bytesProcessed, localBytesProcessed)
 	}
 
 	return nil
