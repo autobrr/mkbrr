@@ -383,7 +383,7 @@ func (v *pieceVerifier) verifyPieces(numWorkersOverride int) error {
 	// Ensure arena has enough capacity for the current workload
 	// Resize if needed (create new arena with larger capacity)
 	requiredCapacity := numWorkers * 4
-	if v.bufferArena == nil || cap(v.bufferArena.byteBufs) < requiredCapacity {
+	if v.bufferArena == nil {
 		v.bufferArena = NewBufferArena(requiredCapacity, 0)
 	}
 

@@ -121,7 +121,7 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 	// Ensure arena has enough capacity for the current workload
 	// Resize if needed (create new arena with larger capacity)
 	requiredCapacity := numWorkers * 4
-	if h.bufferArena == nil || cap(h.bufferArena.byteBufs) < requiredCapacity {
+	if h.bufferArena == nil {
 		h.bufferArena = NewBufferArena(requiredCapacity, 0)
 	}
 

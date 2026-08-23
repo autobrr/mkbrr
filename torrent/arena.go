@@ -5,25 +5,42 @@ import (
 	"sync/atomic"
 )
 
+// shardCount is the number of shards for the sharded arena.
+// Using a power of 2 for efficient modulo via bitmask.
+const shardCount = 16
+
 // BufferArena provides a memory arena for reusing buffers across operations.
 // It reduces GC pressure by maintaining a pool of pre-allocated buffers.
+// Uses sharded locking to reduce contention under high concurrency.
 // Based on kylesanderson/go-bencode/pkg/memarena.
 type BufferArena struct {
-	// Byte buffers for string/bytes data
-	byteBufs [][]byte
-	// Generic typed buffers - using interface{} for type erasure
-	bufs     []any
-	mu       sync.Mutex
+	shards    [shardCount]arenaShard
 	allocated int64
 	reused    int64
 }
 
+type arenaShard struct {
+	byteBufs [][]byte
+	bufs     []any
+	mu       sync.Mutex
+}
+
 // NewBufferArena creates a new buffer arena with pre-allocated capacity.
 func NewBufferArena(byteBufCap, bufCap int) *BufferArena {
-	return &BufferArena{
-		byteBufs: make([][]byte, 0, byteBufCap),
-		bufs:     make([]any, 0, bufCap),
+	a := &BufferArena{}
+	perShardByteCap := (byteBufCap + shardCount - 1) / shardCount
+	perShardBufCap := (bufCap + shardCount - 1) / shardCount
+	for i := range a.shards {
+		a.shards[i].byteBufs = make([][]byte, 0, perShardByteCap)
+		a.shards[i].bufs = make([]any, 0, perShardBufCap)
 	}
+	return a
+}
+
+func (a *BufferArena) shard(capacity int) *arenaShard {
+	// Use capacity as a simple hash to distribute across shards
+	// This helps distribute different buffer sizes across shards
+	return &a.shards[capacity&(shardCount-1)]
 }
 
 // GetBytes returns a byte slice with at least the given capacity.
@@ -32,15 +49,16 @@ func (a *BufferArena) GetBytes(capacity int) []byte {
 	if capacity <= 0 {
 		return nil
 	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
+	shard := a.shard(capacity)
+	shard.mu.Lock()
+	defer shard.mu.Unlock()
 	
 	// Try to reuse an existing buffer
-	for i := range a.byteBufs {
-		if cap(a.byteBufs[i]) >= capacity {
-			buf := a.byteBufs[i][:capacity]
+	for i := range shard.byteBufs {
+		if cap(shard.byteBufs[i]) >= capacity {
+			buf := shard.byteBufs[i][:capacity]
 			// Remove from pool
-			a.byteBufs = append(a.byteBufs[:i], a.byteBufs[i+1:]...)
+			shard.byteBufs = append(shard.byteBufs[:i], shard.byteBufs[i+1:]...)
 			atomic.AddInt64(&a.reused, 1)
 			return buf
 		}
@@ -56,9 +74,10 @@ func (a *BufferArena) PutBytes(buf []byte) {
 	if buf == nil {
 		return
 	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.byteBufs = append(a.byteBufs, buf[:0])
+	shard := a.shard(cap(buf))
+	shard.mu.Lock()
+	defer shard.mu.Unlock()
+	shard.byteBufs = append(shard.byteBufs, buf[:0])
 }
 
 // GetSlice returns a typed slice with at least the given capacity and length 0.
@@ -72,14 +91,15 @@ func GetSlice[T any](a *BufferArena, capacity int) []T {
 	if capacity < 0 {
 		return nil
 	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
+	shard := a.shard(capacity)
+	shard.mu.Lock()
+	defer shard.mu.Unlock()
 	
 	// Try to find a compatible buffer in the pool
-	for i := range a.bufs {
-		if s, ok := a.bufs[i].([]T); ok && cap(s) >= capacity {
+	for i := range shard.bufs {
+		if s, ok := shard.bufs[i].([]T); ok && cap(s) >= capacity {
 			result := s[:0] // len=0, cap=cap(s) >= capacity
-			a.bufs = append(a.bufs[:i], a.bufs[i+1:]...)
+			shard.bufs = append(shard.bufs[:i], shard.bufs[i+1:]...)
 			atomic.AddInt64(&a.reused, 1)
 			return result
 		}
@@ -94,9 +114,10 @@ func PutSlice[T any](a *BufferArena, s []T) {
 	if s == nil {
 		return
 	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.bufs = append(a.bufs, s[:0])
+	shard := a.shard(cap(s))
+	shard.mu.Lock()
+	defer shard.mu.Unlock()
+	shard.bufs = append(shard.bufs, s[:0])
 	atomic.AddInt64(&a.reused, 1)
 }
 
