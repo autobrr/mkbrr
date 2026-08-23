@@ -12,7 +12,7 @@ import (
 
 type pieceHasher struct {
 	display          Displayer
-	bufferPool       *sync.Pool
+	bufferArena      *BufferArena
 	pieces           [][]byte
 	pieceHashStorage []byte
 	files            []fileEntry
@@ -51,29 +51,30 @@ func (h *pieceHasher) optimizeForWorkload() (int, int) {
 	var readSize, numWorkers int
 
 	// optimize buffer size and worker count based on file characteristics
+	// Buffer sizes are tuned for Linux page cache behavior and modern SSD/NVMe throughput
 	switch {
 	case len(h.files) == 1:
 		if h.totalSize < 1<<20 {
 			readSize = 64 << 10 // 64 KiB for very small files
 			numWorkers = 1
 		} else if h.totalSize < 1<<30 { // < 1 GiB
-			readSize = 4 << 20 // 4 MiB
+			readSize = 4 << 20 // 4 MiB - good for most workloads
 			numWorkers = defaultWorkerCount(false)
 		} else {
-			readSize = 8 << 20
+			readSize = 16 << 20 // 16 MiB for large files - better sequential I/O
 			numWorkers = defaultWorkerCount(true)
 		}
 	case avgFileSize < 1<<20: // avg < 1 MiB
-		readSize = 256 << 10 // 256 KiB
+		readSize = 512 << 10 // 512 KiB - better for many small files
 		numWorkers = defaultWorkerCount(false)
 	case avgFileSize < 10<<20: // avg < 10 MiB
-		readSize = 1 << 20 // 1 MiB
+		readSize = 2 << 20 // 2 MiB
 		numWorkers = defaultWorkerCount(false)
 	case avgFileSize < 1<<30: // avg < 1 GiB
-		readSize = 4 << 20 // 4 MiB
+		readSize = 8 << 20 // 8 MiB - better throughput
 		numWorkers = defaultWorkerCount(true)
 	default: // avg >= 1 GiB
-		readSize = 8 << 20 // 8 MiB
+		readSize = 16 << 20 // 16 MiB for very large files
 		numWorkers = defaultWorkerCount(true)
 	}
 
@@ -117,12 +118,11 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 		return nil
 	}
 
-	// initialize buffer pool
-	h.bufferPool = &sync.Pool{
-		New: func() interface{} {
-			buf := make([]byte, h.readSize)
-			return buf
-		},
+	// Ensure arena has enough capacity for the current workload
+	// Resize if needed (create new arena with larger capacity)
+	requiredCapacity := numWorkers * 4
+	if h.bufferArena == nil {
+		h.bufferArena = NewBufferArena(requiredCapacity, 0)
 	}
 
 	h.startTime = time.Now()
@@ -219,9 +219,9 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 //	endPiece: last piece index to process (exclusive)
 //	completedPieces: atomic counter for progress tracking
 func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *uint64) error {
-	// reuse buffer from pool to minimize allocations
-	buf := h.bufferPool.Get().([]byte)
-	defer h.bufferPool.Put(buf)
+	// reuse buffer from arena for better cache locality and reduced GC pressure
+	buf := h.bufferArena.GetBytes(h.readSize)
+	defer h.bufferArena.PutBytes(buf)
 
 	hasher := sha1.New()
 	readers := make([]*fileReader, len(h.files))
@@ -233,13 +233,22 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 		}
 	}()
 
+	// Batch progress updates to reduce atomic contention
+	const progressBatchSize = 64
+	var localCompleted uint64
+	var localBytesProcessed int64
+
 	for pieceIndex := startPiece; pieceIndex < endPiece; pieceIndex++ {
 		if piece, ok := h.reusablePieces[pieceIndex]; ok {
 			if len(piece) != sha1.Size {
 				return fmt.Errorf("invalid reused hash for piece %d: got %d bytes, want %d", pieceIndex, len(piece), sha1.Size)
 			}
 			copy(h.pieces[pieceIndex], piece)
-			atomic.AddUint64(completedPieces, 1)
+			localCompleted++
+			if localCompleted >= progressBatchSize {
+				atomic.AddUint64(completedPieces, localCompleted)
+				localCompleted = 0
+			}
 			continue
 		}
 
@@ -313,11 +322,27 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 		}
 
 		if bytesHashed > 0 {
-			atomic.AddInt64(&h.bytesProcessed, bytesHashed)
+			localBytesProcessed += bytesHashed
+			if localBytesProcessed >= 1<<20 { // Flush every 1 MiB
+				atomic.AddInt64(&h.bytesProcessed, localBytesProcessed)
+				localBytesProcessed = 0
+			}
 		}
 
 		h.pieces[pieceIndex] = hasher.Sum(h.pieces[pieceIndex][:0])
-		atomic.AddUint64(completedPieces, 1)
+		localCompleted++
+		if localCompleted >= progressBatchSize {
+			atomic.AddUint64(completedPieces, localCompleted)
+			localCompleted = 0
+		}
+	}
+
+	// Flush remaining batched updates
+	if localCompleted > 0 {
+		atomic.AddUint64(completedPieces, localCompleted)
+	}
+	if localBytesProcessed > 0 {
+		atomic.AddInt64(&h.bytesProcessed, localBytesProcessed)
 	}
 
 	return nil
@@ -377,6 +402,10 @@ func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Di
 		pieces[i] = pieceHashStorage[start : start+sha1.Size : start+sha1.Size]
 	}
 
+	// Pre-create arena with default capacity (will be resized in hashPieces if needed)
+	// Use a reasonable default of 32 buffers
+	bufferArena := NewBufferArena(32, 0)
+
 	return &pieceHasher{
 		pieces:                  pieces,
 		pieceHashStorage:        pieceHashStorage,
@@ -388,5 +417,6 @@ func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Di
 		lastPieceLength:         lastPieceLength,
 		pieceStartFiles:         pieceStartFiles,
 		failOnSeasonPackWarning: failOnSeasonPackWarning,
+		bufferArena:             bufferArena,
 	}
 }

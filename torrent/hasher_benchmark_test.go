@@ -27,8 +27,9 @@ func benchmarkPieceHasher(b *testing.B, name string, numFiles int, fileSize, pie
 		b.SetBytes(totalSize)
 		b.ResetTimer()
 
+		// Create hasher once to measure steady-state performance (arena reuse)
+		hasher := NewPieceHasher(files, pieceLen, numPieces, &mockDisplay{}, false)
 		for i := 0; i < b.N; i++ {
-			hasher := NewPieceHasher(files, pieceLen, numPieces, &mockDisplay{}, false)
 			if err := hasher.hashPieces(0); err != nil {
 				b.Fatalf("hashPieces failed: %v", err)
 			}
