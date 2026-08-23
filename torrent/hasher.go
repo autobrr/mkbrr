@@ -25,7 +25,7 @@ type pieceHasher struct {
 	reusablePieces   map[int][]byte
 
 	startTime               time.Time
-	bytesProcessed          int64
+	bytesProcessed          atomic.Int64
 	failOnSeasonPackWarning bool
 }
 
@@ -71,8 +71,9 @@ func (h *pieceHasher) optimizeForWorkload() (int, int) {
 		numWorkers = defaultWorkerCount(true)
 	}
 
-	// reads never exceed pieceLen, so a larger buffer is wasted memory per worker
-	readSize = min(readSize, int(h.pieceLen))
+	// reads never exceed pieceLen, so a larger buffer is wasted memory per worker;
+	// compare in int64: int(pieceLen) wraps on 32-bit for huge piece lengths
+	readSize = int(min(int64(readSize), h.pieceLen))
 
 	// ensure we don't create more workers than pieces to process
 	if numWorkers > h.numPieces {
@@ -123,7 +124,7 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 	}
 
 	h.startTime = time.Now()
-	h.bytesProcessed = 0
+	h.bytesProcessed.Store(0)
 
 	h.display.ShowFiles(h.files, numWorkers)
 
@@ -173,7 +174,7 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 				return
 			case <-ticker.C:
 				completed := atomic.LoadUint64(&completedPieces)
-				bytesProcessed := atomic.LoadInt64(&h.bytesProcessed)
+				bytesProcessed := h.bytesProcessed.Load()
 				elapsed := time.Since(h.startTime).Seconds()
 
 				var hashrate float64
@@ -312,7 +313,7 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 		}
 
 		if bytesHashed > 0 {
-			atomic.AddInt64(&h.bytesProcessed, bytesHashed)
+			h.bytesProcessed.Add(bytesHashed)
 		}
 
 		h.pieces[pieceIndex] = hasher.Sum(h.pieces[pieceIndex][:0])
