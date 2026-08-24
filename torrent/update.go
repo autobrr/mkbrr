@@ -51,9 +51,11 @@ type pieceReuse struct {
 	renames      map[string]string
 	matchedFiles []int
 	reused       int
+	allowNoReuse bool
 }
 
 // UpdateTorrent structurally synchronizes an existing v1 torrent with content on disk.
+// Its default sibling output never replaces an existing filesystem entry.
 // Same-path, same-length files and explicit renames are assumed to be byte-identical;
 // callers must perform a full recreate when file bytes may change without changing size.
 func UpdateTorrent(opts UpdateOptions) (*UpdateResult, error) {
@@ -131,6 +133,7 @@ func UpdateTorrent(opts UpdateOptions) (*UpdateResult, error) {
 	if err != nil {
 		return nil, err
 	}
+	reuse.allowNoReuse = opts.Force
 
 	generated, err := createTorrent(CreateOptions{
 		Path:             opts.ContentPath,
@@ -159,6 +162,10 @@ func UpdateTorrent(opts UpdateOptions) (*UpdateResult, error) {
 	if err := preserveMappedFileInfoKeys(oldInfoMap, newInfoMap, reuse.matchedFiles); err != nil {
 		return nil, err
 	}
+	_, newHasLength := newInfoMap["length"]
+	if !hasLength || !newHasLength || len(reuse.matchedFiles) != 1 || reuse.matchedFiles[0] < 0 {
+		delete(oldInfoMap, "md5sum")
+	}
 
 	delete(oldInfoMap, "files")
 	delete(oldInfoMap, "length")
@@ -182,10 +189,6 @@ func UpdateTorrent(opts UpdateOptions) (*UpdateResult, error) {
 		return nil, fmt.Errorf("decode updated torrent info: %w", err)
 	}
 	totalPieces := len(updatedInfo.Pieces) / 20
-	oldTotalPieces := len(oldInfo.Pieces) / 20
-	if max(oldTotalPieces, totalPieces) > 1 && reuse.reused == 0 && !opts.Force {
-		return nil, fmt.Errorf("refusing update with 0 reusable pieces (existing torrent: %d, updated torrent: %d); verify the content path or use --force", oldTotalPieces, totalPieces)
-	}
 
 	currentWriteOutputPath, err := updateOutputWritePath(outputPath)
 	if err != nil {
@@ -194,7 +197,11 @@ func UpdateTorrent(opts UpdateOptions) (*UpdateResult, error) {
 	if currentWriteOutputPath != writeOutputPath {
 		return nil, fmt.Errorf("output parent changed during update")
 	}
-	if err := writeTorrentAtomically(rootMap, writeOutputPath); err != nil {
+	torrentInfo, err := os.Stat(opts.TorrentPath)
+	if err != nil {
+		return nil, fmt.Errorf("stat input torrent: %w", err)
+	}
+	if err := writeTorrentAtomically(rootMap, writeOutputPath, torrentInfo.Mode().Perm(), !defaultOutput); err != nil {
 		return nil, err
 	}
 
@@ -253,10 +260,15 @@ func validateUpdateOutputPath(torrentPath, contentPath, outputPath string, inPla
 		if err != nil {
 			return fmt.Errorf("resolve torrent path: %w", err)
 		}
-		torrentInfo, torrentErr := os.Lstat(torrentPath)
-		outputInfo, outputErr := os.Lstat(outputPath)
-		sameExistingEntry := torrentErr == nil && outputErr == nil && os.SameFile(torrentInfo, outputInfo)
-		if outputWritePath == torrentWritePath || sameExistingEntry {
+		torrentInfo, err := os.Stat(torrentPath)
+		if err != nil {
+			return fmt.Errorf("stat torrent path: %w", err)
+		}
+		sameExistingFile, err := updateSameExistingFile(torrentInfo, outputPath)
+		if err != nil {
+			return fmt.Errorf("compare output and torrent paths: %w", err)
+		}
+		if updatePathsEqual(outputWritePath, torrentWritePath) || sameExistingFile {
 			return fmt.Errorf("output path refers to the input torrent; use in-place update instead")
 		}
 	}
@@ -265,15 +277,25 @@ func validateUpdateOutputPath(torrentPath, contentPath, outputPath string, inPla
 	if err != nil {
 		return nil
 	}
+	contentEntryPath, err := updateOutputWritePath(contentPath)
+	if err != nil {
+		return fmt.Errorf("resolve content entry: %w", err)
+	}
+	sameExistingFile, err := updateSameExistingFile(contentInfo, outputPath)
+	if err != nil {
+		return fmt.Errorf("compare output and content paths: %w", err)
+	}
+	if updatePathsEqual(outputWritePath, contentEntryPath) || sameExistingFile {
+		if contentInfo.IsDir() {
+			return fmt.Errorf("output path must not replace the content directory")
+		}
+		return fmt.Errorf("output path must not replace the content file")
+	}
 	contentResolved, err := resolvedUpdatePath(contentPath)
 	if err != nil {
 		return fmt.Errorf("resolve content path: %w", err)
 	}
 	if !contentInfo.IsDir() {
-		outputInfo, outputErr := os.Lstat(outputPath)
-		if outputWritePath == contentResolved || outputErr == nil && os.SameFile(contentInfo, outputInfo) {
-			return fmt.Errorf("output path must not replace the content file")
-		}
 		return nil
 	}
 
@@ -288,6 +310,30 @@ func validateUpdateOutputPath(torrentPath, contentPath, outputPath string, inPla
 		return fmt.Errorf("output path must not be inside the content directory")
 	}
 	return nil
+}
+
+func updatePathsEqual(left, right string) bool {
+	relative, err := filepath.Rel(left, right)
+	return err == nil && relative == "."
+}
+
+// updateSameExistingFile compares an existing non-symlink candidate without following an output symlink.
+func updateSameExistingFile(info os.FileInfo, candidatePath string) (bool, error) {
+	entryInfo, err := os.Lstat(candidatePath)
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if entryInfo.Mode()&os.ModeSymlink != 0 {
+		return false, nil
+	}
+	candidateInfo, err := os.Stat(candidatePath)
+	if err != nil {
+		return false, err
+	}
+	return os.SameFile(info, candidateInfo), nil
 }
 
 func updatePathInsideDirectory(directoryPath, candidatePath string, directoryInfo os.FileInfo) (bool, error) {
@@ -526,6 +572,10 @@ func (r *pieceReuse) findReusablePieces(files []fileEntry, baseDir string, input
 	}
 
 	r.reused = len(reusable)
+	oldTotalPieces := len(r.oldPieces) / 20
+	if max(oldTotalPieces, totalPieces) > 1 && r.reused == 0 && !r.allowNoReuse {
+		return nil, fmt.Errorf("refusing update with 0 reusable pieces (existing torrent: %d, updated torrent: %d); verify the content path or use --force", oldTotalPieces, totalPieces)
+	}
 	return reusable, nil
 }
 
@@ -727,8 +777,8 @@ func normalizeTorrentPath(filePath string) string {
 	return cleaned
 }
 
-// writeTorrentAtomically writes a raw root dictionary through a same-directory temporary file.
-func writeTorrentAtomically(rootMap map[string]bencode.Bytes, outputPath string) error {
+// writeTorrentAtomically writes through a same-directory temporary file and applies the requested replacement policy.
+func writeTorrentAtomically(rootMap map[string]bencode.Bytes, outputPath string, fallbackMode os.FileMode, replace bool) error {
 	dir := filepath.Dir(outputPath)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("create output directory: %w", err)
@@ -743,8 +793,8 @@ func writeTorrentAtomically(rootMap map[string]bencode.Bytes, outputPath string)
 		_ = os.Remove(tempPath)
 	}()
 
-	mode := os.FileMode(0o644)
-	if existing, statErr := os.Stat(outputPath); statErr == nil {
+	mode := fallbackMode
+	if existing, statErr := os.Lstat(outputPath); statErr == nil && existing.Mode().IsRegular() {
 		mode = existing.Mode().Perm()
 	}
 	if err := tempFile.Chmod(mode); err != nil {
@@ -758,8 +808,11 @@ func writeTorrentAtomically(rootMap map[string]bencode.Bytes, outputPath string)
 	if err := tempFile.Close(); err != nil {
 		return fmt.Errorf("close updated torrent: %w", err)
 	}
-	if err := os.Rename(tempPath, outputPath); err != nil {
-		return fmt.Errorf("replace torrent %q: %w", outputPath, err)
+	if err := publishTorrentFile(tempPath, outputPath, replace); err != nil {
+		if replace {
+			return fmt.Errorf("replace torrent %q: %w", outputPath, err)
+		}
+		return fmt.Errorf("create torrent %q: %w", outputPath, err)
 	}
 	return nil
 }
