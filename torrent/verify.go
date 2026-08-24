@@ -577,7 +577,7 @@ func (v *pieceVerifier) verifyPieceRange(startPiece, endPiece int, completedPiec
 					v.mutex.Unlock()
 					goto nextPiece // Use goto to ensure completedPieces is incremented
 				}
-				reader = &fileReader{file: f, position: -1, length: file.length}
+				reader = &fileReader{file: f, position: -1}
 				readers[fIdx] = reader
 			}
 

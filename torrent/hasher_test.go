@@ -9,10 +9,12 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strconv"
 	"sync"
 	"testing"
 
 	"github.com/autobrr/mkbrr/internal/trackers"
+	"github.com/stretchr/testify/assert"
 )
 
 // mockDisplay implements Displayer interface for testing
@@ -489,11 +491,23 @@ func TestPieceHasher_OptimizeForWorkload_RespectsPlatformWorkerCap(t *testing.T)
 	numPieces := int((offset + (1 << 20) - 1) / (1 << 20))
 	hasher := NewPieceHasher(files, 1<<20, numPieces, &mockDisplay{}, false)
 
-	_, workers := hasher.optimizeForWorkload()
+	readSize, workers := hasher.optimizeForWorkload()
 	maxWorkers := autoWorkerCount(cpuCount, true, runtime.GOOS)
 	if workers > maxWorkers {
 		t.Fatalf("expected workers <= platform cap (%d), got %d", maxWorkers, workers)
 	}
+	assert.LessOrEqual(t, int64(readSize), hasher.pieceLen)
+}
+
+func TestPieceHasher_OptimizeForWorkload_LargePieceLengthOn32Bit(t *testing.T) {
+	if strconv.IntSize != 32 {
+		t.Skip("requires a 32-bit build")
+	}
+
+	hasher := NewPieceHasher([]fileEntry{{length: 1 << 30}}, 1<<32, 1, &mockDisplay{}, false)
+
+	readSize, _ := hasher.optimizeForWorkload()
+	assert.Equal(t, 8<<20, readSize)
 }
 
 func TestPieceHasher_CorruptedData(t *testing.T) {
