@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026, s0up4200 <s0up4200@pm.me> and the mkbrr contributors.
+ * SPDX-License-Identifier: GPL-2.0-or-later
+ */
+
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';

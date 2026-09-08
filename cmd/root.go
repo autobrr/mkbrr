@@ -1,14 +1,17 @@
+// Copyright (c) 2025-2026, s0up4200 <s0up4200@pm.me> and the mkbrr contributors.
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 package cmd
 
 import (
 	"github.com/spf13/cobra"
 )
 
-const banner = `         __   ___.                 
-  _____ |  | _\_ |________________ 
+const banner = `         __   ___.
+  _____ |  | _\_ |________________
  /     \|  |/ /| __ \_  __ \_  __ \
 |  Y Y  \    < | \_\ \  | \/|  | \/
-|__|_|  /__|_ \|___  /__|   |__|   
+|__|_|  /__|_ \|___  /__|   |__|
       \/     \/    \/              `
 
 var rootCmd = &cobra.Command{
