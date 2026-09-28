@@ -86,10 +86,10 @@ func Test_GetTrackerPieceSizeExp(t *testing.T) {
 			wantFound:   true,
 		},
 		{
-			name:        "portugas small content should use 32 KiB pieces",
+			name:        "portugas <=40MiB should recommend 16 KiB pieces",
 			trackerURL:  "https://portugas.org/announce/passkey",
-			contentSize: 32 << 20,
-			wantExp:     15,
+			contentSize: 40 << 20,
+			wantExp:     14,
 			wantFound:   true,
 		},
 		{
