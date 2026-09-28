@@ -61,9 +61,10 @@ func formatPieceSize(exp uint) string {
 }
 
 // trackerPieceLengthBounds returns the automatic bounds for a tracker recommendation.
-// Trackers with an explicit PieceSizeRanges table may use mkbrr's full supported
-// automatic range (16 KiB-128 MiB). Trackers that only reuse default ranges keep
-// the historical 64 KiB-16 MiB tracker-specific bounds.
+// A tracker with its own PieceSizeRanges table may use 16 KiB-128 MiB. A tracker
+// that uses only the default ranges uses 64 KiB-16 MiB. The tracker MaxPieceLength
+// and the user max piece length can lower the upper bound. The upper bound is
+// never below the lower bound.
 func trackerPieceLengthBounds(trackerURL string, maxPieceLength *uint) (uint, uint) {
 	minExp := uint(16)
 	maxExp := uint(24)
@@ -78,14 +79,30 @@ func trackerPieceLengthBounds(trackerURL string, maxPieceLength *uint) (uint, ui
 	}
 
 	if maxPieceLength != nil {
-		maxExp = min(maxExp, min(*maxPieceLength, uint(27)))
+		maxExp = min(maxExp, *maxPieceLength, 27)
 	}
 
-	if maxExp < minExp {
-		maxExp = minExp
-	}
+	return minExp, max(maxExp, minExp)
+}
 
-	return minExp, maxExp
+// retryPieceLengthCeiling returns the largest piece length exponent that the
+// torrent size retry can use.
+func retryPieceLengthCeiling(trackerURL string, maxPieceLength *uint) uint {
+	// a tracker cap is a hard ceiling; the user max can only lower it
+	if capExp, ok := trackers.GetTrackerMaxPieceLength(trackerURL); ok {
+		if maxPieceLength != nil {
+			return min(*maxPieceLength, capExp)
+		}
+		return capExp
+	}
+	if maxPieceLength != nil {
+		return min(*maxPieceLength, 27)
+	}
+	if trackers.HasCustomPieceSizeRanges(trackerURL) {
+		_, ceiling := trackerPieceLengthBounds(trackerURL, nil)
+		return ceiling
+	}
+	return 24
 }
 
 // calculatePieceLengthFromTarget derives a piece length exponent from a target piece count.
@@ -146,8 +163,8 @@ func calculatePieceLengthFromTarget(totalSize int64, targetCount uint, maxPieceL
 }
 
 // calculatePieceLength calculates the optimal piece length based on total size.
-// Generic automatic calculation keeps its existing limits. Explicit tracker range
-// tables may recommend values across mkbrr's supported automatic range.
+// A tracker recommendation is clamped to trackerPieceLengthBounds. Otherwise the
+// result is 64 KiB-16 MiB, and a tracker or user max can change the upper bound.
 func calculatePieceLength(totalSize int64, maxPieceLength *uint, trackerURLs []string, verbose bool) uint {
 	minExp := uint(16)
 	maxExp := uint(24) // default max 16 MiB for automatic calculation, can be overridden up to 2^27
@@ -617,15 +634,10 @@ func createTorrent(opts CreateOptions, internalOpts createTorrentOptions) (*Torr
 				maxExp, 1<<(maxExp-20), pieceLength)
 		}
 
-		// If we have a tracker with specific ranges, show that we're using them and check if piece length matches.
-		// A custom tracker table may legitimately recommend below the explicit CLI minimum.
+		// If the tracker has a recommendation, show it. It is only a recommendation:
+		// it never rejects an explicit piece length.
 		if len(opts.TrackerURLs) > 0 && opts.TrackerURLs[0] != "" {
 			if exp, ok := trackers.GetTrackerPieceSizeExp(opts.TrackerURLs[0], uint64(totalSize)); ok {
-				minRecommendedExp, maxRecommendedExp := trackerPieceLengthBounds(opts.TrackerURLs[0], nil)
-				if exp < minRecommendedExp || exp > maxRecommendedExp {
-					return nil, fmt.Errorf("piece length exponent %d for %s is outside allowed tracker range %d-%d",
-						exp, opts.TrackerURLs[0], minRecommendedExp, maxRecommendedExp)
-				}
 				if opts.Verbose || opts.InfoOnly {
 					display := NewDisplay(NewFormatter(opts.Verbose || opts.InfoOnly))
 					display.SetQuiet(opts.Quiet || opts.InfoOnly)
@@ -656,29 +668,7 @@ func createTorrent(opts CreateOptions, internalOpts createTorrentOptions) (*Torr
 				return nil, fmt.Errorf("error marshaling torrent data: %w", err)
 			}
 
-			// Determine the effective max piece length ceiling
-			maxPieceLengthCeiling := uint(24) // default ceiling
-			hasTrackerCap := false
-			if len(opts.TrackerURLs) > 0 && opts.TrackerURLs[0] != "" {
-				trackerURL := opts.TrackerURLs[0]
-				if trackerMaxExp, ok := trackers.GetTrackerMaxPieceLength(trackerURL); ok {
-					maxPieceLengthCeiling = trackerMaxExp
-					hasTrackerCap = true
-				} else if trackers.HasCustomPieceSizeRanges(trackerURL) {
-					if recommendedExp, ok := trackers.GetTrackerPieceSizeExp(trackerURL, uint64(totalSize)); ok && recommendedExp > 24 {
-						maxPieceLengthCeiling = 27
-					}
-				}
-			}
-			if opts.MaxPieceLength != nil {
-				if hasTrackerCap {
-					// tracker cap is a hard ceiling; user can lower but not exceed it
-					maxPieceLengthCeiling = min(*opts.MaxPieceLength, maxPieceLengthCeiling)
-				} else {
-					// no tracker cap; user can raise above default 24
-					maxPieceLengthCeiling = min(*opts.MaxPieceLength, 27)
-				}
-			}
+			maxPieceLengthCeiling := retryPieceLengthCeiling(opts.TrackerURLs[0], opts.MaxPieceLength)
 
 			// If it exceeds limit, try increasing piece length until it fits or we hit max
 			for uint64(len(torrentData)) > maxSize && pieceLength < maxPieceLengthCeiling {

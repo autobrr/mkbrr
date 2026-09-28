@@ -209,7 +209,7 @@ func Test_trackerPieceLengthBounds(t *testing.T) {
 	}{
 		{
 			name:       "custom table without hard cap uses full automatic bounds",
-			trackerURL: "https://ulo.torrent-syndikat.org/ts_ann.php?passkey=123",
+			trackerURL: "https://portugas.org/announce/passkey",
 			wantMin:    14,
 			wantMax:    27,
 		},
@@ -402,33 +402,94 @@ func TestGetRecommendedPieceLengthExpUnknownTracker(t *testing.T) {
 	}
 }
 
-func TestCreateTorrent_CustomRangeBelowExplicitMinimumIsRecommendationOnly(t *testing.T) {
+func TestCreateTorrent_RecommendationBelowExplicitMinimumIsNotAnError(t *testing.T) {
 	dir := t.TempDir()
 	filePath := filepath.Join(dir, "small.bin")
 	if err := os.WriteFile(filePath, make([]byte, 1<<20), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	pieceLength := uint(16)
-	tor, err := CreateTorrent(CreateOptions{
-		Path:           filePath,
-		TrackerURLs:    []string{"https://gazellegames.net/announce?passkey=123"},
-		PieceLengthExp: &pieceLength,
-		IsPrivate:      true,
-		NoDate:         true,
-		NoCreator:      true,
-		Version:        "test",
-	})
-	if err != nil {
-		t.Fatalf("CreateTorrent() rejected a valid explicit piece length: %v", err)
+	// each tracker recommends less than 64 KiB for 1 MiB of content
+	for _, trackerURL := range []string{
+		"https://gazellegames.net/announce?passkey=123", // custom table, 32 KiB
+		"https://portugas.org/announce/passkey",         // custom table, 16 KiB
+		"https://beyond-hd.me/announce?passkey=123",     // default ranges, 32 KiB
+	} {
+		t.Run(trackerURL, func(t *testing.T) {
+			tor, err := CreateTorrent(CreateOptions{
+				Path:           filePath,
+				TrackerURLs:    []string{trackerURL},
+				PieceLengthExp: new(uint(16)),
+				IsPrivate:      true,
+				NoDate:         true,
+				NoCreator:      true,
+				Version:        "test",
+			})
+			if err != nil {
+				t.Fatalf("CreateTorrent() rejected a valid explicit piece length: %v", err)
+			}
+
+			info, err := tor.UnmarshalInfo()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if info.PieceLength != 1<<16 {
+				t.Fatalf("piece length = %d, want %d", info.PieceLength, 1<<16)
+			}
+		})
+	}
+}
+
+func Test_retryPieceLengthCeiling(t *testing.T) {
+	tests := []struct {
+		name           string
+		trackerURL     string
+		maxPieceLength *uint
+		want           uint
+	}{
+		{
+			// before, the ceiling was 24 unless the recommendation was above 24,
+			// so 16-35 GiB of content could not grow past 16 MiB pieces
+			name:       "custom table without hard cap can grow to 128 MiB",
+			trackerURL: "https://portugas.org/announce/passkey",
+			want:       27,
+		},
+		{
+			name:           "user max lowers custom table ceiling",
+			trackerURL:     "https://portugas.org/announce/passkey",
+			maxPieceLength: new(uint(24)),
+			want:           24,
+		},
+		{
+			name:       "tracker hard cap is the ceiling",
+			trackerURL: "https://gazellegames.net/announce?passkey=123",
+			want:       26,
+		},
+		{
+			name:           "user max cannot exceed tracker hard cap",
+			trackerURL:     "https://gazellegames.net/announce?passkey=123",
+			maxPieceLength: new(uint(27)),
+			want:           26,
+		},
+		{
+			name:       "no tracker rules keeps default ceiling",
+			trackerURL: "https://example.invalid/announce",
+			want:       24,
+		},
+		{
+			name:           "no tracker cap lets user max raise the ceiling",
+			trackerURL:     "https://example.invalid/announce",
+			maxPieceLength: new(uint(26)),
+			want:           26,
+		},
 	}
 
-	info, err := tor.UnmarshalInfo()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if info.PieceLength != 1<<16 {
-		t.Fatalf("piece length = %d, want %d", info.PieceLength, 1<<16)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := retryPieceLengthCeiling(tt.trackerURL, tt.maxPieceLength); got != tt.want {
+				t.Fatalf("retryPieceLengthCeiling() = %d, want %d", got, tt.want)
+			}
+		})
 	}
 }
 
