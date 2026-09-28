@@ -341,7 +341,10 @@ func TestGetAutomaticPieceLengthExp(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := GetAutomaticPieceLengthExp(tt.trackerURL, tt.size)
+			got, err := GetAutomaticPieceLengthExp(AutomaticPieceLengthOptions{
+				TrackerURL:  tt.trackerURL,
+				ContentSize: tt.size,
+			})
 			if err != nil {
 				t.Fatalf("GetAutomaticPieceLengthExp() error = %v", err)
 			}
@@ -353,7 +356,7 @@ func TestGetAutomaticPieceLengthExp(t *testing.T) {
 }
 
 func TestGetAutomaticPieceLengthExpRejectsOverflow(t *testing.T) {
-	if _, err := GetAutomaticPieceLengthExp("", uint64(1)<<63); err == nil {
+	if _, err := GetAutomaticPieceLengthExp(AutomaticPieceLengthOptions{ContentSize: uint64(1) << 63}); err == nil {
 		t.Fatal("expected overflow error")
 	}
 }
