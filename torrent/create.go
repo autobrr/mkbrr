@@ -167,21 +167,27 @@ func calculatePieceLength(totalSize int64, maxPieceLength *uint, trackerURLs []s
 	return exp
 }
 
+// AutomaticPieceLengthOptions configures a fast automatic piece-length query.
+type AutomaticPieceLengthOptions struct {
+	TrackerURL  string
+	ContentSize uint64
+}
+
 // GetAutomaticPieceLengthExp returns the piece length exponent that automatic
-// torrent creation would select for the given content size and optional tracker.
-// It performs no hashing and does not inspect the filesystem.
-func GetAutomaticPieceLengthExp(trackerURL string, contentSize uint64) (uint, error) {
+// torrent creation would select. It performs no hashing and does not inspect
+// the filesystem.
+func GetAutomaticPieceLengthExp(opts AutomaticPieceLengthOptions) (uint, error) {
 	const maxInt64 = uint64(1<<63 - 1)
-	if contentSize > maxInt64 {
-		return 0, fmt.Errorf("content size %d exceeds supported maximum %d", contentSize, maxInt64)
+	if opts.ContentSize > maxInt64 {
+		return 0, fmt.Errorf("content size %d exceeds supported maximum %d", opts.ContentSize, maxInt64)
 	}
 
 	var trackerURLs []string
-	if trackerURL != "" {
-		trackerURLs = []string{trackerURL}
+	if opts.TrackerURL != "" {
+		trackerURLs = []string{opts.TrackerURL}
 	}
 
-	return calculatePieceLength(int64(contentSize), nil, trackerURLs, false), nil
+	return calculatePieceLength(int64(opts.ContentSize), nil, trackerURLs, false), nil
 }
 
 // GetRecommendedPieceLengthExp returns the effective tracker-specific piece
