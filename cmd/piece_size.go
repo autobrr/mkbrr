@@ -23,11 +23,12 @@ type pieceSizeOptions struct {
 }
 
 type pieceSizeResult struct {
-	ContentBytes uint64 `json:"content_bytes"`
-	Exponent     uint   `json:"exponent"`
-	Bytes        uint64 `json:"bytes"`
-	Human        string `json:"human"`
-	Source       string `json:"source"`
+	ContentBytes    uint64 `json:"content_bytes"`
+	Exponent        uint   `json:"exponent"`
+	Bytes           uint64 `json:"bytes"`
+	Human           string `json:"human"`
+	Source          string `json:"source"`
+	MaxTorrentBytes uint64 `json:"max_torrent_bytes"`
 }
 
 var pieceSizeOpts = pieceSizeOptions{}
@@ -133,20 +134,26 @@ func calculatePieceSizeResult(size uint64, trackerURL string) (pieceSizeResult, 
 	}
 
 	source := "default"
+	maxTorrentBytes := uint64(0)
 	if trackerURL != "" {
 		if _, ok := trackers.GetTrackerPieceSizeExp(trackerURL, size); ok {
 			source = "tracker"
 		} else if _, ok := trackers.GetTrackerMaxPieceLength(trackerURL); ok {
 			source = "tracker"
 		}
+		if limit, ok := trackers.GetTrackerMaxTorrentSize(trackerURL); ok {
+			maxTorrentBytes = limit
+			source = "tracker"
+		}
 	}
 
 	return pieceSizeResult{
-		ContentBytes: size,
-		Exponent:     exp,
-		Bytes:        uint64(1) << exp,
-		Human:        humanPieceSize(exp),
-		Source:       source,
+		ContentBytes:    size,
+		Exponent:        exp,
+		Bytes:           uint64(1) << exp,
+		Human:           humanPieceSize(exp),
+		Source:          source,
+		MaxTorrentBytes: maxTorrentBytes,
 	}, nil
 }
 
@@ -193,5 +200,8 @@ func runPieceSize(cmd *cobra.Command, _ []string) error {
 	fmt.Fprintf(out, "Piece exponent: %d\n", result.Exponent)
 	fmt.Fprintf(out, "Piece size: %s (%d bytes)\n", result.Human, result.Bytes)
 	fmt.Fprintf(out, "Source: %s\n", result.Source)
+	if result.MaxTorrentBytes > 0 {
+		fmt.Fprintf(out, "Max .torrent: %d bytes\n", result.MaxTorrentBytes)
+	}
 	return nil
 }
