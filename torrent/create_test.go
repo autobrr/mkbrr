@@ -313,6 +313,51 @@ func TestCreateTorrent_TargetPieceCount(t *testing.T) {
 	}
 }
 
+func TestGetAutomaticPieceLengthExp(t *testing.T) {
+	tests := []struct {
+		name       string
+		trackerURL string
+		size       uint64
+		want       uint
+	}{
+		{
+			name: "default automatic sizing",
+			size: 63 << 20,
+			want: 15,
+		},
+		{
+			name:       "tracker-specific automatic sizing",
+			trackerURL: "https://gazellegames.net/announce?passkey=123",
+			size:       3 << 30,
+			want:       21,
+		},
+		{
+			name:       "unknown tracker falls back to default automatic sizing",
+			trackerURL: "https://unknown.tracker/announce",
+			size:       63 << 20,
+			want:       15,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := GetAutomaticPieceLengthExp(tt.trackerURL, tt.size)
+			if err != nil {
+				t.Fatalf("GetAutomaticPieceLengthExp() error = %v", err)
+			}
+			if got != tt.want {
+				t.Fatalf("GetAutomaticPieceLengthExp() = %d, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGetAutomaticPieceLengthExpRejectsOverflow(t *testing.T) {
+	if _, err := GetAutomaticPieceLengthExp("", uint64(1)<<63); err == nil {
+		t.Fatal("expected overflow error")
+	}
+}
+
 func TestGetRecommendedPieceLengthExpMatchesCreateMinimum(t *testing.T) {
 	got := GetRecommendedPieceLengthExp("https://beyond-hd.me/announce?passkey=123", 32<<20)
 	if got != 16 {
