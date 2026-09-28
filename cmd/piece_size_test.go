@@ -23,11 +23,12 @@ func TestCalculatePieceSizeResult(t *testing.T) {
 		wantMaxTorrentBytes uint64
 	}{
 		{
-			name:       "known tracker uses tracker policy",
-			size:       3 << 30,
-			trackerURL: "https://gazellegames.net/announce?passkey=123",
-			wantExp:    21,
-			wantSource: "tracker",
+			name:                "known tracker uses tracker policy",
+			size:                3 << 30,
+			trackerURL:          "https://gazellegames.net/announce?passkey=123",
+			wantExp:             21,
+			wantSource:          "tracker",
+			wantMaxTorrentBytes: 1 << 20,
 		},
 		{
 			name:       "unknown tracker uses default policy",
