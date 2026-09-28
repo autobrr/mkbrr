@@ -78,8 +78,13 @@ func contentSizeFromPath(path string) (uint64, error) {
 		return uint64(info.Size()), nil
 	}
 
+	walkPath, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return 0, fmt.Errorf("could not resolve %q: %w", path, err)
+	}
+
 	var total uint64
-	err = filepath.Walk(path, func(currentPath string, walkInfo os.FileInfo, walkErr error) error {
+	err = filepath.Walk(walkPath, func(currentPath string, walkInfo os.FileInfo, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
@@ -119,7 +124,10 @@ func calculatePieceSizeResult(size uint64, trackerURL string) (pieceSizeResult, 
 		return pieceSizeResult{}, fmt.Errorf("content size must be greater than zero")
 	}
 
-	exp, err := torrent.GetAutomaticPieceLengthExp(trackerURL, size)
+	exp, err := torrent.GetAutomaticPieceLengthExp(torrent.AutomaticPieceLengthOptions{
+		TrackerURL:  trackerURL,
+		ContentSize: size,
+	})
 	if err != nil {
 		return pieceSizeResult{}, err
 	}
@@ -142,8 +150,16 @@ func calculatePieceSizeResult(size uint64, trackerURL string) (pieceSizeResult, 
 	}, nil
 }
 
+func pieceSizeFlagProvided(cmd *cobra.Command) bool {
+	if flag := cmd.Flags().Lookup("size"); flag != nil {
+		return flag.Changed
+	}
+	return pieceSizeOpts.size > 0
+}
+
 func runPieceSize(cmd *cobra.Command, _ []string) error {
-	if pieceSizeOpts.size > 0 && pieceSizeOpts.file != "" {
+	sizeProvided := pieceSizeFlagProvided(cmd)
+	if sizeProvided && pieceSizeOpts.file != "" {
 		return fmt.Errorf("--size and --file are mutually exclusive")
 	}
 
@@ -156,8 +172,11 @@ func runPieceSize(cmd *cobra.Command, _ []string) error {
 		size = measured
 	}
 
-	if size == 0 {
+	if !sizeProvided && pieceSizeOpts.file == "" {
 		return fmt.Errorf("provide exactly one of --size <bytes> or --file <path>")
+	}
+	if size == 0 {
+		return fmt.Errorf("content size must be greater than zero")
 	}
 
 	result, err := calculatePieceSizeResult(size, pieceSizeOpts.tracker)
