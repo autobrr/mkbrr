@@ -461,6 +461,86 @@ func TestCreateTorrent_ExplicitPieceLengthBounds(t *testing.T) {
 	}
 }
 
+func TestCreateTorrent_MaxPieceLengthBounds(t *testing.T) {
+	dir := t.TempDir()
+	filePath := filepath.Join(dir, "small.bin")
+	require.NoError(t, os.WriteFile(filePath, make([]byte, 1<<20), 0o644))
+
+	tests := []struct {
+		name        string
+		trackerURL  string
+		maxExp      uint
+		targetCount *uint
+		wantErr     bool
+	}{
+		{
+			name:       "automatic default-range tracker rejects 16 KiB maximum",
+			trackerURL: "https://beyond-hd.me/announce?passkey=123",
+			maxExp:     14,
+			wantErr:    true,
+		},
+		{
+			name:    "automatic without tracker rejects 16 KiB maximum",
+			maxExp:  14,
+			wantErr: true,
+		},
+		{
+			name:       "automatic custom-range tracker accepts 16 KiB maximum",
+			trackerURL: "https://portugas.org/announce/passkey",
+			maxExp:     14,
+		},
+		{
+			name:        "target-piece-count default-range tracker rejects 16 KiB maximum",
+			trackerURL:  "https://beyond-hd.me/announce?passkey=123",
+			maxExp:      14,
+			targetCount: new(uint(2048)),
+			wantErr:     true,
+		},
+		{
+			name:        "target-piece-count custom-range tracker still rejects below historical 64 KiB floor",
+			trackerURL:  "https://portugas.org/announce/passkey",
+			maxExp:      14,
+			targetCount: new(uint(2048)),
+			wantErr:     true,
+		},
+		{
+			name:        "target-piece-count custom-range tracker accepts 64 KiB maximum",
+			trackerURL:  "https://portugas.org/announce/passkey",
+			maxExp:      16,
+			targetCount: new(uint(2048)),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var trackerURLs []string
+			if tt.trackerURL != "" {
+				trackerURLs = []string{tt.trackerURL}
+			}
+
+			tor, err := CreateTorrent(CreateOptions{
+				Path:             filePath,
+				TrackerURLs:      trackerURLs,
+				MaxPieceLength:   new(tt.maxExp),
+				TargetPieceCount: tt.targetCount,
+				IsPrivate:        true,
+				NoDate:           true,
+				NoCreator:        true,
+				Version:          "test",
+			})
+			if tt.wantErr {
+				assert.ErrorContains(t, err, "max piece length exponent must be between")
+				return
+			}
+			require.NoError(t, err)
+
+			info, err := tor.UnmarshalInfo()
+			require.NoError(t, err)
+			assert.LessOrEqual(t, info.PieceLength, int64(1)<<tt.maxExp)
+		})
+	}
+}
+
 func Test_retryPieceLengthCeiling(t *testing.T) {
 	tests := []struct {
 		name           string
