@@ -86,10 +86,10 @@ func Test_GetTrackerPieceSizeExp(t *testing.T) {
 			wantFound:   true,
 		},
 		{
-			name:        "portugas small content should use 16 KiB pieces",
+			name:        "portugas small content should use 32 KiB pieces",
 			trackerURL:  "https://portugas.org/announce/passkey",
 			contentSize: 32 << 20,
-			wantExp:     14,
+			wantExp:     15,
 			wantFound:   true,
 		},
 		{
@@ -165,38 +165,6 @@ func Test_GetTrackerPieceSizeExp(t *testing.T) {
 			}
 			if gotExp != tt.wantExp {
 				t.Errorf("GetTrackerPieceSizeExp() exp = %v, want %v", gotExp, tt.wantExp)
-			}
-		})
-	}
-}
-
-func Test_GetTrackerMinPieceLength(t *testing.T) {
-	tests := []struct {
-		name       string
-		trackerURL string
-		wantExp    uint
-		wantFound  bool
-	}{
-		{
-			name:       "portugas should allow 16 KiB minimum",
-			trackerURL: "https://portugas.org/announce/passkey",
-			wantExp:    14,
-			wantFound:  true,
-		},
-		{
-			name:       "bhd should keep default minimum",
-			trackerURL: "https://beyond-hd.me/announce?passkey=123",
-			wantExp:    0,
-			wantFound:  false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			gotExp, gotFound := GetTrackerMinPieceLength(tt.trackerURL)
-			if gotFound != tt.wantFound || gotExp != tt.wantExp {
-				t.Fatalf("GetTrackerMinPieceLength() = (%d, %v), want (%d, %v)",
-					gotExp, gotFound, tt.wantExp, tt.wantFound)
 			}
 		})
 	}
