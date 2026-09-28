@@ -150,6 +150,25 @@ func Test_calculatePieceLength(t *testing.T) {
 			want:        23, // limited to 8 MiB pieces
 		},
 		{
+			name:        "ggn custom range should allow 32KiB pieces",
+			totalSize:   32 << 20,
+			trackerURLs: []string{"https://gazellegames.net/announce?passkey=123"},
+			want:        15,
+		},
+		{
+			name:        "bhd default ranges keep historical 64KiB tracker minimum",
+			totalSize:   32 << 20,
+			trackerURLs: []string{"https://beyond-hd.me/announce?passkey=123"},
+			want:        16,
+		},
+		{
+			name:           "user max remains authoritative for custom tracker range",
+			totalSize:      100 << 30,
+			maxPieceLength: uintPtr(24),
+			trackerURLs:    []string{"https://gazellegames.net/announce?passkey=123"},
+			want:           24,
+		},
+		{
 			name:        "unknown tracker should use default calculation",
 			totalSize:   10 << 30, // 10 GiB
 			trackerURLs: []string{"https://unknown.tracker.com/announce"},
@@ -175,6 +194,52 @@ func Test_calculatePieceLength(t *testing.T) {
 					t.Errorf("pieces count too far from expected: got %v pieces, expected %v (ratio %.2f)",
 						pieces, *tt.wantPieces, ratio)
 				}
+			}
+		})
+	}
+}
+
+func Test_trackerPieceLengthBounds(t *testing.T) {
+	tests := []struct {
+		name           string
+		trackerURL     string
+		maxPieceLength *uint
+		wantMin        uint
+		wantMax        uint
+	}{
+		{
+			name:       "custom table without hard cap uses full automatic bounds",
+			trackerURL: "https://ulo.torrent-syndikat.org/ts_ann.php?passkey=123",
+			wantMin:    14,
+			wantMax:    27,
+		},
+		{
+			name:       "custom table keeps tracker hard cap",
+			trackerURL: "https://gazellegames.net/announce?passkey=123",
+			wantMin:    14,
+			wantMax:    26,
+		},
+		{
+			name:       "default-range tracker keeps historical bounds",
+			trackerURL: "https://beyond-hd.me/announce?passkey=123",
+			wantMin:    16,
+			wantMax:    24,
+		},
+		{
+			name:           "user max can lower a custom tracker ceiling",
+			trackerURL:     "https://gazellegames.net/announce?passkey=123",
+			maxPieceLength: uintPtr(24),
+			wantMin:        14,
+			wantMax:        24,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotMin, gotMax := trackerPieceLengthBounds(tt.trackerURL, tt.maxPieceLength)
+			if gotMin != tt.wantMin || gotMax != tt.wantMax {
+				t.Fatalf("trackerPieceLengthBounds() = (%d, %d), want (%d, %d)",
+					gotMin, gotMax, tt.wantMin, tt.wantMax)
 			}
 		})
 	}
@@ -320,10 +385,50 @@ func TestGetRecommendedPieceLengthExpMatchesCreateMinimum(t *testing.T) {
 	}
 }
 
+func TestGetRecommendedPieceLengthExpCustomRanges(t *testing.T) {
+	if got := GetRecommendedPieceLengthExp("https://gazellegames.net/announce?passkey=123", 32<<20); got != 15 {
+		t.Fatalf("GGn 32 MiB recommendation = %d, want 15", got)
+	}
+
+	if got := GetRecommendedPieceLengthExp("https://gazellegames.net/announce?passkey=123", 100<<30); got != 26 {
+		t.Fatalf("GGn 100 GiB recommendation = %d, want 26", got)
+	}
+}
+
 func TestGetRecommendedPieceLengthExpUnknownTracker(t *testing.T) {
 	got := GetRecommendedPieceLengthExp("https://unknown.tracker/announce", 32<<20)
 	if got != 0 {
 		t.Fatalf("GetRecommendedPieceLengthExp() = %d, want 0", got)
+	}
+}
+
+func TestCreateTorrent_CustomRangeBelowExplicitMinimumIsRecommendationOnly(t *testing.T) {
+	dir := t.TempDir()
+	filePath := filepath.Join(dir, "small.bin")
+	if err := os.WriteFile(filePath, make([]byte, 1<<20), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	pieceLength := uint(16)
+	tor, err := CreateTorrent(CreateOptions{
+		Path:           filePath,
+		TrackerURLs:    []string{"https://gazellegames.net/announce?passkey=123"},
+		PieceLengthExp: &pieceLength,
+		IsPrivate:      true,
+		NoDate:         true,
+		NoCreator:      true,
+		Version:        "test",
+	})
+	if err != nil {
+		t.Fatalf("CreateTorrent() rejected a valid explicit piece length: %v", err)
+	}
+
+	info, err := tor.UnmarshalInfo()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.PieceLength != 1<<16 {
+		t.Fatalf("piece length = %d, want %d", info.PieceLength, 1<<16)
 	}
 }
 
