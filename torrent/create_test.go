@@ -168,6 +168,13 @@ func Test_calculatePieceLength(t *testing.T) {
 			want:        25,
 		},
 		{
+			name:           "portugas recommendation respects user max piece length",
+			totalSize:      40 << 30,
+			maxPieceLength: uintPtr(24),
+			trackerURLs:    []string{"https://portugas.org/announce/passkey"},
+			want:           24,
+		},
+		{
 			name:        "unknown tracker should use default calculation",
 			totalSize:   10 << 30, // 10 GiB
 			trackerURLs: []string{"https://unknown.tracker.com/announce"},
@@ -271,6 +278,13 @@ func Test_calculatePieceLengthFromTarget(t *testing.T) {
 			totalSize:   10 << 30,
 			targetCount: 1,
 			wantExp:     24, // capped at default max (no maxPieceLength set)
+		},
+		{
+			name:        "portugas target pieces can use 16KiB tracker minimum",
+			totalSize:   32 << 20,
+			targetCount: 2048,
+			trackerURLs: []string{"https://portugas.org/announce/passkey"},
+			wantExp:     14,
 		},
 		{
 			name:        "4GB with target 500",
