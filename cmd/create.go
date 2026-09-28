@@ -92,7 +92,7 @@ func init() {
 	createCmd.Flags().StringVarP(&options.comment, "comment", "c", "", "add comment")
 
 	var defaultPieceLength, defaultMaxPieceLength, defaultTargetPieceCount uint
-	createCmd.Flags().UintVarP(&defaultPieceLength, "piece-length", "l", 0, "set piece length to 2^n bytes (16-27, automatic if not specified)")
+	createCmd.Flags().UintVarP(&defaultPieceLength, "piece-length", "l", 0, "set piece length to 2^n bytes (16-27, or 14-27 for a tracker with its own piece size table; automatic if not specified)")
 	createCmd.Flags().UintVarP(&defaultMaxPieceLength, "max-piece-length", "m", 0, "limit maximum piece length to 2^n bytes (16-27, unlimited if not specified)")
 	createCmd.Flags().UintVar(&defaultTargetPieceCount, "target-piece-count", 0, "target approximate number of pieces (calculates optimal piece length)")
 	createCmd.PreRun = func(cmd *cobra.Command, args []string) {
