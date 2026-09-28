@@ -23,6 +23,7 @@ var rootCmd = &cobra.Command{
 func init() {
 	cobra.EnableCommandSorting = false
 	rootCmd.AddCommand(createCmd)
+	rootCmd.AddCommand(pieceSizeCmd)
 	rootCmd.AddCommand(checkCmd)
 	rootCmd.AddCommand(inspectCmd)
 	rootCmd.AddCommand(modifyCmd)
