@@ -164,7 +164,7 @@ func Test_calculatePieceLength(t *testing.T) {
 		{
 			name:           "user max remains authoritative for custom tracker range",
 			totalSize:      100 << 30,
-			maxPieceLength: uintPtr(24),
+			maxPieceLength: new(uint(24)),
 			trackerURLs:    []string{"https://gazellegames.net/announce?passkey=123"},
 			want:           24,
 		},
@@ -228,7 +228,7 @@ func Test_trackerPieceLengthBounds(t *testing.T) {
 		{
 			name:           "user max can lower a custom tracker ceiling",
 			trackerURL:     "https://gazellegames.net/announce?passkey=123",
-			maxPieceLength: uintPtr(24),
+			maxPieceLength: new(uint(24)),
 			wantMin:        14,
 			wantMax:        24,
 		},
@@ -237,10 +237,8 @@ func Test_trackerPieceLengthBounds(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			gotMin, gotMax := trackerPieceLengthBounds(tt.trackerURL, tt.maxPieceLength)
-			if gotMin != tt.wantMin || gotMax != tt.wantMax {
-				t.Fatalf("trackerPieceLengthBounds() = (%d, %d), want (%d, %d)",
-					gotMin, gotMax, tt.wantMin, tt.wantMax)
-			}
+			assert.Equal(t, tt.wantMin, gotMin, "min")
+			assert.Equal(t, tt.wantMax, gotMax, "max")
 		})
 	}
 }
@@ -295,21 +293,21 @@ func Test_calculatePieceLengthFromTarget(t *testing.T) {
 			name:           "maxPieceLength lowers ceiling",
 			totalSize:      100 << 30,
 			targetCount:    50,
-			maxPieceLength: uintPtr(22),
+			maxPieceLength: new(uint(22)),
 			wantExp:        22,
 		},
 		{
 			name:           "maxPieceLength raises ceiling above default 24 (no tracker)",
 			totalSize:      100 << 30,
 			targetCount:    50,
-			maxPieceLength: uintPtr(27),
+			maxPieceLength: new(uint(27)),
 			wantExp:        27, // 100GB/50 ≈ 2GB = 2^31, floor(log2) = 30, clamped to 27
 		},
 		{
 			name:           "maxPieceLength cannot exceed tracker cap",
 			totalSize:      100 << 30,
 			targetCount:    50,
-			maxPieceLength: uintPtr(27),
+			maxPieceLength: new(uint(27)),
 			trackerURLs:    []string{"https://empornium.sx/announce?passkey=123"},
 			wantExp:        23, // emp cap is 23, user's 27 is clamped down
 		},
@@ -386,12 +384,21 @@ func TestGetRecommendedPieceLengthExpMatchesCreateMinimum(t *testing.T) {
 }
 
 func TestGetRecommendedPieceLengthExpCustomRanges(t *testing.T) {
-	if got := GetRecommendedPieceLengthExp("https://gazellegames.net/announce?passkey=123", 32<<20); got != 15 {
-		t.Fatalf("GGn 32 MiB recommendation = %d, want 15", got)
+	tests := []struct {
+		name        string
+		trackerURL  string
+		contentSize uint64
+		want        uint
+	}{
+		{"ggn small content uses 32 KiB", "https://gazellegames.net/announce?passkey=123", 32 << 20, 15},
+		{"ggn large content keeps hard cap", "https://gazellegames.net/announce?passkey=123", 100 << 30, 26},
+		{"portugas small content uses 16 KiB", "https://portugas.org/announce/passkey", 30 << 20, 14},
 	}
 
-	if got := GetRecommendedPieceLengthExp("https://gazellegames.net/announce?passkey=123", 100<<30); got != 26 {
-		t.Fatalf("GGn 100 GiB recommendation = %d, want 26", got)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, GetRecommendedPieceLengthExp(tt.trackerURL, tt.contentSize))
+		})
 	}
 }
 
@@ -402,40 +409,54 @@ func TestGetRecommendedPieceLengthExpUnknownTracker(t *testing.T) {
 	}
 }
 
-func TestCreateTorrent_RecommendationBelowExplicitMinimumIsNotAnError(t *testing.T) {
+func TestCreateTorrent_ExplicitPieceLengthBounds(t *testing.T) {
 	dir := t.TempDir()
 	filePath := filepath.Join(dir, "small.bin")
-	if err := os.WriteFile(filePath, make([]byte, 1<<20), 0o644); err != nil {
-		t.Fatal(err)
+	require.NoError(t, os.WriteFile(filePath, make([]byte, 1<<20), 0o644))
+
+	// the trackers here recommend less than 64 KiB for 1 MiB of content;
+	// the recommendation never rejects an explicit piece length
+	tests := []struct {
+		name       string
+		trackerURL string
+		exp        uint
+		wantErr    bool
+	}{
+		{"ggn custom table accepts 64 KiB", "https://gazellegames.net/announce?passkey=123", 16, false},
+		{"portugas custom table accepts 64 KiB", "https://portugas.org/announce/passkey", 16, false},
+		{"bhd default ranges accept 64 KiB", "https://beyond-hd.me/announce?passkey=123", 16, false},
+		{"ggn custom table accepts 32 KiB", "https://gazellegames.net/announce?passkey=123", 15, false},
+		{"portugas custom table accepts 16 KiB", "https://portugas.org/announce/passkey", 14, false},
+		{"bhd default ranges reject 32 KiB", "https://beyond-hd.me/announce?passkey=123", 15, true},
+		{"portugas custom table rejects 8 KiB", "https://portugas.org/announce/passkey", 13, true},
+		{"ggn hard cap rejects 128 MiB", "https://gazellegames.net/announce?passkey=123", 27, true},
+		{"no tracker rejects 32 KiB", "", 15, true},
 	}
 
-	// each tracker recommends less than 64 KiB for 1 MiB of content
-	for _, trackerURL := range []string{
-		"https://gazellegames.net/announce?passkey=123", // custom table, 32 KiB
-		"https://portugas.org/announce/passkey",         // custom table, 16 KiB
-		"https://beyond-hd.me/announce?passkey=123",     // default ranges, 32 KiB
-	} {
-		t.Run(trackerURL, func(t *testing.T) {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var trackerURLs []string
+			if tt.trackerURL != "" {
+				trackerURLs = []string{tt.trackerURL}
+			}
 			tor, err := CreateTorrent(CreateOptions{
 				Path:           filePath,
-				TrackerURLs:    []string{trackerURL},
-				PieceLengthExp: new(uint(16)),
+				TrackerURLs:    trackerURLs,
+				PieceLengthExp: new(tt.exp),
 				IsPrivate:      true,
 				NoDate:         true,
 				NoCreator:      true,
 				Version:        "test",
 			})
-			if err != nil {
-				t.Fatalf("CreateTorrent() rejected a valid explicit piece length: %v", err)
+			if tt.wantErr {
+				assert.ErrorContains(t, err, "piece length exponent must be between")
+				return
 			}
+			require.NoError(t, err)
 
 			info, err := tor.UnmarshalInfo()
-			if err != nil {
-				t.Fatal(err)
-			}
-			if info.PieceLength != 1<<16 {
-				t.Fatalf("piece length = %d, want %d", info.PieceLength, 1<<16)
-			}
+			require.NoError(t, err)
+			assert.Equal(t, int64(1)<<tt.exp, info.PieceLength)
 		})
 	}
 }
@@ -448,8 +469,6 @@ func Test_retryPieceLengthCeiling(t *testing.T) {
 		want           uint
 	}{
 		{
-			// before, the ceiling was 24 unless the recommendation was above 24,
-			// so 16-35 GiB of content could not grow past 16 MiB pieces
 			name:       "custom table without hard cap can grow to 128 MiB",
 			trackerURL: "https://portugas.org/announce/passkey",
 			want:       27,
@@ -486,9 +505,7 @@ func Test_retryPieceLengthCeiling(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := retryPieceLengthCeiling(tt.trackerURL, tt.maxPieceLength); got != tt.want {
-				t.Fatalf("retryPieceLengthCeiling() = %d, want %d", got, tt.want)
-			}
+			assert.Equal(t, tt.want, retryPieceLengthCeiling(tt.trackerURL, tt.maxPieceLength))
 		})
 	}
 }
@@ -516,8 +533,6 @@ func TestCreateTorrent_TargetPieceCountZero(t *testing.T) {
 		t.Errorf("unexpected error message: %v", err)
 	}
 }
-
-func uintPtr(v uint) *uint { return &v }
 
 func TestCreateTorrent_Symlink(t *testing.T) {
 	// Skip symlink tests on Windows as it requires special privileges

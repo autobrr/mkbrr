@@ -5,6 +5,8 @@ package trackers
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func Test_GetTrackerPieceSizeExp(t *testing.T) {
@@ -195,9 +197,7 @@ func Test_HasCustomPieceSizeRanges(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := HasCustomPieceSizeRanges(tt.trackerURL); got != tt.want {
-				t.Fatalf("HasCustomPieceSizeRanges() = %v, want %v", got, tt.want)
-			}
+			assert.Equal(t, tt.want, HasCustomPieceSizeRanges(tt.trackerURL))
 		})
 	}
 }

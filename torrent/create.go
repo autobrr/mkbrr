@@ -98,9 +98,10 @@ func retryPieceLengthCeiling(trackerURL string, maxPieceLength *uint) uint {
 	if maxPieceLength != nil {
 		return min(*maxPieceLength, 27)
 	}
+	// a custom table without a cap may grow past its largest entry, as the
+	// Portugas rules ask ("32+ MiB")
 	if trackers.HasCustomPieceSizeRanges(trackerURL) {
-		_, ceiling := trackerPieceLengthBounds(trackerURL, nil)
-		return ceiling
+		return 27
 	}
 	return 24
 }
@@ -617,21 +618,24 @@ func createTorrent(opts CreateOptions, internalOpts createTorrentOptions) (*Torr
 	} else {
 		pieceLength = *opts.PieceLengthExp
 
-		// Get tracker's max piece length if available
+		// Get tracker's piece length bounds if available
+		minExp := uint(16) // 64 KiB
 		maxExp := uint(27) // absolute max 128 MiB
 		if len(opts.TrackerURLs) > 0 && opts.TrackerURLs[0] != "" {
+			// allow every size the tracker can recommend, such as 16 KiB from its own table
+			minExp, _ = trackerPieceLengthBounds(opts.TrackerURLs[0], nil)
 			if trackerMaxExp, ok := trackers.GetTrackerMaxPieceLength(opts.TrackerURLs[0]); ok {
 				maxExp = trackerMaxExp
 			}
 		}
 
-		if pieceLength < 16 || pieceLength > maxExp {
+		if pieceLength < minExp || pieceLength > maxExp {
+			where := ""
 			if len(opts.TrackerURLs) > 0 && opts.TrackerURLs[0] != "" {
-				return nil, fmt.Errorf("piece length exponent must be between 16 (64 KiB) and %d (%d MiB) for %s, got: %d",
-					maxExp, 1<<(maxExp-20), opts.TrackerURLs[0], pieceLength)
+				where = " for " + opts.TrackerURLs[0]
 			}
-			return nil, fmt.Errorf("piece length exponent must be between 16 (64 KiB) and %d (%d MiB), got: %d",
-				maxExp, 1<<(maxExp-20), pieceLength)
+			return nil, fmt.Errorf("piece length exponent must be between %d (%s) and %d (%s)%s, got: %d",
+				minExp, formatPieceSize(minExp), maxExp, formatPieceSize(maxExp), where, pieceLength)
 		}
 
 		// If the tracker has a recommendation, show it. It is only a recommendation:
