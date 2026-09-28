@@ -224,6 +224,28 @@ var trackerConfigs = []TrackerConfig{
 	},
 	{
 		URLs: []string{
+			"portugas.org",
+		},
+		PieceSizeRanges: []PieceSizeRange{
+			{MaxSize: 40 << 20, PieceExp: 14},   // 16 KiB for <= 40 MiB
+			{MaxSize: 70 << 20, PieceExp: 15},   // 32 KiB for 40-70 MiB
+			{MaxSize: 150 << 20, PieceExp: 16},  // 64 KiB for 70-150 MiB
+			{MaxSize: 300 << 20, PieceExp: 17},  // 128 KiB for 150-300 MiB
+			{MaxSize: 600 << 20, PieceExp: 18},  // 256 KiB for 300-600 MiB
+			{MaxSize: 1 << 30, PieceExp: 19},    // 512 KiB for 600 MiB-1 GiB
+			{MaxSize: 2304 << 20, PieceExp: 20}, // 1 MiB for 1-2.25 GiB
+			{MaxSize: 5 << 30, PieceExp: 21},    // 2 MiB for 2.25-5 GiB
+			{MaxSize: 8 << 30, PieceExp: 22},    // 4 MiB for 5-8 GiB
+			{MaxSize: 16 << 30, PieceExp: 23},   // 8 MiB for 8-16 GiB
+			{MaxSize: 35 << 30, PieceExp: 24},   // 16 MiB for 16-35 GiB
+			{MaxSize: 72 << 30, PieceExp: 25},   // 32 MiB for 35-72 GiB
+			{MaxSize: ^uint64(0), PieceExp: 25}, // 32+ MiB above 72 GiB
+		},
+		UseDefaultRanges: false,
+		MaxTorrentSize:   2 << 20, // 2 MiB .torrent file size limit
+	},
+	{
+		URLs: []string{
 			"lst.gg",
 		},
 		MaxPieceLength: 24, // max 16 MiB pieces (2^24)
