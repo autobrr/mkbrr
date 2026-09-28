@@ -133,6 +133,9 @@ func TestRunPieceSizeFileJSON(t *testing.T) {
 
 	dir := t.TempDir()
 	file := filepath.Join(dir, "payload.bin")
+	if err := os.WriteFile(file, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.Truncate(file, 63<<20); err != nil {
 		t.Fatal(err)
 	}
@@ -157,6 +160,49 @@ func TestRunPieceSizeFileJSON(t *testing.T) {
 
 	if got.ContentBytes != 63<<20 || got.Exponent != 15 {
 		t.Fatalf("unexpected result: %+v", got)
+	}
+}
+
+func TestContentSizeFromDirectorySymlink(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "target")
+	if err := os.Mkdir(target, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(target, "payload.bin"), make([]byte, 4096), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	link := filepath.Join(dir, "link")
+	if err := os.Symlink(target, link); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+
+	got, err := contentSizeFromPath(link)
+	if err != nil {
+		t.Fatalf("contentSizeFromPath(symlink) error = %v", err)
+	}
+	if got != 4096 {
+		t.Fatalf("content size = %d, want 4096", got)
+	}
+}
+
+func TestRunPieceSizeRejectsExplicitZeroSizeWithFile(t *testing.T) {
+	old := pieceSizeOpts
+	defer func() { pieceSizeOpts = old }()
+
+	pieceSizeOpts = pieceSizeOptions{
+		file: "payload.bin",
+	}
+
+	cmd := &cobra.Command{}
+	cmd.Flags().Uint64("size", 0, "")
+	if err := cmd.Flags().Set("size", "0"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := runPieceSize(cmd, nil); err == nil {
+		t.Fatal("expected mutually exclusive input error")
 	}
 }
 
