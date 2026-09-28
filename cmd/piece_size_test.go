@@ -6,6 +6,8 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -89,7 +91,85 @@ func TestRunPieceSizeJSON(t *testing.T) {
 		t.Fatalf("invalid JSON output: %v", err)
 	}
 
-	if got.Exponent != 15 || got.Bytes != 1<<15 || got.Source != "default" {
+	if got.ContentBytes != 63<<20 || got.Exponent != 15 || got.Bytes != 1<<15 || got.Source != "default" {
 		t.Fatalf("unexpected result: %+v", got)
+	}
+}
+
+
+func TestContentSizeFromPath(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "a.bin"), make([]byte, 1024), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sub := filepath.Join(dir, "sub")
+	if err := os.Mkdir(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sub, "b.bin"), make([]byte, 2048), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := contentSizeFromPath(dir)
+	if err != nil {
+		t.Fatalf("contentSizeFromPath() error = %v", err)
+	}
+	if got != 3072 {
+		t.Fatalf("content size = %d, want 3072", got)
+	}
+
+	fileSize, err := contentSizeFromPath(filepath.Join(dir, "a.bin"))
+	if err != nil {
+		t.Fatalf("contentSizeFromPath(file) error = %v", err)
+	}
+	if fileSize != 1024 {
+		t.Fatalf("file size = %d, want 1024", fileSize)
+	}
+}
+
+func TestRunPieceSizeFileJSON(t *testing.T) {
+	old := pieceSizeOpts
+	defer func() { pieceSizeOpts = old }()
+
+	dir := t.TempDir()
+	file := filepath.Join(dir, "payload.bin")
+	if err := os.Truncate(file, 63<<20); err != nil {
+		t.Fatal(err)
+	}
+
+	pieceSizeOpts = pieceSizeOptions{
+		file: file,
+		json: true,
+	}
+
+	cmd := &cobra.Command{}
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+
+	if err := runPieceSize(cmd, nil); err != nil {
+		t.Fatalf("runPieceSize() error = %v", err)
+	}
+
+	var got pieceSizeResult
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatalf("invalid JSON output: %v", err)
+	}
+
+	if got.ContentBytes != 63<<20 || got.Exponent != 15 {
+		t.Fatalf("unexpected result: %+v", got)
+	}
+}
+
+func TestRunPieceSizeRejectsSizeAndFileTogether(t *testing.T) {
+	old := pieceSizeOpts
+	defer func() { pieceSizeOpts = old }()
+
+	pieceSizeOpts = pieceSizeOptions{
+		size: 1,
+		file: "payload.bin",
+	}
+
+	if err := runPieceSize(&cobra.Command{}, nil); err == nil {
+		t.Fatal("expected mutually exclusive input error")
 	}
 }
