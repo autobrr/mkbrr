@@ -18,8 +18,9 @@ func TestCalculatePieceSizeResult(t *testing.T) {
 		name       string
 		size       uint64
 		trackerURL string
-		wantExp    uint
-		wantSource string
+		wantExp             uint
+		wantSource          string
+		wantMaxTorrentBytes uint64
 	}{
 		{
 			name:       "known tracker uses tracker policy",
@@ -41,6 +42,14 @@ func TestCalculatePieceSizeResult(t *testing.T) {
 			wantExp:    15,
 			wantSource: "default",
 		},
+		{
+			name:                "tracker torrent-size limit is reported",
+			size:                3 << 30,
+			trackerURL:          "https://portugas.org/announce/passkey",
+			wantExp:             21,
+			wantSource:          "tracker",
+			wantMaxTorrentBytes: 2 << 20,
+		},
 	}
 
 	for _, tt := range tests {
@@ -57,6 +66,9 @@ func TestCalculatePieceSizeResult(t *testing.T) {
 			}
 			if got.Bytes != uint64(1)<<got.Exponent {
 				t.Fatalf("bytes = %d, want %d", got.Bytes, uint64(1)<<got.Exponent)
+			}
+			if got.MaxTorrentBytes != tt.wantMaxTorrentBytes {
+				t.Fatalf("max torrent bytes = %d, want %d", got.MaxTorrentBytes, tt.wantMaxTorrentBytes)
 			}
 		})
 	}
