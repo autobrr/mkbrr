@@ -227,7 +227,8 @@ var trackerConfigs = []TrackerConfig{
 			"portugas.org",
 		},
 		PieceSizeRanges: []PieceSizeRange{
-			{MaxSize: 70 << 20, PieceExp: 15},   // 32 KiB for <= 70 MiB
+			{MaxSize: 40 << 20, PieceExp: 14},   // 16 KiB for <= 40 MiB
+			{MaxSize: 70 << 20, PieceExp: 15},   // 32 KiB for 40-70 MiB
 			{MaxSize: 150 << 20, PieceExp: 16},  // 64 KiB for 70-150 MiB
 			{MaxSize: 300 << 20, PieceExp: 17},  // 128 KiB for 150-300 MiB
 			{MaxSize: 600 << 20, PieceExp: 18},  // 256 KiB for 300-600 MiB
