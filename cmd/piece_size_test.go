@@ -15,9 +15,9 @@ import (
 
 func TestCalculatePieceSizeResult(t *testing.T) {
 	tests := []struct {
-		name       string
-		size       uint64
-		trackerURL string
+		name                string
+		size                uint64
+		trackerURL          string
 		wantExp             uint
 		wantSource          string
 		wantMaxTorrentBytes uint64
@@ -107,7 +107,6 @@ func TestRunPieceSizeJSON(t *testing.T) {
 		t.Fatalf("unexpected result: %+v", got)
 	}
 }
-
 
 func TestContentSizeFromPath(t *testing.T) {
 	dir := t.TempDir()
