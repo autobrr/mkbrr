@@ -308,6 +308,14 @@ func findTrackerConfig(trackerURL string) *TrackerConfig {
 	return nil
 }
 
+// HasCustomPieceSizeRanges reports whether a tracker defines its own piece-size table.
+func HasCustomPieceSizeRanges(trackerURL string) bool {
+	if config := findTrackerConfig(trackerURL); config != nil {
+		return len(config.PieceSizeRanges) > 0
+	}
+	return false
+}
+
 // GetTrackerMaxPieceLength returns the maximum piece length exponent for a tracker if known.
 // This is a hard limit that will not be exceeded.
 func GetTrackerMaxPieceLength(trackerURL string) (uint, bool) {
