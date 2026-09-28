@@ -6,6 +6,8 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -15,15 +17,17 @@ import (
 
 type pieceSizeOptions struct {
 	size    uint64
+	file    string
 	tracker string
 	json    bool
 }
 
 type pieceSizeResult struct {
-	Exponent uint   `json:"exponent"`
-	Bytes    uint64 `json:"bytes"`
-	Human    string `json:"human"`
-	Source   string `json:"source"`
+	ContentBytes uint64 `json:"content_bytes"`
+	Exponent     uint   `json:"exponent"`
+	Bytes        uint64 `json:"bytes"`
+	Human        string `json:"human"`
+	Source       string `json:"source"`
 }
 
 var pieceSizeOpts = pieceSizeOptions{}
@@ -42,10 +46,11 @@ var pieceSizeCmd = &cobra.Command{
 func init() {
 	pieceSizeCmd.Flags().SortFlags = false
 	pieceSizeCmd.Flags().Uint64Var(&pieceSizeOpts.size, "size", 0, "content size in bytes")
+	pieceSizeCmd.Flags().StringVarP(&pieceSizeOpts.file, "file", "f", "", "file or directory to measure")
 	pieceSizeCmd.Flags().StringVarP(&pieceSizeOpts.tracker, "tracker", "t", "", "tracker announce URL")
 	pieceSizeCmd.Flags().BoolVar(&pieceSizeOpts.json, "json", false, "output machine-readable JSON")
 	pieceSizeCmd.SetUsageTemplate(`Usage:
-  {{.CommandPath}} --size <bytes> [flags]
+  {{.CommandPath}} (--size <bytes> | --file <path>) [flags]
 
 Flags:
 {{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}
@@ -58,6 +63,55 @@ func humanPieceSize(exp uint) string {
 		return fmt.Sprintf("%d MiB", bytes>>20)
 	}
 	return fmt.Sprintf("%d KiB", bytes>>10)
+}
+
+func contentSizeFromPath(path string) (uint64, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return 0, fmt.Errorf("could not stat %q: %w", path, err)
+	}
+
+	if !info.IsDir() {
+		if info.Size() < 0 {
+			return 0, fmt.Errorf("file %q has a negative size", path)
+		}
+		return uint64(info.Size()), nil
+	}
+
+	var total uint64
+	err = filepath.Walk(path, func(currentPath string, walkInfo os.FileInfo, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+
+		resolvedInfo := walkInfo
+		if walkInfo.Mode()&os.ModeSymlink != 0 {
+			statInfo, err := os.Stat(currentPath)
+			if err != nil {
+				return fmt.Errorf("could not stat symlink target %q: %w", currentPath, err)
+			}
+			resolvedInfo = statInfo
+		}
+
+		if resolvedInfo.IsDir() {
+			return nil
+		}
+		if resolvedInfo.Size() < 0 {
+			return fmt.Errorf("file %q has a negative size", currentPath)
+		}
+
+		size := uint64(resolvedInfo.Size())
+		if ^uint64(0)-total < size {
+			return fmt.Errorf("content size overflow while reading %q", currentPath)
+		}
+		total += size
+		return nil
+	})
+	if err != nil {
+		return 0, fmt.Errorf("could not measure %q: %w", path, err)
+	}
+
+	return total, nil
 }
 
 func calculatePieceSizeResult(size uint64, trackerURL string) (pieceSizeResult, error) {
@@ -80,15 +134,33 @@ func calculatePieceSizeResult(size uint64, trackerURL string) (pieceSizeResult, 
 	}
 
 	return pieceSizeResult{
-		Exponent: exp,
-		Bytes:    uint64(1) << exp,
-		Human:    humanPieceSize(exp),
-		Source:   source,
+		ContentBytes: size,
+		Exponent:     exp,
+		Bytes:        uint64(1) << exp,
+		Human:        humanPieceSize(exp),
+		Source:       source,
 	}, nil
 }
 
 func runPieceSize(cmd *cobra.Command, _ []string) error {
-	result, err := calculatePieceSizeResult(pieceSizeOpts.size, pieceSizeOpts.tracker)
+	if pieceSizeOpts.size > 0 && pieceSizeOpts.file != "" {
+		return fmt.Errorf("--size and --file are mutually exclusive")
+	}
+
+	size := pieceSizeOpts.size
+	if pieceSizeOpts.file != "" {
+		measured, err := contentSizeFromPath(pieceSizeOpts.file)
+		if err != nil {
+			return err
+		}
+		size = measured
+	}
+
+	if size == 0 {
+		return fmt.Errorf("provide exactly one of --size <bytes> or --file <path>")
+	}
+
+	result, err := calculatePieceSizeResult(size, pieceSizeOpts.tracker)
 	if err != nil {
 		return err
 	}
@@ -98,6 +170,7 @@ func runPieceSize(cmd *cobra.Command, _ []string) error {
 	}
 
 	out := cmd.OutOrStdout()
+	fmt.Fprintf(out, "Content size: %d bytes\n", result.ContentBytes)
 	fmt.Fprintf(out, "Piece exponent: %d\n", result.Exponent)
 	fmt.Fprintf(out, "Piece size: %s (%d bytes)\n", result.Human, result.Bytes)
 	fmt.Fprintf(out, "Source: %s\n", result.Source)
