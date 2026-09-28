@@ -63,12 +63,15 @@ func formatPieceSize(exp uint) string {
 // calculatePieceLengthFromTarget derives a piece length exponent from a target piece count.
 // The result is clamped to [minExp, maxExp] where maxExp considers tracker and user constraints.
 func calculatePieceLengthFromTarget(totalSize int64, targetCount uint, maxPieceLength *uint, trackerURLs []string, verbose bool) uint {
-	minExp := uint(16) // 64 KiB minimum
+	minExp := uint(16) // 64 KiB minimum unless the tracker declares a lower bound
 	maxExp := uint(24) // default max 16 MiB, same as auto-calc
 
-	// resolve ceiling: tracker hard cap (if any), then user max, then default 24
+	// resolve tracker bounds first, then apply the user ceiling
 	trackerCap := uint(0)
 	if len(trackerURLs) > 0 && trackerURLs[0] != "" {
+		if trackerMinExp, ok := trackers.GetTrackerMinPieceLength(trackerURLs[0]); ok {
+			minExp = trackerMinExp
+		}
 		if trackerMaxExp, ok := trackers.GetTrackerMaxPieceLength(trackerURLs[0]); ok {
 			trackerCap = trackerMaxExp
 		}
@@ -141,6 +144,15 @@ func calculatePieceLength(totalSize int64, maxPieceLength *uint, trackerURLs []s
 			// generic default as a hard tracker limit.
 			if !hasTrackerMax && exp > maxExp {
 				maxExp = min(exp, uint(27))
+			}
+
+			// A user-supplied maximum remains authoritative even when the
+			// tracker recommendation would otherwise raise the automatic ceiling.
+			if maxPieceLength != nil {
+				if *maxPieceLength < minExp {
+					return minExp
+				}
+				maxExp = min(maxExp, min(*maxPieceLength, uint(27)))
 			}
 
 			// ensure we stay within tracker-specific bounds
