@@ -135,6 +135,38 @@ func Test_GetTrackerPieceSizeExp(t *testing.T) {
 	}
 }
 
+func Test_HasCustomPieceSizeRanges(t *testing.T) {
+	tests := []struct {
+		name       string
+		trackerURL string
+		want       bool
+	}{
+		{
+			name:       "ggn has a custom range table",
+			trackerURL: "https://gazellegames.net/announce?passkey=123",
+			want:       true,
+		},
+		{
+			name:       "bhd uses default ranges rather than a custom table",
+			trackerURL: "https://beyond-hd.me/announce?passkey=123",
+			want:       false,
+		},
+		{
+			name:       "unknown tracker has no custom range table",
+			trackerURL: "https://unknown.tracker/announce",
+			want:       false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := HasCustomPieceSizeRanges(tt.trackerURL); got != tt.want {
+				t.Fatalf("HasCustomPieceSizeRanges() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func Test_GetTrackerMaxPieceLength(t *testing.T) {
 	tests := []struct {
 		name       string
