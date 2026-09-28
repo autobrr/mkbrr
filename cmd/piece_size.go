@@ -36,7 +36,7 @@ var pieceSizeOpts = pieceSizeOptions{}
 var pieceSizeCmd = &cobra.Command{
 	Use:                        "piece-size",
 	Short:                      "Calculate automatic piece size without creating a torrent",
-	Long:                       "Calculate the piece size mkbrr would automatically select for a content size and optional tracker, without hashing files or creating a torrent.",
+	Long:                       "Calculate mkbrr's initial automatic piece-size selection for a content size and optional tracker, without hashing files or creating a torrent. Tracker .torrent size limits are reported separately because create may increase the piece size to satisfy them.",
 	Args:                       cobra.NoArgs,
 	RunE:                       runPieceSize,
 	DisableFlagsInUseLine:      true,
@@ -202,6 +202,7 @@ func runPieceSize(cmd *cobra.Command, _ []string) error {
 	fmt.Fprintf(out, "Source: %s\n", result.Source)
 	if result.MaxTorrentBytes > 0 {
 		fmt.Fprintf(out, "Max .torrent: %d bytes\n", result.MaxTorrentBytes)
+		fmt.Fprintln(out, "Note: create may increase the piece size to satisfy this limit.")
 	}
 	return nil
 }
