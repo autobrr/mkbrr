@@ -86,6 +86,41 @@ func Test_GetTrackerPieceSizeExp(t *testing.T) {
 			wantFound:   true,
 		},
 		{
+			name:        "portugas small content should use 16 KiB pieces",
+			trackerURL:  "https://portugas.org/announce/passkey",
+			contentSize: 32 << 20,
+			wantExp:     14,
+			wantFound:   true,
+		},
+		{
+			name:        "portugas 60MiB should use 32 KiB pieces",
+			trackerURL:  "https://portugas.org/announce/passkey",
+			contentSize: 60 << 20,
+			wantExp:     15,
+			wantFound:   true,
+		},
+		{
+			name:        "portugas 12GiB should use 8 MiB pieces",
+			trackerURL:  "https://portugas.org/announce/passkey",
+			contentSize: 12 << 30,
+			wantExp:     23,
+			wantFound:   true,
+		},
+		{
+			name:        "portugas 40GiB should use 32 MiB pieces",
+			trackerURL:  "https://portugas.org/announce/passkey",
+			contentSize: 40 << 30,
+			wantExp:     25,
+			wantFound:   true,
+		},
+		{
+			name:        "portugas above 72GiB should start at 32 MiB pieces",
+			trackerURL:  "https://portugas.org/announce/passkey",
+			contentSize: 100 << 30,
+			wantExp:     25,
+			wantFound:   true,
+		},
+		{
 			name:        "unknown tracker should not return piece size recommendations",
 			trackerURL:  "https://unknown.tracker/announce",
 			contentSize: 1 << 30,
@@ -130,6 +165,38 @@ func Test_GetTrackerPieceSizeExp(t *testing.T) {
 			}
 			if gotExp != tt.wantExp {
 				t.Errorf("GetTrackerPieceSizeExp() exp = %v, want %v", gotExp, tt.wantExp)
+			}
+		})
+	}
+}
+
+func Test_GetTrackerMinPieceLength(t *testing.T) {
+	tests := []struct {
+		name       string
+		trackerURL string
+		wantExp    uint
+		wantFound  bool
+	}{
+		{
+			name:       "portugas should allow 16 KiB minimum",
+			trackerURL: "https://portugas.org/announce/passkey",
+			wantExp:    14,
+			wantFound:  true,
+		},
+		{
+			name:       "bhd should keep default minimum",
+			trackerURL: "https://beyond-hd.me/announce?passkey=123",
+			wantExp:    0,
+			wantFound:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotExp, gotFound := GetTrackerMinPieceLength(tt.trackerURL)
+			if gotFound != tt.wantFound || gotExp != tt.wantExp {
+				t.Fatalf("GetTrackerMinPieceLength() = (%d, %v), want (%d, %v)",
+					gotExp, gotFound, tt.wantExp, tt.wantFound)
 			}
 		})
 	}
@@ -243,6 +310,12 @@ func Test_GetTrackerMaxTorrentSize(t *testing.T) {
 			wantFound:  false,
 		},
 		{
+			name:       "portugas should have 2 MiB torrent size limit",
+			trackerURL: "https://portugas.org/announce/passkey",
+			wantSize:   2 << 20,
+			wantFound:  true,
+		},
+		{
 			name:       "unknown tracker should not have torrent size limit",
 			trackerURL: "https://unknown.tracker/announce",
 			wantSize:   0,
@@ -281,7 +354,7 @@ func Test_trackerConfigConsistency(t *testing.T) {
 
 		// Verify piece size exponents are within bounds
 		for i, r := range config.PieceSizeRanges {
-			if r.PieceExp > config.MaxPieceLength {
+			if config.MaxPieceLength > 0 && r.PieceExp > config.MaxPieceLength {
 				t.Errorf("tracker %v: piece size range %d has exponent %d exceeding max piece length %d",
 					config.URLs, i, r.PieceExp, config.MaxPieceLength)
 			}

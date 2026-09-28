@@ -150,6 +150,24 @@ func Test_calculatePieceLength(t *testing.T) {
 			want:        23, // limited to 8 MiB pieces
 		},
 		{
+			name:        "portugas small file should use 16KiB tracker minimum",
+			totalSize:   32 << 20,
+			trackerURLs: []string{"https://portugas.org/announce/passkey"},
+			want:        14,
+		},
+		{
+			name:        "portugas 60MiB should use 32KiB tracker range",
+			totalSize:   60 << 20,
+			trackerURLs: []string{"https://portugas.org/announce/passkey"},
+			want:        15,
+		},
+		{
+			name:        "portugas 40GiB should allow 32MiB tracker range",
+			totalSize:   40 << 30,
+			trackerURLs: []string{"https://portugas.org/announce/passkey"},
+			want:        25,
+		},
+		{
 			name:        "unknown tracker should use default calculation",
 			totalSize:   10 << 30, // 10 GiB
 			trackerURLs: []string{"https://unknown.tracker.com/announce"},
@@ -317,6 +335,15 @@ func TestGetRecommendedPieceLengthExpMatchesCreateMinimum(t *testing.T) {
 	got := GetRecommendedPieceLengthExp("https://beyond-hd.me/announce?passkey=123", 32<<20)
 	if got != 16 {
 		t.Fatalf("GetRecommendedPieceLengthExp() = %d, want 16", got)
+	}
+}
+
+func TestGetRecommendedPieceLengthExpPortugas(t *testing.T) {
+	if got := GetRecommendedPieceLengthExp("https://portugas.org/announce/passkey", 32<<20); got != 14 {
+		t.Fatalf("Portugas 32 MiB recommendation = %d, want 14", got)
+	}
+	if got := GetRecommendedPieceLengthExp("https://portugas.org/announce/passkey", 40<<30); got != 25 {
+		t.Fatalf("Portugas 40 GiB recommendation = %d, want 25", got)
 	}
 }
 

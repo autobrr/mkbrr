@@ -123,15 +123,27 @@ func calculatePieceLength(totalSize int64, maxPieceLength *uint, trackerURLs []s
 	minExp := uint(16)
 	maxExp := uint(24) // default max 16 MiB for automatic calculation, can be overridden up to 2^27
 
-	// check if tracker has a maximum piece length constraint
+	// check tracker-specific piece length constraints
 	if len(trackerURLs) > 0 && trackerURLs[0] != "" {
+		if trackerMinExp, ok := trackers.GetTrackerMinPieceLength(trackerURLs[0]); ok {
+			minExp = trackerMinExp
+		}
+
+		_, hasTrackerMax := trackers.GetTrackerMaxPieceLength(trackerURLs[0])
 		if trackerMaxExp, ok := trackers.GetTrackerMaxPieceLength(trackerURLs[0]); ok {
 			maxExp = trackerMaxExp
 		}
 
 		// check if tracker has specific piece size ranges
 		if exp, ok := trackers.GetTrackerPieceSizeExp(trackerURLs[0], uint64(totalSize)); ok {
-			// ensure we stay within bounds
+			// A tracker-specific table may explicitly recommend a piece size
+			// above the generic automatic 16 MiB ceiling. Do not treat that
+			// generic default as a hard tracker limit.
+			if !hasTrackerMax && exp > maxExp {
+				maxExp = min(exp, uint(27))
+			}
+
+			// ensure we stay within tracker-specific bounds
 			exp = min(max(exp, minExp), maxExp)
 			if verbose {
 				display := NewDisplay(NewFormatter(verbose))
@@ -180,9 +192,15 @@ func GetRecommendedPieceLengthExp(trackerURL string, contentSize uint64) uint {
 	}
 
 	minExp := uint(16)
+	if trackerMinExp, ok := trackers.GetTrackerMinPieceLength(trackerURL); ok {
+		minExp = trackerMinExp
+	}
+
 	maxExp := uint(24)
 	if trackerMaxExp, ok := trackers.GetTrackerMaxPieceLength(trackerURL); ok {
 		maxExp = trackerMaxExp
+	} else if exp > maxExp {
+		maxExp = min(exp, uint(27))
 	}
 
 	return min(max(exp, minExp), maxExp)
@@ -574,28 +592,34 @@ func createTorrent(opts CreateOptions, internalOpts createTorrentOptions) (*Torr
 	} else {
 		pieceLength = *opts.PieceLengthExp
 
-		// Get tracker's max piece length if available
+		// Get tracker's min/max piece length if available.
+		minExp := uint(16) // generic explicit minimum remains 64 KiB
 		maxExp := uint(27) // absolute max 128 MiB
 		if len(opts.TrackerURLs) > 0 && opts.TrackerURLs[0] != "" {
+			if trackerMinExp, ok := trackers.GetTrackerMinPieceLength(opts.TrackerURLs[0]); ok {
+				minExp = trackerMinExp
+			}
 			if trackerMaxExp, ok := trackers.GetTrackerMaxPieceLength(opts.TrackerURLs[0]); ok {
 				maxExp = trackerMaxExp
 			}
 		}
 
-		if pieceLength < 16 || pieceLength > maxExp {
+		if pieceLength < minExp || pieceLength > maxExp {
 			if len(opts.TrackerURLs) > 0 && opts.TrackerURLs[0] != "" {
-				return nil, fmt.Errorf("piece length exponent must be between 16 (64 KiB) and %d (%d MiB) for %s, got: %d",
-					maxExp, 1<<(maxExp-20), opts.TrackerURLs[0], pieceLength)
+				return nil, fmt.Errorf("piece length exponent must be between %d (%s) and %d (%s) for %s, got: %d",
+					minExp, formatPieceSize(minExp), maxExp, formatPieceSize(maxExp),
+					opts.TrackerURLs[0], pieceLength)
 			}
-			return nil, fmt.Errorf("piece length exponent must be between 16 (64 KiB) and %d (%d MiB), got: %d",
-				maxExp, 1<<(maxExp-20), pieceLength)
+			return nil, fmt.Errorf("piece length exponent must be between %d (%s) and %d (%s), got: %d",
+				minExp, formatPieceSize(minExp), maxExp, formatPieceSize(maxExp), pieceLength)
 		}
 
 		// If we have a tracker with specific ranges, show that we're using them and check if piece length matches
 		if len(opts.TrackerURLs) > 0 && opts.TrackerURLs[0] != "" {
 			if exp, ok := trackers.GetTrackerPieceSizeExp(opts.TrackerURLs[0], uint64(totalSize)); ok {
-				if exp < 16 || exp > maxExp {
-					return nil, fmt.Errorf("piece length exponent %d for %s is outside allowed range 16-%d", exp, opts.TrackerURLs[0], maxExp)
+				if exp < minExp || exp > maxExp {
+					return nil, fmt.Errorf("piece length exponent %d for %s is outside allowed range %d-%d",
+						exp, opts.TrackerURLs[0], minExp, maxExp)
 				}
 				if opts.Verbose || opts.InfoOnly {
 					display := NewDisplay(NewFormatter(opts.Verbose || opts.InfoOnly))
@@ -627,8 +651,8 @@ func createTorrent(opts CreateOptions, internalOpts createTorrentOptions) (*Torr
 				return nil, fmt.Errorf("error marshaling torrent data: %w", err)
 			}
 
-			// Determine the effective max piece length ceiling
-			maxPieceLengthCeiling := uint(24) // default ceiling
+			// Determine the effective max piece length ceiling.
+			maxPieceLengthCeiling := uint(24) // generic default ceiling
 			hasTrackerCap := false
 			if len(opts.TrackerURLs) > 0 && opts.TrackerURLs[0] != "" {
 				if trackerMaxExp, ok := trackers.GetTrackerMaxPieceLength(opts.TrackerURLs[0]); ok {
@@ -636,6 +660,16 @@ func createTorrent(opts CreateOptions, internalOpts createTorrentOptions) (*Torr
 					hasTrackerCap = true
 				}
 			}
+			// If the tracker's own table already extends above the generic
+			// 16 MiB automatic ceiling and it has no hard max, allow the
+			// torrent-size limiter to continue growing pieces as required.
+			if !hasTrackerCap {
+				if recommendedExp, ok := trackers.GetTrackerPieceSizeExp(opts.TrackerURLs[0], uint64(totalSize)); ok &&
+					recommendedExp > 24 {
+					maxPieceLengthCeiling = 27
+				}
+			}
+
 			if opts.MaxPieceLength != nil {
 				if hasTrackerCap {
 					// tracker cap is a hard ceiling; user can lower but not exceed it
