@@ -1,0 +1,24 @@
+name: Breaking change title
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions: {}
+
+jobs:
+  breaking-change:
+    runs-on: ubuntu-latest
+    steps:
+      # The changelog reads only the first line of the squashed commit, which
+      # is the PR title. A breaking change must have "!" in the title.
+      - name: Breaking change needs "!" in the title
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          BODY: ${{ github.event.pull_request.body }}
+        run: |
+          if printf '%s\n' "$BODY" | grep -Eq '^BREAKING[ -]CHANGE:' &&
+            ! printf '%s\n' "$TITLE" | grep -Eq '^\w+(\([^)]*\))?!:'; then
+            echo "::error::The PR body has a BREAKING CHANGE footer. Add \"!\" to the title, for example \"feat(torrent)!: ...\"."
+            exit 1
+          fi
