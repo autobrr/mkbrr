@@ -566,34 +566,39 @@ func createTorrent(opts CreateOptions, internalOpts createTorrentOptions) (*Torr
 		if *opts.TargetPieceCount == 0 {
 			return nil, fmt.Errorf("target piece count must be greater than zero")
 		}
-		// validate max-piece-length the same way the automatic path does
+		// target-piece-count keeps the historical 64 KiB minimum, so a user
+		// maximum below that floor would otherwise be silently exceeded.
 		if opts.MaxPieceLength != nil {
+			minExp := uint(16)
 			maxExp := uint(27)
 			if len(opts.TrackerURLs) > 0 && opts.TrackerURLs[0] != "" {
 				if trackerMaxExp, ok := trackers.GetTrackerMaxPieceLength(opts.TrackerURLs[0]); ok {
 					maxExp = trackerMaxExp
 				}
 			}
-			if *opts.MaxPieceLength < 14 || *opts.MaxPieceLength > maxExp {
-				return nil, fmt.Errorf("max piece length exponent must be between 14 (16 KiB) and %d (%d MiB), got: %d",
-					maxExp, 1<<(maxExp-20), *opts.MaxPieceLength)
+			if *opts.MaxPieceLength < minExp || *opts.MaxPieceLength > maxExp {
+				return nil, fmt.Errorf("max piece length exponent must be between %d (%s) and %d (%s), got: %d",
+					minExp, formatPieceSize(minExp), maxExp, formatPieceSize(maxExp), *opts.MaxPieceLength)
 			}
 		}
 		// target piece count mode: derive piece length from target count
 		pieceLength = calculatePieceLengthFromTarget(totalSize, *opts.TargetPieceCount, opts.MaxPieceLength, opts.TrackerURLs, opts.Verbose)
 	} else if opts.PieceLengthExp == nil {
 		if opts.MaxPieceLength != nil {
-			// Get tracker's max piece length if available
+			minExp := uint(16) // 64 KiB unless the tracker has a custom table
 			maxExp := uint(27) // absolute max 128 MiB
 			if len(opts.TrackerURLs) > 0 && opts.TrackerURLs[0] != "" {
+				if trackers.HasCustomPieceSizeRanges(opts.TrackerURLs[0]) {
+					minExp = 14
+				}
 				if trackerMaxExp, ok := trackers.GetTrackerMaxPieceLength(opts.TrackerURLs[0]); ok {
 					maxExp = trackerMaxExp
 				}
 			}
 
-			if *opts.MaxPieceLength < 14 || *opts.MaxPieceLength > maxExp {
-				return nil, fmt.Errorf("max piece length exponent must be between 14 (16 KiB) and %d (%d MiB), got: %d",
-					maxExp, 1<<(maxExp-20), *opts.MaxPieceLength)
+			if *opts.MaxPieceLength < minExp || *opts.MaxPieceLength > maxExp {
+				return nil, fmt.Errorf("max piece length exponent must be between %d (%s) and %d (%s), got: %d",
+					minExp, formatPieceSize(minExp), maxExp, formatPieceSize(maxExp), *opts.MaxPieceLength)
 			}
 		}
 		pieceLength = calculatePieceLength(totalSize, opts.MaxPieceLength, opts.TrackerURLs, opts.Verbose)
