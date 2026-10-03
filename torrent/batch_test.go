@@ -260,3 +260,34 @@ jobs:
 		})
 	}
 }
+
+// A zero piece setting in a batch job means "not set", as it did before the
+// job used the shared create settings.
+func TestBatchZeroPieceSettingsAreUnset(t *testing.T) {
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "file.txt")
+	if err := os.WriteFile(testFile, []byte("test content"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	configPath := filepath.Join(tmpDir, "batch.yaml")
+	config := fmt.Sprintf(`version: 1
+jobs:
+  - output: %s
+    path: %s
+    piece_length: 0
+    max_piece_length: 0
+    target_piece_count: 0
+`, filepath.Join(tmpDir, "out.torrent"), testFile)
+	if err := os.WriteFile(configPath, []byte(config), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	results, err := ProcessBatch(configPath, false, true, false, "test-version")
+	if err != nil {
+		t.Fatalf("ProcessBatch failed: %v", err)
+	}
+	if !results[0].Success {
+		t.Fatalf("job failed: %v", results[0].Error)
+	}
+}

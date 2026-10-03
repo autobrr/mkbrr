@@ -258,3 +258,51 @@ func TestBatchJobToCreateOptions(t *testing.T) {
 		})
 	}
 }
+
+func TestBatchJobYAMLKeys(t *testing.T) {
+	const doc = `
+path: /data/x
+output: out.torrent
+trackers: [https://t.example.invalid/announce]
+webseeds: [https://w.example.invalid/]
+exclude_patterns: ["*.nfo"]
+include_patterns: ["*.mkv"]
+comment: c
+source: s
+private: false
+piece_length: 20
+max_piece_length: 22
+target_piece_count: 1000
+no_date: true
+no_creator: true
+skip_prefix: true
+entropy: true
+fail_on_season_warning: true
+`
+	var job BatchJob
+	if err := yaml.Unmarshal([]byte(doc), &job); err != nil {
+		t.Fatal(err)
+	}
+	want := BatchJob{
+		Path:                    "/data/x",
+		Output:                  "out.torrent",
+		TrackerURLs:             []string{"https://t.example.invalid/announce"},
+		WebSeeds:                []string{"https://w.example.invalid/"},
+		ExcludePatterns:         []string{"*.nfo"},
+		IncludePatterns:         []string{"*.mkv"},
+		Comment:                 new("c"),
+		Source:                  new("s"),
+		IsPrivate:               new(false),
+		PieceLengthExp:          new(uint(20)),
+		MaxPieceLength:          new(uint(22)),
+		TargetPieceCount:        new(uint(1000)),
+		NoDate:                  new(true),
+		NoCreator:               new(true),
+		SkipPrefix:              new(true),
+		Entropy:                 new(true),
+		FailOnSeasonPackWarning: new(true),
+	}
+	if !reflect.DeepEqual(job, want) {
+		t.Errorf("got  %+v\nwant %+v", job, want)
+	}
+}

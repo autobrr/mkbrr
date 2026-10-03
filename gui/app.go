@@ -45,28 +45,16 @@ type ProgressEvent struct {
 }
 
 // CreateRequest represents a torrent creation request from the frontend.
-//
-// Required fields:
-//   - Path: The source file or directory to create a torrent from
-//
-// Optional fields (all others): Have sensible defaults if not specified
+// Path is required. The embedded create settings are the same type
+// that the CLI builds.
 type CreateRequest struct {
-	Path                string   `json:"path"`                // Required: source file/directory path
-	Name                string   `json:"name"`                // Optional: override torrent name (defaults to source name)
-	TrackerURLs         []string `json:"trackerUrls"`         // Optional: tracker announce URLs
-	Comment             string   `json:"comment"`             // Optional: torrent comment
-	Source              string   `json:"source"`              // Optional: source tag
-	IsPrivate           *bool    `json:"isPrivate"`           // Optional: private flag (nil = true)
-	PieceLengthExp      uint     `json:"pieceLengthExp"`      // Optional: piece length as 2^exp (0 = auto)
-	OutputPath          string   `json:"outputPath"`          // Optional: full output path (mutually exclusive with OutputDir)
-	OutputDir           string   `json:"outputDir"`           // Optional: output directory (defaults to source dir)
-	NoDate              bool     `json:"noDate"`              // Optional: exclude creation date
-	NoCreator           bool     `json:"noCreator"`           // Optional: exclude creator string
-	Entropy             bool     `json:"entropy"`             // Optional: add random entropy for unique hash
-	PresetName          string   `json:"presetName"`          // Optional: preset name to apply
-	PresetFile          string   `json:"presetFile"`          // Optional: path to preset file
-	Workers             int      `json:"workers"`             // Optional: default worker count from settings; a preset value wins (0 = auto)
-	FailOnSeasonWarning bool     `json:"failOnSeasonWarning"` // Optional: fail if incomplete season pack detected
+	Path       string `json:"path"`       // Required: source file/directory path
+	Name       string `json:"name"`       // Optional: override torrent name (defaults to source name)
+	OutputPath string `json:"outputPath"` // Optional: full output path (mutually exclusive with OutputDir)
+	torrent.CreateSettings
+	PresetName     string `json:"presetName"`     // Optional: preset name to apply
+	PresetFile     string `json:"presetFile"`     // Optional: path to preset file
+	DefaultWorkers int    `json:"defaultWorkers"` // Optional: worker count from settings; Workers and a preset value win (0 = auto)
 }
 
 // TorrentResult represents the result of torrent creation
@@ -232,21 +220,15 @@ func (a *App) CreateTorrent(req CreateRequest) (*TorrentResult, error) {
 	}
 
 	// The frontend copies the preset into the form, so each visible form field is an override.
-	// Piece length and output directory use 0 or "" for "not set", so the preset can fill them.
+	// The frontend leaves out piece length and output directory when they are not set,
+	// so the preset can fill them.
 	overrides := torrent.CreateOverrides{
-		Path:                    req.Path,
-		Name:                    req.Name,
-		OutputPath:              req.OutputPath,
-		Version:                 a.version,
-		Quiet:                   true, // Suppress CLI output
-		TrackerURLs:             req.TrackerURLs,
-		IsPrivate:               req.IsPrivate,
-		Comment:                 &req.Comment,
-		Source:                  &req.Source,
-		NoDate:                  &req.NoDate,
-		NoCreator:               &req.NoCreator,
-		Entropy:                 &req.Entropy,
-		FailOnSeasonPackWarning: &req.FailOnSeasonWarning,
+		CreateSettings: req.CreateSettings,
+		Path:           req.Path,
+		Name:           req.Name,
+		OutputPath:     req.OutputPath,
+		Version:        a.version,
+		Quiet:          true, // Suppress CLI output
 		ProgressCallback: func(completed, total int, hashRate float64) {
 			if a.ctx == nil {
 				return
@@ -263,12 +245,6 @@ func (a *App) CreateTorrent(req CreateRequest) (*TorrentResult, error) {
 			})
 		},
 	}
-	if req.PieceLengthExp > 0 {
-		overrides.PieceLengthExp = &req.PieceLengthExp
-	}
-	if req.OutputDir != "" {
-		overrides.OutputDir = &req.OutputDir
-	}
 
 	opts, err := torrent.ResolveCreateOptions(overrides, presetOpts)
 	if err != nil {
@@ -279,7 +255,7 @@ func (a *App) CreateTorrent(req CreateRequest) (*TorrentResult, error) {
 	if opts.OutputDir == "" && opts.OutputPath == "" {
 		opts.OutputDir = filepath.Dir(req.Path)
 	}
-	opts.Workers = cmp.Or(opts.Workers, req.Workers)
+	opts.Workers = cmp.Or(opts.Workers, req.DefaultWorkers)
 
 	// Analyze season pack info before creation
 	var seasonPackInfo *SeasonPackInfo

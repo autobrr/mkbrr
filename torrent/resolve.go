@@ -12,11 +12,36 @@ import (
 	"github.com/autobrr/mkbrr/internal/trackers"
 )
 
-// CreateOverrides holds the create settings that the caller gave explicitly.
+// CreateSettings are the create settings that a caller gives as overrides.
+// The CLI builds this type, and the GUI create request and the batch job embed it.
 // A nil pointer or a nil slice means "not set". Then the preset or the default applies.
-// The runtime fields are not settings. ResolveCreateOptions copies them without change.
+// A batch job cannot set OutputDir or Workers.
+type CreateSettings struct {
+	PieceLengthExp          *uint    `json:"pieceLengthExp" yaml:"piece_length"`
+	MaxPieceLength          *uint    `json:"maxPieceLength" yaml:"max_piece_length"`
+	TargetPieceCount        *uint    `json:"targetPieceCount" yaml:"target_piece_count"`
+	Comment                 *string  `json:"comment" yaml:"comment"`
+	Source                  *string  `json:"source" yaml:"source"`
+	OutputDir               *string  `json:"outputDir" yaml:"-"`
+	Workers                 *int     `json:"workers" yaml:"-"`
+	IsPrivate               *bool    `json:"isPrivate" yaml:"private"`
+	NoDate                  *bool    `json:"noDate" yaml:"no_date"`
+	NoCreator               *bool    `json:"noCreator" yaml:"no_creator"`
+	Entropy                 *bool    `json:"entropy" yaml:"entropy"`
+	SkipPrefix              *bool    `json:"skipPrefix" yaml:"skip_prefix"`
+	FailOnSeasonPackWarning *bool    `json:"failOnSeasonWarning" yaml:"fail_on_season_warning"`
+	TrackerURLs             []string `json:"trackerUrls" yaml:"trackers"`
+	WebSeeds                []string `json:"webSeeds" yaml:"webseeds"`
+	ExcludePatterns         []string `json:"excludePatterns" yaml:"exclude_patterns"`
+	IncludePatterns         []string `json:"includePatterns" yaml:"include_patterns"`
+}
+
+// CreateOverrides holds the create settings that the caller gave explicitly,
+// and the runtime fields. The runtime fields are not settings.
+// ResolveCreateOptions copies them without change.
 type CreateOverrides struct {
-	// Runtime fields
+	CreateSettings
+
 	Path             string
 	Name             string
 	OutputPath       string
@@ -25,25 +50,6 @@ type CreateOverrides struct {
 	Quiet            bool
 	InfoOnly         bool
 	ProgressCallback ProgressCallback
-
-	// Create settings
-	PieceLengthExp          *uint
-	MaxPieceLength          *uint
-	TargetPieceCount        *uint
-	Comment                 *string
-	Source                  *string
-	OutputDir               *string
-	Workers                 *int
-	IsPrivate               *bool
-	NoDate                  *bool
-	NoCreator               *bool
-	Entropy                 *bool
-	SkipPrefix              *bool
-	FailOnSeasonPackWarning *bool
-	TrackerURLs             []string
-	WebSeeds                []string
-	ExcludePatterns         []string
-	IncludePatterns         []string
 }
 
 var errPieceLengthAndTargetCount = errors.New("cannot set both piece length and target piece count; use one or the other")
