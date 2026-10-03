@@ -163,40 +163,32 @@ func processBatchMode(opts createOptions, version string, startTime time.Time) e
 	return nil
 }
 
-// buildCreateOptions turns the changed command-line flags into overrides, loads the preset, and resolves the create options
+// buildCreateOptions turns the changed command-line flags into create settings, loads the preset, and resolves the create options
 func buildCreateOptions(cmd *cobra.Command, inputPath string, opts createOptions, version string) (torrent.CreateOptions, error) {
 	flags := cmd.Flags()
-	o := torrent.CreateOverrides{
-		Path:       inputPath,
-		Name:       opts.name,
-		OutputPath: opts.outputPath,
-		Version:    version,
-		Verbose:    opts.verbose,
-		Quiet:      opts.quiet,
-		InfoOnly:   opts.infoOnly,
-	}
+	var s torrent.CreateSettings
 	setIfChanged := func(name string, set func()) {
 		if flags.Changed(name) {
 			set()
 		}
 	}
-	setIfChanged("piece-length", func() { o.PieceLengthExp = &opts.pieceLengthExp })
-	setIfChanged("max-piece-length", func() { o.MaxPieceLength = &opts.maxPieceLengthExp })
-	setIfChanged("target-piece-count", func() { o.TargetPieceCount = &opts.targetPieceCount })
-	setIfChanged("tracker", func() { o.TrackerURLs = opts.trackers })
-	setIfChanged("web-seed", func() { o.WebSeeds = opts.webSeeds })
-	setIfChanged("exclude", func() { o.ExcludePatterns = opts.excludePatterns })
-	setIfChanged("include", func() { o.IncludePatterns = opts.includePatterns })
-	setIfChanged("private", func() { o.IsPrivate = &opts.isPrivate })
-	setIfChanged("comment", func() { o.Comment = &opts.comment })
-	setIfChanged("source", func() { o.Source = &opts.source })
-	setIfChanged("output-dir", func() { o.OutputDir = &opts.outputDir })
-	setIfChanged("no-date", func() { o.NoDate = &opts.noDate })
-	setIfChanged("no-creator", func() { o.NoCreator = &opts.noCreator })
-	setIfChanged("skip-prefix", func() { o.SkipPrefix = &opts.skipPrefix })
-	setIfChanged("entropy", func() { o.Entropy = &opts.entropy })
-	setIfChanged("fail-on-season-warning", func() { o.FailOnSeasonPackWarning = &opts.failOnSeasonWarning })
-	setIfChanged("workers", func() { o.Workers = &opts.createWorkers })
+	setIfChanged("piece-length", func() { s.PieceLengthExp = &opts.pieceLengthExp })
+	setIfChanged("max-piece-length", func() { s.MaxPieceLength = &opts.maxPieceLengthExp })
+	setIfChanged("target-piece-count", func() { s.TargetPieceCount = &opts.targetPieceCount })
+	setIfChanged("tracker", func() { s.TrackerURLs = opts.trackers })
+	setIfChanged("web-seed", func() { s.WebSeeds = opts.webSeeds })
+	setIfChanged("exclude", func() { s.ExcludePatterns = opts.excludePatterns })
+	setIfChanged("include", func() { s.IncludePatterns = opts.includePatterns })
+	setIfChanged("private", func() { s.IsPrivate = &opts.isPrivate })
+	setIfChanged("comment", func() { s.Comment = &opts.comment })
+	setIfChanged("source", func() { s.Source = &opts.source })
+	setIfChanged("output-dir", func() { s.OutputDir = &opts.outputDir })
+	setIfChanged("no-date", func() { s.NoDate = &opts.noDate })
+	setIfChanged("no-creator", func() { s.NoCreator = &opts.noCreator })
+	setIfChanged("skip-prefix", func() { s.SkipPrefix = &opts.skipPrefix })
+	setIfChanged("entropy", func() { s.Entropy = &opts.entropy })
+	setIfChanged("fail-on-season-warning", func() { s.FailOnSeasonPackWarning = &opts.failOnSeasonWarning })
+	setIfChanged("workers", func() { s.Workers = &opts.createWorkers })
 
 	var presetOpts *preset.Options
 	if opts.presetName != "" {
@@ -211,7 +203,16 @@ func buildCreateOptions(cmd *cobra.Command, inputPath string, opts createOptions
 		}
 	}
 
-	return torrent.ResolveCreateOptions(o, presetOpts)
+	return torrent.ResolveCreateOptions(torrent.CreateOverrides{
+		CreateSettings: s,
+		Path:           inputPath,
+		Name:           opts.name,
+		OutputPath:     opts.outputPath,
+		Version:        version,
+		Verbose:        opts.verbose,
+		Quiet:          opts.quiet,
+		InfoOnly:       opts.infoOnly,
+	}, presetOpts)
 }
 
 // createSingleTorrent handles creating a single torrent file

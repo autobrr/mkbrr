@@ -258,3 +258,70 @@ func TestBatchJobToCreateOptions(t *testing.T) {
 		})
 	}
 }
+
+func TestBatchJobYAMLKeys(t *testing.T) {
+	const doc = `
+path: /data/x
+output: out.torrent
+trackers: [https://t.example.invalid/announce]
+webseeds: [https://w.example.invalid/]
+exclude_patterns: ["*.nfo"]
+include_patterns: ["*.mkv"]
+comment: c
+source: s
+private: false
+piece_length: 20
+max_piece_length: 22
+target_piece_count: 1000
+no_date: true
+no_creator: true
+skip_prefix: true
+entropy: true
+fail_on_season_warning: true
+`
+	var job BatchJob
+	if err := yaml.Unmarshal([]byte(doc), &job); err != nil {
+		t.Fatal(err)
+	}
+	want := BatchJob{
+		Path:                    "/data/x",
+		Output:                  "out.torrent",
+		TrackerURLs:             []string{"https://t.example.invalid/announce"},
+		WebSeeds:                []string{"https://w.example.invalid/"},
+		ExcludePatterns:         []string{"*.nfo"},
+		IncludePatterns:         []string{"*.mkv"},
+		Comment:                 new("c"),
+		Source:                  new("s"),
+		IsPrivate:               new(false),
+		PieceLengthExp:          new(uint(20)),
+		MaxPieceLength:          new(uint(22)),
+		TargetPieceCount:        new(uint(1000)),
+		NoDate:                  new(true),
+		NoCreator:               new(true),
+		SkipPrefix:              new(true),
+		Entropy:                 new(true),
+		FailOnSeasonPackWarning: new(true),
+	}
+	if !reflect.DeepEqual(job, want) {
+		t.Errorf("got  %+v\nwant %+v", job, want)
+	}
+}
+
+// ToCreateOptions treats a zero piece setting as "not set", also when the
+// caller does not go through ProcessBatch.
+func TestBatchJobToCreateOptionsZeroPieceSettings(t *testing.T) {
+	var job BatchJob
+	if err := yaml.Unmarshal([]byte("piece_length: 0\nmax_piece_length: 0\ntarget_piece_count: 0"), &job); err != nil {
+		t.Fatal(err)
+	}
+	got, err := job.ToCreateOptions(false, false, false, "v")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.PieceLengthExp != nil || got.MaxPieceLength != nil || got.TargetPieceCount != nil {
+		t.Errorf("got piece=%v max=%v target=%v, want all nil", got.PieceLengthExp, got.MaxPieceLength, got.TargetPieceCount)
+	}
+	if job.PieceLengthExp == nil {
+		t.Errorf("ToCreateOptions changed the job")
+	}
+}

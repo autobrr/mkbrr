@@ -3,20 +3,27 @@ export namespace main {
 	export class CreateRequest {
 	    path: string;
 	    name: string;
-	    trackerUrls: string[];
-	    comment: string;
-	    source: string;
-	    isPrivate?: boolean;
-	    pieceLengthExp: number;
 	    outputPath: string;
-	    outputDir: string;
-	    noDate: boolean;
-	    noCreator: boolean;
-	    entropy: boolean;
+	    pieceLengthExp?: number;
+	    maxPieceLength?: number;
+	    targetPieceCount?: number;
+	    comment?: string;
+	    source?: string;
+	    outputDir?: string;
+	    workers?: number;
+	    isPrivate?: boolean;
+	    noDate?: boolean;
+	    noCreator?: boolean;
+	    entropy?: boolean;
+	    skipPrefix?: boolean;
+	    failOnSeasonWarning?: boolean;
+	    trackerUrls: string[];
+	    webSeeds: string[];
+	    excludePatterns: string[];
+	    includePatterns: string[];
 	    presetName: string;
 	    presetFile: string;
-	    workers: number;
-	    failOnSeasonWarning: boolean;
+	    defaultWorkers: number;
 
 	    static createFrom(source: any = {}) {
 	        return new CreateRequest(source);
@@ -26,20 +33,27 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.path = source["path"];
 	        this.name = source["name"];
-	        this.trackerUrls = source["trackerUrls"];
+	        this.outputPath = source["outputPath"];
+	        this.pieceLengthExp = source["pieceLengthExp"];
+	        this.maxPieceLength = source["maxPieceLength"];
+	        this.targetPieceCount = source["targetPieceCount"];
 	        this.comment = source["comment"];
 	        this.source = source["source"];
-	        this.isPrivate = source["isPrivate"];
-	        this.pieceLengthExp = source["pieceLengthExp"];
-	        this.outputPath = source["outputPath"];
 	        this.outputDir = source["outputDir"];
+	        this.workers = source["workers"];
+	        this.isPrivate = source["isPrivate"];
 	        this.noDate = source["noDate"];
 	        this.noCreator = source["noCreator"];
 	        this.entropy = source["entropy"];
+	        this.skipPrefix = source["skipPrefix"];
+	        this.failOnSeasonWarning = source["failOnSeasonWarning"];
+	        this.trackerUrls = source["trackerUrls"];
+	        this.webSeeds = source["webSeeds"];
+	        this.excludePatterns = source["excludePatterns"];
+	        this.includePatterns = source["includePatterns"];
 	        this.presetName = source["presetName"];
 	        this.presetFile = source["presetFile"];
-	        this.workers = source["workers"];
-	        this.failOnSeasonWarning = source["failOnSeasonWarning"];
+	        this.defaultWorkers = source["defaultWorkers"];
 	    }
 	}
 	export class FileInfo {

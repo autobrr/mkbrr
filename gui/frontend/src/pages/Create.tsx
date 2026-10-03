@@ -26,7 +26,6 @@ import { DropOverlay } from '@/components/ui/drop-overlay';
 import { main, preset as presetTypes } from '../../wailsjs/go/models';
 
 // Re-export types from generated models
-type CreateRequest = main.CreateRequest;
 type TorrentResultType = main.TorrentResult;
 type PresetOptions = presetTypes.Options;
 type TrackerInfoType = main.TrackerInfo;
@@ -462,26 +461,26 @@ export function CreatePage() {
 
     try {
       // Workers from settings. The backend gives a preset value priority over it.
-      const workers = getEffectiveWorkers();
+      const defaultWorkers = getEffectiveWorkers();
 
-      const req: CreateRequest = {
+      // createFrom leaves out the fields the form does not have, so the preset fills them.
+      // An empty web seed list would hide the preset web seeds.
+      const req = main.CreateRequest.createFrom({
         path,
         name,
         trackerUrls: trackers.filter(t => t.trim() !== ''),
         isPrivate,
         comment,
         source,
-        pieceLengthExp,
-        outputPath: '',
-        outputDir,
+        pieceLengthExp: pieceLengthExp || undefined,
+        outputDir: outputDir || undefined,
         noDate,
         noCreator,
         entropy,
-        presetName,
-        presetFile: '',
-        workers,
         failOnSeasonWarning,
-      };
+        presetName,
+        defaultWorkers,
+      });
 
       const res = await CreateTorrent(req);
       setResult(res as TorrentResultType);
