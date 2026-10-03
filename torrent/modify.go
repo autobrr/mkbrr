@@ -4,11 +4,11 @@
 package torrent
 
 import (
+	"cmp"
 	"fmt"
 	"os"
 	"time"
 
-	"github.com/autobrr/go-torrent/bencode"
 	"github.com/autobrr/go-torrent/metainfo"
 
 	"github.com/autobrr/mkbrr/internal/preset"
@@ -90,26 +90,14 @@ func ModifyTorrent(path string, opts ModifyOptions) (*Result, error) {
 			return result, result.Error
 		}
 
-		presetOpts, err = presets.GetPreset(opts.PresetName)
+		presetOpts, err = presets.PresetValues(opts.PresetName)
 		if err != nil {
 			result.Error = fmt.Errorf("could not get preset: %w", err)
 			return result, result.Error
 		}
-
-		presetOpts.Version = opts.Version
 	}
 
-	// apply preset modifications if any
-	wasModified := false
-	if presetOpts != nil {
-		wasModified, err = presetOpts.ApplyToMetaInfo(mi)
-		if err != nil {
-			result.Error = fmt.Errorf("could not apply preset: %w", err)
-			return result, result.Error
-		}
-	}
-
-	// read current info values via struct (for comparisons only — never marshal this back)
+	// read the original name before any change, for the output path
 	info, err := mi.UnmarshalInfo()
 	if err != nil {
 		result.Error = fmt.Errorf("could not unmarshal info: %w", err)
@@ -117,130 +105,16 @@ func ModifyTorrent(path string, opts ModifyOptions) (*Result, error) {
 	}
 	originalMetaInfoName := info.Name
 
-	// track info-level changes to apply via raw map at the end,
-	// preserving any custom keys (e.g. entropy) that the typed struct would drop
-	type infoChange struct {
-		key    string
-		value  any
-		remove bool
+	spec := modifySpec(opts, presetOpts)
+	wasModified, err := applyMetadata(mi, spec)
+	if err != nil {
+		result.Error = err
+		return result, result.Error
 	}
-	var infoChanges []infoChange
-
-	// apply flag-based overrides:
-	// update tracker if flag provided
-	if len(opts.TrackerURLs) > 0 {
-		mi.Announce = opts.TrackerURLs[0] // Primary announce is the first one
-		announceList := make([][]string, len(opts.TrackerURLs))
-		for i, tracker := range opts.TrackerURLs {
-			announceList[i] = []string{tracker}
-		}
-		mi.AnnounceList = announceList
-		wasModified = true
-		// Note: This overrides any trackers set by a preset
-	}
-
-	// update name if provided via flag
-	if opts.Name != "" && info.Name != opts.Name {
-		infoChanges = append(infoChanges, infoChange{key: "name", value: opts.Name})
-		wasModified = true
-	}
-
-	// update web seeds if provided via flag
-	if len(opts.WebSeeds) > 0 {
-		mi.UrlList = opts.WebSeeds
-		wasModified = true
-	}
-
-	// update comment if provided via flag (CommentSet allows clearing with empty string)
-	if opts.CommentSet {
-		if opts.Comment == "" || mi.Comment != opts.Comment {
-			mi.Comment = opts.Comment
-			wasModified = true
-		}
-	} else if opts.Comment != "" && mi.Comment != opts.Comment {
-		mi.Comment = opts.Comment
-		wasModified = true
-	}
-
-	// remove private field entirely if requested
-	if opts.RemovePrivate {
-		infoChanges = append(infoChanges, infoChange{key: "private", remove: true})
-		wasModified = true
-	} else if opts.IsPrivate != nil {
-		if info.Private == nil || *info.Private != *opts.IsPrivate {
-			val := int64(0)
-			if *opts.IsPrivate {
-				val = 1
-			}
-			infoChanges = append(infoChanges, infoChange{key: "private", value: val})
-			wasModified = true
-		}
-	}
-
-	// update source if provided via flag (SourceSet allows clearing with empty string)
-	if opts.SourceSet {
-		if opts.Source == "" {
-			// explicitly remove the source key from info dict
-			infoChanges = append(infoChanges, infoChange{key: "source", remove: true})
-			wasModified = true
-		} else if info.Source != opts.Source {
-			infoChanges = append(infoChanges, infoChange{key: "source", value: opts.Source})
-			wasModified = true
-		}
-	} else if opts.Source != "" && info.Source != opts.Source {
-		infoChanges = append(infoChanges, infoChange{key: "source", value: opts.Source})
-		wasModified = true
-	}
-
-	// apply entropy from preset if not explicitly set via flag
-	if opts.Entropy == nil && presetOpts != nil && presetOpts.Entropy != nil {
-		opts.Entropy = presetOpts.Entropy
-	}
-
-	// add random entropy field for cross-seeding if enabled
-	if opts.Entropy != nil && *opts.Entropy {
-		entropy, err := generateRandomString()
-		if err != nil {
-			result.Error = fmt.Errorf("could not generate entropy: %w", err)
-			return result, result.Error
-		}
-		infoChanges = append(infoChanges, infoChange{key: "entropy", value: entropy})
-		wasModified = true
-	}
-
-	// apply all info-level changes via raw map to preserve custom keys
-	if len(infoChanges) > 0 {
-		infoMap := make(map[string]any)
-		if err := bencode.Unmarshal(mi.InfoBytes, &infoMap); err != nil {
-			result.Error = fmt.Errorf("could not unmarshal info map: %w", err)
-			return result, result.Error
-		}
-		for _, c := range infoChanges {
-			if c.remove {
-				delete(infoMap, c.key)
-			} else {
-				infoMap[c.key] = c.value
-			}
-		}
-		infoBytes, err := bencode.Marshal(infoMap)
-		if err != nil {
-			result.Error = fmt.Errorf("could not marshal info map: %w", err)
-			return result, result.Error
-		}
-		mi.InfoBytes = infoBytes
-	}
-
-	// handle creator
-	if presetOpts != nil && presetOpts.NoCreator != nil && *presetOpts.NoCreator || opts.NoCreator {
-		mi.CreatedBy = ""
-		wasModified = true
-	}
-
-	// update creation date based on preset and command line options
-	if presetOpts != nil && presetOpts.NoDate != nil && *presetOpts.NoDate || opts.NoDate {
-		mi.CreationDate = 0
-		wasModified = true
-	} else {
+	// a kept creation date becomes now when anything else changes, or when
+	// the preset asks for a date and the torrent has none
+	presetWantsDate := presetOpts != nil && presetOpts.NoDate != nil && !*presetOpts.NoDate
+	if spec.CreationDate.action == keepField && (wasModified || presetWantsDate && mi.CreationDate == 0) {
 		mi.CreationDate = time.Now().Unix()
 		wasModified = true
 	}
@@ -254,11 +128,7 @@ func ModifyTorrent(path string, opts ModifyOptions) (*Result, error) {
 		return result, nil
 	}
 
-	// re-read info to get potentially updated name (e.g. if name was changed via infoChanges)
-	var metaInfoName string
-	if updatedInfo, infoErr := mi.UnmarshalInfo(); infoErr == nil {
-		metaInfoName = updatedInfo.Name
-	}
+	metaInfoName := cmp.Or(opts.Name, originalMetaInfoName)
 
 	basePath := path
 	if opts.OutputPattern == "" && originalMetaInfoName != "" {
@@ -304,6 +174,82 @@ func ModifyTorrent(path string, opts ModifyOptions) (*Result, error) {
 
 	result.WasModified = true
 	return result, nil
+}
+
+// modifySpec resolves the overrides in opts and the preset p into one
+// metadataSpec. The order is override, then preset, then keep. Only an
+// override can clear a setting.
+func modifySpec(opts ModifyOptions, p *preset.Options) metadataSpec {
+	if p == nil {
+		p = &preset.Options{}
+	}
+	var spec metadataSpec
+
+	switch {
+	case len(opts.TrackerURLs) > 0:
+		spec.Trackers = setTo(opts.TrackerURLs)
+	case len(p.Trackers) > 0:
+		spec.Trackers = setTo(p.Trackers)
+	}
+
+	switch {
+	case len(opts.WebSeeds) > 0:
+		spec.WebSeeds = opts.WebSeeds
+	case len(p.WebSeeds) > 0:
+		spec.WebSeeds = p.WebSeeds
+	}
+
+	spec.Comment = stringSetting(opts.Comment, opts.CommentSet, p.Comment)
+	spec.Source = stringSetting(opts.Source, opts.SourceSet, p.Source)
+
+	if opts.Name != "" {
+		spec.Name = setTo(opts.Name)
+	}
+
+	switch {
+	case opts.RemovePrivate:
+		spec.Private = cleared[bool]()
+	case opts.IsPrivate != nil:
+		spec.Private = setTo(*opts.IsPrivate)
+	case p.Private != nil:
+		spec.Private = setTo(*p.Private)
+	}
+
+	switch {
+	case opts.NoCreator, p.NoCreator != nil && *p.NoCreator:
+		spec.CreatedBy = cleared[string]()
+	case p.NoCreator != nil:
+		spec.CreatedBy = setTo(createdBy(opts.Version))
+	}
+
+	if opts.NoDate || p.NoDate != nil && *p.NoDate {
+		spec.CreationDate = cleared[int64]()
+	}
+
+	// false does not remove entropy: no setting asks for that yet
+	entropy := opts.Entropy
+	if entropy == nil {
+		entropy = p.Entropy
+	}
+	if entropy != nil && *entropy {
+		spec.Entropy = setField
+	}
+
+	return spec
+}
+
+// stringSetting resolves a string setting. An explicit override sets the
+// value, or clears it when the value is empty. A preset cannot clear.
+func stringSetting(override string, overrideSet bool, presetValue string) field[string] {
+	switch {
+	case overrideSet && override == "":
+		return cleared[string]()
+	case override != "":
+		return setTo(override)
+	case presetValue != "":
+		return setTo(presetValue)
+	}
+	return field[string]{}
 }
 
 // ProcessTorrents modifies multiple torrent files according to the given options.

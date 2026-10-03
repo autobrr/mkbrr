@@ -10,6 +10,10 @@ import (
 	"testing"
 
 	"github.com/autobrr/go-torrent/bencode"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/autobrr/mkbrr/internal/preset"
 )
 
 func TestModifyTorrent_OutputDirPriority(t *testing.T) {
@@ -175,7 +179,7 @@ func TestModifyTorrent_MultipleAndNoTrackers(t *testing.T) {
 		}
 	})
 
-	t.Run("No tracker", func(t *testing.T) {
+	t.Run("No changes writes no file", func(t *testing.T) {
 		opts := ModifyOptions{
 			OutputDir:   tmpDir,
 			TrackerURLs: nil,
@@ -185,18 +189,11 @@ func TestModifyTorrent_MultipleAndNoTrackers(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ModifyTorrent failed: %v", err)
 		}
-		if result.OutputPath == "" {
-			t.Errorf("Expected output path to be set")
+		if result.WasModified {
+			t.Error("Expected no modification")
 		}
-		mi, err := LoadFromFile(result.OutputPath)
-		if err != nil {
-			t.Fatalf("Failed to load modified torrent: %v", err)
-		}
-		if mi.Announce != "" {
-			t.Errorf("Announce should be empty when no tracker, got %q", mi.Announce)
-		}
-		if len(mi.AnnounceList) > 0 {
-			t.Errorf("AnnounceList should be empty or nil when no tracker, got %#v", mi.AnnounceList)
+		if result.OutputPath != "" {
+			t.Errorf("Expected no output path, got %q", result.OutputPath)
 		}
 	})
 }
@@ -440,6 +437,9 @@ func TestModify_NameArgument(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+
+			// a run with no change writes no file
+			tt.opts.Comment = "changed"
 
 			// Modify the torrent
 			result, err := ModifyTorrent(tt.path, tt.opts)
@@ -790,4 +790,120 @@ func TestModifyTorrent_RemoveFields(t *testing.T) {
 			t.Error("Expected source key to be completely removed from info dict")
 		}
 	})
+}
+
+func TestModifySpec_Precedence(t *testing.T) {
+	creator := createdBy("1")
+
+	tests := []struct {
+		name   string
+		opts   ModifyOptions
+		preset *preset.Options
+		want   metadataSpec
+	}{
+		{
+			name: "no override and no preset keeps everything",
+			opts: ModifyOptions{Version: "1"},
+			want: metadataSpec{},
+		},
+		{
+			name: "override beats preset",
+			opts: ModifyOptions{
+				TrackerURLs: []string{"https://flag.test/announce"},
+				WebSeeds:    []string{"https://flag.test/seed"},
+				Source:      "FLAG",
+				Comment:     "flag",
+				IsPrivate:   new(false),
+				Entropy:     new(false),
+			},
+			preset: &preset.Options{
+				Trackers: []string{"https://preset.test/announce"},
+				WebSeeds: []string{"https://preset.test/seed"},
+				Source:   "PRESET",
+				Comment:  "preset",
+				Private:  new(true),
+				Entropy:  new(true),
+			},
+			want: metadataSpec{
+				Trackers: setTo([]string{"https://flag.test/announce"}),
+				WebSeeds: []string{"https://flag.test/seed"},
+				Source:   setTo("FLAG"),
+				Comment:  setTo("flag"),
+				Private:  setTo(false),
+			},
+		},
+		{
+			name:   "preset fills what no override sets",
+			opts:   ModifyOptions{Version: "1"},
+			preset: &preset.Options{Trackers: []string{"https://preset.test/announce"}, Source: "PRESET", Private: new(true), Entropy: new(true)},
+			want: metadataSpec{
+				Trackers: setTo([]string{"https://preset.test/announce"}),
+				Source:   setTo("PRESET"),
+				Private:  setTo(true),
+				Entropy:  setField,
+			},
+		},
+		{
+			name:   "explicit preset false writes the creator",
+			opts:   ModifyOptions{Version: "1"},
+			preset: &preset.Options{NoCreator: new(false)},
+			want:   metadataSpec{CreatedBy: setTo(creator)},
+		},
+		{
+			name:   "--no-creator beats preset false",
+			opts:   ModifyOptions{Version: "1", NoCreator: true},
+			preset: &preset.Options{NoCreator: new(false)},
+			want:   metadataSpec{CreatedBy: cleared[string]()},
+		},
+		{
+			name:   "only an override clears",
+			opts:   ModifyOptions{SourceSet: true, CommentSet: true, RemovePrivate: true, IsPrivate: new(true)},
+			preset: &preset.Options{Source: "PRESET", Comment: "preset"},
+			want:   metadataSpec{Source: cleared[string](), Comment: cleared[string](), Private: cleared[bool]()},
+		},
+		{
+			name:   "preset no date clears the creation date",
+			preset: &preset.Options{NoDate: new(true)},
+			want:   metadataSpec{CreationDate: cleared[int64]()},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, modifySpec(tt.opts, tt.preset))
+		})
+	}
+}
+
+func TestModifyTorrent_ChangeRule(t *testing.T) {
+	dir := t.TempDir()
+	content := filepath.Join(dir, "file.txt")
+	require.NoError(t, os.WriteFile(content, []byte("change rule"), 0o644))
+	torrentPath := filepath.Join(dir, "in.torrent")
+	_, err := Create(CreateOptions{Path: content, OutputPath: torrentPath, IsPrivate: true, Source: "SRC", NoDate: true, Quiet: true})
+	require.NoError(t, err)
+
+	presetPath := filepath.Join(dir, "presets.yaml")
+	require.NoError(t, os.WriteFile(presetPath, []byte(`version: 1
+presets:
+  same:
+    private: true
+    source: SRC
+  date:
+    no_date: false
+`), 0o644))
+
+	for _, dryRun := range []bool{true, false} {
+		result, err := ModifyTorrent(torrentPath, ModifyOptions{PresetName: "same", PresetFile: presetPath, OutputDir: dir, DryRun: dryRun, Version: "test"})
+		require.NoError(t, err)
+		assert.False(t, result.WasModified, "unchanged preset, dry run %v", dryRun)
+		assert.Empty(t, result.OutputPath, "unchanged preset, dry run %v", dryRun)
+	}
+
+	result, err := ModifyTorrent(torrentPath, ModifyOptions{PresetName: "date", PresetFile: presetPath, OutputDir: dir, Version: "test"})
+	require.NoError(t, err)
+	require.True(t, result.WasModified, "preset no_date: false must write a missing date")
+	mi, err := LoadFromFile(result.OutputPath)
+	require.NoError(t, err)
+	assert.NotZero(t, mi.CreationDate)
 }

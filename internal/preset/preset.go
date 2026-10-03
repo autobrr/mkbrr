@@ -9,10 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
-	"github.com/autobrr/go-torrent/bencode"
-	"github.com/autobrr/go-torrent/metainfo"
 	"gopkg.in/yaml.v3"
 )
 
@@ -37,7 +34,6 @@ type Options struct {
 	Comment             string   `yaml:"comment" json:"comment,omitempty"`
 	Source              string   `yaml:"source" json:"source,omitempty"`
 	OutputDir           string   `yaml:"output_dir" json:"outputDir,omitempty"`
-	Version             string   `json:"-"` // used for creator string, not exposed to frontend
 	Trackers            []string `yaml:"trackers" json:"trackers,omitempty"`
 	WebSeeds            []string `yaml:"webseeds" json:"webSeeds,omitempty"`
 	ExcludePatterns     []string `yaml:"exclude_patterns" json:"excludePatterns,omitempty"`
@@ -166,27 +162,37 @@ func GetDefaultPresetPath() (string, error) {
 	return filepath.Join(home, ".config", "mkbrr", "presets.yaml"), nil
 }
 
-// GetPreset returns a preset by name, merged with default settings
+// GetPreset returns a preset by name, merged with the default section and
+// then with hardcoded defaults for the keys that neither sets.
 func (c *Config) GetPreset(name string) (*Options, error) {
+	merged, err := c.PresetValues(name)
+	if err != nil {
+		return nil, err
+	}
+	if merged.Private == nil {
+		merged.Private = new(true)
+	}
+	if merged.NoDate == nil {
+		merged.NoDate = new(false)
+	}
+	if merged.NoCreator == nil {
+		merged.NoCreator = new(false)
+	}
+	if merged.SkipPrefix == nil {
+		merged.SkipPrefix = new(false)
+	}
+	return merged, nil
+}
+
+// PresetValues returns a preset by name, merged with the default section only.
+// A key that neither sets stays nil or empty.
+func (c *Config) PresetValues(name string) (*Options, error) {
 	preset, ok := c.Presets[name]
 	if !ok {
 		return nil, fmt.Errorf("preset %q not found", name)
 	}
 
-	// create a copy with hardcoded defaults
-	defaultPrivate := true
-	defaultNoDate := false
-	defaultNoCreator := false
-	defaultSkipPrefix := false
-	defaultWorkers := 0 // auto
-
-	merged := Options{
-		Private:    &defaultPrivate,
-		NoDate:     &defaultNoDate,
-		NoCreator:  &defaultNoCreator,
-		SkipPrefix: &defaultSkipPrefix,
-		Workers:    defaultWorkers,
-	}
+	var merged Options
 
 	// if we have defaults in config, use those instead
 	if c.Default != nil {
@@ -281,95 +287,6 @@ func (c *Config) GetPreset(name string) (*Options, error) {
 	}
 
 	return &merged, nil
-}
-
-// ApplyToMetaInfo applies preset options to a MetaInfo object.
-// Info-level changes are applied via raw map to preserve custom keys (e.g. entropy).
-func (o *Options) ApplyToMetaInfo(mi *metainfo.MetaInfo) (bool, error) {
-	wasModified := false
-
-	// track info-level changes to apply via raw map at the end
-	type infoChange struct {
-		key    string
-		value  any
-		remove bool
-	}
-	var infoChanges []infoChange
-
-	// Only modify values that are explicitly set in the preset
-	if len(o.Trackers) > 0 {
-		mi.Announce = o.Trackers[0]
-		announceList := make([][]string, len(o.Trackers))
-		for i, tracker := range o.Trackers {
-			announceList[i] = []string{tracker}
-		}
-		mi.AnnounceList = announceList
-		wasModified = true
-	}
-
-	if len(o.WebSeeds) > 0 {
-		mi.UrlList = o.WebSeeds
-		wasModified = true
-	}
-
-	if o.Source != "" {
-		infoChanges = append(infoChanges, infoChange{key: "source", value: o.Source})
-		wasModified = true
-	}
-
-	if o.Comment != "" {
-		mi.Comment = o.Comment
-		wasModified = true
-	}
-
-	if o.Private != nil {
-		val := int64(0)
-		if *o.Private {
-			val = 1
-		}
-		infoChanges = append(infoChanges, infoChange{key: "private", value: val})
-		wasModified = true
-	}
-
-	if o.NoCreator != nil {
-		if *o.NoCreator {
-			mi.CreatedBy = ""
-		} else {
-			mi.CreatedBy = fmt.Sprintf("mkbrr/%s", o.Version)
-		}
-		wasModified = true
-	}
-
-	if o.NoDate != nil {
-		if *o.NoDate {
-			mi.CreationDate = 0
-		} else {
-			mi.CreationDate = time.Now().Unix()
-		}
-		wasModified = true
-	}
-
-	// apply info-level changes via raw map to preserve custom keys
-	if len(infoChanges) > 0 {
-		infoMap := make(map[string]any)
-		if err := bencode.Unmarshal(mi.InfoBytes, &infoMap); err != nil {
-			return false, fmt.Errorf("could not unmarshal info map: %w", err)
-		}
-		for _, c := range infoChanges {
-			if c.remove {
-				delete(infoMap, c.key)
-			} else {
-				infoMap[c.key] = c.value
-			}
-		}
-		infoBytes, err := bencode.Marshal(infoMap)
-		if err != nil {
-			return false, fmt.Errorf("could not marshal info map: %w", err)
-		}
-		mi.InfoBytes = infoBytes
-	}
-
-	return wasModified, nil
 }
 
 // GetDomainPrefix extracts a clean domain name from a tracker URL to use as a filename prefix
