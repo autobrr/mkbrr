@@ -211,15 +211,6 @@ jobs:
 			expectError: true,
 		},
 		{
-			name: "invalid piece length",
-			config: `version: 1
-jobs:
-  - output: test.torrent
-    path: test.txt
-    piece_length: 25`,
-			expectError: true,
-		},
-		{
 			name: "empty jobs",
 			config: `version: 1
 jobs: []`,

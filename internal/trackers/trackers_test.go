@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func Test_GetTrackerPieceSizeExp(t *testing.T) {
+func TestRules_PieceSizeExp(t *testing.T) {
 	tests := []struct {
 		name        string
 		trackerURL  string
@@ -161,18 +161,19 @@ func Test_GetTrackerPieceSizeExp(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotExp, gotFound := GetTrackerPieceSizeExp(tt.trackerURL, tt.contentSize)
+			rules, _ := Lookup(tt.trackerURL)
+			gotExp, gotFound := rules.PieceSizeExp(tt.contentSize)
 			if gotFound != tt.wantFound {
-				t.Errorf("GetTrackerPieceSizeExp() found = %v, want %v", gotFound, tt.wantFound)
+				t.Errorf("PieceSizeExp() found = %v, want %v", gotFound, tt.wantFound)
 			}
 			if gotExp != tt.wantExp {
-				t.Errorf("GetTrackerPieceSizeExp() exp = %v, want %v", gotExp, tt.wantExp)
+				t.Errorf("PieceSizeExp() exp = %v, want %v", gotExp, tt.wantExp)
 			}
 		})
 	}
 }
 
-func Test_HasCustomPieceSizeRanges(t *testing.T) {
+func TestLookup_CustomPieceSizeRanges(t *testing.T) {
 	tests := []struct {
 		name       string
 		trackerURL string
@@ -197,12 +198,13 @@ func Test_HasCustomPieceSizeRanges(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, HasCustomPieceSizeRanges(tt.trackerURL))
+			rules, _ := Lookup(tt.trackerURL)
+			assert.Equal(t, tt.want, len(rules.PieceSizeRanges) > 0)
 		})
 	}
 }
 
-func Test_GetTrackerMaxPieceLength(t *testing.T) {
+func TestLookup_MaxPieceLength(t *testing.T) {
 	tests := []struct {
 		name       string
 		trackerURL string
@@ -267,18 +269,19 @@ func Test_GetTrackerMaxPieceLength(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotExp, gotFound := GetTrackerMaxPieceLength(tt.trackerURL)
+			rules, gotFound := Lookup(tt.trackerURL)
+			gotExp := rules.MaxPieceLength
 			if gotFound != tt.wantFound {
-				t.Errorf("GetTrackerMaxPieceLength() found = %v, want %v", gotFound, tt.wantFound)
+				t.Errorf("Lookup() found = %v, want %v", gotFound, tt.wantFound)
 			}
 			if gotExp != tt.wantExp {
-				t.Errorf("GetTrackerMaxPieceLength() exp = %v, want %v", gotExp, tt.wantExp)
+				t.Errorf("Lookup() exp = %v, want %v", gotExp, tt.wantExp)
 			}
 		})
 	}
 }
 
-func Test_GetTrackerMaxTorrentSize(t *testing.T) {
+func TestLookup_MaxTorrentSize(t *testing.T) {
 	tests := []struct {
 		name       string
 		trackerURL string
@@ -325,12 +328,13 @@ func Test_GetTrackerMaxTorrentSize(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotSize, gotFound := GetTrackerMaxTorrentSize(tt.trackerURL)
+			rules, _ := Lookup(tt.trackerURL)
+			gotSize, gotFound := rules.MaxTorrentSize, rules.MaxTorrentSize > 0
 			if gotFound != tt.wantFound {
-				t.Errorf("GetTrackerMaxTorrentSize() found = %v, want %v", gotFound, tt.wantFound)
+				t.Errorf("Lookup() found = %v, want %v", gotFound, tt.wantFound)
 			}
 			if gotSize != tt.wantSize {
-				t.Errorf("GetTrackerMaxTorrentSize() size = %v, want %v", gotSize, tt.wantSize)
+				t.Errorf("Lookup() size = %v, want %v", gotSize, tt.wantSize)
 			}
 		})
 	}

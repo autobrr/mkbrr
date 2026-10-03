@@ -20,6 +20,14 @@ _Avoid_: tracker rule (a tracker rule is a limit, such as maximum piece length)
 To merge the overrides, the preset, and the tracker defaults into the final create settings, in that order of priority.
 _Avoid_: merge, apply preset
 
+**Piece length choice**:
+The step that picks the piece length from the resolved create settings, the content size, and the tracker rules. It comes after **Resolve**.
+_Avoid_: resolve piece length, piece length calculation
+
+**Tracker rule**:
+A limit that mkbrr enforces for a tracker: a piece length table, a maximum piece length, or a maximum .torrent size. A tracker rule is not a setting, and an override cannot raise it.
+_Avoid_: tracker config, tracker default
+
 ## Modify settings
 
 **Keep**:

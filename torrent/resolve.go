@@ -118,7 +118,8 @@ func ResolveCreateOptions(o CreateOverrides, p *preset.Options) (CreateOptions, 
 	case p.Source != "":
 		opts.Source = p.Source
 	case len(opts.TrackerURLs) > 0:
-		opts.Source, _ = trackers.GetTrackerDefaultSource(opts.TrackerURLs[0])
+		rules, _ := trackers.Lookup(opts.TrackerURLs[0])
+		opts.Source = rules.DefaultSource
 	}
 
 	return opts, nil

@@ -666,15 +666,13 @@ func (a *App) CreatePresetFile() (string, error) {
 
 // GetTrackerInfo returns tracker-specific configuration
 func (a *App) GetTrackerInfo(url string) *TrackerInfo {
-	maxPieceLength, hasPieceLimit := trackers.GetTrackerMaxPieceLength(url)
-	maxTorrentSize, hasTorrentLimit := trackers.GetTrackerMaxTorrentSize(url)
-	defaultSource, hasSource := trackers.GetTrackerDefaultSource(url)
+	rules, _ := trackers.Lookup(url)
 
 	return &TrackerInfo{
-		MaxPieceLength: maxPieceLength,
-		MaxTorrentSize: maxTorrentSize,
-		DefaultSource:  defaultSource,
-		HasCustomRules: hasPieceLimit || hasTorrentLimit || hasSource,
+		MaxPieceLength: rules.MaxPieceLength,
+		MaxTorrentSize: rules.MaxTorrentSize,
+		DefaultSource:  rules.DefaultSource,
+		HasCustomRules: rules.MaxPieceLength > 0 || rules.MaxTorrentSize > 0 || rules.DefaultSource != "",
 	}
 }
 

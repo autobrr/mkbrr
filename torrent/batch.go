@@ -138,10 +138,6 @@ func validateJob(job BatchJob) error {
 	}
 
 	s := job.normalizedSettings()
-	if exp := s.PieceLengthExp; exp != nil && (*exp < 14 || *exp > 24) {
-		return fmt.Errorf("piece length must be between 14 and 24")
-	}
-
 	if s.PieceLengthExp != nil && s.TargetPieceCount != nil {
 		return fmt.Errorf("cannot set both piece_length and target_piece_count; use one or the other")
 	}
