@@ -457,7 +457,7 @@ export function CreatePage() {
     setDialogOpen(true);
 
     try {
-      // Get workers from settings (preset workers override default if set)
+      // Workers from settings. The backend gives a preset value priority over it.
       const workers = getEffectiveWorkers();
 
       const req: CreateRequest = {

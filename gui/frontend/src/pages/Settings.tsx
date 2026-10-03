@@ -75,17 +75,11 @@ export function saveDefaultSettings(settings: DefaultSettings): void {
 }
 
 /**
- * Get the effective workers count, considering preset override and default settings.
- * @param presetWorkers - Workers value from a preset (0 means "use default")
- * @returns The effective number of workers to use (0 means automatic)
+ * Get the workers count from the default settings. The backend gives a preset value priority over it.
+ * @returns The number of workers to use (0 means automatic)
  */
-export function getEffectiveWorkers(presetWorkers?: number): number {
-  const defaults = loadDefaultSettings();
-  // If preset specifies workers > 0, use that; otherwise use default
-  if (presetWorkers && presetWorkers > 0) {
-    return presetWorkers;
-  }
-  return defaults.workers;
+export function getEffectiveWorkers(): number {
+  return loadDefaultSettings().workers;
 }
 
 interface PresetFormData {

@@ -4,6 +4,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -64,7 +65,7 @@ type CreateRequest struct {
 	Entropy             bool     `json:"entropy"`             // Optional: add random entropy for unique hash
 	PresetName          string   `json:"presetName"`          // Optional: preset name to apply
 	PresetFile          string   `json:"presetFile"`          // Optional: path to preset file
-	Workers             int      `json:"workers"`             // Optional: number of parallel workers (0 = auto)
+	Workers             int      `json:"workers"`             // Optional: default worker count from settings; a preset value wins (0 = auto)
 	FailOnSeasonWarning bool     `json:"failOnSeasonWarning"` // Optional: fail if incomplete season pack detected
 }
 
@@ -244,7 +245,7 @@ func (a *App) CreateTorrent(req CreateRequest) (*TorrentResult, error) {
 	}
 
 	// The frontend copies the preset into the form, so each visible form field is an override.
-	// Piece length, workers and output directory use 0 or "" for "not set", so the preset can fill them.
+	// Piece length and output directory use 0 or "" for "not set", so the preset can fill them.
 	overrides := torrent.CreateOverrides{
 		Path:                    req.Path,
 		Name:                    req.Name,
@@ -278,9 +279,6 @@ func (a *App) CreateTorrent(req CreateRequest) (*TorrentResult, error) {
 	if req.PieceLengthExp > 0 {
 		overrides.PieceLengthExp = &req.PieceLengthExp
 	}
-	if req.Workers > 0 {
-		overrides.Workers = &req.Workers
-	}
 	if req.OutputDir != "" {
 		overrides.OutputDir = &req.OutputDir
 	}
@@ -294,6 +292,7 @@ func (a *App) CreateTorrent(req CreateRequest) (*TorrentResult, error) {
 	if opts.OutputDir == "" && opts.OutputPath == "" {
 		opts.OutputDir = filepath.Dir(req.Path)
 	}
+	opts.Workers = cmp.Or(opts.Workers, req.Workers)
 
 	// Analyze season pack info before creation
 	var seasonPackInfo *SeasonPackInfo
