@@ -142,27 +142,14 @@ type VerifyResult struct {
 }
 
 // ModifyRequest represents a torrent modification request.
-//
-// Required fields:
-//   - TorrentPath: Path to the .torrent file to modify
-//
-// Optional fields (all others): Only non-empty/non-nil values will be applied
+// TorrentPath is required. The embedded modify settings are the same type
+// that the CLI builds.
 type ModifyRequest struct {
-	TorrentPath   string   `json:"torrentPath"`   // Required: path to .torrent file to modify
-	TrackerURLs   []string `json:"trackerUrls"`   // Optional: new tracker URLs (replaces existing)
-	WebSeeds      []string `json:"webSeeds"`      // Optional: new web seed URLs
-	Comment       string   `json:"comment"`       // Optional: new comment
-	Source        string   `json:"source"`        // Optional: new source tag
-	IsPrivate     *bool    `json:"isPrivate"`     // Optional: set private flag (nil = unchanged)
-	NoDate        bool     `json:"noDate"`        // Optional: remove creation date
-	NoCreator     bool     `json:"noCreator"`     // Optional: remove creator string
-	Entropy       *bool    `json:"entropy"`       // Optional: add entropy for unique hash
-	SkipPrefix    bool     `json:"skipPrefix"`    // Optional: don't prefix output filename
-	OutputDir     string   `json:"outputDir"`     // Optional: output directory for modified file
-	OutputPattern string   `json:"outputPattern"` // Optional: output filename pattern
-	PresetName    string   `json:"presetName"`    // Optional: preset to apply
-	PresetFile    string   `json:"presetFile"`    // Optional: path to preset file
-	DryRun        bool     `json:"dryRun"`        // Optional: simulate modification without writing
+	TorrentPath string `json:"torrentPath"` // Required: path to .torrent file to modify
+	torrent.ModifySettings
+	PresetName string `json:"presetName"` // Optional: preset to apply
+	PresetFile string `json:"presetFile"` // Optional: path to preset file
+	DryRun     bool   `json:"dryRun"`     // Optional: simulate modification without writing
 }
 
 // ModifyResult represents the result of torrent modification
@@ -506,29 +493,17 @@ func (a *App) ModifyTorrent(req ModifyRequest) (*ModifyResult, error) {
 		return nil, fmt.Errorf("torrent path is required")
 	}
 
-	// Default output directory to source directory for GUI
-	outputDir := req.OutputDir
-	if outputDir == "" {
-		outputDir = filepath.Dir(req.TorrentPath)
-	}
-
 	opts := torrent.ModifyOptions{
-		TrackerURLs:   req.TrackerURLs,
-		WebSeeds:      req.WebSeeds,
-		Comment:       req.Comment,
-		Source:        req.Source,
-		IsPrivate:     req.IsPrivate,
-		NoDate:        req.NoDate,
-		NoCreator:     req.NoCreator,
-		Entropy:       req.Entropy,
-		SkipPrefix:    req.SkipPrefix,
-		OutputDir:     outputDir,
-		OutputPattern: req.OutputPattern,
-		PresetName:    req.PresetName,
-		PresetFile:    req.PresetFile,
-		DryRun:        req.DryRun,
-		Quiet:         true,
-		Version:       a.version,
+		ModifySettings: req.ModifySettings,
+		PresetName:     req.PresetName,
+		PresetFile:     req.PresetFile,
+		DryRun:         req.DryRun,
+		Quiet:          true,
+		Version:        a.version,
+	}
+	// Default output directory to source directory for GUI
+	if opts.OutputDir == "" {
+		opts.OutputDir = filepath.Dir(req.TorrentPath)
 	}
 
 	result, err := torrent.ModifyTorrent(req.TorrentPath, opts)

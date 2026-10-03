@@ -5,6 +5,7 @@ package torrent
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -14,32 +15,50 @@ import (
 	"github.com/autobrr/mkbrr/internal/preset"
 )
 
-// ModifyOptions represents the options for modifying a torrent,
-// including both preset-related options and flag-based overrides.
+// ModifySettings are the modify settings that a caller gives as overrides.
+// The CLI and the GUI build this type. Each setting is keep, set, or clear:
+//   - keep: the zero value. The preset applies if it sets the setting,
+//     otherwise the torrent keeps its current value.
+//   - set: a value.
+//   - clear: an empty Comment or Source, or the No field of the setting.
+//
+// Only an override can clear a setting. A preset cannot clear.
+type ModifySettings struct {
+	TrackerURLs   []string `json:"trackerUrls"`   // replaces the trackers; empty keeps
+	WebSeeds      []string `json:"webSeeds"`      // replaces the web seeds; empty keeps
+	Name          string   `json:"name"`          // empty keeps
+	Comment       *string  `json:"comment"`       // empty clears
+	Source        *string  `json:"source"`        // empty clears
+	IsPrivate     *bool    `json:"isPrivate"`     // sets the private flag
+	NoPrivate     bool     `json:"noPrivate"`     // clears the private flag; wins over IsPrivate
+	NoDate        bool     `json:"noDate"`        // clears the creation date
+	NoCreator     bool     `json:"noCreator"`     // clears the creator
+	Entropy       *bool    `json:"entropy"`       // true writes a new entropy value; false keeps, also over a preset
+	NoEntropy     bool     `json:"noEntropy"`     // clears the entropy field
+	OutputDir     string   `json:"outputDir"`     // empty uses the preset output dir
+	OutputPattern string   `json:"outputPattern"` // custom output filename, without extension
+	SkipPrefix    bool     `json:"skipPrefix"`    // no tracker prefix in the output filename
+}
+
+var errEntropyConflict = errors.New("cannot both add and remove entropy")
+
+func (s ModifySettings) validate() error {
+	if s.NoEntropy && s.Entropy != nil && *s.Entropy {
+		return errEntropyConflict
+	}
+	return nil
+}
+
+// ModifyOptions represents the options for modifying a torrent:
+// the modify settings, the preset to apply, and the runtime fields.
 type ModifyOptions struct {
-	IsPrivate      *bool
-	PieceLengthExp *uint
-	MaxPieceLength *uint
-	PresetName     string
-	PresetFile     string
-	Name           string
-	OutputDir      string
-	OutputPattern  string
-	TrackerURLs    []string
-	Comment        string
-	Source         string
-	Version        string
-	WebSeeds       []string
-	NoDate         bool
-	NoCreator      bool
-	DryRun         bool
-	Verbose        bool
-	Quiet          bool
-	Entropy        *bool
-	SkipPrefix     bool
-	SourceSet      bool // true when --source flag was explicitly provided (allows empty string to clear)
-	CommentSet     bool // true when --comment flag was explicitly provided (allows empty string to clear)
-	RemovePrivate  bool // true when --no-private flag is provided (removes private field entirely)
+	ModifySettings
+	PresetName string
+	PresetFile string
+	Version    string
+	DryRun     bool
+	Verbose    bool
+	Quiet      bool
 }
 
 // Result represents the result of modifying a torrent
@@ -66,6 +85,11 @@ func LoadFromFile(path string) (*Torrent, error) {
 func ModifyTorrent(path string, opts ModifyOptions) (*Result, error) {
 	result := &Result{
 		Path: path,
+	}
+
+	if err := opts.validate(); err != nil {
+		result.Error = err
+		return result, err
 	}
 
 	// load torrent file
@@ -199,15 +223,15 @@ func modifySpec(opts ModifyOptions, p *preset.Options) metadataSpec {
 		spec.WebSeeds = p.WebSeeds
 	}
 
-	spec.Comment = stringSetting(opts.Comment, opts.CommentSet, p.Comment)
-	spec.Source = stringSetting(opts.Source, opts.SourceSet, p.Source)
+	spec.Comment = stringSetting(opts.Comment, p.Comment)
+	spec.Source = stringSetting(opts.Source, p.Source)
 
 	if opts.Name != "" {
 		spec.Name = setTo(opts.Name)
 	}
 
 	switch {
-	case opts.RemovePrivate:
+	case opts.NoPrivate:
 		spec.Private = cleared[bool]()
 	case opts.IsPrivate != nil:
 		spec.Private = setTo(*opts.IsPrivate)
@@ -226,26 +250,28 @@ func modifySpec(opts ModifyOptions, p *preset.Options) metadataSpec {
 		spec.CreationDate = cleared[int64]()
 	}
 
-	// false does not remove entropy: no setting asks for that yet
-	entropy := opts.Entropy
-	if entropy == nil {
-		entropy = p.Entropy
-	}
-	if entropy != nil && *entropy {
+	switch {
+	case opts.NoEntropy:
+		spec.Entropy = clearField
+	case opts.Entropy != nil:
+		if *opts.Entropy {
+			spec.Entropy = setField
+		}
+	case p.Entropy != nil && *p.Entropy:
 		spec.Entropy = setField
 	}
 
 	return spec
 }
 
-// stringSetting resolves a string setting. An explicit override sets the
-// value, or clears it when the value is empty. A preset cannot clear.
-func stringSetting(override string, overrideSet bool, presetValue string) field[string] {
+// stringSetting resolves a string setting. An override sets the value, or
+// clears it when the value is empty. A preset cannot clear.
+func stringSetting(override *string, presetValue string) field[string] {
 	switch {
-	case overrideSet && override == "":
+	case override != nil && *override == "":
 		return cleared[string]()
-	case override != "":
-		return setTo(override)
+	case override != nil:
+		return setTo(*override)
 	case presetValue != "":
 		return setTo(presetValue)
 	}
@@ -258,6 +284,10 @@ func stringSetting(override string, overrideSet bool, presetValue string) field[
 func ProcessTorrents(paths []string, opts ModifyOptions) ([]*Result, error) {
 	if len(paths) == 0 {
 		return nil, fmt.Errorf("no torrent files specified")
+	}
+	// fail once before the first file, not once per file
+	if err := opts.validate(); err != nil {
+		return nil, err
 	}
 
 	results := make([]*Result, 0, len(paths))
