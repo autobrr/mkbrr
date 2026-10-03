@@ -31,15 +31,15 @@ const (
 // presetEditorKeys are the preset keys that the GUI preset editor (Settings.tsx) has a control for.
 var presetEditorKeys = []string{
 	"source", "comment", "private", "no_date", "no_creator", "entropy", "skip_prefix",
-	"trackers", "piece_length", "max_piece_length", "workers",
+	"trackers", "workers",
 }
 
 // presetEditorGaps are the preset keys that the GUI preset editor has no control for now.
-// The editor drops these values when it saves a preset.
+// When the editor saves a preset, it keeps piece_length and max_piece_length, and drops the other values.
 // Remove a key when its control is added.
 var presetEditorGaps = []string{
-	"target_piece_count", "fail_on_season_warning", "webseeds",
-	"exclude_patterns", "include_patterns", "output_dir",
+	"piece_length", "max_piece_length", "target_piece_count", "fail_on_season_warning",
+	"webseeds", "exclude_patterns", "include_patterns", "output_dir",
 }
 
 type settingsParity struct {
