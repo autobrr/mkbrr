@@ -16,24 +16,26 @@ import (
 // The CLI builds this type, and the GUI create request and the batch job embed it.
 // A nil pointer or a nil slice means "not set". Then the preset or the default applies.
 // A batch job cannot set OutputDir or Workers.
+// The flag tag names the CLI flag, and the preset tag names the preset key.
+// TestSettingsParity in cmd checks both tags.
 type CreateSettings struct {
-	PieceLengthExp          *uint    `json:"pieceLengthExp" yaml:"piece_length"`
-	MaxPieceLength          *uint    `json:"maxPieceLength" yaml:"max_piece_length"`
-	TargetPieceCount        *uint    `json:"targetPieceCount" yaml:"target_piece_count"`
-	Comment                 *string  `json:"comment" yaml:"comment"`
-	Source                  *string  `json:"source" yaml:"source"`
-	OutputDir               *string  `json:"outputDir" yaml:"-"`
-	Workers                 *int     `json:"workers" yaml:"-"`
-	IsPrivate               *bool    `json:"isPrivate" yaml:"private"`
-	NoDate                  *bool    `json:"noDate" yaml:"no_date"`
-	NoCreator               *bool    `json:"noCreator" yaml:"no_creator"`
-	Entropy                 *bool    `json:"entropy" yaml:"entropy"`
-	SkipPrefix              *bool    `json:"skipPrefix" yaml:"skip_prefix"`
-	FailOnSeasonPackWarning *bool    `json:"failOnSeasonWarning" yaml:"fail_on_season_warning"`
-	TrackerURLs             []string `json:"trackerUrls" yaml:"trackers"`
-	WebSeeds                []string `json:"webSeeds" yaml:"webseeds"`
-	ExcludePatterns         []string `json:"excludePatterns" yaml:"exclude_patterns"`
-	IncludePatterns         []string `json:"includePatterns" yaml:"include_patterns"`
+	PieceLengthExp          *uint    `json:"pieceLengthExp" yaml:"piece_length" flag:"piece-length" preset:"piece_length"`
+	MaxPieceLength          *uint    `json:"maxPieceLength" yaml:"max_piece_length" flag:"max-piece-length" preset:"max_piece_length"`
+	TargetPieceCount        *uint    `json:"targetPieceCount" yaml:"target_piece_count" flag:"target-piece-count" preset:"target_piece_count"`
+	Comment                 *string  `json:"comment" yaml:"comment" flag:"comment" preset:"comment"`
+	Source                  *string  `json:"source" yaml:"source" flag:"source" preset:"source"`
+	OutputDir               *string  `json:"outputDir" yaml:"-" flag:"output-dir" preset:"output_dir"`
+	Workers                 *int     `json:"workers" yaml:"-" flag:"workers" preset:"workers"`
+	IsPrivate               *bool    `json:"isPrivate" yaml:"private" flag:"private" preset:"private"`
+	NoDate                  *bool    `json:"noDate" yaml:"no_date" flag:"no-date" preset:"no_date"`
+	NoCreator               *bool    `json:"noCreator" yaml:"no_creator" flag:"no-creator" preset:"no_creator"`
+	Entropy                 *bool    `json:"entropy" yaml:"entropy" flag:"entropy" preset:"entropy"`
+	SkipPrefix              *bool    `json:"skipPrefix" yaml:"skip_prefix" flag:"skip-prefix" preset:"skip_prefix"`
+	FailOnSeasonPackWarning *bool    `json:"failOnSeasonWarning" yaml:"fail_on_season_warning" flag:"fail-on-season-warning" preset:"fail_on_season_warning"`
+	TrackerURLs             []string `json:"trackerUrls" yaml:"trackers" flag:"tracker" preset:"trackers"`
+	WebSeeds                []string `json:"webSeeds" yaml:"webseeds" flag:"web-seed" preset:"webseeds"`
+	ExcludePatterns         []string `json:"excludePatterns" yaml:"exclude_patterns" flag:"exclude" preset:"exclude_patterns"`
+	IncludePatterns         []string `json:"includePatterns" yaml:"include_patterns" flag:"include" preset:"include_patterns"`
 }
 
 // CreateOverrides holds the create settings that the caller gave explicitly,

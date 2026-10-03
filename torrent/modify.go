@@ -23,21 +23,24 @@ import (
 //   - clear: an empty Comment or Source, or the No field of the setting.
 //
 // Only an override can clear a setting. A preset cannot clear.
+// The flag tag names the CLI flag, and the preset tag names the preset key.
+// A field with no preset tag has no preset key.
+// TestSettingsParity in cmd checks both tags.
 type ModifySettings struct {
-	TrackerURLs   []string `json:"trackerUrls"`   // replaces the trackers; empty keeps
-	WebSeeds      []string `json:"webSeeds"`      // replaces the web seeds; empty keeps
-	Name          string   `json:"name"`          // empty keeps
-	Comment       *string  `json:"comment"`       // empty clears
-	Source        *string  `json:"source"`        // empty clears
-	IsPrivate     *bool    `json:"isPrivate"`     // sets the private flag
-	NoPrivate     bool     `json:"noPrivate"`     // clears the private flag; wins over IsPrivate
-	NoDate        bool     `json:"noDate"`        // clears the creation date
-	NoCreator     bool     `json:"noCreator"`     // clears the creator
-	Entropy       *bool    `json:"entropy"`       // true writes a new entropy value; false keeps, also over a preset
-	NoEntropy     bool     `json:"noEntropy"`     // clears the entropy field
-	OutputDir     string   `json:"outputDir"`     // empty uses the preset output dir
-	OutputPattern string   `json:"outputPattern"` // custom output filename, without extension
-	SkipPrefix    bool     `json:"skipPrefix"`    // no tracker prefix in the output filename
+	TrackerURLs   []string `json:"trackerUrls" flag:"tracker" preset:"trackers"`    // replaces the trackers; empty keeps
+	WebSeeds      []string `json:"webSeeds" flag:"web-seed" preset:"webseeds"`      // replaces the web seeds; empty keeps
+	Name          string   `json:"name" flag:"name"`                                // empty keeps
+	Comment       *string  `json:"comment" flag:"comment" preset:"comment"`         // empty clears
+	Source        *string  `json:"source" flag:"source" preset:"source"`            // empty clears
+	IsPrivate     *bool    `json:"isPrivate" flag:"private" preset:"private"`       // sets the private flag
+	NoPrivate     bool     `json:"noPrivate" flag:"no-private"`                     // clears the private flag; wins over IsPrivate
+	NoDate        bool     `json:"noDate" flag:"no-date" preset:"no_date"`          // clears the creation date
+	NoCreator     bool     `json:"noCreator" flag:"no-creator" preset:"no_creator"` // clears the creator
+	Entropy       *bool    `json:"entropy" flag:"entropy" preset:"entropy"`         // true writes a new entropy value; false keeps, also over a preset
+	NoEntropy     bool     `json:"noEntropy" flag:"no-entropy"`                     // clears the entropy field
+	OutputDir     string   `json:"outputDir" flag:"output-dir" preset:"output_dir"` // empty uses the preset output dir
+	OutputPattern string   `json:"outputPattern" flag:"output"`                     // custom output filename, without extension
+	SkipPrefix    bool     `json:"skipPrefix" flag:"skip-prefix"`                   // no tracker prefix in the output filename
 }
 
 var errEntropyConflict = errors.New("cannot both add and remove entropy")
