@@ -1,0 +1,21 @@
+# mkbrr
+
+mkbrr creates, inspects, checks, and modifies torrent files. The CLI, the GUI, and batch mode all create torrents from the same settings.
+
+## Create settings
+
+**Override**:
+A create setting that the user gave explicitly for one run: a CLI flag, a field in the GUI create form, or a key in a batch job. An override always wins.
+_Avoid_: flag value, request value
+
+**Preset**:
+A named group of create settings in `presets.yaml`. The `default` section fills keys that the named preset leaves out. A preset fills a setting only when no override sets it.
+_Avoid_: profile, template
+
+**Tracker default**:
+A setting that mkbrr knows for a tracker, such as its source tag. A tracker default applies only when no override and no preset sets that setting.
+_Avoid_: tracker rule (a tracker rule is a limit, such as maximum piece length)
+
+**Resolve**:
+To merge the overrides, the preset, and the tracker defaults into the final create settings, in that order of priority.
+_Avoid_: merge, apply preset
