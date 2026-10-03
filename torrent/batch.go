@@ -28,10 +28,20 @@ type BatchJob struct {
 	Name           string `yaml:"-"`
 }
 
+// normalizedSettings returns a copy of the job's create settings. A zero piece setting
+// means "not set" in a batch job, so the copy has nil in its place.
+func (j *BatchJob) normalizedSettings() CreateSettings {
+	s := j.CreateSettings
+	s.PieceLengthExp = nilIfZero(s.PieceLengthExp)
+	s.MaxPieceLength = nilIfZero(s.MaxPieceLength)
+	s.TargetPieceCount = nilIfZero(s.TargetPieceCount)
+	return s
+}
+
 // ToCreateOptions resolves a BatchJob into CreateOptions. Batch jobs have no preset.
 func (j *BatchJob) ToCreateOptions(verbose bool, quiet bool, infoOnly bool, version string) (CreateOptions, error) {
 	return ResolveCreateOptions(CreateOverrides{
-		CreateSettings: j.CreateSettings,
+		CreateSettings: j.normalizedSettings(),
 		Path:           j.Path,
 		Name:           j.Name,
 		Version:        version,
@@ -73,13 +83,8 @@ func ProcessBatch(configPath string, verbose bool, quiet bool, infoOnly bool, ve
 	}
 
 	// validate all jobs before processing
-	for i := range config.Jobs {
-		job := &config.Jobs[i]
-		// A zero piece setting means "not set" in a batch job.
-		job.PieceLengthExp = nilIfZero(job.PieceLengthExp)
-		job.MaxPieceLength = nilIfZero(job.MaxPieceLength)
-		job.TargetPieceCount = nilIfZero(job.TargetPieceCount)
-		if err := validateJob(*job); err != nil {
+	for _, job := range config.Jobs {
+		if err := validateJob(job); err != nil {
 			return nil, fmt.Errorf("invalid job configuration: %w", err)
 		}
 	}
@@ -132,11 +137,12 @@ func validateJob(job BatchJob) error {
 		return fmt.Errorf("output is required")
 	}
 
-	if exp := job.PieceLengthExp; exp != nil && (*exp < 14 || *exp > 24) {
+	s := job.normalizedSettings()
+	if exp := s.PieceLengthExp; exp != nil && (*exp < 14 || *exp > 24) {
 		return fmt.Errorf("piece length must be between 14 and 24")
 	}
 
-	if job.PieceLengthExp != nil && job.TargetPieceCount != nil {
+	if s.PieceLengthExp != nil && s.TargetPieceCount != nil {
 		return fmt.Errorf("cannot set both piece_length and target_piece_count; use one or the other")
 	}
 

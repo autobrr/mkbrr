@@ -306,3 +306,22 @@ fail_on_season_warning: true
 		t.Errorf("got  %+v\nwant %+v", job, want)
 	}
 }
+
+// ToCreateOptions treats a zero piece setting as "not set", also when the
+// caller does not go through ProcessBatch.
+func TestBatchJobToCreateOptionsZeroPieceSettings(t *testing.T) {
+	var job BatchJob
+	if err := yaml.Unmarshal([]byte("piece_length: 0\nmax_piece_length: 0\ntarget_piece_count: 0"), &job); err != nil {
+		t.Fatal(err)
+	}
+	got, err := job.ToCreateOptions(false, false, false, "v")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.PieceLengthExp != nil || got.MaxPieceLength != nil || got.TargetPieceCount != nil {
+		t.Errorf("got piece=%v max=%v target=%v, want all nil", got.PieceLengthExp, got.MaxPieceLength, got.TargetPieceCount)
+	}
+	if job.PieceLengthExp == nil {
+		t.Errorf("ToCreateOptions changed the job")
+	}
+}
