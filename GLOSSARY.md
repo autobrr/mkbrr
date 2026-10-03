@@ -25,3 +25,11 @@ _Avoid_: merge, apply preset
 **Keep**:
 In modify, a setting that no override and no preset sets stays as the existing torrent has it. Modify resolves in this order: override, then preset, then keep. Tracker defaults do not apply to modify.
 _Avoid_: unchanged, default
+
+**Set**:
+In modify, a setting that an override or a preset gives a value. Modify writes that value to the torrent.
+_Avoid_: change, update
+
+**Clear**:
+In modify, a setting that an override removes from the torrent, such as `--no-entropy` or `--source ""`. Only an override can clear. A preset cannot clear: a preset `entropy: false` means keep.
+_Avoid_: strip, delete
