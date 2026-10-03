@@ -4,6 +4,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -53,23 +54,18 @@ type CreateRequest struct {
 	Path                string   `json:"path"`                // Required: source file/directory path
 	Name                string   `json:"name"`                // Optional: override torrent name (defaults to source name)
 	TrackerURLs         []string `json:"trackerUrls"`         // Optional: tracker announce URLs
-	WebSeeds            []string `json:"webSeeds"`            // Optional: web seed URLs
 	Comment             string   `json:"comment"`             // Optional: torrent comment
 	Source              string   `json:"source"`              // Optional: source tag
 	IsPrivate           *bool    `json:"isPrivate"`           // Optional: private flag (nil = true)
 	PieceLengthExp      uint     `json:"pieceLengthExp"`      // Optional: piece length as 2^exp (0 = auto)
-	MaxPieceLength      uint     `json:"maxPieceLength"`      // Optional: max piece length as 2^exp
 	OutputPath          string   `json:"outputPath"`          // Optional: full output path (mutually exclusive with OutputDir)
 	OutputDir           string   `json:"outputDir"`           // Optional: output directory (defaults to source dir)
 	NoDate              bool     `json:"noDate"`              // Optional: exclude creation date
 	NoCreator           bool     `json:"noCreator"`           // Optional: exclude creator string
 	Entropy             bool     `json:"entropy"`             // Optional: add random entropy for unique hash
-	SkipPrefix          bool     `json:"skipPrefix"`          // Optional: don't prefix output filename
-	ExcludePatterns     []string `json:"excludePatterns"`     // Optional: file exclusion patterns
-	IncludePatterns     []string `json:"includePatterns"`     // Optional: file inclusion patterns
 	PresetName          string   `json:"presetName"`          // Optional: preset name to apply
 	PresetFile          string   `json:"presetFile"`          // Optional: path to preset file
-	Workers             int      `json:"workers"`             // Optional: number of parallel workers (0 = auto)
+	Workers             int      `json:"workers"`             // Optional: default worker count from settings; a preset value wins (0 = auto)
 	FailOnSeasonWarning bool     `json:"failOnSeasonWarning"` // Optional: fail if incomplete season pack detected
 }
 
@@ -160,7 +156,7 @@ type ModifyRequest struct {
 	IsPrivate     *bool    `json:"isPrivate"`     // Optional: set private flag (nil = unchanged)
 	NoDate        bool     `json:"noDate"`        // Optional: remove creation date
 	NoCreator     bool     `json:"noCreator"`     // Optional: remove creator string
-	Entropy       *bool     `json:"entropy"`      // Optional: add entropy for unique hash
+	Entropy       *bool    `json:"entropy"`       // Optional: add entropy for unique hash
 	SkipPrefix    bool     `json:"skipPrefix"`    // Optional: don't prefix output filename
 	OutputDir     string   `json:"outputDir"`     // Optional: output directory for modified file
 	OutputPattern string   `json:"outputPattern"` // Optional: output filename pattern
@@ -239,73 +235,31 @@ func (a *App) CreateTorrent(req CreateRequest) (*TorrentResult, error) {
 		return nil, fmt.Errorf("path is required")
 	}
 
-	// Analyze season pack info before creation
-	var seasonPackInfo *SeasonPackInfo
-	torrentSeasonInfo, err := torrent.AnalyzeSeasonPackFromPath(req.Path)
-	if err != nil {
-		log.Printf("Warning: failed to analyze season pack: %v", err)
-	} else if torrentSeasonInfo != nil && torrentSeasonInfo.IsSeasonPack {
-		seasonPackInfo = &SeasonPackInfo{
-			IsSeasonPack:    torrentSeasonInfo.IsSeasonPack,
-			IsSuspicious:    torrentSeasonInfo.IsSuspicious,
-			Season:          torrentSeasonInfo.Season,
-			MaxEpisode:      torrentSeasonInfo.MaxEpisode,
-			VideoFileCount:  torrentSeasonInfo.VideoFileCount,
-			MissingEpisodes: torrentSeasonInfo.MissingEpisodes,
-		}
-
-		// If fail on season warning is enabled and pack is suspicious, return error
-		if req.FailOnSeasonWarning && torrentSeasonInfo.IsSuspicious {
-			return &TorrentResult{
-				SeasonPackInfo: seasonPackInfo,
-				Warning:        "Incomplete season pack detected and fail-on-season-warning is enabled",
-			}, fmt.Errorf("incomplete season pack detected: missing episodes %v", torrentSeasonInfo.MissingEpisodes)
+	var presetOpts *preset.Options
+	if req.PresetName != "" {
+		var err error
+		presetOpts, err = preset.LoadPresetOptions(req.PresetFile, req.PresetName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load preset: %w", err)
 		}
 	}
 
-	var pieceLengthExp *uint
-	if req.PieceLengthExp > 0 {
-		pieceLengthExp = &req.PieceLengthExp
-	}
-
-	var maxPieceLength *uint
-	if req.MaxPieceLength > 0 {
-		maxPieceLength = &req.MaxPieceLength
-	}
-
-	// Default output directory to source directory for GUI
-	outputDir := req.OutputDir
-	if outputDir == "" && req.OutputPath == "" {
-		outputDir = filepath.Dir(req.Path)
-	}
-
-	// Handle IsPrivate pointer - default to true if not specified
-	isPrivate := true
-	if req.IsPrivate != nil {
-		isPrivate = *req.IsPrivate
-	}
-
-	opts := torrent.CreateOptions{
+	// The frontend copies the preset into the form, so each visible form field is an override.
+	// Piece length and output directory use 0 or "" for "not set", so the preset can fill them.
+	overrides := torrent.CreateOverrides{
 		Path:                    req.Path,
 		Name:                    req.Name,
-		TrackerURLs:             req.TrackerURLs,
-		WebSeeds:                req.WebSeeds,
-		Comment:                 req.Comment,
-		Source:                  req.Source,
-		IsPrivate:               isPrivate,
-		PieceLengthExp:          pieceLengthExp,
-		MaxPieceLength:          maxPieceLength,
 		OutputPath:              req.OutputPath,
-		OutputDir:               outputDir,
-		NoDate:                  req.NoDate,
-		NoCreator:               req.NoCreator,
-		Entropy:                 req.Entropy,
-		SkipPrefix:              req.SkipPrefix,
-		ExcludePatterns:         req.ExcludePatterns,
-		IncludePatterns:         req.IncludePatterns,
-		Workers:                 req.Workers,
-		FailOnSeasonPackWarning: req.FailOnSeasonWarning,
+		Version:                 a.version,
 		Quiet:                   true, // Suppress CLI output
+		TrackerURLs:             req.TrackerURLs,
+		IsPrivate:               req.IsPrivate,
+		Comment:                 &req.Comment,
+		Source:                  &req.Source,
+		NoDate:                  &req.NoDate,
+		NoCreator:               &req.NoCreator,
+		Entropy:                 &req.Entropy,
+		FailOnSeasonPackWarning: &req.FailOnSeasonWarning,
 		ProgressCallback: func(completed, total int, hashRate float64) {
 			if a.ctx == nil {
 				return
@@ -322,14 +276,46 @@ func (a *App) CreateTorrent(req CreateRequest) (*TorrentResult, error) {
 			})
 		},
 	}
+	if req.PieceLengthExp > 0 {
+		overrides.PieceLengthExp = &req.PieceLengthExp
+	}
+	if req.OutputDir != "" {
+		overrides.OutputDir = &req.OutputDir
+	}
 
-	// Load preset if specified
-	if req.PresetName != "" {
-		presetOpts, err := preset.LoadPresetOptions(req.PresetFile, req.PresetName)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load preset: %w", err)
+	opts, err := torrent.ResolveCreateOptions(overrides, presetOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	// Default output directory to source directory for GUI
+	if opts.OutputDir == "" && opts.OutputPath == "" {
+		opts.OutputDir = filepath.Dir(req.Path)
+	}
+	opts.Workers = cmp.Or(opts.Workers, req.Workers)
+
+	// Analyze season pack info before creation
+	var seasonPackInfo *SeasonPackInfo
+	torrentSeasonInfo, err := torrent.AnalyzeSeasonPackFromPath(req.Path)
+	if err != nil {
+		log.Printf("Warning: failed to analyze season pack: %v", err)
+	} else if torrentSeasonInfo != nil && torrentSeasonInfo.IsSeasonPack {
+		seasonPackInfo = &SeasonPackInfo{
+			IsSeasonPack:    torrentSeasonInfo.IsSeasonPack,
+			IsSuspicious:    torrentSeasonInfo.IsSuspicious,
+			Season:          torrentSeasonInfo.Season,
+			MaxEpisode:      torrentSeasonInfo.MaxEpisode,
+			VideoFileCount:  torrentSeasonInfo.VideoFileCount,
+			MissingEpisodes: torrentSeasonInfo.MissingEpisodes,
 		}
-		applyPresetToCreateOptions(&opts, presetOpts)
+
+		// If fail on season warning is enabled and pack is suspicious, return error
+		if opts.FailOnSeasonPackWarning && torrentSeasonInfo.IsSuspicious {
+			return &TorrentResult{
+				SeasonPackInfo: seasonPackInfo,
+				Warning:        "Incomplete season pack detected and fail-on-season-warning is enabled",
+			}, fmt.Errorf("incomplete season pack detected: missing episodes %v", torrentSeasonInfo.MissingEpisodes)
+		}
 	}
 
 	// Use the high-level Create function which returns TorrentInfo
@@ -771,62 +757,6 @@ func (a *App) GetContentSize(path string) (uint64, error) {
 }
 
 // === Utility Functions ===
-
-// applyPresetToCreateOptions applies preset options to create options
-func applyPresetToCreateOptions(opts *torrent.CreateOptions, presetOpts *preset.Options) {
-	if presetOpts == nil {
-		return
-	}
-
-	if len(presetOpts.Trackers) > 0 && len(opts.TrackerURLs) == 0 {
-		opts.TrackerURLs = presetOpts.Trackers
-	}
-	if len(presetOpts.WebSeeds) > 0 && len(opts.WebSeeds) == 0 {
-		opts.WebSeeds = presetOpts.WebSeeds
-	}
-	if presetOpts.Comment != "" && opts.Comment == "" {
-		opts.Comment = presetOpts.Comment
-	}
-	if presetOpts.Source != "" && opts.Source == "" {
-		opts.Source = presetOpts.Source
-	}
-	if presetOpts.Private != nil {
-		opts.IsPrivate = *presetOpts.Private
-	}
-	if presetOpts.NoDate != nil && *presetOpts.NoDate {
-		opts.NoDate = true
-	}
-	if presetOpts.NoCreator != nil && *presetOpts.NoCreator {
-		opts.NoCreator = true
-	}
-	if presetOpts.SkipPrefix != nil && *presetOpts.SkipPrefix {
-		opts.SkipPrefix = true
-	}
-	if presetOpts.Entropy != nil && *presetOpts.Entropy {
-		opts.Entropy = true
-	}
-	if presetOpts.OutputDir != "" && opts.OutputDir == "" {
-		opts.OutputDir = presetOpts.OutputDir
-	}
-	if presetOpts.PieceLength > 0 && opts.PieceLengthExp == nil {
-		pl := presetOpts.PieceLength
-		opts.PieceLengthExp = &pl
-	}
-	if presetOpts.MaxPieceLength > 0 && opts.MaxPieceLength == nil {
-		mpl := presetOpts.MaxPieceLength
-		opts.MaxPieceLength = &mpl
-	}
-	if len(presetOpts.ExcludePatterns) > 0 && len(opts.ExcludePatterns) == 0 {
-		opts.ExcludePatterns = presetOpts.ExcludePatterns
-	}
-	if len(presetOpts.IncludePatterns) > 0 && len(opts.IncludePatterns) == 0 {
-		opts.IncludePatterns = presetOpts.IncludePatterns
-	}
-	// Preset workers override if > 0 (0 means "use default from request")
-	if presetOpts.Workers > 0 {
-		opts.Workers = presetOpts.Workers
-	}
-}
 
 // FormatBytes formats bytes into human-readable format
 func (a *App) FormatBytes(bytes int64) string {

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -167,6 +167,7 @@ export function CreatePage() {
   const [error, setError] = useState('');
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [trackerInfo, setTrackerInfo] = useState<TrackerInfoType | null>(null);
+  const [defaultSource, setDefaultSource] = useState('');
   const [contentSize, setContentSize] = useState<number>(0);
   const [recommendedPieceSize, setRecommendedPieceSize] = useState<number>(0);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -229,18 +230,22 @@ export function CreatePage() {
       const validTrackers = trackers.filter(t => t.trim() !== '');
       if (validTrackers.length === 0) {
         setTrackerInfo(null);
+        setDefaultSource('');
         return;
       }
 
       // Check each tracker URL
-      for (const tracker of validTrackers) {
+      for (const [i, tracker] of validTrackers.entries()) {
         try {
           const info = await GetTrackerInfo(tracker);
+          // Like the resolver, take the default source from the first tracker only.
+          if (i === 0) setDefaultSource(info?.defaultSource ?? '');
           if (info && info.hasCustomRules) {
             setTrackerInfo(info);
             return;
           }
         } catch (e) {
+          if (i === 0) setDefaultSource('');
           toast.error('Failed to get tracker info: ' + String(e));
         }
       }
@@ -250,6 +255,15 @@ export function CreatePage() {
     const debounce = setTimeout(checkTrackers, 300);
     return () => clearTimeout(debounce);
   }, [trackers]);
+
+  // The source field is an override, so put the tracker default source into it.
+  // Replace the field only when it is empty or still holds the previous tracker default.
+  const lastDefaultSource = useRef('');
+  useEffect(() => {
+    const previous = lastDefaultSource.current;
+    lastDefaultSource.current = defaultSource;
+    setSource(current => (current === '' || current === previous ? defaultSource : current));
+  }, [defaultSource]);
 
   // Get content size when path changes
   useEffect(() => {
@@ -447,27 +461,22 @@ export function CreatePage() {
     setDialogOpen(true);
 
     try {
-      // Get workers from settings (preset workers override default if set)
+      // Workers from settings. The backend gives a preset value priority over it.
       const workers = getEffectiveWorkers();
 
       const req: CreateRequest = {
         path,
         name,
         trackerUrls: trackers.filter(t => t.trim() !== ''),
-        webSeeds: [],
         isPrivate,
         comment,
         source,
         pieceLengthExp,
-        maxPieceLength: 0,
         outputPath: '',
         outputDir,
         noDate,
         noCreator,
         entropy,
-        skipPrefix: false,
-        excludePatterns: [],
-        includePatterns: [],
         presetName,
         presetFile: '',
         workers,
