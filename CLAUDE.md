@@ -104,7 +104,7 @@ mkbrr is a high-performance torrent creation and manipulation tool written in Go
 
 ### Important Implementation Details
 
-1. **Parallel Hashing**: 
+1. **Parallel Hashing**:
    - Adaptive worker count based on file size/count
    - Memory-efficient buffer pooling
    - Optimized for both small and large file workloads
@@ -175,3 +175,17 @@ mkbrr/
 - Keep commits atomic and focused on a single change
 - Write clear, descriptive commit messages
 - **IMPORTANT**: Never mention Claude or Claude Code in commit messages
+
+## Agent skills
+
+### Issue tracker
+
+Issues are tracked in GitHub Issues for autobrr/mkbrr, through the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The default label names are used: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
