@@ -271,28 +271,29 @@ func createTorrent(opts CreateOptions, internalOpts createTorrentOptions) (*Torr
 	// root folder for a multi-file one
 	name = nfcPath(filepath.Dir(filepath.Clean(path)), name)
 
-	mi := &metainfo.MetaInfo{
-		Comment: opts.Comment,
+	metadata := metadataSpec{
+		Private: setTo(opts.IsPrivate),
 	}
-
-	// Set tracker information
 	if len(opts.TrackerURLs) > 0 {
-		mi.Announce = opts.TrackerURLs[0]
-		if len(opts.TrackerURLs) > 1 {
-			announceList := make([][]string, len(opts.TrackerURLs))
-			for i, tracker := range opts.TrackerURLs {
-				announceList[i] = []string{tracker}
-			}
-			mi.AnnounceList = announceList
-		}
+		metadata.Trackers = setTo(opts.TrackerURLs)
 	}
-
+	if len(opts.WebSeeds) > 0 {
+		metadata.WebSeeds = opts.WebSeeds
+	}
+	if opts.Comment != "" {
+		metadata.Comment = setTo(opts.Comment)
+	}
+	if opts.Source != "" {
+		metadata.Source = setTo(opts.Source)
+	}
 	if !opts.NoCreator {
-		mi.CreatedBy = fmt.Sprintf("mkbrr/%s (https://github.com/autobrr/mkbrr)", opts.Version)
+		metadata.CreatedBy = setTo(createdBy(opts.Version))
 	}
-
 	if !opts.NoDate {
-		mi.CreationDate = time.Now().Unix()
+		metadata.CreationDate = setTo(time.Now().Unix())
+	}
+	if opts.Entropy {
+		metadata.Entropy = setField
 	}
 
 	files := make([]fileEntry, 0, 1)
@@ -489,11 +490,6 @@ func createTorrent(opts CreateOptions, internalOpts createTorrentOptions) (*Torr
 		info := &metainfo.Info{
 			Name:        name,
 			PieceLength: pieceLenInt,
-			Private:     &opts.IsPrivate,
-		}
-
-		if opts.Source != "" {
-			info.Source = opts.Source
 		}
 
 		info.Pieces = make([]byte, len(pieceHashes)*20)
@@ -548,23 +544,9 @@ func createTorrent(opts CreateOptions, internalOpts createTorrentOptions) (*Torr
 			return nil, fmt.Errorf("error encoding info: %w", err)
 		}
 
-		// add random entropy field for cross-seeding if enabled
-		if opts.Entropy {
-			infoMap := make(map[string]interface{})
-			if err := bencode.Unmarshal(infoBytes, &infoMap); err == nil {
-				if entropy, err := generateRandomString(); err == nil {
-					infoMap["entropy"] = entropy
-					if infoBytes, err = bencode.Marshal(infoMap); err == nil {
-						mi.InfoBytes = infoBytes
-					}
-				}
-			}
-		} else {
-			mi.InfoBytes = infoBytes
-		}
-
-		if len(opts.WebSeeds) > 0 {
-			mi.UrlList = opts.WebSeeds
+		mi := &metainfo.MetaInfo{InfoBytes: infoBytes}
+		if _, err := applyMetadata(mi, metadata); err != nil {
+			return nil, err
 		}
 
 		return &Torrent{mi}, nil

@@ -19,3 +19,9 @@ _Avoid_: tracker rule (a tracker rule is a limit, such as maximum piece length)
 **Resolve**:
 To merge the overrides, the preset, and the tracker defaults into the final create settings, in that order of priority.
 _Avoid_: merge, apply preset
+
+## Modify settings
+
+**Keep**:
+In modify, a setting that no override and no preset sets stays as the existing torrent has it. Modify resolves in this order: override, then preset, then keep. Tracker defaults do not apply to modify.
+_Avoid_: unchanged, default

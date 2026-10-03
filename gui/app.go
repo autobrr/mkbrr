@@ -528,6 +528,7 @@ func (a *App) ModifyTorrent(req ModifyRequest) (*ModifyResult, error) {
 		PresetFile:    req.PresetFile,
 		DryRun:        req.DryRun,
 		Quiet:         true,
+		Version:       a.version,
 	}
 
 	result, err := torrent.ModifyTorrent(req.TorrentPath, opts)
