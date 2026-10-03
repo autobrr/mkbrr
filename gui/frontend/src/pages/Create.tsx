@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -251,6 +251,16 @@ export function CreatePage() {
     return () => clearTimeout(debounce);
   }, [trackers]);
 
+  // The source field is an override, so put the tracker default source into it.
+  // Replace the field only when it is empty or still holds the previous tracker default.
+  const lastDefaultSource = useRef('');
+  useEffect(() => {
+    const defaultSource = trackerInfo?.defaultSource ?? '';
+    const previous = lastDefaultSource.current;
+    lastDefaultSource.current = defaultSource;
+    setSource(current => (current === '' || current === previous ? defaultSource : current));
+  }, [trackerInfo?.defaultSource]);
+
   // Get content size when path changes
   useEffect(() => {
     if (!path) {
@@ -454,20 +464,15 @@ export function CreatePage() {
         path,
         name,
         trackerUrls: trackers.filter(t => t.trim() !== ''),
-        webSeeds: [],
         isPrivate,
         comment,
         source,
         pieceLengthExp,
-        maxPieceLength: 0,
         outputPath: '',
         outputDir,
         noDate,
         noCreator,
         entropy,
-        skipPrefix: false,
-        excludePatterns: [],
-        includePatterns: [],
         presetName,
         presetFile: '',
         workers,
