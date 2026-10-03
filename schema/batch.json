@@ -50,7 +50,7 @@
             "type": "integer",
             "description": "Piece length exponent (2^n bytes)",
             "minimum": 14,
-            "maximum": 24
+            "maximum": 27
           },
           "max_piece_length": {
             "type": "integer",

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -184,9 +185,9 @@ jobs:
 
 func TestBatchValidation(t *testing.T) {
 	tests := []struct {
-		name        string
-		config      string
-		expectError bool
+		name    string
+		config  string
+		wantErr string
 	}{
 		{
 			name: "invalid version",
@@ -194,21 +195,21 @@ func TestBatchValidation(t *testing.T) {
 jobs:
   - output: test.torrent
     path: test.txt`,
-			expectError: true,
+			wantErr: "unsupported batch config version",
 		},
 		{
 			name: "missing path",
 			config: `version: 1
 jobs:
   - output: test.torrent`,
-			expectError: true,
+			wantErr: "path is required",
 		},
 		{
 			name: "missing output",
 			config: `version: 1
 jobs:
   - path: test.txt`,
-			expectError: true,
+			wantErr: "output is required",
 		},
 		{
 			name: "invalid piece length",
@@ -216,14 +217,14 @@ jobs:
 jobs:
   - output: test.torrent
     path: test.txt
-    piece_length: 25`,
-			expectError: true,
+    piece_length: 28`,
+			wantErr: "piece length must be between 14 and 27",
 		},
 		{
 			name: "empty jobs",
 			config: `version: 1
 jobs: []`,
-			expectError: true,
+			wantErr: "no jobs defined",
 		},
 		{
 			name: "piece_length and target_piece_count conflict",
@@ -233,29 +234,26 @@ jobs:
     path: test.txt
     piece_length: 20
     target_piece_count: 1000`,
-			expectError: true,
+			wantErr: "cannot set both piece_length and target_piece_count",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tmpDir, err := os.MkdirTemp("", "mkbrr-batch-validation")
-			if err != nil {
-				t.Fatalf("Failed to create temp dir: %v", err)
+			// the configs use relative paths, so test.txt must exist in the
+			// working directory for validation to reach the checks under test
+			t.Chdir(t.TempDir())
+			if err := os.WriteFile("test.txt", []byte("test"), 0644); err != nil {
+				t.Fatalf("Failed to write input file: %v", err)
 			}
-			defer os.RemoveAll(tmpDir)
 
-			configPath := filepath.Join(tmpDir, "batch.yaml")
-			if err := os.WriteFile(configPath, []byte(tt.config), 0644); err != nil {
+			if err := os.WriteFile("batch.yaml", []byte(tt.config), 0644); err != nil {
 				t.Fatalf("Failed to write config file: %v", err)
 			}
 
-			_, err = ProcessBatch(configPath, false, false, false, "test-version")
-			if tt.expectError && err == nil {
-				t.Error("Expected error but got nil")
-			}
-			if !tt.expectError && err != nil {
-				t.Errorf("Unexpected error: %v", err)
+			_, err := ProcessBatch("batch.yaml", false, false, false, "test-version")
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("ProcessBatch() error = %v, want it to contain %q", err, tt.wantErr)
 			}
 		})
 	}
