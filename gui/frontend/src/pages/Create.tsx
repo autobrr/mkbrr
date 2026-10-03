@@ -167,6 +167,7 @@ export function CreatePage() {
   const [error, setError] = useState('');
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [trackerInfo, setTrackerInfo] = useState<TrackerInfoType | null>(null);
+  const [defaultSource, setDefaultSource] = useState('');
   const [contentSize, setContentSize] = useState<number>(0);
   const [recommendedPieceSize, setRecommendedPieceSize] = useState<number>(0);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -229,18 +230,22 @@ export function CreatePage() {
       const validTrackers = trackers.filter(t => t.trim() !== '');
       if (validTrackers.length === 0) {
         setTrackerInfo(null);
+        setDefaultSource('');
         return;
       }
 
       // Check each tracker URL
-      for (const tracker of validTrackers) {
+      for (const [i, tracker] of validTrackers.entries()) {
         try {
           const info = await GetTrackerInfo(tracker);
+          // Like the resolver, take the default source from the first tracker only.
+          if (i === 0) setDefaultSource(info?.defaultSource ?? '');
           if (info && info.hasCustomRules) {
             setTrackerInfo(info);
             return;
           }
         } catch (e) {
+          if (i === 0) setDefaultSource('');
           toast.error('Failed to get tracker info: ' + String(e));
         }
       }
@@ -255,11 +260,10 @@ export function CreatePage() {
   // Replace the field only when it is empty or still holds the previous tracker default.
   const lastDefaultSource = useRef('');
   useEffect(() => {
-    const defaultSource = trackerInfo?.defaultSource ?? '';
     const previous = lastDefaultSource.current;
     lastDefaultSource.current = defaultSource;
     setSource(current => (current === '' || current === previous ? defaultSource : current));
-  }, [trackerInfo?.defaultSource]);
+  }, [defaultSource]);
 
   // Get content size when path changes
   useEffect(() => {
