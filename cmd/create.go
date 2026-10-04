@@ -150,15 +150,28 @@ func processBatchMode(opts createOptions, version string, startTime time.Time) e
 		return fmt.Errorf("batch processing failed: %w", err)
 	}
 
+	failed := 0
+	for _, result := range results {
+		if !result.Success {
+			failed++
+		}
+	}
+
 	if opts.quiet {
 		for _, result := range results {
 			if result.Success {
 				fmt.Println("Wrote:", result.Info.Path)
+			} else {
+				fmt.Fprintf(os.Stderr, "Failed: %s: %v\n", result.Job.Path, result.Error)
 			}
 		}
 	} else {
 		display := torrent.NewDisplay(torrent.NewFormatter(opts.verbose))
 		display.ShowBatchResults(results, time.Since(startTime))
+	}
+
+	if failed > 0 {
+		return fmt.Errorf("%d of %d batch jobs failed", failed, len(results))
 	}
 	return nil
 }
