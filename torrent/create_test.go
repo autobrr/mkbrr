@@ -1311,12 +1311,16 @@ func TestPlanCreateMatchesCreateAndAppliesFilters(t *testing.T) {
 	require.NoError(t, os.WriteFile(keep, make([]byte, 128*1024), 0o644))
 	require.NoError(t, os.WriteFile(skip, make([]byte, 512*1024), 0o644))
 
+	hashed := false
 	opts := CreateOptions{
 		Path:            dir,
 		TrackerURLs:     []string{"https://portugas.org/announce"},
 		ExcludePatterns: []string{"*.nfo"},
 		NoCreator:       true,
 		NoDate:          true,
+		ProgressCallback: func(completed, total int, hashRate float64) {
+			hashed = true
+		},
 	}
 
 	plan, err := PlanCreate(opts)
@@ -1326,6 +1330,7 @@ func TestPlanCreateMatchesCreateAndAppliesFilters(t *testing.T) {
 	require.Equal(t, int64(1<<14), plan.PieceLengthBytes)
 	require.Equal(t, uint64(2<<20), plan.TrackerSizeLimit)
 	require.NotZero(t, plan.PredictedTorrentSize)
+	require.False(t, hashed, "planning must not hash content")
 
 	exp, notices, err := ChoosePieceLength(opts)
 	require.NoError(t, err)
