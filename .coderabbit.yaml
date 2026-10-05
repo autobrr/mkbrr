@@ -4,6 +4,8 @@
 inheritance: true
 tone_instructions: "Be brief. Report bugs, data loss, races, security, info hash changes, and Windows/Unix path errors."
 reviews:
+  auto_review:
+    base_branches: ["main"] # also review PRs to main, which fix the live docs
   allow_author_approval: false # authors cannot run @coderabbitai approve or resolve on their own PRs
   high_level_summary: false
   collapse_walkthrough: true
