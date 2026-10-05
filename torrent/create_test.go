@@ -1343,6 +1343,25 @@ func TestPlanCreateMatchesCreateAndAppliesFilters(t *testing.T) {
 }
 
 
+func TestPlanCreateFailOnSeasonWarningMatchesCreate(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "Show.S01")
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "Show.S01E01.mkv"), []byte("one"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "Show.S01E03.mkv"), []byte("three"), 0o644))
+
+	opts := CreateOptions{
+		Path:                    dir,
+		FailOnSeasonPackWarning: true,
+		NoCreator:               true,
+		NoDate:                  true,
+	}
+	_, err := PlanCreate(opts)
+	require.ErrorContains(t, err, "season pack is suspicious")
+
+	_, err = CreateTorrent(opts)
+	require.ErrorContains(t, err, "season pack is suspicious")
+}
+
 func TestPlanCreateLargeSparseInputDoesNotMaterializePieceHashes(t *testing.T) {
 	contentPath := filepath.Join(t.TempDir(), "large.bin")
 	f, err := os.Create(contentPath)
