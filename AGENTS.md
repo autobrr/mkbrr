@@ -29,7 +29,10 @@ The CLI, the GUI, and batch mode share one settings type for each operation: `to
 - `main` holds the latest release. Mintlify builds the mkbrr.com site in `documentation/` from `main`, so the live site describes the latest release.
 - Update `documentation/` in the same PR as a change that users can see. The `docs` skill maps code to docs pages.
 - A fix to the live docs goes as a PR to `main`. Then merge `main` back into `develop`.
-- After a release tag, the changelog workflow opens a PR against `main`. Fast-forward `main` to `develop` before you merge that PR, or the fast-forward fails.
+- A release has three steps, in this order:
+  1. Fast-forward `main` to `develop` (`git push origin origin/develop:main`). Then tag that commit and push the tag.
+  2. The tag starts the changelog workflow, which opens a PR against `main`. Merge that PR.
+  3. Merge `main` back into `develop`. If you skip this step, the fast-forward at the next release fails.
 - See `docs/adr/0002-develop-main-and-docs-site.md`.
 
 ## Commits and PRs
