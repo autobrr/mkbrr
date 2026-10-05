@@ -37,7 +37,7 @@ Everything in the docs that can fall out of sync with the codebase. All docs pat
 | Modify capabilities | `guides/modifying-torrents.mdx`, `cli-reference/modify.mdx` | `torrent/modify.go` |
 | JSON schemas | Referenced in preset/batch docs | `schema/presets.json`, `schema/batch.json` |
 | Development commands | `development.mdx` | `Makefile` targets |
-| Installation methods | `installation.mdx` | Release artifacts, Dockerfile, package configs |
+| Installation methods | `installation.mdx` | Release artifacts, Dockerfile, package configs, install section of `README.md` |
 
 For Mintlify syntax, components, and `docs.json` settings, use the `mintlify` skill.
 
