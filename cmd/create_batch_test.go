@@ -125,3 +125,13 @@ func TestCreateBatchAcceptsOutputFlags(t *testing.T) {
 	require.NoError(t, runCreateCommand(t, "-b", batchFile, "-v"))
 	assert.FileExists(t, goodOutput)
 }
+
+
+func TestCreateBatchRejectsPlan(t *testing.T) {
+	batchFile, goodOutput, _ := writeBatchFixture(t, false)
+
+	err := runCreateCommand(t, "-b", batchFile, "--plan")
+
+	require.EqualError(t, err, "--batch takes its settings from the batch file; remove --plan")
+	assert.NoFileExists(t, goodOutput)
+}
