@@ -29,6 +29,7 @@ The CLI, the GUI, and batch mode share one settings type for each operation: `to
 - `main` holds the latest release. Mintlify builds the mkbrr.com site in `documentation/` from `main`, so the live site describes the latest release.
 - mkbrr.com uses the Mintlify free plan. Admin keys, assistant keys, and the analytics API are not available.
 - Update `documentation/` in the same PR as a change that users can see. The `docs` skill maps code to docs pages.
+- Load the `mintlify` skill before you change a file in `documentation/`. It covers Mintlify pages, navigation, and components.
 - A fix to the live docs goes as a PR to `main`. Then merge `main` back into `develop`.
 - A release has three steps, in this order:
   1. Fast-forward `main` to `develop` (`git push origin origin/develop:main`). Then tag that commit and push the tag.

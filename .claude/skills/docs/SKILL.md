@@ -41,6 +41,8 @@ Everything in the docs that can fall out of sync with the codebase. All docs pat
 
 For Mintlify syntax, components, and `docs.json` settings, use the `mintlify` skill.
 
+For Mintlify syntax, components, and `docs.json` settings, use the `mintlify` skill.
+
 Note: the `snippets/common-*.mdx` files (e.g., `common-private.mdx`, `common-entropy.mdx`) are shared across multiple commands. A flag may be documented there rather than in the main params file — check both.
 
 ## Targeted mode
