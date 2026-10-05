@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"crypto/rand"
 	"fmt"
-	"math/bits"
 	"os"
 	"path/filepath"
 	"sort"
@@ -572,11 +571,10 @@ func prepareCreate(opts CreateOptions, internalOpts createTorrentOptions) (*prep
 		return &Torrent{mi}, nil
 	}
 
-	// torrentSize predicts the .torrent size before hashing. Only the piece
-	// hashes and the piece length change with the exponent, so zeroed hashes
-	// give the exact size.
-	torrentSize := func(exp uint) (uint64, error) {
-		pieceLength := int64(1) << exp
+	// torrentSizeForPieceLength predicts the .torrent size before hashing.
+	// Zeroed hashes give the exact encoded size while preserving arbitrary
+	// piece lengths used by UpdateTorrent.
+	torrentSizeForPieceLength := func(pieceLength int64) (uint64, error) {
 		numPieces, err := pieceCountForSize(totalSize, pieceLength)
 		if err != nil {
 			return 0, err
@@ -590,6 +588,9 @@ func prepareCreate(opts CreateOptions, internalOpts createTorrentOptions) (*prep
 			return 0, fmt.Errorf("error marshaling torrent data: %w", err)
 		}
 		return uint64(len(data)), nil
+	}
+	torrentSize := func(exp uint) (uint64, error) {
+		return torrentSizeForPieceLength(int64(1) << exp)
 	}
 
 	pieceLength := internalOpts.pieceLengthBytes
@@ -608,14 +609,11 @@ func prepareCreate(opts CreateOptions, internalOpts createTorrentOptions) (*prep
 			return nil, err
 		}
 		pieceLength = int64(1) << exp
-	} else {
-		exp = uint(bits.TrailingZeros64(uint64(pieceLength)))
-		if len(opts.TrackerURLs) > 0 {
-			rules, _ = trackers.Lookup(opts.TrackerURLs[0])
-		}
+	} else if len(opts.TrackerURLs) > 0 {
+		rules, _ = trackers.Lookup(opts.TrackerURLs[0])
 	}
 
-	predictedTorrentSize, err := torrentSize(exp)
+	predictedTorrentSize, err := torrentSizeForPieceLength(pieceLength)
 	if err != nil {
 		return nil, err
 	}
