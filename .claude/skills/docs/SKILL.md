@@ -82,7 +82,13 @@ For each row in the drift surface table, compare the docs against the codebase s
 
 When the drift surface has many rows, parallelize by dispatching independent comparisons as subagents where possible.
 
-### 2. Report findings
+### 2. Read reader feedback
+
+If `MINTLIFY_API_KEY` and `MINTLIFY_PROJECT_ID` are not set, skip this step. Otherwise, run `scripts/docs-feedback.sh`. It covers the last 30 days, or the number of days that you pass. It lists the downvotes and comments for each page, and the searches where no reader clicked a result.
+
+Read each page that has a downvote or a comment, and add each real problem to the findings. A search with no clicks can point to a topic that the docs do not cover. This step is done when each listed page and search is a finding or is dismissed with a reason.
+
+### 3. Report findings
 
 Present a table of discrepancies:
 
@@ -97,6 +103,6 @@ Type is one of:
 
 If nothing is found, tell the user "Docs are in sync" and stop.
 
-### 3. Fix and PR
+### 4. Fix and PR
 
 Group related fixes into a single PR. Create a branch from `develop` (for example `docs/sweep`), commit, push, and open the PR against `develop`. If the drift is on the live site and the fix must go out before the next release, open the PR against `main` instead, then merge `main` back into `develop`.
