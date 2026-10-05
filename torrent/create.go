@@ -328,7 +328,6 @@ func CreateTorrent(opts CreateOptions) (*Torrent, error) {
 	return createTorrent(opts, createTorrentOptions{})
 }
 
-// createTorrent contains the shared creation pipeline with optional internal hash-reuse controls.
 type preparedCreate struct {
 	files       []fileEntry
 	totalSize   int64
@@ -621,16 +620,23 @@ func prepareCreate(opts CreateOptions, internalOpts createTorrentOptions) (*prep
 		return nil, err
 	}
 	return &preparedCreate{
-		files: files, totalSize: totalSize, baseDir: baseDir, inputInfo: inputInfo,
-		pieceLength: pieceLength, exp: exp, rules: rules, notices: notices,
-		encode: encode, torrentSize: torrentSize,
+		files:       files,
+		totalSize:   totalSize,
+		baseDir:     baseDir,
+		inputInfo:   inputInfo,
+		pieceLength: pieceLength,
+		exp:         exp,
+		rules:       rules,
+		notices:     notices,
+		encode:      encode,
+		torrentSize: torrentSize,
 		plan: CreatePlan{
-			ContentSize: totalSize,
-			PieceLengthExponent: exp,
-			PieceLengthBytes: pieceLength,
+			ContentSize:          totalSize,
+			PieceLengthExponent:  exp,
+			PieceLengthBytes:     pieceLength,
 			PredictedTorrentSize: predictedTorrentSize,
-			TrackerSizeLimit: rules.MaxTorrentSize,
-			Notices: notices,
+			TrackerSizeLimit:     rules.MaxTorrentSize,
+			Notices:              notices,
 		},
 	}, nil
 }
@@ -638,14 +644,18 @@ func prepareCreate(opts CreateOptions, internalOpts createTorrentOptions) (*prep
 // ChoosePieceLength resolves the exact piece length create would use without hashing.
 func ChoosePieceLength(opts CreateOptions) (uint, []Notice, error) {
 	prepared, err := prepareCreate(opts, createTorrentOptions{})
-	if err != nil { return 0, nil, err }
+	if err != nil {
+		return 0, nil, err
+	}
 	return prepared.exp, prepared.notices, nil
 }
 
 // PlanCreate returns the exact pre-hash create plan for opts.
 func PlanCreate(opts CreateOptions) (*CreatePlan, error) {
 	prepared, err := prepareCreate(opts, createTorrentOptions{})
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	plan := prepared.plan
 	return &plan, nil
 }
@@ -666,7 +676,11 @@ func createTorrent(opts CreateOptions, internalOpts createTorrentOptions) (*Torr
 	if opts.Verbose || opts.InfoOnly {
 		display := NewDisplay(NewFormatter(true))
 		for _, n := range prepared.notices {
-			if n.Warn { display.ShowWarning(n.Text) } else { display.ShowMessage(n.Text) }
+			if n.Warn {
+				display.ShowWarning(n.Text)
+			} else {
+				display.ShowMessage(n.Text)
+			}
 		}
 	}
 	numPieces, err := pieceCountForSize(totalSize, pieceLength)
