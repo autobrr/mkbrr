@@ -1,0 +1,92 @@
+---
+title: Modifying torrents
+description: Learn how to update metadata in existing .torrent files using the mkbrr modify command
+icon: pen-to-square
+---
+
+import ModifyParams from '/snippets/modify-params.mdx';
+
+The `mkbrr modify` command allows you to update metadata in existing `.torrent` files without needing access to the original content files. This is useful for mass-updating trackers, source tags, comments, or other metadata.
+
+<CodeGroup>
+  <Code title="Command">
+  ```bash
+  mkbrr modify [torrent files...] [flags]
+  ```
+  </Code>
+</CodeGroup>
+
+<CardGroup>
+  <Card title="Arguments" icon="list-check" href="#arguments">
+    Required command arguments
+  </Card>
+  <Card title="Flags" icon="flag" href="#flags">
+    Available modification options
+  </Card>
+  <Card title="Examples" icon="code" href="#examples">
+    Common usage examples
+  </Card>
+</CardGroup>
+
+<Info>
+  By default, the original torrent files are preserved. New, modified files are created with a prefix based on the tracker domain (e.g., `tracker-domain_original-name.torrent`). You can customize the output filename or directory.
+</Info>
+
+<Info>
+  The announce-list is a list of more trackers in the torrent. If you give one tracker, `modify` writes no announce-list and removes the old list. If you give more than one tracker, `modify` writes all of them to the announce-list.
+</Info>
+
+## Arguments
+
+<ParamField path="torrent files..." type="string[]" required>
+  One or more paths to the `.torrent` files you want to modify. Glob patterns (like `*.torrent`) can be used if your shell supports them.
+</ParamField>
+
+## Flags
+
+<ModifyParams />
+
+## Examples
+
+<Tabs>
+  <Tab title="Basic Usage">
+    Update the tracker for a single torrent:
+    ```bash
+    mkbrr modify original.torrent --tracker https://new-tracker.com/announce
+    ```
+    <Info>Outputs: `new-tracker_original.torrent`</Info>
+
+    Make multiple torrents public:
+    ```bash
+    mkbrr modify *.torrent --private=false
+    ```
+    <Info>Outputs: `modified_file1.torrent`, `modified_file2.torrent`, etc.</Info>
+  </Tab>
+
+  <Tab title="Advanced Usage">
+    Add a source tag and save to a specific directory:
+    ```bash
+    mkbrr modify /downloads/*.torrent --source "MySource" --output-dir /modified-torrents/
+    ```
+
+    Apply a preset and then add entropy:
+    ```bash
+    mkbrr modify old-preset.torrent -P newpreset -e
+    ```
+
+    Preview changes without saving:
+    ```bash
+    mkbrr modify my.torrent --tracker https://new.co/a --comment "Updated" --dry-run
+    ```
+  </Tab>
+</Tabs>
+
+```bash
+mkbrr modify [torrent files...] [flags]
+```
+
+By default, the original torrent files are preserved. New, modified files are created with a prefix based on the tracker domain (e.g., `tracker-domain_original-name.torrent`). You can customize the output filename or directory.
+
+<Note>
+  `modify` keeps the existing metadata, including custom keys in the info dictionary, and changes only the fields that you set. If no value changes, `modify` writes no file and prints "no changes needed". A value that the torrent already has is not a change. `--dry-run` uses the same rule.
+</Note>

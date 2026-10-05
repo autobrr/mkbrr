@@ -1,0 +1,40 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# Keys not set here come from the CodeRabbit dashboard.
+# CodeRabbit reads the review rules in AGENTS.md.
+inheritance: true
+tone_instructions: "Be brief. Report bugs, data loss, races, security, info hash changes, and Windows/Unix path errors."
+reviews:
+  allow_author_approval: false # authors cannot run @coderabbitai approve or resolve on their own PRs
+  high_level_summary: false
+  collapse_walkthrough: true
+  changed_files_summary: false
+  estimate_code_review_effort: false
+  related_issues: false
+  related_prs: false
+  in_progress_fortune: false
+  sequence_diagrams: false
+  suggested_reviewers: false
+  suggested_labels: false
+  assess_linked_issues: false
+  poem: false
+  pre_merge_checks:
+    docstrings:
+      mode: "off"
+    title:
+      mode: "off"
+    description:
+      mode: "off"
+    issue_assessment:
+      mode: "off"
+  finishing_touches:
+    unit_tests:
+      enabled: false
+  tools:
+    biome:
+      enabled: false # no biome.json: it lints gui/frontend with generic rules
+    languagetool:
+      enabled: false
+    vale:
+      enabled: false
+chat:
+  art: false

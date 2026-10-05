@@ -1,0 +1,141 @@
+---
+title: Inspecting torrents
+description: Learn how to view and analyze .torrent file metadata using the mkbrr inspect command
+icon: magnifying-glass
+---
+
+The `mkbrr inspect` command allows you to view the metadata and file structure contained within a `.torrent` file without needing the actual content files.
+
+<CodeGroup>
+  <Code title="Command">
+  ```bash
+  mkbrr inspect <torrent-file> [flags]
+  ```
+  </Code>
+</CodeGroup>
+
+<CardGroup>
+  <Card title="Arguments" icon="list-check" href="#arguments">
+    Required command arguments
+  </Card>
+  <Card title="Flags" icon="flag" href="#flags">
+    Available command options
+  </Card>
+  <Card title="Output" icon="file-export" href="#output">
+    Understanding the inspection results
+  </Card>
+  <Card title="Examples" icon="code" href="#examples">
+    Usage examples
+  </Card>
+</CardGroup>
+
+## Arguments
+
+<ParamField path="torrent-file" type="string" required>
+  The path to the `.torrent` file you want to inspect.
+</ParamField>
+
+## Flags
+
+<ParamField path="--verbose, -v" type="boolean" default="false">
+  Show all metadata fields found in the torrent file, including non-standard ones in both the root and info dictionaries.
+</ParamField>
+
+<Tip>
+  Use verbose mode when you need to inspect custom or non-standard metadata fields that might be present in the torrent.
+</Tip>
+
+## Output
+
+The command displays the following information by default:
+
+<ResponseField name="Basic Information">
+  <Expandable title="Core Details">
+    - **Name:** The root name of the torrent content
+    - **Hash:** The info hash of the torrent
+    - **Size:** Total size of the content
+    - **Piece length:** Size of each piece
+    - **Pieces:** Total number of pieces
+  </Expandable>
+
+  <Expandable title="Tracker Information">
+    - **Trackers:** Announce URLs
+    - **Web seeds:** Any web seed URLs included
+    - **Private:** Whether the private flag is set
+  </Expandable>
+
+  <Expandable title="Metadata">
+    - **Source:** The source tag, if present
+    - **Comment:** The comment, if present
+    - **Created by:** The tool used to create the torrent
+    - **Created on:** The creation date, if specified
+    - **Files:** Number of files (for multi-file torrents)
+  </Expandable>
+</ResponseField>
+
+<Info>
+  For multi-file torrents, a file tree is displayed showing the path and size of each file within the torrent structure.
+</Info>
+
+## Examples
+
+<Tabs>
+  <Tab title="Basic Usage">
+    Inspect a torrent file with default output:
+    ```bash
+    mkbrr inspect my-release.torrent
+    ```
+  </Tab>
+  <Tab title="Verbose Mode">
+    Show all metadata fields including non-standard ones:
+    ```bash
+    mkbrr inspect another.torrent -v
+    ```
+  </Tab>
+</Tabs>
+
+
+```bash
+mkbrr inspect <torrent-file> [flags]
+```
+
+## Arguments
+
+-   `<torrent-file>`: (Required) The path to the `.torrent` file you want to inspect.
+
+## Flags
+
+<ParamField path="--verbose, -v" type="boolean" default="false">
+  Show all metadata fields found in the torrent file, including non-standard ones in both the root and info dictionaries.
+</ParamField>
+
+## Output
+
+The command displays the following information by default:
+
+-   **Name:** The root name of the torrent content.
+-   **Hash:** The info hash of the torrent.
+-   **Size:** Total size of the content.
+-   **Piece length:** Size of each piece.
+-   **Pieces:** Total number of pieces.
+-   **Trackers:** Announce URLs.
+-   **Web seeds:** Any web seed URLs included.
+-   **Private:** Whether the private flag is set.
+-   **Source:** The source tag, if present.
+-   **Comment:** The comment, if present.
+-   **Created by:** The tool used to create the torrent, if specified.
+-   **Created on:** The creation date, if specified.
+-   **Files:** Number of files (for multi-file torrents).
+
+If the torrent contains multiple files, a file tree is also displayed, showing the path and size of each file within the torrent structure.
+
+## Examples
+
+**Inspect a torrent file:**
+```bash
+mkbrr inspect my-release.torrent
+```
+
+**Inspect a torrent file with verbose output to see all metadata:**
+```bash
+mkbrr inspect another.torrent -v

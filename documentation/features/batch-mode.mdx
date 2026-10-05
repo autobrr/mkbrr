@@ -1,0 +1,177 @@
+---
+title: Batch mode
+description: Batch mode allows you to create multiple torrents from different source paths with varying settings in a single command execution.
+icon: layer-group
+---
+
+<Note>
+Batch mode is ideal for creating multiple torrents in one go.
+</Note>
+
+## Configuration File (`batch.yaml`)
+
+Batch operations are defined in a YAML file, typically named `batch.yaml`.
+
+<CodeGroup>
+```bash Command
+mkbrr create -b /path/to/your/batch.yaml
+```
+
+```yaml Example batch.yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/autobrr/mkbrr/main/schema/batch.json
+version: 1
+jobs:
+  - output: /torrents/movie1.torrent
+    path: /media/movies/movie1.mkv
+    trackers:
+      - https://tracker-one.com/announce/abc
+    private: true
+    comment: "4K HDR Release"
+    source: "UHD"
+
+  - output: /torrents/movie2.torrent
+    path: /media/movies/movie2.mkv
+    trackers:
+      - https://tracker-one.com/announce/abc
+    private: true
+    comment: "1080p Release"
+    source: "BluRay"
+```
+</CodeGroup>
+
+<Tip>
+While `batch.yaml` is a common convention, you can use any filename. Just be sure to specify it with `-b`.
+</Tip>
+
+### Configuration Structure
+
+<Tabs>
+  <Tab title="Movies Example">
+```yaml
+jobs:
+  - output: /torrents/movie1.torrent
+    path: /media/movies/movie1.mkv
+    trackers:
+      - https://tracker-one.com/announce/abc
+    private: true
+    comment: "4K HDR Release"
+    source: "UHD"
+
+  - output: /torrents/movie2.torrent
+    path: /media/movies/movie2.mkv
+    trackers:
+      - https://tracker-one.com/announce/abc
+    private: true
+    comment: "1080p Release"
+    source: "BluRay"
+
+  - output: /torrents/movie3.torrent
+    path: /media/movies/movie3.mkv
+    trackers:
+      - https://tracker-one.com/announce/abc
+    private: true
+    comment: "720p Release"
+    source: "WEB"
+```
+  </Tab>
+  <Tab title="TV Shows Example">
+```yaml
+jobs:
+  - output: /torrents/show_s01.torrent
+    path: /media/tv/Show/Season 1/
+    trackers:
+      - udp://tracker-two.org:6969/announce
+    private: true
+    piece_length: 18 # 256 KiB pieces
+    comment: "Complete Season 1"
+    exclude_patterns:
+      - "*.nfo"
+      - "*.jpg"
+
+  - output: /torrents/show_s02.torrent
+    path: /media/tv/Show/Season 2/
+    trackers:
+      - udp://tracker-two.org:6969/announce
+    private: true
+    piece_length: 18
+    comment: "Complete Season 2"
+    exclude_patterns:
+      - "*.nfo"
+      - "*.jpg"
+```
+  </Tab>
+  <Tab title="Mixed Content">
+```yaml
+jobs:
+  - output: /torrents/album.torrent
+    path: /media/music/Artist/Album/
+    trackers:
+      - udp://tracker-three.org:6969/announce
+    private: false
+    piece_length: 18
+    webseeds:
+      - http://seed.example.com/album/
+    exclude_patterns:
+      - "*.log"
+      - "folder.jpg"
+
+  - output: /torrents/game.torrent
+    path: /media/games/Game.iso
+    trackers:
+      - https://tracker-four.com/announce
+    private: true
+    piece_length: 22 # 4 MiB pieces
+    source: "RETAIL"
+
+  - output: /torrents/ebook.torrent
+    path: /media/books/Book.pdf
+    trackers:
+      - https://tracker-five.com/announce
+    private: true
+    comment: "PDF + Extras"
+```
+  </Tab>
+</Tabs>
+
+### Configuration Options
+
+<CardGroup cols={2}>
+  <Card title="Required Fields" icon="asterisk">
+    - **version**: Must be `1`
+    - **jobs**: List of torrent creation tasks
+    - **output**: Path for the `.torrent` file
+    - **path**: Source file/directory path
+  </Card>
+  <Card title="Optional Settings" icon="question">
+    - **trackers**: Announce URLs list
+    - **webseeds**: Web seed URLs list
+    - **private**: Set to `true` or `false`. The default is `true`.
+    - **piece_length**: Piece size exponent
+    - **max_piece_length**: Maximum piece size exponent
+    - **target_piece_count**: Target number of pieces (mutually exclusive with piece_length)
+  </Card>
+</CardGroup>
+
+<Warning>
+In mkbrr v1.26.0 and earlier, a job without `private` made a public torrent. Now it makes a private torrent. Set `private: false` to make a public torrent.
+</Warning>
+
+<Accordion title="Additional Optional Settings">
+- **comment**: Torrent comment string
+- **source**: Source tag string. If you do not set it, mkbrr uses the default source of the first tracker, when that tracker has one. Set `source: ""` to add no source.
+- **entropy**: Set `true` to randomize info hash for cross-seeding
+- **no_date**: Set `true` to omit creation date
+- **no_creator**: Set `true` to omit the creator string
+- **skip_prefix**: Set `true` to prevent adding tracker domain prefix to output filename
+- **fail_on_season_warning**: Set `true` to exit with error on missing episodes in season packs
+- **exclude_patterns**: Glob patterns to exclude files
+- **include_patterns**: Glob patterns to include files
+</Accordion>
+
+<Tip>
+You can find the formal JSON schema for validation [here](https://raw.githubusercontent.com/autobrr/mkbrr/main/schema/batch.json).
+</Tip>
+
+<Info>
+You cannot provide a source path argument directly to `mkbrr create` when using the `-b` flag. All source paths must be defined within the batch file jobs.
+</Info>

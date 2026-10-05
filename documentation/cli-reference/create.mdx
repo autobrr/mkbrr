@@ -1,0 +1,30 @@
+---
+title: create
+description: 'Create a new torrent file from a file or directory.'
+---
+
+import CreateParams from '/snippets/create-params.mdx';
+
+## Usage
+
+```bash
+  mkbrr create /path/to/content [flags]
+```
+
+<Note>
+Create torrents in two modes:
+- Single file/directory mode (default)
+- [Batch mode](/features/batch-mode) using a YAML config file
+
+Common settings can be saved and reused with [presets](/features/presets).
+
+By default, when a tracker URL is provided, the output filename will be prefixed with the tracker domain (e.g. "example_filename.torrent"). Use `--skip-prefix` to disable this behavior.
+</Note>
+
+## Arguments
+
+-   `/path/to/content`: (Required unless using `-b`) The path to the source file or directory.
+
+## Flags
+
+<CreateParams />

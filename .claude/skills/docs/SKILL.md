@@ -1,30 +1,25 @@
 ---
 name: docs
-description: Check if mkbrr.com docs need updating and create a PR if so. Two modes — targeted (on a feature branch, sync specific changes) and sweep (on main, audit entire docs site against codebase for drift). Triggers on "/docs", "update docs", "docs check", "docs sweep", "docs audit", or after shipping features that change how users interact with mkbrr.
+description: Find out if the mkbrr.com docs in documentation/ need an update, and edit them in the current branch. Two modes: targeted (on a feature branch, sync specific changes) and sweep (audit entire docs site against codebase for drift). Triggers on "/docs", "update docs", "docs check", "docs sweep", "docs audit", or after shipping features that change how users interact with mkbrr.
 ---
 
 # Docs Sync
 
-Keep the mkbrr.com documentation site in sync with the mkbrr codebase.
-
-## Repos
-
-- **mkbrr** (code): `/Users/soup/github/autobrr/mkbrr` (repo: `autobrr/mkbrr`)
-- **mkbrr.com** (docs): `/Users/soup/github/soup/mkbrr.com` (repo: `s0up4200/mkbrr.com`)
+Keep the mkbrr.com documentation site in `documentation/` in sync with the mkbrr codebase. Docs edits go in the same branch and PR as the code change.
 
 ## Two modes
 
 **Targeted mode** — on a feature branch, sync specific changes from that branch to docs.
-**Sweep mode** — on main (or anytime), audit the entire docs site against the current codebase for drift, missing info, or contradictions.
+**Sweep mode** — on `develop` (or anytime), audit the entire docs site against the current codebase for drift, missing info, or contradictions.
 
 Pick the mode based on context:
 - Feature branch with uncommitted/recent work → targeted
-- On main, or user says "sweep"/"audit" → sweep
+- On `develop`, or user says "sweep"/"audit" → sweep
 - After a release → sweep
 
 ## Drift surface
 
-Everything in the docs that can fall out of sync with the codebase. All docs paths are relative to the docs repo root.
+Everything in the docs that can fall out of sync with the codebase. All docs paths are relative to `documentation/`.
 
 | Area | Docs file(s) | Codebase source of truth |
 |------|-------------|-------------------------|
@@ -38,11 +33,13 @@ Everything in the docs that can fall out of sync with the codebase. All docs pat
 | Tracker rules table | `features/tracker-rules.mdx` | `internal/trackers/trackers.go` `trackerConfigs` slice |
 | Filtering defaults | `features/filtering.mdx` | Default exclude patterns in `torrent/create.go` and `torrent/ignore.go` |
 | Season pack detection | `features/season-packs.mdx` | `torrent/seasonfinder.go` regex patterns |
-| Piece size algorithm | `guides/creating-torrents.mdx`, `quickstart.mdx` | `torrent/create.go` `calculatePieceLength()` size tiers |
+| Piece size algorithm | `guides/creating-torrents.mdx`, `quickstart.mdx` | `torrent/create.go` `automaticPieceLength()` size tiers |
 | Modify capabilities | `guides/modifying-torrents.mdx`, `cli-reference/modify.mdx` | `torrent/modify.go` |
 | JSON schemas | Referenced in preset/batch docs | `schema/presets.json`, `schema/batch.json` |
 | Development commands | `development.mdx` | `Makefile` targets |
-| Installation methods | `installation.mdx` | Release artifacts, Dockerfile, package configs |
+| Installation methods | `installation.mdx` | Release artifacts, Dockerfile, package configs, install section of `README.md` |
+
+For Mintlify syntax, components, and `docs.json` settings, use the `mintlify` skill.
 
 Note: the `snippets/common-*.mdx` files (e.g., `common-private.mdx`, `common-entropy.mdx`) are shared across multiple commands. A flag may be documented there rather than in the main params file — check both.
 
@@ -52,37 +49,24 @@ Use when on a feature branch with specific changes to sync.
 
 ### 1. Identify what changed
 
-Work from the mkbrr repo at `/Users/soup/github/autobrr/mkbrr`. Look at the branch diff:
+Look at the branch diff, including uncommitted changes:
 
 ```bash
-git diff main...HEAD --stat
+git diff "$(git merge-base develop HEAD)" --stat
+git status --short
 ```
 
 Identify user-facing changes using the drift surface table. If nothing is user-facing, tell the user "No docs update needed" and stop.
 
-### 2. Check for existing docs work
+If the branch diff already changes the affected docs pages, review them for completeness. If complete, tell the user and stop.
 
-Before creating anything:
+### 2. Find affected docs pages and update
 
-```bash
-gh pr list --repo s0up4200/mkbrr.com --state open
-cd /Users/soup/github/soup/mkbrr.com && git branch --list 'docs/*'
-```
+For each user-facing change, use the drift surface table to find the docs file(s). Read them, then make targeted edits. Match the surrounding style and keep changes minimal.
 
-If a docs PR/branch already exists for this feature, review it for completeness. If complete, tell the user and stop. If incomplete, update the existing branch.
+### 3. Ship it
 
-### 3. Find affected docs pages and update
-
-For each user-facing change, use the drift surface table to find the docs file(s). Read them in the docs repo, then make targeted edits — match surrounding style, keep changes minimal.
-
-### 4. Ship it
-
-In the docs repo:
-- Create a branch from main (e.g., `docs/feature-name`)
-- Commit with a descriptive message
-- Push and create a PR on `s0up4200/mkbrr.com`
-- Reference the mkbrr PR in the body
-- Comment on the mkbrr PR with a link to the docs PR
+Commit the docs edits on the current feature branch, so they ship in the same PR as the code.
 
 ## Sweep mode
 
@@ -115,4 +99,4 @@ If nothing is found, tell the user "Docs are in sync" and stop.
 
 ### 3. Fix and PR
 
-Group related fixes into a single PR. Follow the same ship process as targeted mode — branch, commit, push, PR.
+Group related fixes into a single PR. Create a branch from `develop` (for example `docs/sweep`), commit, push, and open the PR against `develop`. If the drift is on the live site and the fix must go out before the next release, open the PR against `main` instead, then merge `main` back into `develop`.

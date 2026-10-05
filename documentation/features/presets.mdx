@@ -1,0 +1,272 @@
+---
+title: Presets
+description: Presets allow you to define and reuse common sets of options for creating or modifying torrents. This is particularly useful if you frequently create torrents for specific trackers with consistent settings.
+icon: sheet-plastic
+---
+
+<CardGroup>
+  <Card title="Configuration" icon="gear" href="#configuration-file-presets-yaml">
+    Learn about the presets.yaml file structure
+  </Card>
+  <Card title="Options" icon="sliders" href="#available-options">
+    Available preset configuration options
+  </Card>
+  <Card title="Usage" icon="play" href="#using-presets">
+    How to use presets in commands
+  </Card>
+  <Card title="Overrides" icon="arrow-right-arrow-left" href="#overriding-presets">
+    Command-line flag precedence
+  </Card>
+</CardGroup>
+
+## Configuration File (`presets.yaml`)
+
+<Info>
+  Presets are defined in a YAML file named `presets.yaml`. `mkbrr` searches for this file in the following locations, using the first one it finds:
+</Info>
+
+<Steps>
+  1. Path specified by the `--preset-file` flag (if used)
+  2. The current working directory (`./presets.yaml`)
+  3. `~/.config/mkbrr/presets.yaml` (or equivalent user config directory)
+  4. `~/.mkbrr/presets.yaml` (legacy location)
+</Steps>
+
+### Structure
+
+The `presets.yaml` file follows this structure:
+
+<CodeGroup>
+
+  ```yaml presets.yaml
+  # yaml-language-server: $schema=https://raw.githubusercontent.com/autobrr/mkbrr/main/schema/presets.json
+  version: 1
+
+  # Optional: Default settings applied to ALL presets unless overridden
+  default:
+    private: true
+    no_date: true
+    no_creator: false
+    skip_prefix: false
+    # comment: "Default comment"
+    # source: "DEFAULT_SRC"
+    # exclude_patterns: ["*.bak", "temp.*"]
+    # include_patterns: ["*.mkv", "*.mp4"]
+
+  presets:
+    preset-name-1: # Name of the preset (used with -P flag)
+      trackers:
+        - "https://tracker-one.com/announce/..."
+      source: "TRACKER1"
+      comment: "Uploaded via mkbrr"
+      private: true
+      exclude_patterns:
+        - "*.nfo"
+        - "*sample*"
+
+    preset-name-2:
+      trackers:
+        - "udp://tracker-two.org:6969/announce"
+      private: false # Make these torrents public
+      piece_length: 18 # Use 256 KiB pieces for this preset
+      include_patterns:
+        - "*.mkv"
+        - "*.mp4"
+        - "*.avi"
+  ```
+
+  ```yaml presets.yaml (minimal example)
+  version: 1
+  presets:
+    ptp:
+      trackers:
+        - "https://tracker.example.com/announce"
+      private: false
+      source: "EXAMPLE"
+  ```
+
+
+</CodeGroup>
+
+<ResponseField name="Configuration Fields">
+  <ParamField path="version" type="integer" required>
+    Must be `1`
+  </ParamField>
+
+  <ParamField path="default" type="object">
+    Optional settings applied to *all* presets unless explicitly overridden within a specific preset
+  </ParamField>
+
+  <ParamField path="presets" type="object" required>
+    A map where each key is the preset name (e.g., `ptp`, `public`) and the value contains the options for that preset
+  </ParamField>
+</ResponseField>
+
+### Available Options
+
+The following options can be used within the `default` section or any specific preset:
+
+<Tabs>
+  <Tab title="Core Options">
+    <ParamField path="trackers" type="string[]">
+      List of announce URLs. The first one is used as the primary tracker.
+    </ParamField>
+
+    <ParamField path="private" type="boolean">
+      Whether the torrent should be private.
+    </ParamField>
+
+    <ParamField path="source" type="string">
+      Source tag string.
+    </ParamField>
+
+    <ParamField path="comment" type="string">
+      Torrent comment string.
+    </ParamField>
+  </Tab>
+
+  <Tab title="Piece Settings">
+    <ParamField path="piece_length" type="integer">
+      Piece size exponent (e.g., `18` for 256 KiB). Accepts 16-27, or 14-27 for a tracker with its own piece size table. Mutually exclusive with `target_piece_count`.
+    </ParamField>
+
+    <ParamField path="target_piece_count" type="integer">
+      Target approximate number of pieces (e.g., `600` or `900`). Calculates the optimal piece length automatically. Mutually exclusive with `piece_length`.
+    </ParamField>
+
+    <ParamField path="max_piece_length" type="integer">
+      Maximum piece size exponent for automatic calculation.
+    </ParamField>
+  </Tab>
+
+  <Tab title="File Control">
+    <ParamField path="exclude_patterns" type="string[]">
+      List of glob patterns to exclude files.
+    </ParamField>
+
+    <ParamField path="include_patterns" type="string[]">
+      List of glob patterns to include files (takes precedence over exclude).
+    </ParamField>
+
+    <ParamField path="skip_prefix" type="boolean">
+      Whether to prevent adding the tracker domain prefix to the output filename.
+    </ParamField>
+
+    <ParamField path="output_dir" type="string">
+      Output directory for created torrents.
+    </ParamField>
+  </Tab>
+
+  <Tab title="Advanced">
+    <ParamField path="webseeds" type="string[]">
+      List of web seed URLs.
+    </ParamField>
+
+    <ParamField path="workers" type="number">
+      Manually specify the number of concurrent goroutines used for hashing.
+    <Info>
+      Experimenting with different values might yield better performance than the default automatic setting.
+    </Info>
+    </ParamField>
+
+    <ParamField path="entropy" type="boolean" default="false">
+      Whether to randomize the torrent's info hash by adding a unique, random key to the info dictionary.
+    <Tip>
+      Useful for cross-seeding identical content on trackers that reject duplicate info hashes.
+    </Tip>
+    </ParamField>
+
+    <ParamField path="no_date" type="boolean">
+      Whether to omit creation date.
+    </ParamField>
+
+    <ParamField path="no_creator" type="boolean">
+      Whether to omit creator string.
+    </ParamField>
+
+    <ParamField path="fail_on_season_warning" type="boolean">
+      Exit with error if season pack completeness check detects missing episodes.
+    </ParamField>
+  </Tab>
+</Tabs>
+
+<Info>
+  You can find the formal JSON schema for validation [here](https://raw.githubusercontent.com/autobrr/mkbrr/main/schema/presets.json).
+</Info>
+
+## Using Presets
+
+Specify the preset name using the `-P` (or `--preset`) flag with the `create` or `modify` commands:
+
+<CodeGroup>
+
+  ```bash Create
+  mkbrr create /path/to/content -P preset-name-1
+  ```
+
+  ```bash Modify
+  mkbrr modify *.torrent -P preset-name-2
+  ```
+
+</CodeGroup>
+
+## Overriding Presets
+
+Command-line flags take precedence over preset settings. Most flags completely override their preset counterparts, but filtering options have special behavior:
+
+- **Filtering patterns are additive**: Command-line patterns combine with preset patterns
+
+<Accordion title="Example: Combining Preset and Command-line Filters">
+```yaml Preset Definition
+presets:
+  movies:
+    include_patterns:
+      - "*.mkv"
+      - "*.mp4"
+    exclude_patterns:
+      - "*sample*"
+```
+
+```bash Command with Additional Filters
+# This combines the preset patterns with command-line patterns
+mkbrr create /path/to/content -P movies --include "*.srt" --exclude "*.nfo"
+
+# Effective filters applied:
+# include_patterns: ["*.mkv", "*.mp4", "*.srt"]
+# exclude_patterns: ["*sample*", "*.nfo"]
+```
+</Accordion>
+
+<Warning>
+  Standard command-line flags (like `--private` or `--source`) completely override their preset values, while filtering patterns combine additively.
+</Warning>
+
+<Info>
+  For complete details on filter processing and pattern syntax, see the [Filtering documentation](/features/filtering).
+</Info>
+
+<CodeGroup>
+
+  ```bash Override source flag
+  mkbrr create /path/to/content -P preset-name-1 -s "CUSTOM_SRC"
+  ```
+
+  ```bash Override private flag
+  mkbrr modify existing.torrent -P preset-name-2 --private=true
+  ```
+
+</CodeGroup>
+
+## Presets with modify
+
+`modify` gets each setting from the first source in this list that has it:
+
+1. The command-line flag.
+2. The preset.
+3. The torrent that you modify.
+
+If the preset does not have a key, `modify` keeps the value from the torrent. Tracker defaults do not apply to `modify`. A tracker default is a value that mkbrr knows for a tracker, such as its source tag.
+
+If the preset sets a key to `false`, `modify` uses that value. For example, `no_creator: false` writes the creator string.
+
+A preset cannot remove the source, the comment, or the private flag. To remove them, use `--source ""`, `--comment ""`, or `--no-private`.

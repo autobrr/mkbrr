@@ -1,0 +1,28 @@
+---
+title: modify
+description: 'Modify existing torrent files using a preset or flags.'
+---
+
+import ModifyParams from '/snippets/modify-params.mdx';
+
+## Usage
+
+```bash
+mkbrr modify [flags] [torrent files...]
+```
+
+<Note>
+`modify` keeps the existing metadata and changes only the fields that you set. If no value changes, `modify` writes no file and prints "no changes needed". A value that the torrent already has is not a change. `--dry-run` uses the same rule.
+</Note>
+
+## Arguments
+
+-   `[torrent files...]`: (Required) One or more paths to the `.torrent` files to modify.
+
+## Flags
+
+<ModifyParams />
+
+<Warning>
+  When modifying multiple torrents, using `--output` with a fixed filename will cause subsequent files to overwrite the previous ones. Use `--output-dir` instead for batch modifications to preserve all modified files with unique names.
+</Warning>

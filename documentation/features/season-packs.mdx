@@ -1,0 +1,80 @@
+---
+title: Season packs
+description: When creating a torrent from a directory, `mkbrr` includes a feature to help detect potentially incomplete TV season packs.
+icon: tv-retro
+---
+
+<Note>
+mkbrr analyzes video files in your directory to detect missing episodes in TV season packs, helping prevent incomplete uploads.
+</Note>
+
+<CardGroup cols={2}>
+  <Card title="Video Files" icon="film">
+    Only analyzes files with these extensions:
+    - `.mkv`
+    - `.mp4`
+  </Card>
+  <Card title="Episode Patterns" icon="list-ol">
+    Detects episode numbers from:
+    - Single: `S01E01`
+    - Range: `S01E01-E03`
+    - Multi: `S01E01E02`
+  </Card>
+</CardGroup>
+
+<AccordionGroup>
+  <Accordion title="Season Detection Patterns" icon="magnifying-glass">
+    mkbrr looks for season numbers in directory and file names using these patterns:
+
+    ```plaintext
+    Show.S01.Complete
+    Show.Season.01
+    Show.S01
+    Show-S01-1080p
+    /Season 01/
+    /S01/
+    Show.S01.1080p
+    Season 01/
+    ```
+
+    <Info>
+    Season detection is case-insensitive and handles various separators (dots, dashes, underscores, spaces).
+    </Info>
+  </Accordion>
+
+  <Accordion title="How Completeness Check Works" icon="check">
+    mkbrr determines if a season pack is suspicious by:
+
+    <Steps>
+      <Step title="Find Highest Episode">
+        Scan all video files to determine the highest episode number in the pack
+      </Step>
+      <Step title="Count Episodes">
+        Count unique episodes found across all valid video files
+      </Step>
+      <Step title="Check for Gaps">
+        Compare episode numbers to identify any missing episodes in the sequence
+      </Step>
+    </Steps>
+
+    <Warning>
+    The detection focuses on standard episode numbering. Special episodes (S01E00) and unconventional naming may affect accuracy.
+    </Warning>
+  </Accordion>
+
+  <Accordion title="Example Warning Output" icon="triangle-exclamation">
+    ```plaintext
+    Warning: Possible incomplete season pack detected
+      Season number: 1
+      Highest episode number found: 4
+      Episodes found: 3
+      Missing: episode 3
+
+    This may be an incomplete season pack. Check files before uploading.
+    ```
+  </Accordion>
+</AccordionGroup>
+
+<Note>
+This feature helps catch common packaging mistakes but isn't foolproof. Always verify your files manually before uploading to trackers.
+</Note>
