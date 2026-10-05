@@ -264,7 +264,7 @@ func TestNewPieceHasher_PrecomputesPieceLayout(t *testing.T) {
 		{path: "c", length: 2, offset: 8},
 	}
 
-	hasher := NewPieceHasher(files, 4, 3, &mockDisplay{}, false)
+	hasher := NewPieceHasher(files, 4, 3, &mockDisplay{})
 
 	if hasher.totalSize != 10 {
 		t.Fatalf("expected total size 10, got %d", hasher.totalSize)
@@ -464,7 +464,7 @@ func TestPieceHasher_ZeroWorkers(t *testing.T) {
 	}
 	f.Close()
 
-	hasher := NewPieceHasher(files, 1<<16, 1, &mockDisplay{}, false)
+	hasher := NewPieceHasher(files, 1<<16, 1, &mockDisplay{})
 
 	// Calling with 0 workers should now trigger automatic optimization or default to 1 worker,
 	// so it should NOT return an error in this case.
@@ -533,7 +533,7 @@ func TestPieceHasher_CorruptedData(t *testing.T) {
 		t.Fatalf("failed to write corrupted file: %v", err)
 	}
 
-	hasher := NewPieceHasher(files, 1<<16, 1, &mockDisplay{}, false)
+	hasher := NewPieceHasher(files, 1<<16, 1, &mockDisplay{})
 	if err := hasher.hashPieces(1); err != nil {
 		t.Fatalf("hashPieces failed: %v", err)
 	}
