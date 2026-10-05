@@ -1342,7 +1342,6 @@ func TestPlanCreateMatchesCreateAndAppliesFilters(t *testing.T) {
 	require.Equal(t, plan.PieceLengthBytes, tor.GetInfo().PieceLength)
 }
 
-
 func TestPlanCreateFailOnSeasonWarningMatchesCreate(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "Show.S01")
 	require.NoError(t, os.MkdirAll(dir, 0o755))
@@ -1366,17 +1365,22 @@ func TestPlanCreateLargeSparseInputDoesNotMaterializePieceHashes(t *testing.T) {
 	contentPath := filepath.Join(t.TempDir(), "large.bin")
 	f, err := os.Create(contentPath)
 	require.NoError(t, err)
-	require.NoError(t, f.Truncate(1 << 32))
+	require.NoError(t, f.Truncate(1<<32))
 	require.NoError(t, f.Close())
 
 	maxPieceLength := uint(16)
+	hashed := false
 	plan, err := PlanCreate(CreateOptions{
 		Path:           contentPath,
 		MaxPieceLength: &maxPieceLength,
 		NoCreator:      true,
 		NoDate:         true,
+		ProgressCallback: func(completed, total int, hashRate float64) {
+			hashed = true
+		},
 	})
 	require.NoError(t, err)
+	require.False(t, hashed, "planning must not hash content")
 	require.Equal(t, int64(1<<32), plan.ContentSize)
 	require.Equal(t, int64(1<<16), plan.PieceLengthBytes)
 	require.NotZero(t, plan.PredictedTorrentSize)

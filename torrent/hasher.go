@@ -27,8 +27,8 @@ type pieceHasher struct {
 	pieceStartFiles  []int
 	reusablePieces   map[int][]byte
 
-	startTime               time.Time
-	bytesProcessed          atomic.Int64
+	startTime      time.Time
+	bytesProcessed atomic.Int64
 }
 
 // optimizeForWorkload determines optimal read buffer size and number of worker goroutines
@@ -362,7 +362,7 @@ func buildPieceLayout(files []fileEntry, pieceLen int64, numPieces int) (int64, 
 	return totalSize, lastPieceLength, pieceStartFiles
 }
 
-func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Displayer) *pieceHasher {
+func newPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Displayer) *pieceHasher {
 	totalSize, lastPieceLength, pieceStartFiles := buildPieceLayout(files, pieceLen, numPieces)
 	pieceHashStorage := make([]byte, numPieces*sha1.Size)
 	pieces := make([][]byte, numPieces)
@@ -372,14 +372,14 @@ func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Di
 	}
 
 	return &pieceHasher{
-		pieces:                  pieces,
-		pieceHashStorage:        pieceHashStorage,
-		pieceLen:                pieceLen,
-		numPieces:               numPieces,
-		files:                   files,
-		display:                 display,
-		totalSize:               totalSize,
-		lastPieceLength:         lastPieceLength,
-		pieceStartFiles:         pieceStartFiles,
+		pieces:           pieces,
+		pieceHashStorage: pieceHashStorage,
+		pieceLen:         pieceLen,
+		numPieces:        numPieces,
+		files:            files,
+		display:          display,
+		totalSize:        totalSize,
+		lastPieceLength:  lastPieceLength,
+		pieceStartFiles:  pieceStartFiles,
 	}
 }

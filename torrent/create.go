@@ -4,13 +4,14 @@
 package torrent
 
 import (
-	"math/bits"
 	"bytes"
 	"crypto/rand"
 	"fmt"
+	"math/bits"
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -339,7 +340,6 @@ type preparedCreate struct {
 	notices     []Notice
 	seasonInfo  *SeasonPackInfo
 	encode      func(pieceLength int64, pieces []byte) (*Torrent, error)
-	torrentSize func(exp uint) (uint64, error)
 	plan        CreatePlan
 }
 
@@ -597,14 +597,7 @@ func prepareCreate(opts CreateOptions, internalOpts createTorrentOptions) (*prep
 		}
 
 		piecesBytes := int64(numPieces) * 20
-		digitCount := func(n int64) int64 {
-			digits := int64(1)
-			for n >= 10 {
-				n /= 10
-				digits++
-			}
-			return digits
-		}
+		digitCount := func(n int64) int64 { return int64(len(strconv.FormatInt(n, 10))) }
 		delta := piecesBytes - placeholderBytes + digitCount(piecesBytes) - digitCount(placeholderBytes)
 		return uint64(int64(len(data)) + delta), nil
 	}
@@ -645,7 +638,6 @@ func prepareCreate(opts CreateOptions, internalOpts createTorrentOptions) (*prep
 		notices:     notices,
 		seasonInfo:  seasonInfo,
 		encode:      encode,
-		torrentSize: torrentSize,
 		plan: CreatePlan{
 			ContentSize:          totalSize,
 			PieceLengthExponent:  exp,
@@ -716,7 +708,7 @@ func createTorrent(opts CreateOptions, internalOpts createTorrentOptions) (*Torr
 	}
 
 	display.ShowSeasonPackWarnings(prepared.seasonInfo)
-	hasher := NewPieceHasher(files, pieceLength, numPieces, display)
+	hasher := newPieceHasher(files, pieceLength, numPieces, display)
 	if internalOpts.pieceReuse != nil {
 		reusablePieces, err := internalOpts.pieceReuse.findReusablePieces(files, baseDir, inputInfo.IsDir(), pieceLength)
 		if err != nil {
