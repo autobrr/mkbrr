@@ -337,6 +337,7 @@ type preparedCreate struct {
 	exp         uint
 	rules       trackers.Rules
 	notices     []Notice
+	seasonInfo  *SeasonPackInfo
 	encode      func(pieceLength int64, pieces []byte) (*Torrent, error)
 	torrentSize func(exp uint) (uint64, error)
 	plan        CreatePlan
@@ -534,6 +535,11 @@ func prepareCreate(opts CreateOptions, internalOpts createTorrentOptions) (*prep
 		return nil, fmt.Errorf("input path %q contains no files or only empty files, cannot create torrent", path)
 	}
 
+	seasonInfo := AnalyzeSeasonPack(files)
+	if seasonInfo.IsSuspicious && opts.FailOnSeasonPackWarning {
+		return nil, fmt.Errorf("season pack is suspicious, and --fail-on-season-warning is enabled")
+	}
+
 	info := metainfo.Info{Name: name}
 	if len(files) == 1 && !inputInfo.IsDir() {
 		// a single file directly uses the simple format
@@ -622,8 +628,6 @@ func prepareCreate(opts CreateOptions, internalOpts createTorrentOptions) (*prep
 			return nil, err
 		}
 		pieceLength = int64(1) << exp
-	} else if len(opts.TrackerURLs) > 0 {
-		rules, _ = trackers.Lookup(opts.TrackerURLs[0])
 	}
 
 	predictedTorrentSize, err := torrentSizeForPieceLength(pieceLength)
@@ -639,6 +643,7 @@ func prepareCreate(opts CreateOptions, internalOpts createTorrentOptions) (*prep
 		exp:         exp,
 		rules:       rules,
 		notices:     notices,
+		seasonInfo:  seasonInfo,
 		encode:      encode,
 		torrentSize: torrentSize,
 		plan: CreatePlan{
@@ -652,7 +657,7 @@ func prepareCreate(opts CreateOptions, internalOpts createTorrentOptions) (*prep
 	}, nil
 }
 
-// ChoosePieceLength resolves the exact piece length create would use without hashing.
+// ChoosePieceLength chooses the exact piece length create would use without hashing.
 func ChoosePieceLength(opts CreateOptions) (uint, []Notice, error) {
 	prepared, err := prepareCreate(opts, createTorrentOptions{})
 	if err != nil {
@@ -686,6 +691,7 @@ func createTorrent(opts CreateOptions, internalOpts createTorrentOptions) (*Torr
 	encode := prepared.encode
 	if opts.Verbose || opts.InfoOnly {
 		display := NewDisplay(NewFormatter(true))
+		display.ShowSeasonPackWarnings(prepared.seasonInfo)
 		for _, n := range prepared.notices {
 			if n.Warn {
 				display.ShowWarning(n.Text)
