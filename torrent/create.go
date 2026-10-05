@@ -110,8 +110,8 @@ func sizeLimitPieceLengthCeiling(rules trackers.Rules, maxPieceLength *uint) uin
 // Notice is a message from the piece length choice. The caller decides
 // whether to show it.
 type Notice struct {
-	Warn bool
-	Text string
+	Warn bool   `json:"warn"`
+	Text string `json:"text"`
 }
 
 // choosePieceLength picks the piece length exponent from the create settings,
@@ -329,7 +329,22 @@ func CreateTorrent(opts CreateOptions) (*Torrent, error) {
 }
 
 // createTorrent contains the shared creation pipeline with optional internal hash-reuse controls.
-func createTorrent(opts CreateOptions, internalOpts createTorrentOptions) (*Torrent, error) {
+type preparedCreate struct {
+	files       []fileEntry
+	totalSize   int64
+	baseDir     string
+	inputInfo   os.FileInfo
+	pieceLength int64
+	exp         uint
+	rules       trackers.Rules
+	notices     []Notice
+	encode      func(pieceLength int64, pieces []byte) (*Torrent, error)
+	torrentSize func(exp uint) (uint64, error)
+	plan        CreatePlan
+}
+
+// prepareCreate builds the exact pre-hash state shared by planning and creation.
+func prepareCreate(opts CreateOptions, internalOpts createTorrentOptions) (*preparedCreate, error) {
 	path := filepath.ToSlash(opts.Path)
 	name := opts.Name
 	if name == "" {
@@ -580,32 +595,80 @@ func createTorrent(opts CreateOptions, internalOpts createTorrentOptions) (*Torr
 
 	pieceLength := internalOpts.pieceLengthBytes
 	var (
-		rules trackers.Rules
-		exp   uint
+		rules   trackers.Rules
+		exp     uint
+		notices []Notice
 	)
 	if pieceLength == 0 {
 		if len(opts.TrackerURLs) > 0 {
 			rules, _ = trackers.Lookup(opts.TrackerURLs[0])
 		}
-		var notices []Notice
 		var err error
 		exp, notices, err = choosePieceLength(totalSize, opts, rules, torrentSize)
 		if err != nil {
 			return nil, err
 		}
-		if opts.Verbose || opts.InfoOnly {
-			display := NewDisplay(NewFormatter(true))
-			for _, n := range notices {
-				if n.Warn {
-					display.ShowWarning(n.Text)
-				} else {
-					display.ShowMessage(n.Text)
-				}
-			}
-		}
 		pieceLength = int64(1) << exp
+	} else {
+		exp = uint(bits.TrailingZeros64(uint64(pieceLength)))
+		if len(opts.TrackerURLs) > 0 {
+			rules, _ = trackers.Lookup(opts.TrackerURLs[0])
+		}
 	}
 
+	predictedTorrentSize, err := torrentSize(exp)
+	if err != nil {
+		return nil, err
+	}
+	return &preparedCreate{
+		files: files, totalSize: totalSize, baseDir: baseDir, inputInfo: inputInfo,
+		pieceLength: pieceLength, exp: exp, rules: rules, notices: notices,
+		encode: encode, torrentSize: torrentSize,
+		plan: CreatePlan{
+			ContentSize: totalSize,
+			PieceLengthExponent: exp,
+			PieceLengthBytes: pieceLength,
+			PredictedTorrentSize: predictedTorrentSize,
+			TrackerSizeLimit: rules.MaxTorrentSize,
+			Notices: notices,
+		},
+	}, nil
+}
+
+// ChoosePieceLength resolves the exact piece length create would use without hashing.
+func ChoosePieceLength(opts CreateOptions) (uint, []Notice, error) {
+	prepared, err := prepareCreate(opts, createTorrentOptions{})
+	if err != nil { return 0, nil, err }
+	return prepared.exp, prepared.notices, nil
+}
+
+// PlanCreate returns the exact pre-hash create plan for opts.
+func PlanCreate(opts CreateOptions) (*CreatePlan, error) {
+	prepared, err := prepareCreate(opts, createTorrentOptions{})
+	if err != nil { return nil, err }
+	plan := prepared.plan
+	return &plan, nil
+}
+
+// createTorrent contains the shared creation pipeline with optional internal hash-reuse controls.
+func createTorrent(opts CreateOptions, internalOpts createTorrentOptions) (*Torrent, error) {
+	prepared, err := prepareCreate(opts, internalOpts)
+	if err != nil { return nil, err }
+	files := prepared.files
+	totalSize := prepared.totalSize
+	baseDir := prepared.baseDir
+	inputInfo := prepared.inputInfo
+	pieceLength := prepared.pieceLength
+	exp := prepared.exp
+	rules := prepared.rules
+	encode := prepared.encode
+	torrentSize := prepared.torrentSize
+	if opts.Verbose || opts.InfoOnly {
+		display := NewDisplay(NewFormatter(true))
+		for _, n := range prepared.notices {
+			if n.Warn { display.ShowWarning(n.Text) } else { display.ShowMessage(n.Text) }
+		}
+	}
 	numPieces, err := pieceCountForSize(totalSize, pieceLength)
 	if err != nil {
 		return nil, err
