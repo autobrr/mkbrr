@@ -159,12 +159,12 @@ icon: download
           <Tab title="Windows">
             Download the `mkbrr_*_windows_x86_64.zip` file from the [GitHub Releases page](https://github.com/autobrr/mkbrr/releases/latest).
 
-            Alternatively, using PowerShell (requires `curl`):
+            Alternatively, using PowerShell:
             ```powershell
             # Download (Uses Invoke-RestMethod for reliable JSON parsing)
             $releaseInfo = Invoke-RestMethod -Uri "https://api.github.com/repos/autobrr/mkbrr/releases/latest"
             $url = $releaseInfo.assets | Where-Object { $_.name -like '*windows_x86_64.zip' } | Select-Object -ExpandProperty browser_download_url
-            curl -L -o mkbrr_latest_windows_x86_64.zip $url
+            curl.exe -L -o mkbrr_latest_windows_x86_64.zip $url
 
             # Extract
             Expand-Archive -Path mkbrr_latest_windows_x86_64.zip -DestinationPath .\\mkbrr_extracted -Force

@@ -10,7 +10,7 @@ All benchmarks were performed using [hyperfine](https://github.com/sharkdp/hyper
 
 ## Performance Overview
 
-mkbrr consistently outperforms other torrent creation tools across various hardware configurations. The benchmarks show that mkbrr is not only faster but also maintains better consistency, especially on mechanical drives where other tools struggle with variance.
+In these benchmarks, mkbrr was faster than or on par with the other torrent creation tools on each machine. On Apple Silicon, mkbrr and torf tied (9.71s and 9.78s, 1.01 ± 0.09 times). On the mechanical drives (Hetzner HDD), the run times of mkbrr varied much less than those of the other tools.
 
 <CardGroup cols={4}>
   <Card title="Hetzner AX102" icon="bolt">
@@ -105,30 +105,30 @@ mkbrr consistently outperforms other torrent creation tools across various hardw
 ## Performance Consistency
 
 <Info>
-mkbrr maintains good consistency across all platforms, with variance ranging from 0.25% to 2.4%. It particularly excels on storage-heavy workloads, where other tools can show up to 39% variance.
+The variation of mkbrr was between 0.25% and 3.7% on all platforms. On the mechanical drives, the variation of the other tools was between 9.9% and 39.1%. The variation is the standard deviation divided by the mean time, also called the coefficient of variation.
 </Info>
 
 <CardGroup cols={3}>
   <Card title="Hetzner AX102" icon="microchip">
     All tools showed good consistency on high-end hardware:
-    - <Icon icon="chart-line" color="#22c55e" /> mktorrent: **1.62% variance**
-    - <Icon icon="chart-line" /> mkbrr: 1.75% variance
-    - <Icon icon="chart-line" /> torf: 2.29% variance
-    - <Icon icon="chart-line" /> torrenttools: 2.93% variance
+    - <Icon icon="chart-line" color="#22c55e" /> mktorrent: **1.62% variation**
+    - <Icon icon="chart-line" /> mkbrr: 1.75% variation
+    - <Icon icon="chart-line" /> torf: 2.29% variation
+    - <Icon icon="chart-line" /> torrenttools: 2.93% variation
   </Card>
   <Card title="Hetzner HDD" icon="hard-drive">
     Other tools showed significant fluctuations on HDD:
-    - <Icon icon="chart-line" color="#22c55e" /> mkbrr: **2.4% variance**
-    - <Icon icon="chart-line" /> torf: 9.9% variance
-    - <Icon icon="chart-line-down" /> torrenttools: 22.0% variance
-    - <Icon icon="chart-line-down" /> mktorrent: 39.1% variance
+    - <Icon icon="chart-line" color="#22c55e" /> mkbrr: **2.4% variation**
+    - <Icon icon="chart-line" /> torf: 9.9% variation
+    - <Icon icon="chart-line-down" /> torrenttools: 22.0% variation
+    - <Icon icon="chart-line-down" /> mktorrent: 39.1% variation
   </Card>
   <Card title="Leaseweb SSD" icon="memory">
     All tools performed consistently on SSD:
-    - <Icon icon="chart-line" color="#22c55e" /> mkbrr: **0.25% variance**
-    - <Icon icon="chart-line" /> mktorrent: 0.36% variance
-    - <Icon icon="chart-line" /> torf: 0.87% variance
-    - <Icon icon="chart-line" /> torrenttools: 1.02% variance
+    - <Icon icon="chart-line" color="#22c55e" /> mkbrr: **0.25% variation**
+    - <Icon icon="chart-line" /> mktorrent: 0.36% variation
+    - <Icon icon="chart-line" /> torf: 0.87% variation
+    - <Icon icon="chart-line" /> torrenttools: 1.02% variation
   </Card>
 </CardGroup>
 

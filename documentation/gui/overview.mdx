@@ -22,7 +22,7 @@ The GUI provides the same core functionality as the CLI with additional usabilit
     View torrent metadata with a searchable, collapsible file tree.
   </Card>
   <Card title="Check" icon="circle-check">
-    Verify torrent data integrity with detailed results showing good, bad, and missing pieces.
+    Verify torrent data with real-time progress. The results show the good pieces, the bad pieces, and the missing files.
   </Card>
   <Card title="Modify" icon="pen">
     Edit torrent metadata without needing the original source files.
@@ -48,7 +48,7 @@ The Settings page allows you to:
   </Accordion>
 
   <Accordion title="Drag and Drop">
-    Drag a file or folder onto any page to fill its path automatically — drop content to set the source on Create, a `.torrent` or content on Check, or a `.torrent` to Inspect or Modify.
+    Drag a file or folder onto the Create, Check, Inspect, or Modify page to fill in its path. On Create, drop the content. On Check, drop a `.torrent` file or the content. On Inspect and Modify, drop a `.torrent` file.
   </Accordion>
 
   <Accordion title="Tracker Detection">
@@ -68,7 +68,7 @@ The Settings page allows you to:
     - Search functionality with auto-expand
     - Collapsible folder structure
     - File count per folder
-    - Smart expansion for smaller torrents
+    - All folders open at the start when the torrent has 50 files or fewer
   </Accordion>
 </AccordionGroup>
 
@@ -105,6 +105,20 @@ Download the GUI binary for your platform from the [GitHub Releases page](https:
     Run the executable directly - no installation required.
   </Tab>
   <Tab title="Linux">
+    The GUI needs WebKitGTK 4.1 (`libwebkit2gtk-4.1`) and GTK 3. Install them before you start the GUI:
+
+    <CodeGroup>
+    ```bash Debian/Ubuntu
+    sudo apt install libwebkit2gtk-4.1-0 libgtk-3-0
+    ```
+    ```bash Fedora
+    sudo dnf install webkit2gtk4.1 gtk3
+    ```
+    ```bash Arch
+    sudo pacman -S webkit2gtk-4.1 gtk3
+    ```
+    </CodeGroup>
+
     Download `mkbrr-gui_*_linux_amd64.tar.gz` and extract the binary.
 
     ```bash
@@ -135,6 +149,10 @@ make gui-build-all
 ```
 
 The built application will be in `gui/build/bin/`.
+
+<Note>
+On Linux, `make gui-build` builds against WebKitGTK 4.0. If your system has only WebKitGTK 4.1, as Ubuntu 24.04 and later do, run `cd gui && wails build -tags webkit2_41` instead. The release builds use this tag.
+</Note>
 
 ## GUI vs CLI
 
