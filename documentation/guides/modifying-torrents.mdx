@@ -33,14 +33,6 @@ The `mkbrr modify` command allows you to update metadata in existing `.torrent` 
 </Info>
 
 <Info>
-  The `modify` command preserves existing metadata, including custom info-dict keys. Only the fields you explicitly change (name, tracker, source, comment, private flag, entropy) are updated.
-</Info>
-
-<Info>
-  If no value changes, `modify` writes no file and prints "no changes needed". A value that the torrent already has is not a change. `--dry-run` uses the same rule.
-</Info>
-
-<Info>
   The announce-list is a list of more trackers in the torrent. If you give one tracker, `modify` writes no announce-list and removes the old list. If you give more than one tracker, `modify` writes all of them to the announce-list.
 </Info>
 
