@@ -27,20 +27,20 @@ import (
 // A field with no preset tag has no preset key.
 // TestSettingsParity in cmd checks both tags.
 type ModifySettings struct {
-	TrackerURLs   []string `json:"trackerUrls" flag:"tracker" preset:"trackers"`    // replaces the trackers; empty keeps
-	WebSeeds      []string `json:"webSeeds" flag:"web-seed" preset:"webseeds"`      // replaces the web seeds; empty keeps
-	Name          string   `json:"name" flag:"name"`                                // empty keeps
-	Comment       *string  `json:"comment" flag:"comment" preset:"comment"`         // empty clears
-	Source        *string  `json:"source" flag:"source" preset:"source"`            // empty clears
-	IsPrivate     *bool    `json:"isPrivate" flag:"private" preset:"private"`       // sets the private flag
-	NoPrivate     bool     `json:"noPrivate" flag:"no-private"`                     // clears the private flag; wins over IsPrivate
-	NoDate        bool     `json:"noDate" flag:"no-date" preset:"no_date"`          // clears the creation date
-	NoCreator     bool     `json:"noCreator" flag:"no-creator" preset:"no_creator"` // clears the creator
-	Entropy       *bool    `json:"entropy" flag:"entropy" preset:"entropy"`         // true writes a new entropy value; false keeps, also over a preset
-	NoEntropy     bool     `json:"noEntropy" flag:"no-entropy"`                     // clears the entropy field
-	OutputDir     string   `json:"outputDir" flag:"output-dir" preset:"output_dir"` // empty uses the preset output dir
-	OutputPattern string   `json:"outputPattern" flag:"output"`                     // custom output filename, without extension
-	SkipPrefix    bool     `json:"skipPrefix" flag:"skip-prefix"`                   // no tracker prefix in the output filename
+	TrackerURLs   []string `json:"trackerUrls" flag:"tracker" preset:"trackers"`       // replaces the trackers; empty keeps
+	WebSeeds      []string `json:"webSeeds" flag:"web-seed" preset:"webseeds"`         // replaces the web seeds; empty keeps
+	Name          string   `json:"name" flag:"name"`                                   // empty keeps
+	Comment       *string  `json:"comment" flag:"comment" preset:"comment"`            // empty clears
+	Source        *string  `json:"source" flag:"source" preset:"source"`               // empty clears
+	IsPrivate     *bool    `json:"isPrivate" flag:"private" preset:"private"`          // sets the private flag
+	NoPrivate     bool     `json:"noPrivate" flag:"no-private"`                        // clears the private flag; wins over IsPrivate
+	NoDate        bool     `json:"noDate" flag:"no-date" preset:"no_date"`             // clears the creation date
+	NoCreator     bool     `json:"noCreator" flag:"no-creator" preset:"no_creator"`    // clears the creator
+	Entropy       *bool    `json:"entropy" flag:"entropy" preset:"entropy"`            // true writes a new entropy value; false keeps, also over a preset
+	NoEntropy     bool     `json:"noEntropy" flag:"no-entropy"`                        // clears the entropy field
+	OutputDir     string   `json:"outputDir" flag:"output-dir" preset:"output_dir"`    // empty uses the preset output dir
+	OutputPattern string   `json:"outputPattern" flag:"output"`                        // custom output filename, without extension
+	SkipPrefix    bool     `json:"skipPrefix" flag:"skip-prefix" preset:"skip_prefix"` // no filename prefix in the output filename
 }
 
 var errEntropyConflict = errors.New("cannot both add and remove entropy")
@@ -175,7 +175,8 @@ func ModifyTorrent(path string, opts ModifyOptions) (*Result, error) {
 	} else {
 		trackerForOutput = ""
 	}
-	outPath := preset.GenerateOutputPath(basePath, outputDir, opts.PresetName, opts.OutputPattern, trackerForOutput, metaInfoName, opts.SkipPrefix)
+	skipPrefix := opts.SkipPrefix || presetOpts != nil && presetOpts.SkipPrefix != nil && *presetOpts.SkipPrefix
+	outPath := preset.GenerateOutputPath(basePath, outputDir, opts.PresetName, opts.OutputPattern, trackerForOutput, metaInfoName, skipPrefix)
 	result.OutputPath = outPath
 
 	// ensure output directory exists if specified
