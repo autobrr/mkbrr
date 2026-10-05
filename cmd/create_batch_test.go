@@ -51,15 +51,30 @@ func captureOutput(t *testing.T, fn func()) (stdout, stderr string) {
 
 	defer func() { os.Stdout, os.Stderr = origOut, origErr }()
 
+	type readResult struct {
+		data []byte
+		err  error
+	}
+	outDone := make(chan readResult, 1)
+	errDone := make(chan readResult, 1)
+	go func() {
+		data, err := io.ReadAll(outR)
+		outDone <- readResult{data: data, err: err}
+	}()
+	go func() {
+		data, err := io.ReadAll(errR)
+		errDone <- readResult{data: data, err: err}
+	}()
+
 	fn()
 
 	require.NoError(t, outW.Close())
 	require.NoError(t, errW.Close())
-	outBytes, err := io.ReadAll(outR)
-	require.NoError(t, err)
-	errBytes, err := io.ReadAll(errR)
-	require.NoError(t, err)
-	return string(outBytes), string(errBytes)
+	outResult := <-outDone
+	errResult := <-errDone
+	require.NoError(t, outResult.err)
+	require.NoError(t, errResult.err)
+	return string(outResult.data), string(errResult.data)
 }
 
 func TestProcessBatchModeReturnsErrorWhenAJobFails(t *testing.T) {
