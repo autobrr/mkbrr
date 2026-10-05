@@ -68,7 +68,7 @@ When `mkbrr create` encounters symbolic links (symlinks) within the source path:
 -   **Target content is hashed:** The torrent pieces will contain the hash data of the *target* file's content.
 -   **Link path is stored:** The file path recorded inside the `.torrent` file's metadata will be the path of the *symbolic link itself*, relative to the source path, not the path of the target.
 
-The `.torrent` file stores only the hashes of the content. `mkbrr check` does not know that a file was a link. It reads the file that the link points to at the time of the check, and compares that content with the stored hashes.
+The `.torrent` file does not record that a file was a link. `mkbrr check` does not know that a file was a link. It reads the file that the link points to at the time of the check, and compares that content with the stored hashes.
 <Warning>
 If the target of a link changed or moved after you created the torrent, `mkbrr check` fails for the pieces of that file.
 </Warning>
