@@ -1340,3 +1340,27 @@ func TestPlanCreateMatchesCreateAndAppliesFilters(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, plan.PieceLengthBytes, tor.GetInfo().PieceLength)
 }
+
+
+func TestPrepareCreatePredictsExactInternalPieceLength(t *testing.T) {
+	contentPath := filepath.Join(t.TempDir(), "content.bin")
+	require.NoError(t, os.WriteFile(contentPath, make([]byte, 128*1024), 0o644))
+
+	const pieceLength int64 = 65_537
+	prepared, err := prepareCreate(CreateOptions{
+		Path:      contentPath,
+		NoCreator: true,
+		NoDate:    true,
+	}, createTorrentOptions{pieceLengthBytes: pieceLength})
+	require.NoError(t, err)
+	require.Equal(t, pieceLength, prepared.pieceLength)
+	require.Equal(t, pieceLength, prepared.plan.PieceLengthBytes)
+
+	numPieces, err := pieceCountForSize(prepared.totalSize, pieceLength)
+	require.NoError(t, err)
+	tor, err := prepared.encode(pieceLength, make([]byte, numPieces*20))
+	require.NoError(t, err)
+	data, err := bencode.Marshal(tor.MetaInfo)
+	require.NoError(t, err)
+	require.Equal(t, uint64(len(data)), prepared.plan.PredictedTorrentSize)
+}
