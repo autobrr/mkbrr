@@ -127,7 +127,6 @@ func TestCreateBatchAcceptsOutputFlags(t *testing.T) {
 	assert.FileExists(t, goodOutput)
 }
 
-
 func TestCreateBatchRejectsPlan(t *testing.T) {
 	batchFile, goodOutput, _ := writeBatchFixture(t, false)
 
@@ -136,7 +135,6 @@ func TestCreateBatchRejectsPlan(t *testing.T) {
 	require.EqualError(t, err, "--batch takes its settings from the batch file; remove --plan")
 	assert.NoFileExists(t, goodOutput)
 }
-
 
 func TestCreatePlanPrintsJSONWithoutWritingTorrent(t *testing.T) {
 	dir := t.TempDir()
