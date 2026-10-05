@@ -1,0 +1,156 @@
+---
+title: GUI Application
+description: "mkbrr's graphical user interface for desktop users"
+icon: window
+---
+
+mkbrr includes a graphical user interface built with [Wails](https://wails.io/) for users who prefer a visual experience over the command line.
+
+<Frame>
+  <img src="/images/create.png" alt="mkbrr GUI - Create page" />
+</Frame>
+
+## Features
+
+The GUI provides the same core functionality as the CLI with additional usability enhancements:
+
+<CardGroup cols={2}>
+  <Card title="Create" icon="plus">
+    Create torrent files with tracker support, presets, and real-time progress tracking with hash rate display.
+  </Card>
+  <Card title="Inspect" icon="magnifying-glass">
+    View torrent metadata with a searchable, collapsible file tree.
+  </Card>
+  <Card title="Check" icon="circle-check">
+    Verify torrent data integrity with detailed results showing good, bad, and missing pieces.
+  </Card>
+  <Card title="Modify" icon="pen">
+    Edit torrent metadata without needing the original source files.
+  </Card>
+</CardGroup>
+
+### Settings
+
+The Settings page allows you to:
+- Configure default worker count for hashing operations
+- Manage presets (create, edit, delete)
+- View and reload the preset file location
+
+<Frame>
+  <img src="/images/settings.png" alt="mkbrr GUI - Settings page" />
+</Frame>
+
+## Additional Features
+
+<AccordionGroup>
+  <Accordion title="Theme Support">
+    Choose between light, dark, or system appearance modes, plus five color themes: Default, Autobrr (the default), Nightwalker, Swizzin, and Amethyst Haze.
+  </Accordion>
+
+  <Accordion title="Drag and Drop">
+    Drag a file or folder onto any page to fill its path automatically — drop content to set the source on Create, a `.torrent` or content on Check, or a `.torrent` to Inspect or Modify.
+  </Accordion>
+
+  <Accordion title="Tracker Detection">
+    When creating torrents, the GUI automatically detects tracker-specific requirements and suggests optimal piece sizes based on your content size and tracker rules.
+  </Accordion>
+
+  <Accordion title="Form Persistence">
+    Form state is automatically saved across sessions. If you close the app while filling out a form, your inputs will be restored when you return.
+  </Accordion>
+
+  <Accordion title="Preset Management">
+    Full preset management with validation. Create, edit, and delete presets directly from the GUI without manually editing YAML files.
+  </Accordion>
+
+  <Accordion title="File Tree Viewer">
+    The Inspect page features an advanced file tree viewer with:
+    - Search functionality with auto-expand
+    - Collapsible folder structure
+    - File count per folder
+    - Smart expansion for smaller torrents
+  </Accordion>
+</AccordionGroup>
+
+## Installation
+
+Download the GUI binary for your platform from the [GitHub Releases page](https://github.com/autobrr/mkbrr/releases).
+
+<Tabs>
+  <Tab title="macOS">
+    Download `mkbrr-gui_*_darwin_*.zip` and extract the `.app` bundle.
+
+    <Warning>
+      The app is not notarized, so macOS will block it by default. Use one of these methods:
+    </Warning>
+
+    **Option 1: Remove quarantine attribute (recommended)**
+    ```bash
+    xattr -cr /path/to/mkbrr-gui.app
+    ```
+
+    **Option 2: Right-click to open**
+    1. Right-click (or Control-click) on the app
+    2. Select "Open" from the context menu
+    3. Click "Open" in the dialog
+
+    **Option 3: System Settings**
+    1. Try to open the app (it will be blocked)
+    2. Open System Settings > Privacy & Security
+    3. Click "Open Anyway" next to the mkbrr-gui message
+  </Tab>
+  <Tab title="Windows">
+    Download `mkbrr-gui_*_windows_amd64.zip` and extract `mkbrr-gui.exe`.
+
+    Run the executable directly - no installation required.
+  </Tab>
+  <Tab title="Linux">
+    Download `mkbrr-gui_*_linux_amd64.tar.gz` and extract the binary.
+
+    ```bash
+    tar -xzf mkbrr-gui_*_linux_amd64.tar.gz
+    chmod +x mkbrr-gui
+    ./mkbrr-gui
+    ```
+  </Tab>
+</Tabs>
+
+### Building from Source
+
+If you prefer to build the GUI yourself:
+
+```bash
+# Clone the repository
+git clone https://github.com/autobrr/mkbrr.git
+cd mkbrr
+
+# Install Wails CLI (one-time requirement)
+make install-wails
+
+# Build GUI for your current platform
+make gui-build
+
+# Or build for all platforms
+make gui-build-all
+```
+
+The built application will be in `gui/build/bin/`.
+
+## GUI vs CLI
+
+Both interfaces provide the same core torrent operations. Choose based on your workflow:
+
+| Feature | CLI | GUI |
+|---------|-----|-----|
+| Create torrents | Yes | Yes |
+| Inspect metadata | Yes | Yes |
+| Check integrity | Yes | Yes |
+| Modify metadata | Yes | Yes |
+| Batch operations | Yes | No |
+| Preset support | Yes | Yes |
+| Preset management | Manual YAML | Visual editor |
+| Progress display | Text | Visual with progress bar |
+| File tree view | Text | Interactive & searchable |
+| Scripting/automation | Yes | No |
+| Theme customization | No | Yes |
+| Drag and drop | No | Yes |

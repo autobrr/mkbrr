@@ -1,0 +1,76 @@
+---
+title: Introduction
+description: "mkbrr: Fast, Simple Torrent Creation & Management"
+icon: hand-wave
+---
+
+## What is mkbrr?
+
+**mkbrr** (pronounced "make-burr") is a simple yet powerful tool designed for creating, inspecting, and modifying `.torrent` files. Available as both a CLI and a desktop GUI, it intelligently handles specific requirements for various private trackers.
+
+## Why use mkbrr?
+
+<CardGroup cols={2}>
+  <Card title="Blazing Fast" icon="rabbit-running">
+    Optimized hashing performance that consistently beats other tools in benchmarks. See [Performance](/performance/benchmarks).
+  </Card>
+  <Card title="CLI & GUI" icon="window">
+    Use the command line for automation or the [desktop GUI](/gui/overview) for visual torrent management.
+  </Card>
+  <Card title="Smart Features" icon="lightbulb">
+    Includes support for reusable [presets](/features/presets) and [batch mode](/features/batch-mode) operations.
+  </Card>
+  <Card title="Portable" icon="box-archive">
+    Distributed as a single, dependency-free binary for easy deployment across platforms.
+  </Card>
+</CardGroup>
+
+## Technical Highlights
+
+<CardGroup cols={2}>
+  <Card title="Consistent Performance" icon="gauge">
+    Standard deviation between runs is only 0.25-3.7%, compared to up to 39% variance with other tools.
+  </Card>
+  <Card title="High-Speed Processing" icon="rocket">
+    21 GiB torrent creation in 7.24 seconds on Leaseweb SSD server, 6.27× faster than mktorrent.
+  </Card>
+  <Card title="Season Pack Analysis" icon="tv-retro">
+    Automated detection of missing episodes in TV season collections. [Learn more](/features/season-packs).
+  </Card>
+  <Card title="Tracker Rule Enforcement" icon="shield">
+    Built-in compliance with requirements for major private trackers. [Learn more](/features/tracker-rules).
+  </Card>
+</CardGroup>
+
+## Getting Started
+
+<Steps>
+  <Step title="Install mkbrr" icon="download">
+    Follow our [installation guide](/installation) to set up the CLI or [GUI application](/gui/overview) on your system.
+  </Step>
+
+  <Step title="Create Your First Torrent" icon="wand-magic-sparkles">
+    **CLI:**
+    ```bash
+    # Basic usage
+    mkbrr create "path/to/data" -o my.torrent
+
+    # With a tracker
+    mkbrr create "path/to/data" -o my.torrent --tracker "http://tracker.url"
+    ```
+
+    **GUI:** Open the application and use the Create page to select files and configure your torrent visually.
+  </Step>
+
+  <Step title="Learn More" icon="book">
+    Check out our [guides](/guides) to learn about advanced features:
+    - [Creating torrents](/guides/creating-torrents)
+    - [Using presets](/features/presets)
+    - [Batch operations](/features/batch-mode)
+    - [GUI Application](/gui/overview)
+  </Step>
+</Steps>
+
+<Note>
+  mkbrr is actively maintained and regularly updated. Join our [Discord](https://discord.gg/WQ2eUycxyT) community and check the [Changelog](/changelog) for updates.
+</Note>
