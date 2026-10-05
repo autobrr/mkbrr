@@ -4,6 +4,7 @@
 package torrent
 
 import (
+	"math/bits"
 	"bytes"
 	"crypto/rand"
 	"fmt"
