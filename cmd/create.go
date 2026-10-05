@@ -4,6 +4,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"runtime/pprof"
@@ -43,6 +44,7 @@ type createOptions struct {
 	entropy             bool
 	quiet               bool
 	infoOnly            bool
+	plan                bool
 	skipPrefix          bool
 	failOnSeasonWarning bool
 }
@@ -105,6 +107,7 @@ func init() {
 	createCmd.Flags().BoolVarP(&options.verbose, "verbose", "v", false, "be verbose")
 	createCmd.Flags().BoolVarP(&options.quiet, "quiet", "q", false, "reduced output mode (prints only final torrent path)")
 	createCmd.Flags().BoolVarP(&options.infoOnly, "info-only", "i", false, "display only torrent info without progress (implies verbose)")
+	createCmd.Flags().BoolVar(&options.plan, "plan", false, "print the resolved create plan as JSON without hashing or writing a torrent")
 	createCmd.Flags().BoolVarP(&options.skipPrefix, "skip-prefix", "", false, "don't add tracker domain prefix to output filename")
 	createCmd.Flags().BoolVar(&options.failOnSeasonWarning, "fail-on-season-warning", false, "fail on season pack warning")
 	createCmd.Flags().StringArrayVarP(&options.excludePatterns, "exclude", "", nil, "exclude files matching these patterns (e.g., \"*.nfo,*.jpg\" or --exclude \"*.nfo\" --exclude \"*.jpg\")")
@@ -237,6 +240,16 @@ func createSingleTorrent(cmd *cobra.Command, args []string, opts createOptions, 
 	createOpts, err := buildCreateOptions(cmd, inputPath, opts, version)
 	if err != nil {
 		return err
+	}
+
+	if opts.plan {
+		plan, err := torrent.PlanCreate(createOpts)
+		if err != nil {
+			return err
+		}
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetEscapeHTML(false)
+		return encoder.Encode(plan)
 	}
 
 	torrentInfo, err := torrent.Create(createOpts)
