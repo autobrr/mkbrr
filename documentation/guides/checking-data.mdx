@@ -1,0 +1,89 @@
+---
+title: Checking data integrity
+description: Learn how to verify local files against .torrent files using the mkbrr check command
+icon: circle-three-quarters-stroke
+---
+
+import CheckParams from '/snippets/check-params.mdx';
+
+The `mkbrr check` command verifies if the local files or directory match the data defined in a `.torrent` file. This is useful for confirming the integrity of downloaded content or checking files after moving them.
+
+<CodeGroup>
+  <Code title="Command">
+  ```bash
+  mkbrr check <torrent-file> <content-path> [flags]
+  ```
+  </Code>
+</CodeGroup>
+
+<CardGroup>
+  <Card title="Arguments" icon="list-check" href="#arguments">
+    Required command arguments
+  </Card>
+  <Card title="Flags" icon="flag" href="#flags">
+    Available verification options
+  </Card>
+  <Card title="Output" icon="file-export" href="#output">
+    Understanding verification results
+  </Card>
+  <Card title="Examples" icon="code" href="#examples">
+    Common usage examples
+  </Card>
+</CardGroup>
+
+## Arguments
+
+  <ParamField path="torrent-file" type="string" required>
+    The path to the `.torrent` file containing the expected piece hashes.
+  </ParamField>
+
+  <ParamField path="content-path" type="string" required>
+    The path to the local file or directory containing the data to be checked.
+  </ParamField>
+
+<Tip>
+  The command exits with an error code if verification fails (bad pieces > 0 or missing files > 0).
+</Tip>
+
+## Flags
+
+<CheckParams />
+
+## Output
+
+By default, the command provides a summary including:
+
+-   **Completion:** Percentage of pieces successfully verified against the local data.
+-   **Good pieces:** Number of pieces that match the hash in the torrent file.
+-   **Bad pieces:** Number of pieces where the local data hash does not match the torrent file.
+-   **Missing files:** Lists any files specified in the torrent that are missing locally. Files that exist but have an incorrect size will be listed with ` (size mismatch)` appended to their name.
+-   **Check time:** Duration of the verification process.
+
+## Examples
+
+<Tabs>
+  <Tab title="Basic Usage">
+    Check a downloaded directory:
+    ```bash
+    mkbrr check MyShow.S01.torrent /path/to/downloads/MyShow.S01/
+    ```
+
+    Check a single file:
+    ```bash
+    mkbrr check MyMovie.mkv.torrent /path/to/downloads/MyMovie.mkv
+    ```
+  </Tab>
+
+  <Tab title="Advanced Options">
+    Check with verbose output to see bad piece indices:
+    ```bash
+    mkbrr check data.zip.torrent /data/files/data.zip -v
+    ```
+
+    Check in quiet mode for scripting:
+    ```bash
+    mkbrr check archive.rar.torrent /backups/archive.rar --quiet
+    # Output example: 99.50%
+    ```
+  </Tab>
+</Tabs>

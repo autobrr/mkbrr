@@ -1,0 +1,78 @@
+---
+title: 'Modify Command Parameters'
+description: 'Parameter fields for the modify command'
+---
+
+import CommonPrivate from '/snippets/common-private.mdx';
+import CommonVerbose from '/snippets/common-verbose.mdx';
+import CommonPreset from '/snippets/common-preset.mdx';
+import CommonWebSeed from '/snippets/common-web-seed.mdx';
+import CommonSource from '/snippets/common-source.mdx';
+import CommonComment from '/snippets/common-comment.mdx';
+import CommonNoDate from '/snippets/common-no-date.mdx';
+import CommonNoCreator from '/snippets/common-no-creator.mdx';
+import CommonQuiet from '/snippets/common-quiet.mdx';
+import CommonEntropy from '/snippets/common-entropy.mdx';
+
+### Input & Output
+
+<ParamField query="--tracker, -t" type="string[]">
+  Tracker URLs (can be specified multiple times).
+</ParamField>
+
+<ParamField query="--name" type="string">
+  Set the torrent's internal name.
+</ParamField>
+
+<ParamField query="--output-dir" type="string">
+  Output directory for modified files.
+</ParamField>
+
+<ParamField query="--output, -o" type="string">
+  Custom output filename (without extension).
+</ParamField>
+
+<Warning>
+  When modifying multiple torrents, using `--output` with a fixed filename will cause subsequent files to overwrite the previous ones. Use `--output-dir` instead for batch modifications to preserve all modified files with unique names.
+</Warning>
+
+### Advanced Input (Presets)
+
+<CommonPreset />
+
+### Torrent Internals
+
+<CommonPrivate />
+
+<ParamField query="--no-private" type="boolean" default={false}>
+  Remove the private flag entirely.
+</ParamField>
+
+<CommonEntropy />
+
+### Seeding & Metadata
+
+<CommonWebSeed />
+
+<CommonSource />
+
+<CommonComment />
+
+<CommonNoDate />
+<Info>If omitted, the creation date is updated to the current time during modification.</Info>
+
+<CommonNoCreator />
+
+### Execution & Output Control
+
+<CommonVerbose />
+
+<CommonQuiet />
+
+<ParamField query="--skip-prefix" type="boolean" default={false}>
+  Don't add tracker domain prefix to output filename.
+</ParamField>
+
+<ParamField query="--dry-run, -n" type="boolean" default={false}>
+  Show what would be modified without making changes.
+</ParamField>

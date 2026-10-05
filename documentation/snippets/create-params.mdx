@@ -1,0 +1,118 @@
+---
+title: 'Create Command Parameters'
+description: 'Parameter fields for the create command'
+---
+
+import CommonPrivate from '/snippets/common-private.mdx';
+import CommonWorkers from '/snippets/common-workers.mdx';
+import CommonVerbose from '/snippets/common-verbose.mdx';
+import CommonPreset from '/snippets/common-preset.mdx';
+import CommonQuiet from '/snippets/common-quiet.mdx';
+import CommonWebSeed from '/snippets/common-web-seed.mdx';
+import CommonSource from '/snippets/common-source.mdx';
+import CommonComment from '/snippets/common-comment.mdx';
+import CommonNoDate from '/snippets/common-no-date.mdx';
+import CommonNoCreator from '/snippets/common-no-creator.mdx';
+import CommonEntropy from '/snippets/common-entropy.mdx';
+
+### Input & Output
+
+<ParamField query="--tracker, -t" type="string[]">
+  Tracker URL. Can be specified multiple times to add several trackers. Optional.
+</ParamField>
+
+<ParamField query="--name" type="string">
+  Set torrent name (default: source filename).
+</ParamField>
+
+<ParamField query="--output, -o" type="string">
+  Optional. Set output path (default: `<n>.torrent` or `<tracker-prefix>_<n>.torrent`).
+</ParamField>
+
+<ParamField query="--output-dir" type="string">
+  Output directory for created torrent.
+</ParamField>
+
+<ParamField query="--skip-prefix" type="boolean" default={false}>
+  Don't add tracker domain prefix to output filename.
+</ParamField>
+
+### Advanced Input (Batch & Presets)
+
+<ParamField query="--batch, -b" type="string">
+  Batch config file (YAML). Cannot be used with a path argument.
+  <Info>
+    For creating multiple torrents in one go. See the [Batch Mode](/features/batch-mode) documentation for details.
+  </Info>
+</ParamField>
+
+<CommonPreset />
+
+### Content Selection
+
+<ParamField query="--exclude" type="array">
+  Exclude files matching these patterns (e.g., `"*.nfo,*.jpg"` or `--exclude "*.nfo" --exclude "*.jpg"`).
+  <Tip>
+    Use this to filter out unwanted files like NFOs, samples, or extras that shouldn't be in the torrent. See the [filtering guide](/features/filtering) for detailed pattern rules and examples.
+  </Tip>
+</ParamField>
+
+<ParamField query="--include" type="array">
+  Include only files matching these patterns (e.g., `"*.mkv,*.mp4"` or `--include "*.mkv" --include "*.mp4"`).
+  <Tip>
+    Using include patterns activates whitelist mode. See the [filtering guide](/features/filtering) for detailed pattern rules and examples.
+  </Tip>
+</ParamField>
+
+### Torrent Internals
+
+<CommonPrivate />
+
+<ParamField query="--piece-length, -l" type="number">
+  Set piece length to 2^n bytes (16-27, or 14-27 for a tracker with its own piece size table; automatic if not specified).
+</ParamField>
+
+<Tip>
+  Let mkbrr automatically calculate the piece size unless you have specific requirements. The automatic calculation optimizes for both performance and compatibility.
+</Tip>
+
+<ParamField query="--max-piece-length, -m" type="number">
+  Limit maximum automatically calculated piece length to 2^n bytes (14-27).
+</ParamField>
+
+<ParamField query="--target-piece-count" type="number">
+  Target approximate number of pieces. Calculates optimal piece length automatically.
+  Mutually exclusive with `--piece-length`.
+</ParamField>
+
+<CommonEntropy />
+
+### Seeding & Metadata
+
+<CommonWebSeed />
+
+<CommonSource />
+
+<CommonComment />
+
+<CommonNoDate />
+
+<CommonNoCreator />
+
+### Season Pack Detection
+
+<ParamField query="--fail-on-season-warning" type="boolean" default={false}>
+  Exit with error if season pack completeness check detects missing episodes.
+</ParamField>
+
+### Execution & Output Control
+
+<CommonWorkers />
+
+<CommonVerbose />
+
+<CommonQuiet />
+
+<ParamField query="--info-only, -i" type="boolean" default={false}>
+  Display only torrent info without progress (implies verbose).
+</ParamField>

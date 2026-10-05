@@ -1,0 +1,109 @@
+---
+title: Quick Start
+description: "Common use cases and examples for creating torrents."
+icon: rabbit-running
+---
+
+## Common Use Cases
+
+<Tabs>
+  <Tab title="Private Trackers">
+    ```bash
+    # Basic private tracker torrent (default)
+    mkbrr create "Movie.2024.1080p.BluRay.x264" -t https://your-tracker.com/announce
+
+    # With custom piece size
+    mkbrr create "Movie.2024.1080p.BluRay.x264" -t https://your-tracker.com/announce --piece-length 24
+
+    # With source and comment
+    mkbrr create "Movie.2024.1080p.BluRay.x264" -t https://your-tracker.com/announce --source "BluRay" --comment "Great quality!"
+    ```
+
+    <Note>
+      All torrents are private by default - perfect for private trackers.
+    </Note>
+  </Tab>
+
+  <Tab title="Public Trackers">
+    ```bash
+    # Basic public tracker torrent
+    mkbrr create "Linux.ISO" -t udp://tracker.opentrackr.org:1337/announce --private=false
+
+    # Multiple public trackers
+    mkbrr create "Linux.ISO" -t udp://tracker1.com -t udp://tracker2.com --private=false
+    ```
+
+    <Note>
+      Use `--private=false` for public trackers. Specify multiple trackers by repeating the `-t` flag.
+    </Note>
+  </Tab>
+</Tabs>
+
+## Smart Defaults
+
+mkbrr automatically handles many settings for you:
+
+<CardGroup cols={2}>
+  <Card title="Piece Size" icon="puzzle-piece">
+    Automatically calculated based on content size for optimal performance
+  </Card>
+  <Card title="File Name" icon="file">
+    Generated from tracker domain and content name if not specified
+  </Card>
+</CardGroup>
+
+## Common Options
+
+<Accordion title="Frequently Used Flags">
+  ```bash
+  --tracker, -t     # Tracker URL
+  --output, -o      # Output file name
+  --piece-length    # Manual piece size (power of 2)
+  --source          # Source tag
+  --comment         # Torrent comment
+  --private         # Private flag (default: true)
+  ```
+</Accordion>
+
+## Troubleshooting
+
+<Accordion title="Common Issues">
+  ### Permission Denied
+  ```bash
+  sudo chmod +x ./mkbrr  # Make binary executable
+  ```
+
+  ### Invalid Piece Size
+  Piece size must be a power of 2 between 16 and 27 (14 to 27 for trackers with their own piece size table):
+  ```bash
+  # Valid sizes: 16(64KiB), 17(128KiB), 18(256KiB)...27(128MiB)
+  # Trackers with custom piece ranges also allow 14(16KiB) and 15(32KiB)
+  mkbrr create data -t tracker.url --piece-length 16
+  ```
+
+  ### Multiple Files
+  For directories, ensure you point to the parent folder:
+  ```bash
+  mkbrr create "Season.1/" -t tracker.url  # Correct
+  mkbrr create "Season.1/*" -t tracker.url # Wrong
+  ```
+</Accordion>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Creating Torrents"
+    icon="wand-magic-sparkles"
+    href="/guides/creating-torrents"
+  >
+    Learn about advanced torrent creation options
+  </Card>
+  <Card
+    title="Tracker Rules"
+    icon="shield"
+    href="/features/tracker-rules"
+  >
+    Understand tracker-specific requirements
+  </Card>
+</CardGroup>

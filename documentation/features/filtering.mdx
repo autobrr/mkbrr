@@ -1,0 +1,139 @@
+---
+title: Filtering
+description: Control which files are included in your torrent using glob patterns for inclusion and exclusion rules.
+icon: filter-list
+---
+
+<Note>
+Use glob patterns with `--include` and `--exclude` flags to precisely control which files are included in your torrent.
+</Note>
+
+## Built-in Exclusions
+
+<Card title="System Files" icon="file-shield">
+mkbrr automatically excludes these common system files and directories (case-insensitive):
+```plaintext
+.torrent
+.ds_store
+thumbs.db
+desktop.ini
+zone.identifier
+@eadir (Synology NAS metadata directory)
+```
+</Card>
+
+## Filter Flags
+
+<Tabs>
+  <Tab title="--exclude">
+    Specify patterns for files to **exclude** from the torrent:
+
+    <CodeGroup>
+    ```bash Single Pattern
+    mkbrr create . -t ... --exclude "*.nfo"
+    ```
+
+    ```bash Multiple Flags
+    mkbrr create . -t ... --exclude "*.nfo" --exclude "*sample*"
+    ```
+
+    ```bash Comma List
+    mkbrr create . -t ... --exclude "*.nfo,*sample*,*.txt"
+    ```
+    </CodeGroup>
+
+    <Info>
+    Exclude patterns are useful when you want to keep most files but skip specific types.
+    </Info>
+  </Tab>
+
+  <Tab title="--include">
+    Specify patterns for files to **include** in the torrent:
+
+    <CodeGroup>
+    ```bash Single Pattern
+    mkbrr create . -t ... --include "*.mkv"
+    ```
+
+    ```bash Multiple Flags
+    mkbrr create . -t ... --include "*.mkv" --include "*.mp4"
+    ```
+
+    ```bash Comma List
+    mkbrr create . -t ... --include "*.mkv,*.mp4,*.avi"
+    ```
+    </CodeGroup>
+
+    <Warning>
+    Using `--include` activates whitelist mode - only matching files will be considered for inclusion.
+    </Warning>
+  </Tab>
+</Tabs>
+
+## Pattern Rules
+
+<CardGroup cols={2}>
+  <Card title="Pattern Matching" icon="book">
+    - Simple patterns (no `/`) match by filename at any depth
+    - Path-aware glob with `**` matches the full relative path
+    - Case-insensitive matching
+    - Uses [glob patterns](https://en.wikipedia.org/wiki/Glob_(programming))
+    - Supports comma-separated lists
+  </Card>
+  <Card title="Common Patterns" icon="puzzle">
+    - `*.nfo`        # All NFO files
+    - `*sample*`     # Any file with 'sample'
+    - `*.{mkv,mp4}`  # MKV and MP4 files
+  </Card>
+</CardGroup>
+
+## Processing Order
+
+<Steps>
+  1. **Built-in Exclusions**
+     System files (`.torrent`, `.ds_store`, etc.) are always excluded first
+
+  2. **Include Check**
+     If `--include` patterns exist:
+     - <Icon icon="circle-check" color="#22c55e" /> Keep files matching any include pattern
+     - <Icon icon="circle-xmark" color="#ef4444" /> Skip all other files
+
+  3. **Exclude Check**
+     If no `--include` patterns:
+     - <Icon icon="circle-xmark" color="#ef4444" /> Skip files matching any exclude pattern
+     - <Icon icon="circle-check" color="#22c55e" /> Keep all other files
+
+  4. **Default Behavior**
+     Keep files not affected by above rules
+</Steps>
+
+## Configuration Files
+
+<Accordion title="Preset and Batch Support" icon="file-code">
+Both filtering options can be defined in configuration files:
+
+```yaml presets.yaml
+presets:
+  movies:
+    include_patterns:
+      - "*.mkv"
+      - "*.mp4"
+    exclude_patterns:
+      - "*sample*"
+      - "*.nfo"
+```
+
+```yaml batch.yaml
+jobs:
+  - output: movie.torrent
+    path: /path/to/movie/
+    include_patterns:
+      - "*.mkv"
+    exclude_patterns:
+      - "*sample*"
+```
+</Accordion>
+
+<Info>
+Command-line flags (`--include`, `--exclude`) will add to any patterns defined in your preset or batch configuration.
+</Info>

@@ -1,3 +1,5 @@
+<!--- Open this PR against `develop`. Only a fix to the live docs in `documentation/` goes to `main`. --->
+
 ## Description
 
 <!--- Summarize the change and the motivation. --->
@@ -30,7 +32,7 @@ Fixes # (issue)
 
 - [ ] My PR title follows the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/#summary) format (it becomes the squashed commit message)
 - [ ] If this adds or changes a preset or batch key, I updated `schema/*.json`
-- [ ] If this changes user-facing behaviour, I linked a docs PR on [mkbrr.com](https://github.com/s0up4200/mkbrr.com)
+- [ ] If this changes user-facing behaviour, I updated the docs in `documentation/`
 
 ## AI disclosure
 

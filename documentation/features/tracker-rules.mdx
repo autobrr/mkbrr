@@ -1,0 +1,63 @@
+---
+title: Tracker rules
+description: mkbrr includes built-in knowledge about the specific requirements of various private trackers to help ensure the torrents you create are compliant. When you provide a tracker URL (`-t` flag or via presets/batch), `mkbrr` checks if it matches a known tracker and applies relevant rules automatically.
+icon: shield
+---
+
+<Note>
+mkbrr automatically detects tracker requirements based on the announce URL and applies the appropriate rules to ensure your torrents are compliant.
+</Note>
+
+## How it Works
+
+When creating a torrent, `mkbrr` compares the provided tracker URL against an internal list of configurations. If a match is found, it applies the corresponding rules:
+
+<CardGroup cols={3}>
+  <Card title="Piece Length" icon="puzzle-piece">
+    Enforces maximum piece size limits specific to each tracker (e.g., 16 MiB, 8 MiB).
+  </Card>
+  <Card title="Size Ranges" icon="ruler">
+    Selects optimal piece sizes based on content size using tracker-specific guidelines. Trackers with custom ranges can use piece sizes from 16 KiB to 128 MiB.
+  </Card>
+  <Card title="File Size" icon="file">
+    Ensures the .torrent file stays within tracker size limits by adjusting piece length.
+  </Card>
+</CardGroup>
+
+<Warning>
+Tracker-specific rules override manual settings (`-l` or `-m` flags) to ensure compliance. mkbrr always prioritizes tracker requirements.
+</Warning>
+
+## Implemented Trackers
+
+Below is a list of implemented trackers and their specific requirements:
+
+<Info>
+The tracker rules are maintained in the [mkbrr source code](https://github.com/autobrr/mkbrr/blob/main/internal/trackers/trackers.go). Contributions to keep rules updated are welcome via pull requests.
+</Info>
+
+| Tracker | Piece Ranges | Max Piece Size | Max Torrent Size | Default Source |
+|---------|-------------|----------------|------------------|----------------|
+| ANT | Default | - | 250 KiB | ANT |
+| NBL | Default | - | 1 MiB | NBL |
+| HDB | Default | 16 MiB | - | - |
+| SBS | Default | 16 MiB | - | - |
+| SP | Default | 16 MiB | - | - |
+| BHD | Default | 16 MiB | - | BHD |
+| PTP | Custom | 16 MiB | - | PTP |
+| MTV | Default | 8 MiB | - | MTV |
+| EMP | Default | 8 MiB | - | Emp |
+| GGN | Custom | 64 MiB | 1 MiB | GGn |
+| AlphaRatio | Custom | 64 MiB | 2 MiB | AlphaRatio |
+| seedpool.org | Custom | 128 MiB | - | seedpool.org |
+| NB | Custom | 16 MiB | - | - |
+| BTN | Custom | 16 MiB | - | - |
+| TSYNDIKAT | Custom | 16 MiB | - | - |
+| OE | Custom | 16 MiB | - | - |
+| Portugas | Custom | - | 2 MiB | - |
+| lst.gg | Custom | 16 MiB | - | lst.gg |
+| Aither | Custom | 128 MiB | - | Aither |
+| ULCX | Default | - | - | ULCX |
+| CapybaraBR | Default | - | - | CapybaraBR |
+| HUNO | Default | - | - | HUNO |
+| TorrentLeech | Custom | 128 MiB | - | TorrentLeech.org |

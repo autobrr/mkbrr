@@ -1,0 +1,22 @@
+---
+title: 'Check Command Parameters'
+description: 'Parameter fields for the check command'
+---
+
+import CommonWorkers from '/snippets/common-workers.mdx';
+
+<ParamField query="--verbose, -v" type="boolean" default={false}>
+  Be verbose.
+  <Info>
+    When enabled, shows detailed information about the verification process including any bad piece indices.
+  </Info>
+</ParamField>
+
+<ParamField query="--quiet, -q" type="boolean" default={false}>
+  Enable quiet mode, printing only the completion percentage. Useful for scripts.
+</ParamField>
+<Info>
+  Useful for automated scripts or when you only need the verification status.
+</Info>
+
+<CommonWorkers />
