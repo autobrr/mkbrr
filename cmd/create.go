@@ -4,13 +4,16 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"runtime/pprof"
+	"strings"
 	"time"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"github.com/autobrr/mkbrr/internal/preset"
 	"github.com/autobrr/mkbrr/torrent"
@@ -41,6 +44,7 @@ type createOptions struct {
 	entropy             bool
 	quiet               bool
 	infoOnly            bool
+	plan                bool
 	skipPrefix          bool
 	failOnSeasonWarning bool
 }
@@ -90,7 +94,7 @@ func init() {
 	createCmd.Flags().StringVarP(&options.comment, "comment", "c", "", "add comment")
 
 	createCmd.Flags().UintVarP(&options.pieceLengthExp, "piece-length", "l", 0, "set piece length to 2^n bytes (16-27, or 14-27 for a tracker with its own piece size table; automatic if not specified)")
-	createCmd.Flags().UintVarP(&options.maxPieceLengthExp, "max-piece-length", "m", 0, "limit maximum piece length to 2^n bytes (16-27, unlimited if not specified)")
+	createCmd.Flags().UintVarP(&options.maxPieceLengthExp, "max-piece-length", "m", 0, "limit maximum piece length to 2^n bytes (14-27, or lower if the tracker has a cap; unlimited if not specified)")
 	createCmd.Flags().UintVar(&options.targetPieceCount, "target-piece-count", 0, "target approximate number of pieces (calculates optimal piece length)")
 
 	createCmd.Flags().StringVar(&options.name, "name", "", "set torrent name (default: <filename>)")
@@ -103,6 +107,7 @@ func init() {
 	createCmd.Flags().BoolVarP(&options.verbose, "verbose", "v", false, "be verbose")
 	createCmd.Flags().BoolVarP(&options.quiet, "quiet", "q", false, "reduced output mode (prints only final torrent path)")
 	createCmd.Flags().BoolVarP(&options.infoOnly, "info-only", "i", false, "display only torrent info without progress (implies verbose)")
+	createCmd.Flags().BoolVar(&options.plan, "plan", false, "print the create plan as JSON without hashing or writing a torrent")
 	createCmd.Flags().BoolVarP(&options.skipPrefix, "skip-prefix", "", false, "don't add tracker domain prefix to output filename")
 	createCmd.Flags().BoolVar(&options.failOnSeasonWarning, "fail-on-season-warning", false, "fail on season pack warning")
 	createCmd.Flags().StringArrayVarP(&options.excludePatterns, "exclude", "", nil, "exclude files matching these patterns (e.g., \"*.nfo,*.jpg\" or --exclude \"*.nfo\" --exclude \"*.jpg\")")
@@ -237,6 +242,16 @@ func createSingleTorrent(cmd *cobra.Command, args []string, opts createOptions, 
 		return err
 	}
 
+	if opts.plan {
+		plan, err := torrent.PlanCreate(createOpts)
+		if err != nil {
+			return err
+		}
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetEscapeHTML(false)
+		return encoder.Encode(plan)
+	}
+
 	torrentInfo, err := torrent.Create(createOpts)
 	if err != nil {
 		return err
@@ -260,7 +275,30 @@ func createSingleTorrent(cmd *cobra.Command, args []string, opts createOptions, 
 	return nil
 }
 
+// batchFlags are the create flags that work with --batch: they change only the output, not the torrents
+var batchFlags = map[string]bool{"batch": true, "verbose": true, "quiet": true, "info-only": true, "cpuprofile": true}
+
+// checkBatchFlags returns an error that names each changed flag that --batch does not accept
+func checkBatchFlags(cmd *cobra.Command) error {
+	var rejected []string
+	cmd.Flags().VisitAll(func(f *pflag.Flag) {
+		if f.Changed && !batchFlags[f.Name] {
+			rejected = append(rejected, "--"+f.Name)
+		}
+	})
+	if len(rejected) > 0 {
+		return fmt.Errorf("--batch takes its settings from the batch file; remove %s", strings.Join(rejected, ", "))
+	}
+	return nil
+}
+
 func runCreate(cmd *cobra.Command, args []string) error {
+	if options.batchFile != "" {
+		if err := checkBatchFlags(cmd); err != nil {
+			return err
+		}
+	}
+
 	cleanup, err := setupProfiling(cmd)
 	if err != nil {
 		return err

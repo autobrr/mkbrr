@@ -33,6 +33,10 @@ The `mkbrr modify` command allows you to update metadata in existing `.torrent` 
 </Info>
 
 <Info>
+  The `modify` command changes only the fields that you set (name, tracker, source, comment, private flag, entropy). It keeps the other keys in the info dictionary, including custom keys. It drops unknown top-level keys, which are keys outside the info dictionary that mkbrr does not know. When `modify` changes something, it sets the creation date to now, unless you remove the date with `--no-date` or a preset.
+</Info>
+
+<Info>
   The announce-list is a list of more trackers in the torrent. If you give one tracker, `modify` writes no announce-list and removes the old list. If you give more than one tracker, `modify` writes all of them to the announce-list.
 </Info>
 
@@ -88,5 +92,5 @@ mkbrr modify [torrent files...] [flags]
 By default, the original torrent files are preserved. New, modified files are created with a prefix based on the tracker domain (e.g., `tracker-domain_original-name.torrent`). You can customize the output filename or directory.
 
 <Note>
-  `modify` keeps the existing metadata, including custom keys in the info dictionary, and changes only the fields that you set. If no value changes, `modify` writes no file and prints "no changes needed". A value that the torrent already has is not a change. `--dry-run` uses the same rule.
+  `modify` keeps the custom keys in the info dictionary, but drops unknown top-level keys. When it changes something, it sets the creation date to now, unless you remove the date. If no value changes, `modify` writes no file and prints "no changes needed". A value that the torrent already has is not a change. `--dry-run` uses the same rule.
 </Note>

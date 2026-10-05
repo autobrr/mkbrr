@@ -47,6 +47,16 @@ type CreateOptions struct {
 	ProgressCallback ProgressCallback
 }
 
+// CreatePlan describes the work mkbrr would use to create a torrent without hashing it.
+type CreatePlan struct {
+	ContentSize          int64    `json:"content_size"`
+	PieceLengthExponent  uint     `json:"piece_length_exponent"`
+	PieceLengthBytes     int64    `json:"piece_length_bytes"`
+	PredictedTorrentSize uint64   `json:"predicted_torrent_size"`
+	TrackerSizeLimit     uint64   `json:"tracker_size_limit"`
+	Notices              []Notice `json:"notices"`
+}
+
 // Torrent represents a torrent file with additional functionality
 type Torrent struct {
 	*metainfo.MetaInfo

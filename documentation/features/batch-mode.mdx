@@ -48,6 +48,7 @@ While `batch.yaml` is a common convention, you can use any filename. Just be sur
 <Tabs>
   <Tab title="Movies Example">
 ```yaml
+version: 1
 jobs:
   - output: /torrents/movie1.torrent
     path: /media/movies/movie1.mkv
@@ -76,6 +77,7 @@ jobs:
   </Tab>
   <Tab title="TV Shows Example">
 ```yaml
+version: 1
 jobs:
   - output: /torrents/show_s01.torrent
     path: /media/tv/Show/Season 1/
@@ -102,6 +104,7 @@ jobs:
   </Tab>
   <Tab title="Mixed Content">
 ```yaml
+version: 1
 jobs:
   - output: /torrents/album.torrent
     path: /media/music/Artist/Album/
@@ -182,6 +185,12 @@ With `--quiet`, mkbrr prints each failed job to stderr as `Failed: <output>: <er
 In mkbrr v1.26.0 and earlier, a batch with failed jobs exited with code 0.
 </Warning>
 
+## Command-line flags
+
 <Info>
 You cannot provide a source path argument directly to `mkbrr create` when using the `-b` flag. All source paths must be defined within the batch file jobs.
 </Info>
+
+<Warning>
+With `-b`, `mkbrr create` accepts only `-v`, `-q`, and `-i`. These flags change only the output, not the torrents. Each job takes its settings from the batch file. If you give another create flag, such as `-t`, `-s`, `-P`, or `--exclude`, mkbrr stops with an error that names each flag to remove. In mkbrr v1.26.0 and earlier, mkbrr ignored these flags and gave no warning.
+</Warning>

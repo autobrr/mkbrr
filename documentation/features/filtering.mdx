@@ -113,6 +113,7 @@ zone.identifier
 Both filtering options can be defined in configuration files:
 
 ```yaml presets.yaml
+version: 1
 presets:
   movies:
     include_patterns:
@@ -124,6 +125,7 @@ presets:
 ```
 
 ```yaml batch.yaml
+version: 1
 jobs:
   - output: movie.torrent
     path: /path/to/movie/
@@ -135,5 +137,5 @@ jobs:
 </Accordion>
 
 <Info>
-Command-line flags (`--include`, `--exclude`) will add to any patterns defined in your preset or batch configuration.
+Command-line flags (`--include`, `--exclude`) add to the patterns in your preset. Batch mode (`-b`) does not accept these flags. Each job uses only the patterns in its own entry in the batch file.
 </Info>
