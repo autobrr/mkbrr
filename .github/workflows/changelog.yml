@@ -31,8 +31,9 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      # Runs once per tag: skips when the changelog has the tag or a PR for it exists.
-      # A branch without a PR means an earlier run failed after the push: open the PR from it.
+      # Runs once per tag: skips when the changelog has the tag or an open or merged PR for it exists.
+      # A branch without such a PR means an earlier run failed after the push: open the PR from it.
+      # To write the entry again, close the PR and delete its branch.
       - name: Find release
         id: release
         run: |
@@ -40,12 +41,12 @@ jobs:
             echo "$TAG is already in the changelog"
             exit 0
           fi
-          if [ -n "$(gh pr list --head "docs/changelog-$TAG" --state all --json number --jq '.[]')" ]; then
+          if [ -n "$(gh pr list --head "docs/changelog-$TAG" --state all --json state --jq '.[] | select(.state != "CLOSED")')" ]; then
             echo "A PR for $TAG already exists"
             exit 0
           fi
           if git ls-remote --exit-code --heads origin "docs/changelog-$TAG" >/dev/null; then
-            echo "docs/changelog-$TAG exists without a PR"
+            echo "docs/changelog-$TAG exists without an open or merged PR"
             echo "resume=true" >> "$GITHUB_OUTPUT"
             echo "ready=true" >> "$GITHUB_OUTPUT"
             exit 0
@@ -57,7 +58,7 @@ jobs:
             exit 1
           fi
           date=$(TZ=UTC git for-each-ref --format='%(creatordate:format-local:%Y-%m-%d)' "refs/tags/$TAG")
-          gh api "repos/${{ github.repository }}/compare/$previous...$TAG" \
+          gh api --paginate "repos/${{ github.repository }}/compare/$previous...$TAG" \
             --jq '.commits[] | [.sha, (.author.login // ""), (.commit.message | split("\n")[0])] | @tsv' \
             > release-commits.tsv
           {

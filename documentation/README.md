@@ -1,32 +1,19 @@
-# Mintlify Starter Kit
+# mkbrr.com
 
-Click on `Use this template` to copy the Mintlify starter kit. The starter kit contains examples including
+This folder holds the source of the [mkbrr.com](https://mkbrr.com) docs site. Mintlify builds the site from the `main` branch, so the live site describes the latest release. See `docs/adr/0002-develop-main-and-docs-site.md`.
 
-- Guide pages
-- Navigation
-- Customizations
-- API Reference pages
-- Use of popular components
+## Preview
 
-### Development
-
-Install the [Mintlify CLI](https://www.npmjs.com/package/mintlify) to preview the documentation changes locally. To install, use the following command
+Install the [Mintlify CLI](https://www.npmjs.com/package/mintlify):
 
 ```
 npm i -g mintlify
 ```
 
-Run the following command at the root of your documentation (where docs.json is)
+Run this command in this folder, where `docs.json` is:
 
 ```
 mintlify dev
 ```
 
-### Publishing Changes
-
-Install our Github App to auto propagate changes from your repo to your deployment. Changes will be deployed to production automatically after pushing to the default branch. Find the link to install on your dashboard.
-
-#### Troubleshooting
-
-- Mintlify dev isn't running - Run `mintlify install` it'll re-install dependencies.
-- Page loads as a 404 - Make sure you are running in a folder with `docs.json`
+If `mintlify dev` does not start, run `mintlify install` to install its dependencies again.

@@ -47,10 +47,11 @@ Use when on a feature branch with specific changes to sync.
 
 ### 1. Identify what changed
 
-Look at the branch diff:
+Look at the branch diff, including uncommitted changes:
 
 ```bash
-git diff develop...HEAD --stat
+git diff "$(git merge-base develop HEAD)" --stat
+git status --short
 ```
 
 Identify user-facing changes using the drift surface table. If nothing is user-facing, tell the user "No docs update needed" and stop.
