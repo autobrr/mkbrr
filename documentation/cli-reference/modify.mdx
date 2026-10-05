@@ -12,7 +12,7 @@ mkbrr modify [flags] [torrent files...]
 ```
 
 <Note>
-Existing metadata is preserved during modification — only the fields you explicitly change are updated.
+`modify` changes only the fields that you set. It keeps the other keys in the info dictionary, including custom keys. It drops unknown top-level keys, which are keys outside the info dictionary that mkbrr does not know. When `modify` changes something, it sets the creation date to now, unless you remove the date with `--no-date` or a preset.
 </Note>
 
 ## Arguments

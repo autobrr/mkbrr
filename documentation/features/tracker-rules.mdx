@@ -25,7 +25,11 @@ When creating a torrent, `mkbrr` compares the provided tracker URL against an in
 </CardGroup>
 
 <Warning>
-Tracker-specific rules override manual settings (`-l` or `-m` flags) to ensure compliance. mkbrr always prioritizes tracker requirements.
+Tracker rules set the limits for the `-l` and `-m` flags:
+
+- If a `-l` or `-m` value is outside the bounds of the tracker, mkbrr stops with an error.
+- If a `-l` value is inside the bounds, mkbrr uses it. When the value is different from the recommendation of the tracker, mkbrr shows a warning only in verbose (`-v`) or info-only (`-i`) mode.
+- If the tracker has a maximum .torrent size, mkbrr increases the piece length until the .torrent file fits. This also changes a `-l` value. If the file does not fit at the largest piece length, mkbrr stops with an error.
 </Warning>
 
 ## Implemented Trackers

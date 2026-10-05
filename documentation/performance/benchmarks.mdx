@@ -10,7 +10,7 @@ All benchmarks were performed using [hyperfine](https://github.com/sharkdp/hyper
 
 ## Performance Overview
 
-mkbrr consistently outperforms other torrent creation tools across various hardware configurations. The benchmarks show that mkbrr is not only faster but also maintains better consistency, especially on mechanical drives where other tools struggle with variance.
+In these benchmarks, mkbrr was faster than or on par with the other torrent creation tools on each machine. On Apple Silicon, mkbrr and torf tied (9.71s and 9.78s, 1.01 ± 0.09 times). On the mechanical drives (Hetzner HDD), the run times of mkbrr varied much less than those of the other tools.
 
 <CardGroup cols={4}>
   <Card title="Hetzner AX102" icon="bolt">
@@ -105,7 +105,7 @@ mkbrr consistently outperforms other torrent creation tools across various hardw
 ## Performance Consistency
 
 <Info>
-mkbrr maintains good consistency across all platforms, with variance ranging from 0.25% to 2.4%. It particularly excels on storage-heavy workloads, where other tools can show up to 39% variance.
+The variance of mkbrr was between 0.25% and 3.7% on all platforms. On the mechanical drives, the variance of the other tools was between 9.9% and 39.1%. The variance is the standard deviation divided by the mean time.
 </Info>
 
 <CardGroup cols={3}>

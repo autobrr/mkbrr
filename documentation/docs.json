@@ -22,6 +22,7 @@
             "pages": [
               "introduction",
               "installation",
+              "quickstart",
               "gui/overview"
             ]
           },

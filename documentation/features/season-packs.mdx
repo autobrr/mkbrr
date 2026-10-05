@@ -1,30 +1,30 @@
 ---
 title: Season packs
-description: When creating a torrent from a directory, `mkbrr` includes a feature to help detect potentially incomplete TV season packs.
+description: When you create a torrent, mkbrr looks for missing episodes in a TV season pack.
 icon: tv-retro
 ---
 
 <Note>
-mkbrr analyzes video files in your directory to detect missing episodes in TV season packs, helping prevent incomplete uploads.
+Each time you run `mkbrr create`, mkbrr looks at the video files in the content. If the content is a season pack with missing episodes, mkbrr shows a warning before it hashes the files.
 </Note>
 
 <CardGroup cols={2}>
-  <Card title="Video Files" icon="film">
-    Only analyzes files with these extensions:
+  <Card title="Video files" icon="film">
+    mkbrr counts episodes only in files with these extensions (any case):
     - `.mkv`
     - `.mp4`
   </Card>
-  <Card title="Episode Patterns" icon="list-ol">
-    Detects episode numbers from:
-    - Single: `S01E01`
-    - Range: `S01E01-E03`
-    - Multi: `S01E01E02`
+  <Card title="Episode patterns" icon="list-ol">
+    mkbrr reads episode numbers from these file name patterns:
+    - Single: `S01E01` (the episode number has 1 to 3 digits)
+    - Range: `S01E01-E03` or `S01E01-03` (all episodes from the first to the last)
+    - Multi: `S01E01E02` (mkbrr reads the first two numbers only)
   </Card>
 </CardGroup>
 
 <AccordionGroup>
-  <Accordion title="Season Detection Patterns" icon="magnifying-glass">
-    mkbrr looks for season numbers in directory and file names using these patterns:
+  <Accordion title="Season detection patterns" icon="magnifying-glass">
+    mkbrr looks for the season number in the folder path of the first file. It uses patterns such as these:
 
     ```plaintext
     Show.S01.Complete
@@ -37,32 +37,24 @@ mkbrr analyzes video files in your directory to detect missing episodes in TV se
     Season 01/
     ```
 
+    If no folder pattern matches and the content has more than one file, mkbrr looks for `S01` in the names of the first five files.
+
     <Info>
-    Season detection is case-insensitive and handles various separators (dots, dashes, underscores, spaces).
+    Season detection is case-insensitive. The season number has 1 or 2 digits. Each pattern accepts only the separators in the examples above.
     </Info>
   </Accordion>
 
-  <Accordion title="How Completeness Check Works" icon="check">
-    mkbrr determines if a season pack is suspicious by:
-
-    <Steps>
-      <Step title="Find Highest Episode">
-        Scan all video files to determine the highest episode number in the pack
-      </Step>
-      <Step title="Count Episodes">
-        Count unique episodes found across all valid video files
-      </Step>
-      <Step title="Check for Gaps">
-        Compare episode numbers to identify any missing episodes in the sequence
-      </Step>
-    </Steps>
+  <Accordion title="How the completeness check works" icon="check">
+    mkbrr finds the highest episode number, and counts the unique episodes in the video files. The content is a season pack only if it has more than one unique episode. A pack is incomplete when an episode from 1 to the highest number is missing.
 
     <Warning>
-    The detection focuses on standard episode numbering. Special episodes (S01E00) and unconventional naming may affect accuracy.
+    mkbrr cannot find missing episodes after the highest episode in the pack. A pack that starts after episode 1, for example at `S01E05`, shows episodes 1 to 4 as missing. mkbrr ignores episode 0 (`S01E00`).
     </Warning>
   </Accordion>
 
-  <Accordion title="Example Warning Output" icon="triangle-exclamation">
+  <Accordion title="Example warning output" icon="triangle-exclamation">
+    mkbrr shows the warning after the file list and before the progress bar. `--quiet` and `--info-only` hide it.
+
     ```plaintext
     Warning: Possible incomplete season pack detected
       Season number: 1
@@ -75,6 +67,10 @@ mkbrr analyzes video files in your directory to detect missing episodes in TV se
   </Accordion>
 </AccordionGroup>
 
+## Stop on an incomplete pack
+
+If you give `--fail-on-season-warning`, mkbrr stops with an error when the pack is incomplete. It stops before it hashes the files, and it writes no torrent. This also works with `--quiet`. In a preset or a batch job, use `fail_on_season_warning: true`. In the GUI, turn on "Fail on season warning" on the Create page.
+
 <Note>
-This feature helps catch common packaging mistakes but isn't foolproof. Always verify your files manually before uploading to trackers.
+The check finds common packaging mistakes, but it can miss some. Examine your files before you upload them to a tracker.
 </Note>
