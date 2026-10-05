@@ -636,7 +636,7 @@ func prepareCreate(opts CreateOptions, internalOpts createTorrentOptions) (*prep
 			PieceLengthBytes:     pieceLength,
 			PredictedTorrentSize: predictedTorrentSize,
 			TrackerSizeLimit:     rules.MaxTorrentSize,
-			Notices:              notices,
+			Notices:              append([]Notice{}, notices...),
 		},
 	}, nil
 }
@@ -663,7 +663,9 @@ func PlanCreate(opts CreateOptions) (*CreatePlan, error) {
 // createTorrent contains the shared creation pipeline with optional internal hash-reuse controls.
 func createTorrent(opts CreateOptions, internalOpts createTorrentOptions) (*Torrent, error) {
 	prepared, err := prepareCreate(opts, internalOpts)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	files := prepared.files
 	totalSize := prepared.totalSize
 	baseDir := prepared.baseDir
