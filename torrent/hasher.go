@@ -131,14 +131,6 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 
 	h.display.ShowFiles(h.files, numWorkers)
 
-	seasonInfo := AnalyzeSeasonPack(h.files)
-
-	h.display.ShowSeasonPackWarnings(seasonInfo)
-
-	if seasonInfo.IsSuspicious && h.failOnSeasonPackWarning {
-		return fmt.Errorf("season pack is suspicious, and --fail-on-season-warning is enabled")
-	}
-
 	var completedPieces uint64
 	piecesPerWorker := (h.numPieces + numWorkers - 1) / numWorkers
 	errorsCh := make(chan error, numWorkers)
