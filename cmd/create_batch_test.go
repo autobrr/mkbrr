@@ -17,7 +17,7 @@ import (
 
 // writeBatchFixture writes a content file and a batch config with one job that
 // succeeds and, if withFailure is set, one whose output directory does not exist.
-func writeBatchFixture(t *testing.T, withFailure bool) (batchFile, goodOutput string) {
+func writeBatchFixture(t *testing.T, withFailure bool) (batchFile, goodOutput, badOutput string) {
 	t.Helper()
 
 	dir := t.TempDir()
@@ -27,13 +27,13 @@ func writeBatchFixture(t *testing.T, withFailure bool) (batchFile, goodOutput st
 	goodOutput = filepath.Join(dir, "good.torrent")
 	config := fmt.Sprintf("version: 1\njobs:\n  - path: %q\n    output: %q\n", content, goodOutput)
 	if withFailure {
-		badOutput := filepath.Join(dir, "missing-dir", "bad.torrent")
+		badOutput = filepath.Join(dir, "missing-dir", "bad.torrent")
 		config += fmt.Sprintf("  - path: %q\n    output: %q\n", content, badOutput)
 	}
 
 	batchFile = filepath.Join(dir, "batch.yaml")
 	require.NoError(t, os.WriteFile(batchFile, []byte(config), 0o644))
-	return batchFile, goodOutput
+	return batchFile, goodOutput, badOutput
 }
 
 // captureOutput runs fn and returns what it wrote to stdout and stderr.
@@ -61,7 +61,7 @@ func captureOutput(t *testing.T, fn func()) (stdout, stderr string) {
 }
 
 func TestProcessBatchModeReturnsErrorWhenAJobFails(t *testing.T) {
-	batchFile, goodOutput := writeBatchFixture(t, true)
+	batchFile, goodOutput, badOutput := writeBatchFixture(t, true)
 
 	for _, quiet := range []bool{false, true} {
 		t.Run(fmt.Sprintf("quiet=%v", quiet), func(t *testing.T) {
@@ -74,15 +74,14 @@ func TestProcessBatchModeReturnsErrorWhenAJobFails(t *testing.T) {
 			assert.FileExists(t, goodOutput, "jobs that succeeded keep their output")
 			if quiet {
 				assert.Contains(t, stdout, "Wrote: "+goodOutput)
-				assert.Contains(t, stderr, "Failed:")
-				assert.Contains(t, stderr, "failed to create output file")
+				assert.Contains(t, stderr, "Failed: "+badOutput+": ")
 			}
 		})
 	}
 }
 
 func TestProcessBatchModeSucceedsWhenAllJobsPass(t *testing.T) {
-	batchFile, goodOutput := writeBatchFixture(t, false)
+	batchFile, goodOutput, _ := writeBatchFixture(t, false)
 
 	var err error
 	captureOutput(t, func() {

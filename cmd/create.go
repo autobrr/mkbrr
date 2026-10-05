@@ -162,7 +162,7 @@ func processBatchMode(opts createOptions, version string, startTime time.Time) e
 			if result.Success {
 				fmt.Println("Wrote:", result.Info.Path)
 			} else {
-				fmt.Fprintf(os.Stderr, "Failed: %s: %v\n", result.Job.Path, result.Error)
+				fmt.Fprintf(os.Stderr, "Failed: %s: %v\n", result.Job.Output, result.Error)
 			}
 		}
 	} else {

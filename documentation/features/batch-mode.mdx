@@ -172,6 +172,16 @@ In mkbrr v1.26.0 and earlier, a job without `private` made a public torrent. Now
 You can find the formal JSON schema for validation [here](https://raw.githubusercontent.com/autobrr/mkbrr/main/schema/batch.json).
 </Tip>
 
+## Failed jobs
+
+When a job fails, mkbrr continues with the other jobs. The torrents from the jobs that succeed stay on disk. After all jobs run, mkbrr exits with a non-zero code and prints `N of M batch jobs failed`. A script can use this exit code to find a missing torrent.
+
+With `--quiet`, mkbrr prints each failed job to stderr as `Failed: <output>: <error>`. Without `--quiet`, use `--verbose` to see the error for each job.
+
+<Warning>
+In mkbrr v1.26.0 and earlier, a batch with failed jobs exited with code 0.
+</Warning>
+
 <Info>
 You cannot provide a source path argument directly to `mkbrr create` when using the `-b` flag. All source paths must be defined within the batch file jobs.
 </Info>
