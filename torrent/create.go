@@ -691,7 +691,6 @@ func createTorrent(opts CreateOptions, internalOpts createTorrentOptions) (*Torr
 	encode := prepared.encode
 	if opts.Verbose || opts.InfoOnly {
 		display := NewDisplay(NewFormatter(true))
-		display.ShowSeasonPackWarnings(prepared.seasonInfo)
 		for _, n := range prepared.notices {
 			if n.Warn {
 				display.ShowWarning(n.Text)
@@ -716,7 +715,8 @@ func createTorrent(opts CreateOptions, internalOpts createTorrentOptions) (*Torr
 		display = defaultDisplay
 	}
 
-	hasher := NewPieceHasher(files, pieceLength, numPieces, display, opts.FailOnSeasonPackWarning)
+	display.ShowSeasonPackWarnings(prepared.seasonInfo)
+	hasher := NewPieceHasher(files, pieceLength, numPieces, display)
 	if internalOpts.pieceReuse != nil {
 		reusablePieces, err := internalOpts.pieceReuse.findReusablePieces(files, baseDir, inputInfo.IsDir(), pieceLength)
 		if err != nil {
