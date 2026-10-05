@@ -160,9 +160,13 @@ func choosePieceLength(totalSize int64, opts CreateOptions, rules trackers.Rules
 		}
 	} else {
 		if opts.MaxPieceLength != nil {
-			if *opts.MaxPieceLength < 14 || *opts.MaxPieceLength > maxExp {
-				return 0, nil, fmt.Errorf("max piece length exponent must be between 14 (16 KiB) and %d (%d MiB), got: %d",
-					maxExp, 1<<(maxExp-20), *opts.MaxPieceLength)
+			minExp := uint(16)
+			if opts.TargetPieceCount == nil && len(rules.PieceSizeRanges) > 0 {
+				minExp = 14
+			}
+			if *opts.MaxPieceLength < minExp || *opts.MaxPieceLength > maxExp {
+				return 0, nil, fmt.Errorf("max piece length exponent must be between %d (%s) and %d (%s), got: %d",
+					minExp, formatPieceSize(minExp), maxExp, formatPieceSize(maxExp), *opts.MaxPieceLength)
 			}
 		}
 
