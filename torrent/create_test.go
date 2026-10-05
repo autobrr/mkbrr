@@ -1382,27 +1382,6 @@ func TestPlanCreateLargeSparseInputDoesNotMaterializePieceHashes(t *testing.T) {
 	require.NotZero(t, plan.PredictedTorrentSize)
 }
 
-func TestCreateTorrentGuardUsesExactInternalPieceLength(t *testing.T) {
-	contentPath := filepath.Join(t.TempDir(), "content.bin")
-	require.NoError(t, os.WriteFile(contentPath, make([]byte, 128*1024), 0o644))
-
-	const pieceLength int64 = 65_537
-	opts := CreateOptions{
-		Path:        contentPath,
-		TrackerURLs: []string{"https://portugas.org/announce"},
-		NoCreator:   true,
-		NoDate:      true,
-	}
-	prepared, err := prepareCreate(opts, createTorrentOptions{pieceLengthBytes: pieceLength})
-	require.NoError(t, err)
-	require.Equal(t, pieceLength, prepared.plan.PieceLengthBytes)
-	require.NotZero(t, prepared.rules.MaxTorrentSize)
-
-	tor, err := createTorrent(opts, createTorrentOptions{pieceLengthBytes: pieceLength})
-	require.NoError(t, err)
-	require.Equal(t, pieceLength, tor.GetInfo().PieceLength)
-}
-
 func TestPrepareCreatePredictsExactInternalPieceLength(t *testing.T) {
 	contentPath := filepath.Join(t.TempDir(), "content.bin")
 	require.NoError(t, os.WriteFile(contentPath, make([]byte, 128*1024), 0o644))
