@@ -7,10 +7,12 @@ import (
 	"fmt"
 	"os"
 	"runtime/pprof"
+	"strings"
 	"time"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"github.com/autobrr/mkbrr/internal/preset"
 	"github.com/autobrr/mkbrr/torrent"
@@ -90,7 +92,7 @@ func init() {
 	createCmd.Flags().StringVarP(&options.comment, "comment", "c", "", "add comment")
 
 	createCmd.Flags().UintVarP(&options.pieceLengthExp, "piece-length", "l", 0, "set piece length to 2^n bytes (16-27, or 14-27 for a tracker with its own piece size table; automatic if not specified)")
-	createCmd.Flags().UintVarP(&options.maxPieceLengthExp, "max-piece-length", "m", 0, "limit maximum piece length to 2^n bytes (16-27, unlimited if not specified)")
+	createCmd.Flags().UintVarP(&options.maxPieceLengthExp, "max-piece-length", "m", 0, "limit maximum piece length to 2^n bytes (14-27, or lower if the tracker has a cap; unlimited if not specified)")
 	createCmd.Flags().UintVar(&options.targetPieceCount, "target-piece-count", 0, "target approximate number of pieces (calculates optimal piece length)")
 
 	createCmd.Flags().StringVar(&options.name, "name", "", "set torrent name (default: <filename>)")
@@ -260,7 +262,30 @@ func createSingleTorrent(cmd *cobra.Command, args []string, opts createOptions, 
 	return nil
 }
 
+// batchFlags are the create flags that work with --batch: they change only the output, not the torrents
+var batchFlags = map[string]bool{"batch": true, "verbose": true, "quiet": true, "info-only": true, "cpuprofile": true}
+
+// checkBatchFlags returns an error that names each changed flag that --batch does not accept
+func checkBatchFlags(cmd *cobra.Command) error {
+	var rejected []string
+	cmd.Flags().VisitAll(func(f *pflag.Flag) {
+		if f.Changed && !batchFlags[f.Name] {
+			rejected = append(rejected, "--"+f.Name)
+		}
+	})
+	if len(rejected) > 0 {
+		return fmt.Errorf("--batch takes its settings from the batch file; remove %s", strings.Join(rejected, ", "))
+	}
+	return nil
+}
+
 func runCreate(cmd *cobra.Command, args []string) error {
+	if options.batchFile != "" {
+		if err := checkBatchFlags(cmd); err != nil {
+			return err
+		}
+	}
+
 	cleanup, err := setupProfiling(cmd)
 	if err != nil {
 		return err

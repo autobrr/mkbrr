@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -89,5 +90,38 @@ func TestProcessBatchModeSucceedsWhenAllJobsPass(t *testing.T) {
 	})
 
 	require.NoError(t, err)
+	assert.FileExists(t, goodOutput)
+}
+
+// runCreateCommand runs "mkbrr create" with args the way a user does, and resets
+// the create flags afterwards so that the next run starts clean.
+func runCreateCommand(t *testing.T, args ...string) error {
+	t.Helper()
+	t.Cleanup(func() {
+		options = createOptions{isPrivate: true}
+		createCmd.Flags().VisitAll(func(f *pflag.Flag) { f.Changed = false })
+	})
+
+	var err error
+	captureOutput(t, func() {
+		rootCmd.SetArgs(append([]string{"create"}, args...))
+		err = rootCmd.Execute()
+	})
+	return err
+}
+
+func TestCreateBatchRejectsCreateFlags(t *testing.T) {
+	batchFile, goodOutput, _ := writeBatchFixture(t, false)
+
+	err := runCreateCommand(t, "-b", batchFile, "-t", "https://tracker.example.invalid/announce", "--exclude", "*.nfo", "-q")
+
+	require.EqualError(t, err, "--batch takes its settings from the batch file; remove --tracker, --exclude")
+	assert.NoFileExists(t, goodOutput)
+}
+
+func TestCreateBatchAcceptsOutputFlags(t *testing.T) {
+	batchFile, goodOutput, _ := writeBatchFixture(t, false)
+
+	require.NoError(t, runCreateCommand(t, "-b", batchFile, "-v"))
 	assert.FileExists(t, goodOutput)
 }

@@ -5,7 +5,7 @@ mkbrr creates, inspects, checks, and modifies torrent files. The CLI, the GUI, a
 ## Create settings
 
 **Override**:
-A create setting that the user gave explicitly for one run: a CLI flag, a field in the GUI create form, or a key in a batch job. An override always wins.
+A create setting that the user gave explicitly for one run: a CLI flag, a field in the GUI create form, or a key in a batch job. An override always wins. Filter patterns are the exception: override patterns add to the preset patterns.
 _Avoid_: flag value, request value
 
 **Preset**:
