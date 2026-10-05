@@ -12,7 +12,7 @@ mkbrr modify [flags] [torrent files...]
 ```
 
 <Note>
-Existing metadata is preserved during modification — only the fields you explicitly change are updated.
+`modify` keeps the existing metadata and changes only the fields that you set. If no value changes, `modify` writes no file and prints "no changes needed". A value that the torrent already has is not a change. `--dry-run` uses the same rule.
 </Note>
 
 ## Arguments

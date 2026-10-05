@@ -256,3 +256,17 @@ mkbrr create /path/to/content -P movies --include "*.srt" --exclude "*.nfo"
   ```
 
 </CodeGroup>
+
+## Presets with modify
+
+`modify` gets each setting from the first source in this list that has it:
+
+1. The command-line flag.
+2. The preset.
+3. The torrent that you modify.
+
+If the preset does not have a key, `modify` keeps the value from the torrent. Tracker defaults do not apply to `modify`. A tracker default is a value that mkbrr knows for a tracker, such as its source tag.
+
+If the preset sets a key to `false`, `modify` uses that value. For example, `no_creator: false` writes the creator string.
+
+A preset cannot remove the source, the comment, or the private flag. To remove them, use `--source ""`, `--comment ""`, or `--no-private`.
