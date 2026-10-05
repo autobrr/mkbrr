@@ -31,7 +31,7 @@ func benchmarkPieceHasher(b *testing.B, name string, numFiles int, fileSize, pie
 		b.ResetTimer()
 
 		for i := 0; i < b.N; i++ {
-			hasher := NewPieceHasher(files, pieceLen, numPieces, &mockDisplay{}, false)
+			hasher := newPieceHasher(files, pieceLen, numPieces, &mockDisplay{})
 			if err := hasher.hashPieces(0); err != nil {
 				b.Fatalf("hashPieces failed: %v", err)
 			}

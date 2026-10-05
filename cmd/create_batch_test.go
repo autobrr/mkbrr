@@ -4,6 +4,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -50,15 +51,30 @@ func captureOutput(t *testing.T, fn func()) (stdout, stderr string) {
 
 	defer func() { os.Stdout, os.Stderr = origOut, origErr }()
 
+	type readResult struct {
+		data []byte
+		err  error
+	}
+	outDone := make(chan readResult, 1)
+	errDone := make(chan readResult, 1)
+	go func() {
+		data, err := io.ReadAll(outR)
+		outDone <- readResult{data: data, err: err}
+	}()
+	go func() {
+		data, err := io.ReadAll(errR)
+		errDone <- readResult{data: data, err: err}
+	}()
+
 	fn()
 
 	require.NoError(t, outW.Close())
 	require.NoError(t, errW.Close())
-	outBytes, err := io.ReadAll(outR)
-	require.NoError(t, err)
-	errBytes, err := io.ReadAll(errR)
-	require.NoError(t, err)
-	return string(outBytes), string(errBytes)
+	outResult := <-outDone
+	errResult := <-errDone
+	require.NoError(t, outResult.err)
+	require.NoError(t, errResult.err)
+	return string(outResult.data), string(errResult.data)
 }
 
 func TestProcessBatchModeReturnsErrorWhenAJobFails(t *testing.T) {
@@ -124,4 +140,45 @@ func TestCreateBatchAcceptsOutputFlags(t *testing.T) {
 
 	require.NoError(t, runCreateCommand(t, "-b", batchFile, "-v"))
 	assert.FileExists(t, goodOutput)
+}
+
+func TestCreateBatchRejectsPlan(t *testing.T) {
+	batchFile, goodOutput, _ := writeBatchFixture(t, false)
+
+	err := runCreateCommand(t, "-b", batchFile, "--plan")
+
+	require.EqualError(t, err, "--batch takes its settings from the batch file; remove --plan")
+	assert.NoFileExists(t, goodOutput)
+}
+
+func TestCreatePlanPrintsJSONWithoutWritingTorrent(t *testing.T) {
+	dir := t.TempDir()
+	content := filepath.Join(dir, "content.bin")
+	output := filepath.Join(dir, "planned.torrent")
+	require.NoError(t, os.WriteFile(content, make([]byte, 128*1024), 0o644))
+
+	t.Cleanup(func() {
+		options = createOptions{isPrivate: true}
+		createCmd.Flags().VisitAll(func(f *pflag.Flag) { f.Changed = false })
+	})
+
+	var runErr error
+	stdout, _ := captureOutput(t, func() {
+		rootCmd.SetArgs([]string{"create", content, "--plan", "-t", "https://portugas.org/announce", "-o", output})
+		runErr = rootCmd.Execute()
+	})
+	require.NoError(t, runErr)
+	assert.NoFileExists(t, output)
+
+	var plan struct {
+		ContentSize         int64  `json:"content_size"`
+		PieceLengthExponent uint   `json:"piece_length_exponent"`
+		PieceLengthBytes    int64  `json:"piece_length_bytes"`
+		TrackerSizeLimit    uint64 `json:"tracker_size_limit"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(stdout), &plan))
+	assert.Equal(t, int64(128*1024), plan.ContentSize)
+	assert.Equal(t, uint(14), plan.PieceLengthExponent)
+	assert.Equal(t, int64(1<<14), plan.PieceLengthBytes)
+	assert.Equal(t, uint64(2<<20), plan.TrackerSizeLimit)
 }

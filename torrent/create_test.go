@@ -14,6 +14,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/autobrr/go-torrent/bencode"
 	"github.com/autobrr/go-torrent/metainfo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1301,4 +1302,109 @@ func TestCreate_NameArgument(t *testing.T) {
 			os.Remove(result.Path) // best-effort cleanup; defer handles the rest
 		})
 	}
+}
+
+func TestPlanCreateMatchesCreateAndAppliesFilters(t *testing.T) {
+	dir := t.TempDir()
+	keep := filepath.Join(dir, "keep.mkv")
+	skip := filepath.Join(dir, "skip.nfo")
+	require.NoError(t, os.WriteFile(keep, make([]byte, 128*1024), 0o644))
+	require.NoError(t, os.WriteFile(skip, make([]byte, 512*1024), 0o644))
+
+	hashed := false
+	opts := CreateOptions{
+		Path:            dir,
+		TrackerURLs:     []string{"https://portugas.org/announce"},
+		ExcludePatterns: []string{"*.nfo"},
+		NoCreator:       true,
+		NoDate:          true,
+		ProgressCallback: func(completed, total int, hashRate float64) {
+			hashed = true
+		},
+	}
+
+	plan, err := PlanCreate(opts)
+	require.NoError(t, err)
+	require.Equal(t, int64(128*1024), plan.ContentSize)
+	require.Equal(t, uint(14), plan.PieceLengthExponent)
+	require.Equal(t, int64(1<<14), plan.PieceLengthBytes)
+	require.Equal(t, uint64(2<<20), plan.TrackerSizeLimit)
+	require.NotZero(t, plan.PredictedTorrentSize)
+	require.False(t, hashed, "planning must not hash content")
+
+	exp, notices, err := ChoosePieceLength(opts)
+	require.NoError(t, err)
+	require.Equal(t, plan.PieceLengthExponent, exp)
+	require.Equal(t, plan.Notices, notices)
+
+	tor, err := CreateTorrent(opts)
+	require.NoError(t, err)
+	require.Equal(t, plan.PieceLengthBytes, tor.GetInfo().PieceLength)
+}
+
+func TestPlanCreateFailOnSeasonWarningMatchesCreate(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "Show.S01")
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "Show.S01E01.mkv"), []byte("one"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "Show.S01E03.mkv"), []byte("three"), 0o644))
+
+	opts := CreateOptions{
+		Path:                    dir,
+		FailOnSeasonPackWarning: true,
+		NoCreator:               true,
+		NoDate:                  true,
+	}
+	_, err := PlanCreate(opts)
+	require.ErrorContains(t, err, "season pack is suspicious (season 1, missing episodes [2])")
+
+	_, err = CreateTorrent(opts)
+	require.ErrorContains(t, err, "season pack is suspicious")
+}
+
+func TestPlanCreateLargeSparseInputDoesNotMaterializePieceHashes(t *testing.T) {
+	contentPath := filepath.Join(t.TempDir(), "large.bin")
+	f, err := os.Create(contentPath)
+	require.NoError(t, err)
+	require.NoError(t, f.Truncate(1<<32))
+	require.NoError(t, f.Close())
+
+	maxPieceLength := uint(16)
+	hashed := false
+	plan, err := PlanCreate(CreateOptions{
+		Path:           contentPath,
+		MaxPieceLength: &maxPieceLength,
+		NoCreator:      true,
+		NoDate:         true,
+		ProgressCallback: func(completed, total int, hashRate float64) {
+			hashed = true
+		},
+	})
+	require.NoError(t, err)
+	require.False(t, hashed, "planning must not hash content")
+	require.Equal(t, int64(1<<32), plan.ContentSize)
+	require.Equal(t, int64(1<<16), plan.PieceLengthBytes)
+	require.NotZero(t, plan.PredictedTorrentSize)
+}
+
+func TestPrepareCreatePredictsExactInternalPieceLength(t *testing.T) {
+	contentPath := filepath.Join(t.TempDir(), "content.bin")
+	require.NoError(t, os.WriteFile(contentPath, make([]byte, 128*1024), 0o644))
+
+	const pieceLength int64 = 65_537
+	prepared, err := prepareCreate(CreateOptions{
+		Path:      contentPath,
+		NoCreator: true,
+		NoDate:    true,
+	}, createTorrentOptions{pieceLengthBytes: pieceLength})
+	require.NoError(t, err)
+	require.Equal(t, pieceLength, prepared.pieceLength)
+	require.Equal(t, pieceLength, prepared.plan.PieceLengthBytes)
+
+	numPieces, err := pieceCountForSize(prepared.totalSize, pieceLength)
+	require.NoError(t, err)
+	tor, err := prepared.encode(pieceLength, make([]byte, numPieces*20))
+	require.NoError(t, err)
+	data, err := bencode.Marshal(tor.MetaInfo)
+	require.NoError(t, err)
+	require.Equal(t, uint64(len(data)), prepared.plan.PredictedTorrentSize)
 }

@@ -27,9 +27,8 @@ type pieceHasher struct {
 	pieceStartFiles  []int
 	reusablePieces   map[int][]byte
 
-	startTime               time.Time
-	bytesProcessed          atomic.Int64
-	failOnSeasonPackWarning bool
+	startTime      time.Time
+	bytesProcessed atomic.Int64
 }
 
 // optimizeForWorkload determines optimal read buffer size and number of worker goroutines
@@ -130,14 +129,6 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 	h.bytesProcessed.Store(0)
 
 	h.display.ShowFiles(h.files, numWorkers)
-
-	seasonInfo := AnalyzeSeasonPack(h.files)
-
-	h.display.ShowSeasonPackWarnings(seasonInfo)
-
-	if seasonInfo.IsSuspicious && h.failOnSeasonPackWarning {
-		return fmt.Errorf("season pack is suspicious, and --fail-on-season-warning is enabled")
-	}
 
 	var completedPieces uint64
 	piecesPerWorker := (h.numPieces + numWorkers - 1) / numWorkers
@@ -371,7 +362,7 @@ func buildPieceLayout(files []fileEntry, pieceLen int64, numPieces int) (int64, 
 	return totalSize, lastPieceLength, pieceStartFiles
 }
 
-func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Displayer, failOnSeasonPackWarning bool) *pieceHasher {
+func newPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Displayer) *pieceHasher {
 	totalSize, lastPieceLength, pieceStartFiles := buildPieceLayout(files, pieceLen, numPieces)
 	pieceHashStorage := make([]byte, numPieces*sha1.Size)
 	pieces := make([][]byte, numPieces)
@@ -381,15 +372,14 @@ func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Di
 	}
 
 	return &pieceHasher{
-		pieces:                  pieces,
-		pieceHashStorage:        pieceHashStorage,
-		pieceLen:                pieceLen,
-		numPieces:               numPieces,
-		files:                   files,
-		display:                 display,
-		totalSize:               totalSize,
-		lastPieceLength:         lastPieceLength,
-		pieceStartFiles:         pieceStartFiles,
-		failOnSeasonPackWarning: failOnSeasonPackWarning,
+		pieces:           pieces,
+		pieceHashStorage: pieceHashStorage,
+		pieceLen:         pieceLen,
+		numPieces:        numPieces,
+		files:            files,
+		display:          display,
+		totalSize:        totalSize,
+		lastPieceLength:  lastPieceLength,
+		pieceStartFiles:  pieceStartFiles,
 	}
 }
