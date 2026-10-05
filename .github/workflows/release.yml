@@ -14,6 +14,7 @@ on:
       - 'docker-compose.yml'
       - 'Makefile'
       - '**.md'
+      - 'documentation/**'
   pull_request:
     paths-ignore:
       - '.github/ISSUE_TEMPLATE/**'
@@ -22,6 +23,7 @@ on:
       - 'docker-compose.yml'
       - 'Makefile'
       - '**.md'
+      - 'documentation/**'
 
 env:
   REGISTRY: ghcr.io
@@ -356,21 +358,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release upload ${{ github.ref_name }} gui-dist/* --repo ${{ github.repository }}
-
-  # Starts the docs update in s0up4200/mkbrr.com. GITHUB_TOKEN cannot reach another repository,
-  # so DOCS_DISPATCH_TOKEN needs "Actions: write" on s0up4200/mkbrr.com.
-  dispatch-docs:
-    name: Trigger docs update
-    # A tag with "-" (v1.2.0-rc1) is a prerelease and gets no docs update.
-    if: startsWith(github.ref, 'refs/tags/') && !contains(github.ref_name, '-')
-    needs: [goreleaserbuild]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Dispatch release-docs workflow
-        env:
-          GH_TOKEN: ${{ secrets.DOCS_DISPATCH_TOKEN }}
-          TAG: ${{ github.ref_name }}
-        run: gh workflow run release-docs.yml --repo s0up4200/mkbrr.com -f release_tag="$TAG"
 
   docker:
     name: Build Docker images
