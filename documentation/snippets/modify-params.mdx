@@ -50,6 +50,10 @@ import CommonEntropy from '/snippets/common-entropy.mdx';
 
 <CommonEntropy />
 
+<ParamField query="--no-entropy" type="boolean" default={false}>
+  Remove the `entropy` key from the info dictionary. The info hash changes. If the torrent has no `entropy` key, mkbrr does not change the file. You cannot use this flag together with `--entropy`.
+</ParamField>
+
 ### Seeding & Metadata
 
 <CommonWebSeed />
@@ -59,7 +63,7 @@ import CommonEntropy from '/snippets/common-entropy.mdx';
 <CommonComment />
 
 <CommonNoDate />
-<Info>If omitted, the creation date is updated to the current time during modification.</Info>
+<Info>If you do not use this flag, `modify` sets the creation date to the current time only when another field changes.</Info>
 
 <CommonNoCreator />
 

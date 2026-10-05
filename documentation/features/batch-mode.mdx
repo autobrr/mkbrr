@@ -145,17 +145,23 @@ jobs:
   <Card title="Optional Settings" icon="question">
     - **trackers**: Announce URLs list
     - **webseeds**: Web seed URLs list
-    - **private**: Set to `true` or `false`
+    - **private**: Set to `true` or `false`. The default is `true`.
     - **piece_length**: Piece size exponent
+    - **max_piece_length**: Maximum piece size exponent
     - **target_piece_count**: Target number of pieces (mutually exclusive with piece_length)
   </Card>
 </CardGroup>
 
+<Warning>
+In mkbrr v1.26.0 and earlier, a job without `private` made a public torrent. Now it makes a private torrent. Set `private: false` to make a public torrent.
+</Warning>
+
 <Accordion title="Additional Optional Settings">
 - **comment**: Torrent comment string
-- **source**: Source tag string
+- **source**: Source tag string. If you do not set it, mkbrr uses the default source of the first tracker, when that tracker has one. Set `source: ""` to add no source.
 - **entropy**: Set `true` to randomize info hash for cross-seeding
 - **no_date**: Set `true` to omit creation date
+- **no_creator**: Set `true` to omit the creator string
 - **skip_prefix**: Set `true` to prevent adding tracker domain prefix to output filename
 - **fail_on_season_warning**: Set `true` to exit with error on missing episodes in season packs
 - **exclude_patterns**: Glob patterns to exclude files
