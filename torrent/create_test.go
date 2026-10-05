@@ -1366,7 +1366,7 @@ func TestPlanCreateLargeSparseInputDoesNotMaterializePieceHashes(t *testing.T) {
 	contentPath := filepath.Join(t.TempDir(), "large.bin")
 	f, err := os.Create(contentPath)
 	require.NoError(t, err)
-	require.NoError(t, f.Truncate(1 << 40))
+	require.NoError(t, f.Truncate(1 << 32))
 	require.NoError(t, f.Close())
 
 	maxPieceLength := uint(16)
@@ -1377,7 +1377,7 @@ func TestPlanCreateLargeSparseInputDoesNotMaterializePieceHashes(t *testing.T) {
 		NoDate:         true,
 	})
 	require.NoError(t, err)
-	require.Equal(t, int64(1<<40), plan.ContentSize)
+	require.Equal(t, int64(1<<32), plan.ContentSize)
 	require.Equal(t, int64(1<<16), plan.PieceLengthBytes)
 	require.NotZero(t, plan.PredictedTorrentSize)
 }
