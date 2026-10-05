@@ -572,15 +572,16 @@ func prepareCreate(opts CreateOptions, internalOpts createTorrentOptions) (*prep
 		return &Torrent{mi}, nil
 	}
 
-	// torrentSizeForPieceLength predicts the .torrent size before hashing.
-	// Zeroed hashes give the exact encoded size while preserving arbitrary
-	// piece lengths used by UpdateTorrent.
+	// torrentSizeForPieceLength predicts the exact .torrent size before hashing.
+	// Encode one placeholder piece, then adjust only the bencoded pieces string
+	// length. This keeps planning memory usage constant even for very large inputs.
 	torrentSizeForPieceLength := func(pieceLength int64) (uint64, error) {
 		numPieces, err := pieceCountForSize(totalSize, pieceLength)
 		if err != nil {
 			return 0, err
 		}
-		t, err := encode(pieceLength, make([]byte, numPieces*20))
+		const placeholderBytes int64 = 20
+		t, err := encode(pieceLength, make([]byte, placeholderBytes))
 		if err != nil {
 			return 0, err
 		}
@@ -588,7 +589,18 @@ func prepareCreate(opts CreateOptions, internalOpts createTorrentOptions) (*prep
 		if err != nil {
 			return 0, fmt.Errorf("error marshaling torrent data: %w", err)
 		}
-		return uint64(len(data)), nil
+
+		piecesBytes := int64(numPieces) * 20
+		digitCount := func(n int64) int64 {
+			digits := int64(1)
+			for n >= 10 {
+				n /= 10
+				digits++
+			}
+			return digits
+		}
+		delta := piecesBytes - placeholderBytes + digitCount(piecesBytes) - digitCount(placeholderBytes)
+		return uint64(int64(len(data)) + delta), nil
 	}
 	torrentSize := func(exp uint) (uint64, error) {
 		return torrentSizeForPieceLength(int64(1) << exp)
@@ -670,10 +682,8 @@ func createTorrent(opts CreateOptions, internalOpts createTorrentOptions) (*Torr
 	baseDir := prepared.baseDir
 	inputInfo := prepared.inputInfo
 	pieceLength := prepared.pieceLength
-	exp := prepared.exp
 	rules := prepared.rules
 	encode := prepared.encode
-	torrentSize := prepared.torrentSize
 	if opts.Verbose || opts.InfoOnly {
 		display := NewDisplay(NewFormatter(true))
 		for _, n := range prepared.notices {
@@ -718,16 +728,13 @@ func createTorrent(opts CreateOptions, internalOpts createTorrentOptions) (*Torr
 		return nil, err
 	}
 
-	// guard: the prediction must match the real size
+	// guard: the pre-hash prediction must match the real size exactly.
 	if rules.MaxTorrentSize > 0 {
-		want, err := torrentSize(exp)
-		if err != nil {
-			return nil, err
-		}
 		data, err := bencode.Marshal(t.MetaInfo)
 		if err != nil {
 			return nil, fmt.Errorf("error marshaling torrent data: %w", err)
 		}
+		want := prepared.plan.PredictedTorrentSize
 		if uint64(len(data)) != want {
 			return nil, fmt.Errorf("torrent size %d bytes does not match the predicted %d bytes", len(data), want)
 		}
