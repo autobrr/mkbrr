@@ -1302,3 +1302,31 @@ func TestCreate_NameArgument(t *testing.T) {
 		})
 	}
 }
+
+
+func TestChoosePieceLength_MaxPieceLengthEffectiveMinimum(t *testing.T) {
+	max14 := uint(14)
+	target := uint(1000)
+	customRules := trackers.Rules{
+		PieceSizeRanges: []trackers.PieceSizeRange{{MaxSize: ^uint64(0), PieceExp: 14}},
+	}
+
+	t.Run("automatic default ranges reject below 64 KiB", func(t *testing.T) {
+		_, _, err := choosePieceLength(1<<20, CreateOptions{MaxPieceLength: &max14}, trackers.Rules{}, nil)
+		require.ErrorContains(t, err, "between 16 (64 KiB)")
+	})
+
+	t.Run("automatic custom ranges allow 16 KiB", func(t *testing.T) {
+		exp, _, err := choosePieceLength(1<<20, CreateOptions{MaxPieceLength: &max14}, customRules, nil)
+		require.NoError(t, err)
+		require.Equal(t, uint(14), exp)
+	})
+
+	t.Run("target piece count still rejects below 64 KiB", func(t *testing.T) {
+		_, _, err := choosePieceLength(1<<20, CreateOptions{
+			MaxPieceLength:   &max14,
+			TargetPieceCount: &target,
+		}, customRules, nil)
+		require.ErrorContains(t, err, "between 16 (64 KiB)")
+	})
+}
