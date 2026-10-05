@@ -1355,7 +1355,7 @@ func TestPlanCreateFailOnSeasonWarningMatchesCreate(t *testing.T) {
 		NoDate:                  true,
 	}
 	_, err := PlanCreate(opts)
-	require.ErrorContains(t, err, "season pack is suspicious")
+	require.ErrorContains(t, err, "season pack is suspicious (season 1, missing episodes [2])")
 
 	_, err = CreateTorrent(opts)
 	require.ErrorContains(t, err, "season pack is suspicious")

@@ -537,7 +537,7 @@ func prepareCreate(opts CreateOptions, internalOpts createTorrentOptions) (*prep
 
 	seasonInfo := AnalyzeSeasonPack(files)
 	if seasonInfo.IsSuspicious && opts.FailOnSeasonPackWarning {
-		return nil, fmt.Errorf("season pack is suspicious, and --fail-on-season-warning is enabled")
+		return nil, fmt.Errorf("season pack is suspicious (season %d, missing episodes %v), and --fail-on-season-warning is enabled", seasonInfo.Season, seasonInfo.MissingEpisodes)
 	}
 
 	info := metainfo.Info{Name: name}
