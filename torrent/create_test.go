@@ -1302,3 +1302,37 @@ func TestCreate_NameArgument(t *testing.T) {
 		})
 	}
 }
+
+
+func TestPlanCreateMatchesCreateAndAppliesFilters(t *testing.T) {
+	dir := t.TempDir()
+	keep := filepath.Join(dir, "keep.mkv")
+	skip := filepath.Join(dir, "skip.nfo")
+	require.NoError(t, os.WriteFile(keep, make([]byte, 128*1024), 0o644))
+	require.NoError(t, os.WriteFile(skip, make([]byte, 512*1024), 0o644))
+
+	opts := CreateOptions{
+		Path:            dir,
+		TrackerURLs:     []string{"https://portugas.org/announce"},
+		ExcludePatterns: []string{"*.nfo"},
+		NoCreator:       true,
+		NoDate:          true,
+	}
+
+	plan, err := PlanCreate(opts)
+	require.NoError(t, err)
+	require.Equal(t, int64(128*1024), plan.ContentSize)
+	require.Equal(t, uint(14), plan.PieceLengthExponent)
+	require.Equal(t, int64(1<<14), plan.PieceLengthBytes)
+	require.Equal(t, uint64(2<<20), plan.TrackerSizeLimit)
+	require.NotZero(t, plan.PredictedTorrentSize)
+
+	exp, notices, err := ChoosePieceLength(opts)
+	require.NoError(t, err)
+	require.Equal(t, plan.PieceLengthExponent, exp)
+	require.Equal(t, plan.Notices, notices)
+
+	tor, err := CreateTorrent(opts)
+	require.NoError(t, err)
+	require.Equal(t, plan.PieceLengthBytes, tor.GetInfo().PieceLength)
+}
