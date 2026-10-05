@@ -28,6 +28,7 @@ The CLI, the GUI, and batch mode share one settings type for each operation: `to
 - `develop` is the default branch and the base branch for feature PRs.
 - `main` holds the latest release. Mintlify builds the mkbrr.com site in `documentation/` from `main`, so the live site describes the latest release.
 - Update `documentation/` in the same PR as a change that users can see. The `docs` skill maps code to docs pages.
+- Load the `mintlify` skill before you change a file in `documentation/`. It covers Mintlify pages, navigation, and components.
 - A fix to the live docs goes as a PR to `main`. Then merge `main` back into `develop`.
 - After a release tag, the changelog workflow opens a PR against `main`. Fast-forward `main` to `develop` before you merge that PR, or the fast-forward fails.
 - See `docs/adr/0002-develop-main-and-docs-site.md`.
