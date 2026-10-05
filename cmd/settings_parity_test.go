@@ -64,7 +64,7 @@ var settingsParityCases = map[string]settingsParity{
 			"NoCreator", "Entropy", "FailOnSeasonPackWarning", "TrackerURLs",
 		},
 		exceptions: map[string][]string{
-			// A batch file sets the output path of each job, and the CLI sets workers for the whole batch.
+			// A batch file sets the output path of each job. Batch mode uses the automatic worker count.
 			placeBatch: {"OutputDir", "Workers"},
 			// The GUI settings page sets the default workers for all torrents.
 			placeGUIForm: {"Workers"},
