@@ -57,6 +57,10 @@
           "type": "boolean",
           "description": "Don't write creation date"
         },
+        "skip_prefix": {
+          "type": "boolean",
+          "description": "Leave out the filename prefix from the output filename"
+        },
         "exclude_patterns": {
           "type": "array",
           "description": "List of glob patterns to exclude files (e.g., \"*.nfo\", \"*sample*\")",
@@ -122,6 +126,10 @@
           "no_date": {
             "type": "boolean",
             "description": "Don't write creation date"
+          },
+          "skip_prefix": {
+            "type": "boolean",
+            "description": "Leave out the filename prefix from the output filename"
           },
           "max_piece_length": {
             "type": "integer",

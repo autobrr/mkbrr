@@ -149,7 +149,7 @@ The following options can be used within the `default` section or any specific p
     </ParamField>
 
     <ParamField path="skip_prefix" type="boolean">
-      Whether to prevent adding the tracker domain prefix to the output filename.
+      Leave out the filename prefix from the output filename. In `create`, the filename prefix is the tracker domain. In `modify`, it is the preset name. Both commands read this key.
     </ParamField>
 
     <ParamField path="output_dir" type="string">

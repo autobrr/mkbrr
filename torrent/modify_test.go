@@ -950,3 +950,24 @@ func TestModifyTorrent_NoEntropy(t *testing.T) {
 		require.ErrorIs(t, err, errEntropyConflict)
 	})
 }
+
+func TestModifyTorrent_PresetSkipPrefix(t *testing.T) {
+	dir := t.TempDir()
+	content := filepath.Join(dir, "file.txt")
+	require.NoError(t, os.WriteFile(content, []byte("skip prefix"), 0o644))
+	torrentPath := filepath.Join(dir, "in.torrent")
+	_, err := Create(CreateOptions{Path: content, OutputPath: torrentPath, IsPrivate: true, NoDate: true, Quiet: true})
+	require.NoError(t, err)
+
+	presetPath := filepath.Join(dir, "presets.yaml")
+	require.NoError(t, os.WriteFile(presetPath, []byte(`version: 1
+presets:
+  noprefix:
+    source: NEW
+    skip_prefix: true
+`), 0o644))
+
+	result, err := ModifyTorrent(torrentPath, ModifyOptions{PresetName: "noprefix", PresetFile: presetPath, OutputDir: dir, Version: "test"})
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(dir, "file.txt.torrent"), result.OutputPath)
+}
