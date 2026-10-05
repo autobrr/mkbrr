@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/autobrr/mkbrr/internal/preset"
+	"github.com/autobrr/mkbrr/internal/trackers"
 )
 
 func TestPieceCountForSizeHandlesIntegerBoundaries(t *testing.T) {
@@ -74,7 +76,7 @@ func TestAddTorrentFileSizeRejectsOverflow(t *testing.T) {
 	}
 }
 
-func Test_calculatePieceLength(t *testing.T) {
+func Test_choosePieceLength_Automatic(t *testing.T) {
 	tests := []struct {
 		name           string
 		totalSize      int64
@@ -178,9 +180,10 @@ func Test_calculatePieceLength(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := calculatePieceLength(tt.totalSize, tt.maxPieceLength, tt.trackerURLs, false)
+			got, _, err := choosePieceLength(tt.totalSize, CreateOptions{MaxPieceLength: tt.maxPieceLength, TrackerURLs: tt.trackerURLs}, rulesFor(tt.trackerURLs), nil)
+			require.NoError(t, err)
 			if got != tt.want {
-				t.Errorf("calculatePieceLength() = %v, want %v", got, tt.want)
+				t.Errorf("choosePieceLength() = %v, want %v", got, tt.want)
 			}
 
 			// verify the piece count is within reasonable bounds when targeting pieces
@@ -236,14 +239,14 @@ func Test_trackerPieceLengthBounds(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotMin, gotMax := trackerPieceLengthBounds(tt.trackerURL, tt.maxPieceLength)
+			gotMin, gotMax := trackerPieceLengthBounds(rulesFor([]string{tt.trackerURL}), tt.maxPieceLength)
 			assert.Equal(t, tt.wantMin, gotMin, "min")
 			assert.Equal(t, tt.wantMax, gotMax, "max")
 		})
 	}
 }
 
-func Test_calculatePieceLengthFromTarget(t *testing.T) {
+func Test_choosePieceLength_Target(t *testing.T) {
 	tests := []struct {
 		name           string
 		totalSize      int64
@@ -304,14 +307,6 @@ func Test_calculatePieceLengthFromTarget(t *testing.T) {
 			wantExp:        27, // 100GB/50 ≈ 2GB = 2^31, floor(log2) = 30, clamped to 27
 		},
 		{
-			name:           "maxPieceLength cannot exceed tracker cap",
-			totalSize:      100 << 30,
-			targetCount:    50,
-			maxPieceLength: new(uint(27)),
-			trackerURLs:    []string{"https://empornium.sx/announce?passkey=123"},
-			wantExp:        23, // emp cap is 23, user's 27 is clamped down
-		},
-		{
 			name:        "target 1 piece gives max exp",
 			totalSize:   10 << 30,
 			targetCount: 1,
@@ -327,9 +322,11 @@ func Test_calculatePieceLengthFromTarget(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := calculatePieceLengthFromTarget(tt.totalSize, tt.targetCount, tt.maxPieceLength, tt.trackerURLs, false)
+			opts := CreateOptions{TargetPieceCount: &tt.targetCount, MaxPieceLength: tt.maxPieceLength, TrackerURLs: tt.trackerURLs}
+			got, _, err := choosePieceLength(tt.totalSize, opts, rulesFor(tt.trackerURLs), nil)
+			require.NoError(t, err)
 			if got != tt.wantExp {
-				t.Errorf("calculatePieceLengthFromTarget() = %v, want %v", got, tt.wantExp)
+				t.Errorf("choosePieceLength() = %v, want %v", got, tt.wantExp)
 			}
 		})
 	}
@@ -409,11 +406,15 @@ func TestGetRecommendedPieceLengthExpUnknownTracker(t *testing.T) {
 	}
 }
 
-func TestCreateTorrent_ExplicitPieceLengthBounds(t *testing.T) {
-	dir := t.TempDir()
-	filePath := filepath.Join(dir, "small.bin")
-	require.NoError(t, os.WriteFile(filePath, make([]byte, 1<<20), 0o644))
+func rulesFor(trackerURLs []string) trackers.Rules {
+	if len(trackerURLs) == 0 {
+		return trackers.Rules{}
+	}
+	rules, _ := trackers.Lookup(trackerURLs[0])
+	return rules
+}
 
+func Test_choosePieceLength_ExplicitBounds(t *testing.T) {
 	// the trackers here recommend less than 64 KiB for 1 MiB of content;
 	// the recommendation never rejects an explicit piece length
 	tests := []struct {
@@ -439,29 +440,18 @@ func TestCreateTorrent_ExplicitPieceLengthBounds(t *testing.T) {
 			if tt.trackerURL != "" {
 				trackerURLs = []string{tt.trackerURL}
 			}
-			tor, err := CreateTorrent(CreateOptions{
-				Path:           filePath,
-				TrackerURLs:    trackerURLs,
-				PieceLengthExp: new(tt.exp),
-				IsPrivate:      true,
-				NoDate:         true,
-				NoCreator:      true,
-				Version:        "test",
-			})
+			got, _, err := choosePieceLength(1<<20, CreateOptions{TrackerURLs: trackerURLs, PieceLengthExp: new(tt.exp)}, rulesFor(trackerURLs), nil)
 			if tt.wantErr {
 				assert.ErrorContains(t, err, "piece length exponent must be between")
 				return
 			}
 			require.NoError(t, err)
-
-			info, err := tor.UnmarshalInfo()
-			require.NoError(t, err)
-			assert.Equal(t, int64(1)<<tt.exp, info.PieceLength)
+			assert.Equal(t, tt.exp, got)
 		})
 	}
 }
 
-func Test_retryPieceLengthCeiling(t *testing.T) {
+func Test_sizeLimitPieceLengthCeiling(t *testing.T) {
 	tests := []struct {
 		name           string
 		trackerURL     string
@@ -505,7 +495,44 @@ func Test_retryPieceLengthCeiling(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, retryPieceLengthCeiling(tt.trackerURL, tt.maxPieceLength))
+			assert.Equal(t, tt.want, sizeLimitPieceLengthCeiling(rulesFor([]string{tt.trackerURL}), tt.maxPieceLength))
+		})
+	}
+}
+
+func Test_choosePieceLength_SizeLimit(t *testing.T) {
+	// a fake .torrent size: 1 KiB of other fields plus 20 bytes for each piece
+	const totalSize = 10 << 30
+	fakeSize := func(exp uint) (uint64, error) {
+		return 1<<10 + 20*((totalSize+(1<<exp)-1)>>exp), nil
+	}
+	rules := trackers.Rules{MaxTorrentSize: 100 << 10}
+
+	tests := []struct {
+		name       string
+		opts       CreateOptions
+		rules      trackers.Rules
+		want       uint
+		wantRaised bool
+		wantErr    bool
+	}{
+		{"fits without a change", CreateOptions{}, rules, 23, false, false},
+		{"raises an explicit piece length", CreateOptions{PieceLengthExp: new(uint(16))}, rules, 22, true, false},
+		{"fails when the ceiling is too low", CreateOptions{MaxPieceLength: new(uint(20))}, rules, 0, false, true},
+		{"ignores the size without a limit", CreateOptions{PieceLengthExp: new(uint(16))}, trackers.Rules{}, 16, false, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, notices, err := choosePieceLength(totalSize, tt.opts, tt.rules, fakeSize)
+			if tt.wantErr {
+				assert.ErrorContains(t, err, "unable to create torrent under size limit")
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+			raised := slices.ContainsFunc(notices, func(n Notice) bool { return n.Warn && strings.HasPrefix(n.Text, "raised piece length") })
+			assert.Equal(t, tt.wantRaised, raised)
 		})
 	}
 }

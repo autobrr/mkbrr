@@ -722,7 +722,8 @@ func TestTorrentFileSize(t *testing.T) {
 						t.Fatalf("failed to stat torrent file: %v", err)
 					}
 
-					if maxSize, ok := trackers.GetTrackerMaxTorrentSize(tt.trackerURL); ok {
+					if rules, _ := trackers.Lookup(tt.trackerURL); rules.MaxTorrentSize > 0 {
+						maxSize := rules.MaxTorrentSize
 						if uint64(info.Size()) > maxSize {
 							t.Errorf("torrent file size %d exceeds tracker limit %d", info.Size(), maxSize)
 						} else {

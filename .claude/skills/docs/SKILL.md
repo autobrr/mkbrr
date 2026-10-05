@@ -33,7 +33,7 @@ Everything in the docs that can fall out of sync with the codebase. All docs pat
 | Tracker rules table | `features/tracker-rules.mdx` | `internal/trackers/trackers.go` `trackerConfigs` slice |
 | Filtering defaults | `features/filtering.mdx` | Default exclude patterns in `torrent/create.go` and `torrent/ignore.go` |
 | Season pack detection | `features/season-packs.mdx` | `torrent/seasonfinder.go` regex patterns |
-| Piece size algorithm | `guides/creating-torrents.mdx`, `quickstart.mdx` | `torrent/create.go` `calculatePieceLength()` size tiers |
+| Piece size algorithm | `guides/creating-torrents.mdx`, `quickstart.mdx` | `torrent/create.go` `automaticPieceLength()` size tiers |
 | Modify capabilities | `guides/modifying-torrents.mdx`, `cli-reference/modify.mdx` | `torrent/modify.go` |
 | JSON schemas | Referenced in preset/batch docs | `schema/presets.json`, `schema/batch.json` |
 | Development commands | `development.mdx` | `Makefile` targets |
