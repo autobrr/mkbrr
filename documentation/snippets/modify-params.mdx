@@ -74,7 +74,7 @@ import CommonEntropy from '/snippets/common-entropy.mdx';
 <CommonQuiet />
 
 <ParamField query="--skip-prefix" type="boolean" default={false}>
-  Don't add tracker domain prefix to output filename.
+  Leave out the filename prefix from the output filename. The filename prefix is the preset name when you give a preset. Otherwise, it is the tracker domain. A preset `skip_prefix: true` also leaves it out.
 </ParamField>
 
 <ParamField query="--dry-run, -n" type="boolean" default={false}>

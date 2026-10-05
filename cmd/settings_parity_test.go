@@ -82,7 +82,6 @@ var settingsParityCases = map[string]settingsParity{
 			placePreset: {"Name", "NoPrivate", "NoEntropy", "OutputPattern"},
 		},
 		knownGaps: map[string][]string{
-			placePreset:  {"SkipPrefix"}, // modify ignores the preset skip_prefix
 			placeGUIForm: {"WebSeeds", "Name", "NoPrivate", "Entropy", "NoEntropy", "OutputPattern", "SkipPrefix"},
 		},
 	},

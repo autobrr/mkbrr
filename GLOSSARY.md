@@ -41,3 +41,9 @@ _Avoid_: change, update
 **Clear**:
 In modify, a setting that an override removes from the torrent, such as `--no-entropy` or `--source ""`. Only an override can clear. A preset cannot clear: a preset `entropy: false` means keep.
 _Avoid_: strip, delete
+
+## Output
+
+**Filename prefix**:
+The text that mkbrr puts before the output .torrent filename, followed by `_`. In create, it is the tracker domain. In modify, it is the preset name when a preset is given. Otherwise, it is the tracker domain. `skip_prefix` removes it.
+_Avoid_: tracker prefix, domain prefix
