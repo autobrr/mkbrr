@@ -52,7 +52,7 @@ Issues are tracked in GitHub Issues for autobrr/mkbrr, through the `gh` CLI. See
 
 ### Triage labels
 
-The default label names are used: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+The default label names are used: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`, `needs-grilling`. See `docs/agents/triage-labels.md`.
 
 ### Domain docs
 
