@@ -1408,3 +1408,45 @@ func TestPrepareCreatePredictsExactInternalPieceLength(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, uint64(len(data)), prepared.plan.PredictedTorrentSize)
 }
+
+func Test_choosePieceLength_MaxPieceLengthBounds(t *testing.T) {
+	const (
+		bhdURL      = "https://beyond-hd.me/announce?passkey=123"
+		portugasURL = "https://portugas.org/announce/passkey"
+	)
+	tests := []struct {
+		name        string
+		trackerURL  string
+		maxExp      uint
+		targetCount *uint
+		wantErr     bool
+	}{
+		{"no tracker rejects 32 KiB", "", 15, nil, true},
+		{"no tracker accepts 64 KiB", "", 16, nil, false},
+		{"bhd default ranges reject 32 KiB", bhdURL, 15, nil, true},
+		{"bhd default ranges accept 64 KiB", bhdURL, 16, nil, false},
+		{"portugas custom table accepts 16 KiB", portugasURL, 14, nil, false},
+		{"portugas custom table rejects 8 KiB", portugasURL, 13, nil, true},
+		{"target piece count rejects 32 KiB on a custom table", portugasURL, 15, new(uint(1000)), true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var trackerURLs []string
+			if tt.trackerURL != "" {
+				trackerURLs = []string{tt.trackerURL}
+			}
+			got, _, err := choosePieceLength(1<<20, CreateOptions{
+				TrackerURLs:      trackerURLs,
+				MaxPieceLength:   new(tt.maxExp),
+				TargetPieceCount: tt.targetCount,
+			}, rulesFor(trackerURLs), nil)
+			if tt.wantErr {
+				assert.ErrorContains(t, err, "max piece length exponent must be between")
+				return
+			}
+			require.NoError(t, err)
+			assert.LessOrEqual(t, got, tt.maxExp)
+		})
+	}
+}

@@ -77,7 +77,7 @@ import CommonEntropy from '/snippets/common-entropy.mdx';
 </Tip>
 
 <ParamField query="--max-piece-length, -m" type="number">
-  Limit maximum automatically calculated piece length to 2^n bytes (14-27, or lower if the tracker has a cap).
+  Limit maximum automatically calculated piece length to 2^n bytes (16-27, or 14-27 for a tracker with its own piece size table when target piece count is not set; lower if the tracker has a cap).
 </ParamField>
 
 <ParamField query="--target-piece-count" type="number">

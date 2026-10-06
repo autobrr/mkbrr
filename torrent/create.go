@@ -161,9 +161,13 @@ func choosePieceLength(totalSize int64, opts CreateOptions, rules trackers.Rules
 		}
 	} else {
 		if opts.MaxPieceLength != nil {
-			if *opts.MaxPieceLength < 14 || *opts.MaxPieceLength > maxExp {
-				return 0, nil, fmt.Errorf("max piece length exponent must be between 14 (16 KiB) and %d (%d MiB), got: %d",
-					maxExp, 1<<(maxExp-20), *opts.MaxPieceLength)
+			minExp, _ := trackerPieceLengthBounds(rules, nil)
+			if opts.TargetPieceCount != nil {
+				minExp = 16 // pieceLengthFromTarget never goes below 64 KiB
+			}
+			if *opts.MaxPieceLength < minExp || *opts.MaxPieceLength > maxExp {
+				return 0, nil, fmt.Errorf("max piece length exponent must be between %d (%s) and %d (%s), got: %d",
+					minExp, formatPieceSize(minExp), maxExp, formatPieceSize(maxExp), *opts.MaxPieceLength)
 			}
 		}
 
@@ -254,7 +258,7 @@ func pieceLengthFromTarget(totalSize int64, targetCount uint, maxPieceLength *ui
 
 // automaticPieceLength calculates the optimal piece length based on total size.
 // A tracker recommendation is clamped to trackerPieceLengthBounds. Otherwise the
-// result is 64 KiB-16 MiB, and a tracker or user max can change the upper bound.
+// result is 32 KiB-16 MiB, and a tracker or user max can change the upper bound.
 func automaticPieceLength(totalSize int64, maxPieceLength *uint, rules trackers.Rules) (uint, *Notice) {
 	if exp, ok := rules.PieceSizeExp(uint64(totalSize)); ok {
 		minExp, maxExp := trackerPieceLengthBounds(rules, maxPieceLength)
@@ -263,17 +267,12 @@ func automaticPieceLength(totalSize int64, maxPieceLength *uint, rules trackers.
 			totalSize>>20, formatPieceSize(exp))}
 	}
 
-	minExp := uint(16)
 	maxExp := uint(24) // default max 16 MiB for automatic calculation, can be overridden up to 2^27
 	if rules.MaxPieceLength > 0 {
 		maxExp = rules.MaxPieceLength
 	}
 
-	// validate maxPieceLength - if it's below minimum, use minimum
 	if maxPieceLength != nil {
-		if *maxPieceLength < minExp {
-			return minExp, nil
-		}
 		maxExp = min(*maxPieceLength, 27)
 	}
 
