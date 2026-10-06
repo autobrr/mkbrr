@@ -15,14 +15,27 @@ permissions:
   pull-requests: write
 
 jobs:
-  changelog:
+  # claude-code-action rejects a push event, so a tag push starts a workflow_dispatch run of this workflow.
+  # A workflow_dispatch event from GITHUB_TOKEN starts a new run.
+  dispatch:
     # A tag with "-" (v1.2.0-rc1) is a prerelease and gets no changelog entry.
-    if: ${{ !contains(inputs.release_tag || github.ref_name, '-') }}
+    if: ${{ github.event_name == 'push' && !contains(github.ref_name, '-') }}
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Start the changelog run
+        run: gh workflow run changelog.yml --repo "${{ github.repository }}" --ref main -f release_tag="${{ github.ref_name }}"
+
+  changelog:
+    if: ${{ github.event_name == 'workflow_dispatch' && !contains(inputs.release_tag, '-') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      TAG: ${{ inputs.release_tag || github.ref_name }}
+      TAG: ${{ inputs.release_tag }}
     steps:
       # The changelog PR goes to main, so the live site shows the entry at once.
       - name: Checkout main
@@ -59,7 +72,7 @@ jobs:
           fi
           date=$(TZ=UTC git for-each-ref --format='%(creatordate:format-local:%Y-%m-%d)' "refs/tags/$TAG")
           gh api --paginate "repos/${{ github.repository }}/compare/$previous...$TAG" \
-            --jq '.commits[] | [.sha, (.author.login // ""), (.commit.message | split("\n")[0])] | @tsv' \
+            --jq '.commits[] | select(.parents | length == 1) | [.sha, (.author.login // ""), (.commit.message | split("\n")[0])] | @tsv' \
             > release-commits.tsv
           {
             echo "previous=$previous"
@@ -80,7 +93,7 @@ jobs:
             Add an `<Update>` entry for ${{ env.TAG }} at the top of `documentation/changelog.mdx`, directly above the newest entry. Match the existing entries exactly: the same headings, link formats, spacing, and order.
 
             - `release-commits.tsv` lists every commit in the release, oldest first: full SHA, GitHub login, subject.
-            - The conventional-commit type picks the heading: `feat` goes under New Features, `fix` under Bug fixes, and every other commit under Other work. Keep file order within each heading. Include only headings that have commits.
+            - A subject with `!` before the colon (`feat!:`, `fix(api)!:`) goes under Breaking Changes, the first heading. For every other commit, the conventional-commit type picks the heading: `feat` goes under New Features, `fix` under Bug fixes, and every other type under Other work. Keep file order within each heading. Include only headings that have commits.
             - Write the subject without its type prefix, with the first letter capitalized. Link the `(#N)` PR number when the subject has one.
             - List each login once under Contributors, in order of first appearance in the file.
 
