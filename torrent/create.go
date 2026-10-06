@@ -67,8 +67,9 @@ func formatPieceSize(exp uint) string {
 // create settings. The lower bound is 14 (16 KiB) for a tracker with its own
 // piece length table, else 16 (64 KiB). A target piece count always uses 16.
 // The upper bound is the tracker cap, or the user max if it is lower. With no
-// tracker cap, it is the user max, else 24 (16 MiB). A tracker with its own
-// table uses 27 (128 MiB) in place of 24, but a target piece count keeps 24.
+// tracker cap, it is the user max (27 at most), else 24 (16 MiB). A tracker
+// with its own table uses 27 (128 MiB) in place of 24, but a target piece
+// count keeps 24.
 // The user max cannot raise a tracker cap, because an override cannot raise a
 // tracker rule (see "Tracker rule" in GLOSSARY.md).
 func pieceLengthBounds(rules trackers.Rules, userMax *uint, targetCount bool) (lower, upper uint) {
@@ -83,7 +84,8 @@ func pieceLengthBounds(rules trackers.Rules, userMax *uint, targetCount bool) (l
 	case rules.MaxPieceLength > 0:
 		upper = rules.MaxPieceLength
 	case userMax != nil:
-		upper = *userMax
+		// -l skips the -m check, so keep the 128 MiB limit here
+		upper = min(*userMax, 27)
 	}
 	return lower, upper
 }

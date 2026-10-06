@@ -70,7 +70,10 @@ func TestChoosePieceLengthMatchesOracle(t *testing.T) {
 					check(CreateOptions{MaxPieceLength: m, TargetPieceCount: target})
 				}
 				if m != nil {
-					check(CreateOptions{PieceLengthExp: m})
+					// -l skips the -m check, so -m reaches only the size limit retry
+					for _, userMax := range exps {
+						check(CreateOptions{PieceLengthExp: m, MaxPieceLength: userMax})
+					}
 				}
 			}
 		}
