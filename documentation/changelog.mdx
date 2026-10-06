@@ -4,6 +4,52 @@ description: 'Latest updates and improvements to mkbrr'
 icon: code-merge
 ---
 
+<Update label="v1.27.0" description="2026-10-06">
+### Breaking Changes
+- [21ba448](https://github.com/autobrr/mkbrr/commit/21ba448d1c52bcce9ead8b0acba67e3ca8ba3d05): Add exact pre-hash plan mode ([#202](https://github.com/autobrr/mkbrr/pull/202)) (@maghuro)
+- [b599319](https://github.com/autobrr/mkbrr/commit/b5993192c3da3b30b8d86fa7757f88d615b7840e): Add --no-entropy and keep/set/clear for modify ([#225](https://github.com/autobrr/mkbrr/pull/225)) (@s0up4200)
+- [554fdc6](https://github.com/autobrr/mkbrr/commit/554fdc606b19b84a6d65966929c8a5ca732517fe): Share one create settings type between CLI, GUI and batch ([#228](https://github.com/autobrr/mkbrr/pull/228)) (@s0up4200)
+- [87af7ca](https://github.com/autobrr/mkbrr/commit/87af7ca76fc88e0f752ca47429c8b6679ffa2989): Respect effective minimum for max piece length ([#204](https://github.com/autobrr/mkbrr/pull/204)) (@maghuro)
+- [ac2a443](https://github.com/autobrr/mkbrr/commit/ac2a443ac5194a673a670be82c4704b66b41cd82): Resolve create options in one place ([#215](https://github.com/autobrr/mkbrr/pull/215)) (@s0up4200)
+- [96e4955](https://github.com/autobrr/mkbrr/commit/96e4955fccdb4f5bfcd9d07e715f6c1be9935ab6): Reject create flags with --batch ([#244](https://github.com/autobrr/mkbrr/pull/244)) (@s0up4200)
+
+### Bug fixes
+- [45b6189](https://github.com/autobrr/mkbrr/commit/45b618953d15f393c6083a4a73571e2d8034f179): Use typed atomics for verifier counters ([#210](https://github.com/autobrr/mkbrr/pull/210)) (@s0up4200)
+- [e76a3b3](https://github.com/autobrr/mkbrr/commit/e76a3b3744943e13f3a78c339e7e8624afbda734): Write torrent metadata in one place for create and modify ([#217](https://github.com/autobrr/mkbrr/pull/217)) (@s0up4200)
+- [a8fd061](https://github.com/autobrr/mkbrr/commit/a8fd061afb095940fa503c7f660c8cbfb7c1786f): List breaking changes first in the changelog ([#226](https://github.com/autobrr/mkbrr/pull/226)) (@s0up4200)
+- [13e0890](https://github.com/autobrr/mkbrr/commit/13e08901a5f30f75d8870e498b0c63ae429a2728): Exit with an error when a batch job fails ([#233](https://github.com/autobrr/mkbrr/pull/233)) (@cestercian)
+- [39c3b1d](https://github.com/autobrr/mkbrr/commit/39c3b1d40927773210ade3215d22dccffb528784): Read skip_prefix from the preset ([#248](https://github.com/autobrr/mkbrr/pull/248)) (@s0up4200)
+
+### Other work
+- [7d97064](https://github.com/autobrr/mkbrr/commit/7d9706407f6383b0513751d0a514c8a029eac5e6): Trigger the mkbrr.com docs update on release ([#205](https://github.com/autobrr/mkbrr/pull/205)) (@s0up4200)
+- [01696d4](https://github.com/autobrr/mkbrr/commit/01696d48facbc45136427773ed7ce06d70d8dc86): Bump the golang group across 2 directories with 4 updates ([#206](https://github.com/autobrr/mkbrr/pull/206)) (@dependabot[bot])
+- [b4e092f](https://github.com/autobrr/mkbrr/commit/b4e092f8e8e67cfb09413366e17eae294a77dce4): Update dependencies and remove stray lockfile ([#207](https://github.com/autobrr/mkbrr/pull/207)) (@s0up4200)
+- [9fcfeab](https://github.com/autobrr/mkbrr/commit/9fcfeab3ef584755a06b92e2e5d1bae1196a2038): Build the frontend with pnpm 11 ([#208](https://github.com/autobrr/mkbrr/pull/208)) (@s0up4200)
+- [b3d455a](https://github.com/autobrr/mkbrr/commit/b3d455a13769acf67e6f46f8cf1c58d98d1e13b3): Add agent skills config ([#209](https://github.com/autobrr/mkbrr/pull/209)) (@s0up4200)
+- [8da79fa](https://github.com/autobrr/mkbrr/commit/8da79fa1d1f87e01c70c068db22fc3bb120cdad8): Add glossary for create settings ([#214](https://github.com/autobrr/mkbrr/pull/214)) (@s0up4200)
+- [ed94056](https://github.com/autobrr/mkbrr/commit/ed94056b05fedd5711c5c2442ae9ddb070362422): Add pull request template ([#216](https://github.com/autobrr/mkbrr/pull/216)) (@s0up4200)
+- [d8b853b](https://github.com/autobrr/mkbrr/commit/d8b853bda4a82b3e5c9450ffeb33e8bb1f3d1beb): Require ! in the title of a PR with the BREAKING CHANGE label ([#227](https://github.com/autobrr/mkbrr/pull/227)) (@s0up4200)
+- [a018533](https://github.com/autobrr/mkbrr/commit/a01853373b1dfd0785ff0564f5559322aad994cc): Add settings parity test for the CLI, batch, presets, and GUI ([#229](https://github.com/autobrr/mkbrr/pull/229)) (@s0up4200)
+- [aad96c6](https://github.com/autobrr/mkbrr/commit/aad96c6b60dd778f43ba2154041ca45fbd5c1801): Move the mkbrr.com docs site into this repository ([#235](https://github.com/autobrr/mkbrr/pull/235)) (@s0up4200)
+- [b8d8113](https://github.com/autobrr/mkbrr/commit/b8d8113794d71c1364103c8a654a6c385047b1ca): Add the Mintlify agent skill ([#238](https://github.com/autobrr/mkbrr/pull/238)) (@s0up4200)
+- [405d9e6](https://github.com/autobrr/mkbrr/commit/405d9e607f598c889b94c20f84cd4af765799923): Port the unreleased docs from the old mkbrr.com repository ([#237](https://github.com/autobrr/mkbrr/pull/237)) (@s0up4200)
+- [79235f0](https://github.com/autobrr/mkbrr/commit/79235f03d23ab10d72b93fbc71d21a6b00673d5a): Add release steps, AI review rules, and a CodeRabbit config ([#239](https://github.com/autobrr/mkbrr/pull/239)) (@s0up4200)
+- [d067f8f](https://github.com/autobrr/mkbrr/commit/d067f8feadf0c04d31299002ae5181cc3f837a74): Drop the removed Homebrew tap ([#240](https://github.com/autobrr/mkbrr/pull/240)) (@s0up4200)
+- [0befa4b](https://github.com/autobrr/mkbrr/commit/0befa4be071dbc185209a2badc4492c857db4134): Note the Mintlify plan and compare README install steps ([#242](https://github.com/autobrr/mkbrr/pull/242)) (@s0up4200)
+- [caefdab](https://github.com/autobrr/mkbrr/commit/caefdab41c82a3a94f1f95a116b69caadfc8b54a): Put the piece-length decision in one pure function ([#231](https://github.com/autobrr/mkbrr/pull/231)) (@s0up4200)
+- [d2259d4](https://github.com/autobrr/mkbrr/commit/d2259d45534221639026365560124442a83ede1b): Review PRs to main ([#245](https://github.com/autobrr/mkbrr/pull/245)) (@s0up4200)
+- [dead155](https://github.com/autobrr/mkbrr/commit/dead155395ed78fb9bdf24a0eb71c821859f6b91): Add the Mintlify agent skill to main ([#246](https://github.com/autobrr/mkbrr/pull/246)) (@s0up4200)
+- [3b1d399](https://github.com/autobrr/mkbrr/commit/3b1d3990dff7f5ff7240790809c9944aa8d2bab6): Fix errors from the old docs site ([#243](https://github.com/autobrr/mkbrr/pull/243)) (@s0up4200)
+- [db65319](https://github.com/autobrr/mkbrr/commit/db653193ff19a493f30f06ab46502534a1e953a0): Add the needs-grilling triage label ([#249](https://github.com/autobrr/mkbrr/pull/249)) (@s0up4200)
+
+**Full Changelog**: [v1.26.0...v1.27.0](https://github.com/autobrr/mkbrr/compare/v1.26.0...v1.27.0)
+
+### Contributors
+- @s0up4200
+- @dependabot[bot]
+- @cestercian
+- @maghuro
+</Update>
 <Update label="v1.26.0" description="2026-09-28">
 ### New Features
 - [5fc15cc](https://github.com/autobrr/mkbrr/commit/5fc15cc5309f13ddfaa714bbeaea8407cc516edc): Add Portugas.org rules ([#199](https://github.com/autobrr/mkbrr/pull/199)) (@maghuro)
