@@ -1,0 +1,374 @@
+---
+title: Installation
+description: "How to install mkbrr using various methods."
+icon: download
+---
+
+<Steps>
+  <Step title="Choose Your Installation Method" icon="list">
+    Select the installation method that best suits your system and preferences:
+
+    <CardGroup cols={2}>
+      <Card title="Pre-built Binaries" icon="box">
+        Download and install pre-compiled CLI binaries
+      </Card>
+      <Card title="GUI Application" icon="window">
+        Desktop application for visual torrent management
+      </Card>
+      <Card title="Package Managers" icon="cube">
+        Install using your preferred package manager
+      </Card>
+      <Card title="Docker" icon="docker">
+        Install using Docker
+      </Card>
+    </CardGroup>
+  </Step>
+
+  <Step title="Install mkbrr" icon="download">
+    <Tabs>
+      <Tab title="Pre-built Binaries">
+        Download the appropriate binary for your system from the [GitHub Releases page](https://github.com/autobrr/mkbrr/releases/latest) or use the commands below.
+
+        <Tabs>
+          <Tab title="Linux">
+            <Tabs>
+              <Tab title="Generic (tar.gz)">
+                <Info>
+                  Make sure the extraction directory (e.g., `/usr/local/bin`) is included in your system's `PATH` environment variable so you can run `mkbrr` from any location.
+                </Info>
+                <Tabs>
+                  <Tab title="x86_64">
+                ```bash
+                wget $(curl -s https://api.github.com/repos/autobrr/mkbrr/releases/latest | grep download | grep linux_x86_64 | cut -d\" -f4)
+                sudo tar -C /usr/local/bin -xzf mkbrr_*_linux_x86_64.tar.gz mkbrr
+                ```
+                  </Tab>
+                  <Tab title="arm64">
+                ```bash
+                wget $(curl -s https://api.github.com/repos/autobrr/mkbrr/releases/latest | grep download | grep linux_arm64.tar.gz | cut -d\" -f4)
+                sudo tar -C /usr/local/bin -xzf mkbrr_*_linux_arm64.tar.gz mkbrr
+                ```
+                  </Tab>
+                  <Tab title="arm">
+                ```bash
+                wget $(curl -s https://api.github.com/repos/autobrr/mkbrr/releases/latest | grep download | grep linux_arm.tar.gz | grep -v arm64 | cut -d\" -f4)
+                sudo tar -C /usr/local/bin -xzf mkbrr_*_linux_arm.tar.gz mkbrr
+                ```
+                  </Tab>
+                </Tabs>
+              </Tab>
+              <Tab title="Debian/Ubuntu (.deb)">
+                <Tabs>
+                  <Tab title="amd64">
+                ```bash
+                wget $(curl -s https://api.github.com/repos/autobrr/mkbrr/releases/latest | grep download | grep linux_amd64.deb | cut -d\" -f4)
+                sudo dpkg -i mkbrr_*_linux_amd64.deb
+                ```
+                  </Tab>
+                  <Tab title="arm64">
+                ```bash
+                wget $(curl -s https://api.github.com/repos/autobrr/mkbrr/releases/latest | grep download | grep linux_arm64.deb | cut -d\" -f4)
+                sudo dpkg -i mkbrr_*_linux_arm64.deb
+                ```
+                  </Tab>
+                  <Tab title="armv6">
+                ```bash
+                wget $(curl -s https://api.github.com/repos/autobrr/mkbrr/releases/latest | grep download | grep linux_armv6.deb | cut -d\" -f4)
+                sudo dpkg -i mkbrr_*_linux_armv6.deb
+                ```
+                  </Tab>
+                </Tabs>
+              </Tab>
+              <Tab title="Fedora/CentOS (.rpm)">
+                <Tabs>
+                  <Tab title="amd64">
+                ```bash
+                wget $(curl -s https://api.github.com/repos/autobrr/mkbrr/releases/latest | grep download | grep linux_amd64.rpm | cut -d\" -f4)
+                sudo rpm -i mkbrr_*_linux_amd64.rpm
+                ```
+                  </Tab>
+                  <Tab title="arm64">
+                ```bash
+                wget $(curl -s https://api.github.com/repos/autobrr/mkbrr/releases/latest | grep download | grep linux_arm64.rpm | cut -d\" -f4)
+                sudo rpm -i mkbrr_*_linux_arm64.rpm
+                ```
+                  </Tab>
+                  <Tab title="armv6">
+                ```bash
+                wget $(curl -s https://api.github.com/repos/autobrr/mkbrr/releases/latest | grep download | grep linux_armv6.rpm | cut -d\" -f4)
+                sudo rpm -i mkbrr_*_linux_armv6.rpm
+                ```
+                  </Tab>
+                </Tabs>
+              </Tab>
+              <Tab title="Alpine (.apk)">
+                <Tabs>
+                  <Tab title="amd64">
+                ```bash
+                wget $(curl -s https://api.github.com/repos/autobrr/mkbrr/releases/latest | grep download | grep linux_amd64.apk | cut -d\" -f4)
+                sudo apk add --allow-untrusted mkbrr_*_linux_amd64.apk
+                ```
+                  </Tab>
+                  <Tab title="arm64">
+                ```bash
+                wget $(curl -s https://api.github.com/repos/autobrr/mkbrr/releases/latest | grep download | grep linux_arm64.apk | cut -d\" -f4)
+                sudo apk add --allow-untrusted mkbrr_*_linux_arm64.apk
+                ```
+                  </Tab>
+                  <Tab title="armv6">
+                ```bash
+                wget $(curl -s https://api.github.com/repos/autobrr/mkbrr/releases/latest | grep download | grep linux_armv6.apk | cut -d\" -f4)
+                sudo apk add --allow-untrusted mkbrr_*_linux_armv6.apk
+                ```
+                  </Tab>
+                </Tabs>
+              </Tab>
+            </Tabs>
+          </Tab>
+          <Tab title="macOS">
+            <Info>
+              Ensure the extraction directory (e.g., `/usr/local/bin`) is included in your system's `PATH` environment variable so you can run `mkbrr` from any location.
+            </Info>
+            <Tabs>
+              <Tab title="Apple Silicon (arm64)">
+                ```bash
+                wget $(curl -s https://api.github.com/repos/autobrr/mkbrr/releases/latest | grep download | grep darwin_arm64.tar.gz | cut -d\" -f4)
+                sudo tar -C /usr/local/bin -xzf mkbrr_*_darwin_arm64.tar.gz mkbrr
+                ```
+              </Tab>
+              <Tab title="Intel (x86_64)">
+                ```bash
+                wget $(curl -s https://api.github.com/repos/autobrr/mkbrr/releases/latest | grep download | grep darwin_x86_64.tar.gz | cut -d\" -f4)
+                sudo tar -C /usr/local/bin -xzf mkbrr_*_darwin_x86_64.tar.gz mkbrr
+                ```
+              </Tab>
+            </Tabs>
+            <Tip>
+              If you encounter issues with macOS Gatekeeper preventing `mkbrr` from running, execute the following command to remove the quarantine attribute: `xattr -d com.apple.quarantine /usr/local/bin/mkbrr`. You might also need to grant execution permissions: `chmod +x /usr/local/bin/mkbrr`.
+            </Tip>
+          </Tab>
+          <Tab title="FreeBSD">
+            <Info>
+              Make sure the extraction directory (e.g., `/usr/local/bin`) is included in your system's `PATH` environment variable so you can run `mkbrr` from any location.
+            </Info>
+            ```bash
+            wget $(curl -s https://api.github.com/repos/autobrr/mkbrr/releases/latest | grep download | grep freebsd_x86_64.tar.gz | cut -d\" -f4)
+            sudo tar -C /usr/local/bin -xzf mkbrr_*_freebsd_x86_64.tar.gz mkbrr
+            ```
+          </Tab>
+          <Tab title="Windows">
+            Download the `mkbrr_*_windows_x86_64.zip` file from the [GitHub Releases page](https://github.com/autobrr/mkbrr/releases/latest).
+
+            Alternatively, using PowerShell:
+            ```powershell
+            # Download (Uses Invoke-RestMethod for reliable JSON parsing)
+            $releaseInfo = Invoke-RestMethod -Uri "https://api.github.com/repos/autobrr/mkbrr/releases/latest"
+            $url = $releaseInfo.assets | Where-Object { $_.name -like '*windows_x86_64.zip' } | Select-Object -ExpandProperty browser_download_url
+            curl.exe -L -o mkbrr_latest_windows_x86_64.zip $url
+
+            # Extract
+            Expand-Archive -Path mkbrr_latest_windows_x86_64.zip -DestinationPath .\\mkbrr_extracted -Force
+            ```
+
+            <Info>
+              To run `mkbrr` from any terminal after extracting `mkbrr.exe`, you need to make it accessible via your system's `PATH`:
+              1.  Move `mkbrr.exe` to a directory already in your `PATH` (e.g., create `C:\Program Files\mkbrr` and move it there).
+              2.  **Or**, add the directory where you extracted `mkbrr.exe` to your system or user `PATH` environment variable (accessible via System Properties -> Environment Variables).
+            </Info>
+          </Tab>
+        </Tabs>
+      </Tab>
+      <Tab title="Package Managers">
+        <Tabs>
+          <Tab title="Homebrew (macOS/Linux)">
+            If you use Homebrew, you can install `mkbrr` with this command:
+
+            ```bash
+            brew install mkbrr
+            ```
+          </Tab>
+          <Tab title="Arch Linux (AUR)">
+            For Arch Linux users, `mkbrr` is available in the Arch User Repository (AUR):
+
+            ```bash
+            yay -S mkbrr
+            ```
+
+            You can also install it manually:
+            ```bash
+            git clone https://aur.archlinux.org/mkbrr.git
+            cd mkbrr
+            makepkg -si
+            ```
+            <Tip>
+              The version in the AUR might be outdated. After installing via AUR, it is **highly recommended** to immediately run `mkbrr update` to get the latest official release directly from GitHub.
+            </Tip>
+          </Tab>
+          <Tab title="Alpine Linux">
+            `mkbrr` is available in the official Alpine `edge/testing` repository:
+
+            ```bash
+            sudo apk update
+            sudo apk add mkbrr
+            ```
+            <Tip>
+              The version in the Alpine testing repository might be outdated. After installing via `apk add mkbrr`, it is **highly recommended** to immediately run `mkbrr update` to get the latest official release directly from GitHub.
+            </Tip>
+          </Tab>
+        </Tabs>
+      </Tab>
+      <Tab title="Docker">
+        Pull the image:
+        ```bash
+        docker pull ghcr.io/autobrr/mkbrr
+        ```
+
+        Tag it for convenience:
+        ```bash
+        docker tag ghcr.io/autobrr/mkbrr mkbrr
+        ```
+
+        Run and mount your input/output directories:
+        ```bash
+        docker run -v ~/Downloads:/downloads mkbrr mkbrr create /downloads/your-file --output-dir /downloads
+        ```
+
+        <Info>
+          Replace `~/Downloads` with the path on your host containing the files you want to process.
+        </Info>
+        <Tip>
+          For convenience, add an alias to your shell configuration (e.g., `.zshrc` or `.bashrc`):
+          `alias mkbrr='docker run -v ~/Downloads:/downloads mkbrr mkbrr'`
+        </Tip>
+        <Info>
+          If you want mkbrr to automatically discover your <code>presets.yaml</code> or other config files, mount your config directory and set the working directory (<code>-w</code>) to it. mkbrr searches the current working directory and the standard config path (<code>$HOME/.config/mkbrr</code>, which resolves to <code>/config/.config/mkbrr</code> inside the official image, since it sets <code>HOME=/config</code>).
+          For example, if your config is in <code>/mnt/user/appdata/mkbrr</code> on your host:
+          ```bash
+          alias mkbrr='docker run --rm \
+            -v /mnt/user/data/complete/Music:/music \
+            -v /mnt/user/data/torrentfiles/created:/torrentfiles \
+            -v /mnt/user/appdata/mkbrr:/config \
+            -w /config \
+            ghcr.io/autobrr/mkbrr mkbrr'
+          ```
+        </Info>
+        <Accordion title="Rootless Docker">
+          When running Docker in rootless mode, you may encounter permission issues when writing torrent files. To fix this, use the `--user` flag to run the container as your current user:
+          ```bash
+          docker run --user $(id -u):$(id -g) -v ~/Downloads:/downloads ghcr.io/autobrr/mkbrr mkbrr create /downloads/your-file --output-dir /downloads
+          ```
+
+          For your alias:
+          ```bash
+          alias mkbrr='docker run --rm --user $(id -u):$(id -g) -v ~/Downloads:/downloads ghcr.io/autobrr/mkbrr mkbrr'
+          ```
+        </Accordion>
+      </Tab>
+      <Tab title="Go Install">
+        If you have Go installed (version 1.23 or later recommended), you can install `mkbrr` using:
+
+        ```bash
+        go install github.com/autobrr/mkbrr@latest
+        ```
+        <Info>
+          Ensure that your Go binary path (`$(go env GOPATH)/bin`) is included in your system's `PATH` environment variable so the `mkbrr` command can be found. You might need to add this line to your shell profile (e.g., `.bashrc`, `.zshrc`, `.profile`):
+        </Info>
+        ```bash
+        echo 'export PATH=$PATH:$(go env GOPATH)/bin' >> ~/.zshrc && source ~/.zshrc
+        ```
+      </Tab>
+      <Tab title="GUI Application">
+        mkbrr includes a graphical user interface for those who prefer a visual experience. Download the GUI binary for your platform from the [GitHub Releases page](https://github.com/autobrr/mkbrr/releases/latest).
+
+        <Tabs>
+          <Tab title="macOS">
+            Download `mkbrr-gui_*_darwin_*.zip` and extract the `.app` bundle.
+
+            <Warning>
+              The app is not notarized, so macOS will block it by default. Use one of these methods:
+            </Warning>
+
+            **Option 1: Remove quarantine attribute (recommended)**
+            ```bash
+            xattr -cr /path/to/mkbrr-gui.app
+            ```
+
+            **Option 2: Right-click to open**
+            1. Right-click (or Control-click) on the app
+            2. Select "Open" from the context menu
+            3. Click "Open" in the dialog
+
+            **Option 3: System Settings**
+            1. Try to open the app (it will be blocked)
+            2. Open System Settings > Privacy & Security
+            3. Click "Open Anyway" next to the mkbrr-gui message
+          </Tab>
+          <Tab title="Windows">
+            Download `mkbrr-gui_*_windows_amd64.zip` and extract `mkbrr-gui.exe`.
+
+            Run the executable directly - no installation required.
+          </Tab>
+          <Tab title="Linux">
+            Download `mkbrr-gui_*_linux_amd64.tar.gz` and extract the binary.
+
+            ```bash
+            tar -xzf mkbrr-gui_*_linux_amd64.tar.gz
+            chmod +x mkbrr-gui
+            ./mkbrr-gui
+            ```
+          </Tab>
+        </Tabs>
+
+        <Tip>
+          For detailed GUI features and usage, see the [GUI Application guide](/gui/overview).
+        </Tip>
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Verify Installation" icon="check">
+    After installation, verify that mkbrr is working correctly:
+    ```bash
+    mkbrr version
+    ```
+
+    If you see the version number, mkbrr is installed correctly!
+  </Step>
+
+  <Step title="Troubleshooting" icon="wrench">
+    If you encounter any issues during installation:
+
+    <AccordionGroup>
+      <Accordion title="Package Manager Version Outdated">
+        If you installed mkbrr through a package manager (Homebrew, AUR, Alpine) and notice it's not the latest version:
+        ```bash
+        mkbrr update
+        ```
+        This will update mkbrr to the latest version directly from GitHub.
+      </Accordion>
+
+      <Accordion title="macOS Gatekeeper Issues">
+        If macOS prevents mkbrr from running due to security settings:
+        ```bash
+        xattr -d com.apple.quarantine /usr/local/bin/mkbrr
+        chmod +x /usr/local/bin/mkbrr
+        ```
+      </Accordion>
+
+      <Accordion title="Command Not Found">
+        If you get a "command not found" error after installation, ensure the installation directory is in your PATH:
+        ```bash
+        # For Go installations
+        echo 'export PATH=$PATH:$(go env GOPATH)/bin' >> ~/.zshrc && source ~/.zshrc
+
+        # For binary installations
+        echo 'export PATH=$PATH:/usr/local/bin' >> ~/.zshrc && source ~/.zshrc
+        ```
+      </Accordion>
+    </AccordionGroup>
+  </Step>
+</Steps>
+
+<Note>
+  Need help? Join our [Discord](https://discord.gg/WehFCZxq5B) community or open an issue on [GitHub](https://github.com/autobrr/mkbrr).
+</Note>

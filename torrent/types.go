@@ -1,3 +1,6 @@
+// Copyright (c) 2025-2026, s0up4200 <s0up4200@pm.me> and the mkbrr contributors.
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 package torrent
 
 import (
@@ -44,6 +47,16 @@ type CreateOptions struct {
 	ProgressCallback ProgressCallback
 }
 
+// CreatePlan describes the work mkbrr would use to create a torrent without hashing it.
+type CreatePlan struct {
+	ContentSize          int64    `json:"content_size"`
+	PieceLengthExponent  uint     `json:"piece_length_exponent"`
+	PieceLengthBytes     int64    `json:"piece_length_bytes"`
+	PredictedTorrentSize uint64   `json:"predicted_torrent_size"`
+	TrackerSizeLimit     uint64   `json:"tracker_size_limit"`
+	Notices              []Notice `json:"notices"`
+}
+
 // Torrent represents a torrent file with additional functionality
 type Torrent struct {
 	*metainfo.MetaInfo
@@ -68,7 +81,6 @@ type fileEntry struct {
 type fileReader struct {
 	file     *os.File
 	position int64
-	length   int64
 }
 
 // TorrentInfo contains summary information about the created torrent

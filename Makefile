@@ -154,7 +154,7 @@ clean:
 
 # GUI targets
 WAILS=$(GOBIN)/wails
-WAILS_VERSION=v2.12.0
+WAILS_VERSION=v2.13.0
 
 # install wails cli
 .PHONY: install-wails

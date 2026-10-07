@@ -1,3 +1,6 @@
+// Copyright (c) 2025-2026, s0up4200 <s0up4200@pm.me> and the mkbrr contributors.
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 package preset
 
 import (
@@ -5,6 +8,9 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestOutputDirMerging(t *testing.T) {
@@ -257,4 +263,24 @@ func TestSaveFixesExistingPresetFilePermissions(t *testing.T) {
 	if got := dirInfo.Mode().Perm(); got != 0o700 {
 		t.Fatalf("preset dir mode = %o, want 700", got)
 	}
+}
+
+func TestPresetValuesLeavesAbsentKeysUnset(t *testing.T) {
+	config := &Config{
+		Version: 1,
+		Default: &Options{NoCreator: new(false)},
+		Presets: map[string]Options{"p": {Source: "SRC"}},
+	}
+
+	values, err := config.PresetValues("p")
+	require.NoError(t, err)
+	assert.Nil(t, values.Private)
+	assert.Nil(t, values.NoDate)
+	assert.Equal(t, new(false), values.NoCreator)
+	assert.Equal(t, "SRC", values.Source)
+
+	filled, err := config.GetPreset("p")
+	require.NoError(t, err)
+	assert.Equal(t, new(true), filled.Private)
+	assert.Equal(t, new(false), filled.NoDate)
 }

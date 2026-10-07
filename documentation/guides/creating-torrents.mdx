@@ -1,0 +1,119 @@
+---
+title: Creating torrents
+description: Learn how to create .torrent files from local files or directories using the mkbrr create command
+icon: play
+---
+
+import CreateParams from '/snippets/create-params.mdx';
+
+The `mkbrr create` command is used to generate new `.torrent` files from local files or directories.
+
+```bash
+mkbrr create [path] [flags]
+```
+
+This command supports creating torrents for single files or entire directories. It also integrates with [Presets](/features/presets) and [Batch Mode](/features/batch-mode) for more advanced workflows.
+
+<CardGroup>
+  <Card title="Arguments" icon="list-check" href="#arguments">
+    Required and optional command arguments
+  </Card>
+  <Card title="Flags" icon="flag" href="#flags">
+    Available command flags and options
+  </Card>
+  <Card title="Smart Defaults" icon="wand-magic-sparkles" href="#smart-defaults">
+    Automatic optimizations and settings
+  </Card>
+  <Card title="Examples" icon="code" href="#examples">
+    Common usage examples
+  </Card>
+</CardGroup>
+
+## Smart Defaults
+
+mkbrr automatically optimizes several settings for you:
+
+<CardGroup cols={2}>
+  <Card title="Piece Size" icon="puzzle-piece">
+    Automatically calculated based on content size for optimal performance and tracker compatibility
+  </Card>
+  <Card title="File Name" icon="file">
+    Generated from tracker domain and content name if not specified (e.g., `tracker-domain_content-name.torrent`)
+  </Card>
+  <Card title="Private Flag" icon="lock">
+    Enabled by default for private tracker compatibility. Use `--private=false` for public trackers
+  </Card>
+  <Card title="Tracker Rules" icon="shield" href="/features/tracker-rules">
+    Automatically enforces piece size limits and other requirements based on tracker URL. See [Tracker Rules](/features/tracker-rules) for details.
+  </Card>
+</CardGroup>
+
+<Note>
+When you provide a tracker URL via the `-t` flag or presets, mkbrr automatically detects and applies the appropriate tracker-specific rules to ensure your torrents are compliant.
+</Note>
+
+## Arguments
+
+-   `[path]`: (Required unless using `-b`) The path to the source file or directory you want to create a torrent from.
+
+## Flags
+
+<CreateParams />
+
+## Handling Symbolic Links
+
+When `mkbrr create` encounters symbolic links (symlinks) within the source path:
+
+-   **Links are followed:** `mkbrr` reads the content of the file or directory the link points to (the target).
+-   **Target content is hashed:** The torrent pieces will contain the hash data of the *target* file's content.
+-   **Link path is stored:** The file path recorded inside the `.torrent` file's metadata will be the path of the *symbolic link itself*, relative to the source path, not the path of the target.
+
+The `.torrent` file does not record that a file was a link. `mkbrr check` does not know that a file was a link. It reads the file that the link points to at the time of the check, and compares that content with the stored hashes.
+<Warning>
+If the target of a link changed or moved after you created the torrent, `mkbrr check` fails for the pieces of that file.
+</Warning>
+
+## Examples
+
+<Tabs>
+  <Tab title="Basic Usage">
+    Create a private torrent for a single file:
+    ```bash
+    mkbrr create /path/to/movie.mkv -t https://private-tracker.com/announce -s "MyTracker"
+    ```
+
+    Create a public torrent for a directory:
+    ```bash
+    mkbrr create /path/to/album-folder -t udp://public-tracker.org:6969/announce --private=false -c "Awesome Album"
+    ```
+  </Tab>
+
+  <Tab title="Advanced Features">
+    Create using a preset:
+    ```bash
+    mkbrr create /path/to/content -P mypreset
+    ```
+
+    Create with specific piece size and web seeds:
+    ```bash
+    mkbrr create /path/to/large-file.iso -t https://tracker.net/a -l 24 -w http://seed.example.com/large-file.iso
+    ```
+
+    Create with entropy for cross-seeding:
+    ```bash
+    mkbrr create /path/to/content -t https://another-tracker.com/announce -e
+    ```
+  </Tab>
+
+  <Tab title="File Filtering">
+    Create excluding certain files:
+    ```bash
+    mkbrr create /path/to/project/ -t https://tracker.net/a --exclude ".*,*.tmp,node_modules"
+    ```
+
+    Create including only video files:
+    ```bash
+    mkbrr create /path/to/mixed-folder/ -t https://tracker.net/a --include "*.mkv,*.mp4,*.avi"
+    ```
+  </Tab>
+</Tabs>

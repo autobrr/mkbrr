@@ -1,0 +1,192 @@
+---
+title: 'Development & Contribution'
+description: 'Information on building mkbrr from source, running tests, and contributing.'
+icon: code-pull-request
+---
+
+## Prerequisites
+
+Before you begin, ensure you have the following installed on your system:
+
+<Steps>
+  <Step title="Install Go" icon="golang">
+    Install Go version 1.27.0 or higher
+    <CodeGroup>
+      ```bash macOS
+      brew install go
+      ```
+      ```bash Linux (apt)
+      sudo apt install golang
+      ```
+      ```bash Windows
+      choco install golang
+      ```
+    </CodeGroup>
+    Verify installation:
+    ```bash
+    go version
+    ```
+  </Step>
+
+  <Step title="Install Git" icon="git">
+    Required for version control and building from source
+    <CodeGroup>
+      ```bash macOS
+      brew install git
+      ```
+      ```bash Linux (apt)
+      sudo apt install git
+      ```
+      ```bash Windows
+      choco install git
+      ```
+    </CodeGroup>
+  </Step>
+
+  <Step title="Install Make" icon="terminal">
+    Required for running build commands
+    <CodeGroup>
+      ```bash macOS
+      # Included with Xcode Command Line Tools
+      xcode-select --install
+      ```
+      ```bash Linux (apt)
+      sudo apt install make
+      ```
+      ```bash Windows
+      choco install make
+      ```
+    </CodeGroup>
+  </Step>
+</Steps>
+
+<Note>
+  For other package managers or installation methods, please refer to the official documentation:
+  - [Go Installation Guide](https://golang.org/doc/install)
+  - [Git Installation Guide](https://git-scm.com/downloads)
+  - [Make Installation Guide](https://www.gnu.org/software/make/)
+</Note>
+
+## Building from Source
+
+<Steps>
+  1. **Clone Repository**
+     ```bash
+     git clone https://github.com/autobrr/mkbrr.git
+     ```
+
+  2. **Change Directory**
+     ```bash
+     cd mkbrr
+     ```
+
+  3. **Build Binary**
+     ```bash
+     make build
+     ```
+</Steps>
+
+<Info>
+  The binary will be created in the `build/` directory with version information from git tags
+</Info>
+
+## Development Commands
+
+<Accordion title="Common Commands Reference" icon="terminal">
+  ### Build Commands
+  ```bash
+  make build          # Build the binary
+  make clean          # Remove build artifacts
+  make all            # Clean, build, and install the binary
+  make install        # Install the binary in GOPATH
+  ```
+
+  ### PGO (Profile-Guided Optimization)
+  ```bash
+  make profile        # Generate a PGO profile (run before build-pgo)
+  make build-pgo      # Build the binary with PGO optimization
+  make install-pgo    # Install the PGO-optimized binary
+  ```
+
+  ### GUI Commands
+  ```bash
+  make install-wails  # Install the Wails CLI (one-time requirement)
+  make gui-dev        # Run the GUI in development mode
+  make gui-build      # Build the GUI for the current platform
+  make gui-build-all  # Build the GUI for all platforms
+  make gui-clean      # Clean GUI build artifacts
+  ```
+
+  ### Testing Commands
+  ```bash
+  make test             # Run tests (excluding large tests)
+  make test-race        # Run all tests with race detector
+  make test-race-short  # Run quick tests with race detector
+  make test-large       # Run large tests (resource intensive)
+  make test-coverage    # Run tests with coverage report
+  ```
+
+  ### Quality Tools
+  ```bash
+  make lint             # Run golangci-lint
+  ```
+</Accordion>
+
+<Tip>
+  Run `make help` to see all available commands and their descriptions
+</Tip>
+
+## Contributing
+
+<Note>
+Thanks for taking interest in contributing! We welcome anyone who wants to contribute. If you have an idea for a bigger feature or a change, please discuss it first by opening an issue or joining our [Discord](https://discord.gg/WQ2eUycxyT).
+
+The code and this documentation are in the [mkbrr repository](https://github.com/autobrr/mkbrr). The documentation is in `documentation/`. Open pull requests against the `develop` branch.
+</Note>
+
+<Steps>
+  <Step title="Ways to Contribute" icon="handshake-angle">
+    - <Icon icon="code" /> New features and improvements
+    - <Icon icon="bug" /> Bug fixes and reports
+    - <Icon icon="book" /> Documentation updates
+    - <Icon icon="comments" /> Community support
+  </Step>
+
+  <Step title="Getting Started" icon="rocket">
+    1. Fork the [mkbrr repository](https://github.com/autobrr/mkbrr/fork)
+    2. Clone your fork: `git clone https://github.com/YOURNAME/mkbrr.git`
+    3. Create a feature branch: `git checkout -b feat/your-feature`
+    4. Make your changes following our guidelines
+  </Step>
+
+  <Step title="Submit Changes" icon="code-pull-request">
+    - Reference related issues
+    - Mark as Draft if work in progress
+    - Keep changes focused and atomic
+    - Be responsive to review feedback
+  </Step>
+</Steps>
+
+<Accordion title="Development Guidelines">
+  ### Commit Guidelines
+  We follow [Conventional Commit Guidelines](https://www.conventionalcommits.org/en/v1.0.0/#summary):
+  - `feat(core): add new torrent validation`
+  - `fix(filter): correct pattern matching`
+  - `docs(api): update endpoint documentation`
+
+  No need for force pushing or rebasing - we squash commits on merge.
+
+  ### Code Style
+  - Try to follow Go best practices and idioms
+  - Use meaningful variable and function names
+  - Add comments for complex logic
+  - Keep functions focused and concise
+  - Run `go fmt` or `gofumpt` before committing
+</Accordion>
+
+## License
+
+<Note>
+mkbrr is licensed under the **GNU General Public License v2.0**.
+See the [LICENSE](https://github.com/autobrr/mkbrr/blob/main/LICENSE) file for full details.
+</Note>

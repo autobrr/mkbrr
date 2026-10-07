@@ -1,3 +1,6 @@
+// Copyright (c) 2025-2026, s0up4200 <s0up4200@pm.me> and the mkbrr contributors.
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 package torrent
 
 import (
@@ -9,10 +12,12 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strconv"
 	"sync"
 	"testing"
 
 	"github.com/autobrr/mkbrr/internal/trackers"
+	"github.com/stretchr/testify/assert"
 )
 
 // mockDisplay implements Displayer interface for testing
@@ -79,7 +84,7 @@ func TestPieceHasher_Concurrent(t *testing.T) {
 			}
 
 			files, expectedHashes := createTestFilesFast(t, tt.numFiles, tt.fileSize, tt.pieceLen)
-			hasher := NewPieceHasher(files, tt.pieceLen, tt.numPieces, &mockDisplay{}, false)
+			hasher := newPieceHasher(files, tt.pieceLen, tt.numPieces, &mockDisplay{})
 
 			// test with different worker counts
 			workerCounts := []int{1, 2, 4, 8}
@@ -259,7 +264,7 @@ func TestNewPieceHasher_PrecomputesPieceLayout(t *testing.T) {
 		{path: "c", length: 2, offset: 8},
 	}
 
-	hasher := NewPieceHasher(files, 4, 3, &mockDisplay{}, false)
+	hasher := newPieceHasher(files, 4, 3, &mockDisplay{})
 
 	if hasher.totalSize != 10 {
 		t.Fatalf("expected total size 10, got %d", hasher.totalSize)
@@ -276,7 +281,7 @@ func TestNewPieceHasher_PrecomputesPieceLayout(t *testing.T) {
 }
 
 func TestNewPieceHasher_PreallocatesPieceHashStorage(t *testing.T) {
-	hasher := NewPieceHasher(nil, 1<<16, 3, &mockDisplay{}, false)
+	hasher := newPieceHasher(nil, 1<<16, 3, &mockDisplay{})
 
 	if len(hasher.pieceHashStorage) != 3*sha1.Size {
 		t.Fatalf("expected hash storage size %d, got %d", 3*sha1.Size, len(hasher.pieceHashStorage))
@@ -374,7 +379,7 @@ func TestPieceHasher_EdgeCases(t *testing.T) {
 				t.Skip("skipping unreadable file test when running as root")
 			}
 			files := tt.setup()
-			hasher := NewPieceHasher(files, tt.pieceLen, tt.numPieces, &mockDisplay{}, false)
+			hasher := newPieceHasher(files, tt.pieceLen, tt.numPieces, &mockDisplay{})
 
 			err := hasher.hashPieces(2)
 			if (err != nil) != tt.wantErr {
@@ -409,7 +414,7 @@ func TestPieceHasher_RaceConditions(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			hasher := NewPieceHasher(files, pieceLen, numPieces, &mockDisplay{}, false)
+			hasher := newPieceHasher(files, pieceLen, numPieces, &mockDisplay{})
 			if err := hasher.hashPieces(4); err != nil {
 				t.Errorf("hashPieces failed: %v", err)
 				return
@@ -421,7 +426,7 @@ func TestPieceHasher_RaceConditions(t *testing.T) {
 }
 
 func TestPieceHasher_NoFiles(t *testing.T) {
-	hasher := NewPieceHasher([]fileEntry{}, 1<<16, 0, &mockDisplay{}, false)
+	hasher := newPieceHasher([]fileEntry{}, 1<<16, 0, &mockDisplay{})
 
 	err := hasher.hashPieces(0)
 	if err != nil {
@@ -459,7 +464,7 @@ func TestPieceHasher_ZeroWorkers(t *testing.T) {
 	}
 	f.Close()
 
-	hasher := NewPieceHasher(files, 1<<16, 1, &mockDisplay{}, false)
+	hasher := newPieceHasher(files, 1<<16, 1, &mockDisplay{})
 
 	// Calling with 0 workers should now trigger automatic optimization or default to 1 worker,
 	// so it should NOT return an error in this case.
@@ -487,13 +492,25 @@ func TestPieceHasher_OptimizeForWorkload_RespectsPlatformWorkerCap(t *testing.T)
 	}
 
 	numPieces := int((offset + (1 << 20) - 1) / (1 << 20))
-	hasher := NewPieceHasher(files, 1<<20, numPieces, &mockDisplay{}, false)
+	hasher := newPieceHasher(files, 1<<20, numPieces, &mockDisplay{})
 
-	_, workers := hasher.optimizeForWorkload()
+	readSize, workers := hasher.optimizeForWorkload()
 	maxWorkers := autoWorkerCount(cpuCount, true, runtime.GOOS)
 	if workers > maxWorkers {
 		t.Fatalf("expected workers <= platform cap (%d), got %d", maxWorkers, workers)
 	}
+	assert.LessOrEqual(t, int64(readSize), hasher.pieceLen)
+}
+
+func TestPieceHasher_OptimizeForWorkload_LargePieceLengthOn32Bit(t *testing.T) {
+	if strconv.IntSize != 32 {
+		t.Skip("requires a 32-bit build")
+	}
+
+	hasher := newPieceHasher([]fileEntry{{length: 1 << 30}}, 1<<32, 1, &mockDisplay{})
+
+	readSize, _ := hasher.optimizeForWorkload()
+	assert.Equal(t, 8<<20, readSize)
 }
 
 func TestPieceHasher_CorruptedData(t *testing.T) {
@@ -516,7 +533,7 @@ func TestPieceHasher_CorruptedData(t *testing.T) {
 		t.Fatalf("failed to write corrupted file: %v", err)
 	}
 
-	hasher := NewPieceHasher(files, 1<<16, 1, &mockDisplay{}, false)
+	hasher := newPieceHasher(files, 1<<16, 1, &mockDisplay{})
 	if err := hasher.hashPieces(1); err != nil {
 		t.Fatalf("hashPieces failed: %v", err)
 	}
@@ -578,7 +595,7 @@ func TestPieceHasher_BoundaryConditions(t *testing.T) {
 			for _, workers := range workerCounts {
 				t.Run(fmt.Sprintf("workers_%d", workers), func(t *testing.T) {
 					// Need to create a new hasher instance for each run if pieces are modified in place
-					currentHasher := NewPieceHasher(files, pieceLen, int(numPieces), &mockDisplay{}, false)
+					currentHasher := newPieceHasher(files, pieceLen, int(numPieces), &mockDisplay{})
 					if err := currentHasher.hashPieces(workers); err != nil {
 						t.Fatalf("hashPieces failed with %d workers: %v", workers, err)
 					}
@@ -705,7 +722,8 @@ func TestTorrentFileSize(t *testing.T) {
 						t.Fatalf("failed to stat torrent file: %v", err)
 					}
 
-					if maxSize, ok := trackers.GetTrackerMaxTorrentSize(tt.trackerURL); ok {
+					if rules, _ := trackers.Lookup(tt.trackerURL); rules.MaxTorrentSize > 0 {
+						maxSize := rules.MaxTorrentSize
 						if uint64(info.Size()) > maxSize {
 							t.Errorf("torrent file size %d exceeds tracker limit %d", info.Size(), maxSize)
 						} else {

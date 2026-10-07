@@ -1,3 +1,6 @@
+// Copyright (c) 2026, s0up4200 <s0up4200@pm.me> and the mkbrr contributors.
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 package torrent
 
 import (
@@ -58,8 +61,8 @@ func benchmarkPieceVerifier(b *testing.B, name string, fileSizes []int64, pieceL
 			if err := verifier.verifyPieces(0); err != nil {
 				b.Fatalf("verifyPieces failed: %v", err)
 			}
-			if verifier.badPieces != 0 || verifier.goodPieces != uint64(len(expectedHashes)) {
-				b.Fatalf("unexpected verification result: good=%d bad=%d", verifier.goodPieces, verifier.badPieces)
+			if verifier.badPieces.Load() != 0 || verifier.goodPieces.Load() != uint64(len(expectedHashes)) {
+				b.Fatalf("unexpected verification result: good=%d bad=%d", verifier.goodPieces.Load(), verifier.badPieces.Load())
 			}
 		}
 	})

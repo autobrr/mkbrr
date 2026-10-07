@@ -36,8 +36,8 @@
         },
         "piece_length": {
           "type": "integer",
-          "description": "Piece length as 2^n bytes (16-27)",
-          "minimum": 16,
+          "description": "Piece length as 2^n bytes (16-27, or 14-27 for a tracker with its own piece size table)",
+          "minimum": 14,
           "maximum": 27
         },
         "target_piece_count": {
@@ -56,6 +56,10 @@
         "no_date": {
           "type": "boolean",
           "description": "Don't write creation date"
+        },
+        "skip_prefix": {
+          "type": "boolean",
+          "description": "Leave out the filename prefix from the output filename"
         },
         "exclude_patterns": {
           "type": "array",
@@ -102,8 +106,8 @@
           },
           "piece_length": {
             "type": "integer",
-            "description": "Piece length as 2^n bytes (16-27)",
-            "minimum": 16,
+            "description": "Piece length as 2^n bytes (16-27, or 14-27 for a tracker with its own piece size table)",
+            "minimum": 14,
             "maximum": 27
           },
           "target_piece_count": {
@@ -123,10 +127,14 @@
             "type": "boolean",
             "description": "Don't write creation date"
           },
+          "skip_prefix": {
+            "type": "boolean",
+            "description": "Leave out the filename prefix from the output filename"
+          },
           "max_piece_length": {
             "type": "integer",
-            "description": "Maximum piece length as 2^n bytes (16-27)",
-            "minimum": 16,
+            "description": "Maximum piece length as 2^n bytes (16-27, or 14-27 for a tracker with its own piece size table when target piece count is not set)",
+            "minimum": 14,
             "maximum": 27
           },
           "exclude_patterns": {

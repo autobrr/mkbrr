@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026, s0up4200 <s0up4200@pm.me> and the mkbrr contributors.
+ * SPDX-License-Identifier: GPL-2.0-or-later
+ */
+
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { AlertTriangle } from 'lucide-react';
 

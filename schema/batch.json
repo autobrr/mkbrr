@@ -44,13 +44,19 @@
           "private": {
             "type": "boolean",
             "description": "Make torrent private",
-            "default": false
+            "default": true
           },
           "piece_length": {
             "type": "integer",
             "description": "Piece length exponent (2^n bytes)",
             "minimum": 14,
-            "maximum": 24
+            "maximum": 27
+          },
+          "max_piece_length": {
+            "type": "integer",
+            "description": "Maximum piece length as 2^n bytes (16-27, or 14-27 for a tracker with its own piece size table when target piece count is not set)",
+            "minimum": 14,
+            "maximum": 27
           },
           "target_piece_count": {
             "type": "integer",
@@ -68,6 +74,11 @@
           "no_date": {
             "type": "boolean",
             "description": "Don't write creation date",
+            "default": false
+          },
+          "no_creator": {
+            "type": "boolean",
+            "description": "Don't write creator",
             "default": false
           },
           "skip_prefix": {

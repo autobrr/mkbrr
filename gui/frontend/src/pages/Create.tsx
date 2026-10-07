@@ -1,4 +1,9 @@
-import { useState, useEffect } from 'react';
+/*
+ * Copyright (c) 2026, s0up4200 <s0up4200@pm.me> and the mkbrr contributors.
+ * SPDX-License-Identifier: GPL-2.0-or-later
+ */
+
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -21,7 +26,6 @@ import { DropOverlay } from '@/components/ui/drop-overlay';
 import { main, preset as presetTypes } from '../../wailsjs/go/models';
 
 // Re-export types from generated models
-type CreateRequest = main.CreateRequest;
 type TorrentResultType = main.TorrentResult;
 type PresetOptions = presetTypes.Options;
 type TrackerInfoType = main.TrackerInfo;
@@ -162,6 +166,7 @@ export function CreatePage() {
   const [error, setError] = useState('');
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [trackerInfo, setTrackerInfo] = useState<TrackerInfoType | null>(null);
+  const [defaultSource, setDefaultSource] = useState('');
   const [contentSize, setContentSize] = useState<number>(0);
   const [recommendedPieceSize, setRecommendedPieceSize] = useState<number>(0);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -224,18 +229,22 @@ export function CreatePage() {
       const validTrackers = trackers.filter(t => t.trim() !== '');
       if (validTrackers.length === 0) {
         setTrackerInfo(null);
+        setDefaultSource('');
         return;
       }
 
       // Check each tracker URL
-      for (const tracker of validTrackers) {
+      for (const [i, tracker] of validTrackers.entries()) {
         try {
           const info = await GetTrackerInfo(tracker);
+          // Like the resolver, take the default source from the first tracker only.
+          if (i === 0) setDefaultSource(info?.defaultSource ?? '');
           if (info && info.hasCustomRules) {
             setTrackerInfo(info);
             return;
           }
         } catch (e) {
+          if (i === 0) setDefaultSource('');
           toast.error('Failed to get tracker info: ' + String(e));
         }
       }
@@ -245,6 +254,15 @@ export function CreatePage() {
     const debounce = setTimeout(checkTrackers, 300);
     return () => clearTimeout(debounce);
   }, [trackers]);
+
+  // The source field is an override, so put the tracker default source into it.
+  // Replace the field only when it is empty or still holds the previous tracker default.
+  const lastDefaultSource = useRef('');
+  useEffect(() => {
+    const previous = lastDefaultSource.current;
+    lastDefaultSource.current = defaultSource;
+    setSource(current => (current === '' || current === previous ? defaultSource : current));
+  }, [defaultSource]);
 
   // Get content size when path changes
   useEffect(() => {
@@ -442,32 +460,27 @@ export function CreatePage() {
     setDialogOpen(true);
 
     try {
-      // Get workers from settings (preset workers override default if set)
-      const workers = getEffectiveWorkers();
+      // Workers from settings. The backend gives a preset value priority over it.
+      const defaultWorkers = getEffectiveWorkers();
 
-      const req: CreateRequest = {
+      // createFrom leaves out the fields the form does not have, so the preset fills them.
+      // An empty web seed list would hide the preset web seeds.
+      const req = main.CreateRequest.createFrom({
         path,
         name,
         trackerUrls: trackers.filter(t => t.trim() !== ''),
-        webSeeds: [],
         isPrivate,
         comment,
         source,
-        pieceLengthExp,
-        maxPieceLength: 0,
-        outputPath: '',
-        outputDir,
+        pieceLengthExp: pieceLengthExp || undefined,
+        outputDir: outputDir || undefined,
         noDate,
         noCreator,
         entropy,
-        skipPrefix: false,
-        excludePatterns: [],
-        includePatterns: [],
-        presetName,
-        presetFile: '',
-        workers,
         failOnSeasonWarning,
-      };
+        presetName,
+        defaultWorkers,
+      });
 
       const res = await CreateTorrent(req);
       setResult(res as TorrentResultType);

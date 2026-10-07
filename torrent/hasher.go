@@ -1,3 +1,6 @@
+// Copyright (c) 2025-2026, s0up4200 <s0up4200@pm.me> and the mkbrr contributors.
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 package torrent
 
 import (
@@ -24,9 +27,8 @@ type pieceHasher struct {
 	pieceStartFiles  []int
 	reusablePieces   map[int][]byte
 
-	startTime               time.Time
-	bytesProcessed          int64
-	failOnSeasonPackWarning bool
+	startTime      time.Time
+	bytesProcessed atomic.Int64
 }
 
 // optimizeForWorkload determines optimal read buffer size and number of worker goroutines
@@ -40,12 +42,6 @@ func (h *pieceHasher) optimizeForWorkload() (int, int) {
 		return 0, 0
 	}
 
-	maxFileSize := int64(0)
-	for _, f := range h.files {
-		if f.length > maxFileSize {
-			maxFileSize = f.length
-		}
-	}
 	avgFileSize := h.totalSize / int64(len(h.files))
 
 	var readSize, numWorkers int
@@ -76,6 +72,10 @@ func (h *pieceHasher) optimizeForWorkload() (int, int) {
 		readSize = 8 << 20 // 8 MiB
 		numWorkers = defaultWorkerCount(true)
 	}
+
+	// reads never exceed pieceLen, so a larger buffer is wasted memory per worker;
+	// compare in int64: int(pieceLen) wraps on 32-bit for huge piece lengths
+	readSize = int(min(int64(readSize), h.pieceLen))
 
 	// ensure we don't create more workers than pieces to process
 	if numWorkers > h.numPieces {
@@ -126,17 +126,9 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 	}
 
 	h.startTime = time.Now()
-	h.bytesProcessed = 0
+	h.bytesProcessed.Store(0)
 
 	h.display.ShowFiles(h.files, numWorkers)
-
-	seasonInfo := AnalyzeSeasonPack(h.files)
-
-	h.display.ShowSeasonPackWarnings(seasonInfo)
-
-	if seasonInfo.IsSuspicious && h.failOnSeasonPackWarning {
-		return fmt.Errorf("season pack is suspicious, and --fail-on-season-warning is enabled")
-	}
 
 	var completedPieces uint64
 	piecesPerWorker := (h.numPieces + numWorkers - 1) / numWorkers
@@ -176,7 +168,7 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 				return
 			case <-ticker.C:
 				completed := atomic.LoadUint64(&completedPieces)
-				bytesProcessed := atomic.LoadInt64(&h.bytesProcessed)
+				bytesProcessed := h.bytesProcessed.Load()
 				elapsed := time.Since(h.startTime).Seconds()
 
 				var hashrate float64
@@ -224,12 +216,13 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 	defer h.bufferPool.Put(buf)
 
 	hasher := sha1.New()
-	readers := make([]*fileReader, len(h.files))
+	// pieces and the files within them are processed in ascending order, so a
+	// single open reader suffices: one FD per worker regardless of file count
+	var reader *fileReader
+	readerIndex := -1
 	defer func() {
-		for _, reader := range readers {
-			if reader != nil {
-				_ = reader.file.Close()
-			}
+		if reader != nil {
+			_ = reader.file.Close()
 		}
 	}()
 
@@ -263,8 +256,10 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 				continue
 			}
 
-			reader := readers[fileIndex]
-			if reader == nil {
+			if readerIndex != fileIndex {
+				if reader != nil {
+					_ = reader.file.Close()
+				}
 				f, err := os.Open(file.path)
 				if err != nil {
 					return fmt.Errorf("failed to open file %s: %w", file.path, err)
@@ -272,9 +267,8 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 				reader = &fileReader{
 					file:     f,
 					position: 0,
-					length:   file.length,
 				}
-				readers[fileIndex] = reader
+				readerIndex = fileIndex
 			}
 
 			if reader.position != readStart {
@@ -313,7 +307,7 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 		}
 
 		if bytesHashed > 0 {
-			atomic.AddInt64(&h.bytesProcessed, bytesHashed)
+			h.bytesProcessed.Add(bytesHashed)
 		}
 
 		h.pieces[pieceIndex] = hasher.Sum(h.pieces[pieceIndex][:0])
@@ -368,7 +362,7 @@ func buildPieceLayout(files []fileEntry, pieceLen int64, numPieces int) (int64, 
 	return totalSize, lastPieceLength, pieceStartFiles
 }
 
-func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Displayer, failOnSeasonPackWarning bool) *pieceHasher {
+func newPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Displayer) *pieceHasher {
 	totalSize, lastPieceLength, pieceStartFiles := buildPieceLayout(files, pieceLen, numPieces)
 	pieceHashStorage := make([]byte, numPieces*sha1.Size)
 	pieces := make([][]byte, numPieces)
@@ -378,15 +372,14 @@ func NewPieceHasher(files []fileEntry, pieceLen int64, numPieces int, display Di
 	}
 
 	return &pieceHasher{
-		pieces:                  pieces,
-		pieceHashStorage:        pieceHashStorage,
-		pieceLen:                pieceLen,
-		numPieces:               numPieces,
-		files:                   files,
-		display:                 display,
-		totalSize:               totalSize,
-		lastPieceLength:         lastPieceLength,
-		pieceStartFiles:         pieceStartFiles,
-		failOnSeasonPackWarning: failOnSeasonPackWarning,
+		pieces:           pieces,
+		pieceHashStorage: pieceHashStorage,
+		pieceLen:         pieceLen,
+		numPieces:        numPieces,
+		files:            files,
+		display:          display,
+		totalSize:        totalSize,
+		lastPieceLength:  lastPieceLength,
+		pieceStartFiles:  pieceStartFiles,
 	}
 }

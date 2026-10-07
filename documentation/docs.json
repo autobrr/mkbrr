@@ -1,0 +1,123 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "mkbrr",
+  "logo": {
+    "light": "/logo-light.png",
+    "dark": "/logo-dark.png"
+  },
+  "colors": {
+    "primary": "#1C85D7",
+    "light": "#1C85D7",
+    "dark": "#1C85D7"
+  },
+  "favicon": "/favicon.png",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart",
+              "gui/overview"
+            ]
+          },
+          {
+            "group": "Usage",
+            "pages": [
+              "guides/creating-torrents",
+              "guides/inspecting-torrents",
+              "guides/modifying-torrents",
+              "guides/checking-data"
+            ]
+          },
+          {
+            "group": "Features",
+            "pages": [
+              "features/presets",
+              "features/batch-mode",
+              "features/tracker-rules",
+              "features/season-packs",
+              "features/filtering"
+            ]
+          },
+          {
+            "group": "Performance",
+            "pages": [
+              "performance/benchmarks"
+            ]
+          },
+          {
+            "group": "Development",
+            "pages": [
+              "development"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "CLI Reference",
+        "pages": [
+          "cli-reference/introduction",
+          "cli-reference/create",
+          "cli-reference/inspect",
+          "cli-reference/modify",
+          "cli-reference/check",
+          "cli-reference/update",
+          "cli-reference/version"
+        ]
+      },
+      {
+        "tab": "Changelog",
+        "pages": [
+          "changelog"
+        ]
+      }
+    ],
+    "global": {
+      "anchors": [
+        {
+          "anchor": "Github",
+          "href": "https://github.com/autobrr/mkbrr",
+          "icon": "github"
+        },
+        {
+          "anchor": "Discord",
+          "href": "https://discord.gg/WehFCZxq5B",
+          "icon": "discord"
+        },
+        {
+          "anchor": "Sponsor",
+          "href": "https://github.com/sponsors/s0up4200",
+          "icon": "heart"
+        }
+      ]
+    }
+  },
+  "contextual": {
+    "options": ["copy", "view", "chatgpt", "claude"]
+  },
+  "seo": {
+    "metatags": {
+      "description": "mkbrr - A powerful CLI and GUI tool for creating, inspecting, modifying, and checking torrents",
+      "keywords": "torrent, bittorrent, cli, gui, tool, mkbrr, autobrr"
+    },
+    "indexing": "navigable"
+  },
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/autobrr/mkbrr"
+    }
+  },
+  "footer": {
+    "socials": {
+      "discord": "https://discord.gg/WehFCZxq5B",
+      "github": "https://github.com/autobrr/mkbrr"
+    }
+  }
+}

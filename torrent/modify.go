@@ -1,42 +1,67 @@
+// Copyright (c) 2025-2026, s0up4200 <s0up4200@pm.me> and the mkbrr contributors.
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 package torrent
 
 import (
+	"cmp"
+	"errors"
 	"fmt"
 	"os"
 	"time"
 
-	"github.com/autobrr/go-torrent/bencode"
 	"github.com/autobrr/go-torrent/metainfo"
 
 	"github.com/autobrr/mkbrr/internal/preset"
 )
 
-// ModifyOptions represents the options for modifying a torrent,
-// including both preset-related options and flag-based overrides.
+// ModifySettings are the modify settings that a caller gives as overrides.
+// The CLI and the GUI build this type. Each setting is keep, set, or clear:
+//   - keep: the zero value. The preset applies if it sets the setting,
+//     otherwise the torrent keeps its current value.
+//   - set: a value.
+//   - clear: an empty Comment or Source, or the No field of the setting.
+//
+// Only an override can clear a setting. A preset cannot clear.
+// The flag tag names the CLI flag, and the preset tag names the preset key.
+// A field with no preset tag has no preset key.
+// TestSettingsParity in cmd checks both tags.
+type ModifySettings struct {
+	TrackerURLs   []string `json:"trackerUrls" flag:"tracker" preset:"trackers"`       // replaces the trackers; empty keeps
+	WebSeeds      []string `json:"webSeeds" flag:"web-seed" preset:"webseeds"`         // replaces the web seeds; empty keeps
+	Name          string   `json:"name" flag:"name"`                                   // empty keeps
+	Comment       *string  `json:"comment" flag:"comment" preset:"comment"`            // empty clears
+	Source        *string  `json:"source" flag:"source" preset:"source"`               // empty clears
+	IsPrivate     *bool    `json:"isPrivate" flag:"private" preset:"private"`          // sets the private flag
+	NoPrivate     bool     `json:"noPrivate" flag:"no-private"`                        // clears the private flag; wins over IsPrivate
+	NoDate        bool     `json:"noDate" flag:"no-date" preset:"no_date"`             // clears the creation date
+	NoCreator     bool     `json:"noCreator" flag:"no-creator" preset:"no_creator"`    // clears the creator
+	Entropy       *bool    `json:"entropy" flag:"entropy" preset:"entropy"`            // true writes a new entropy value; false keeps, also over a preset
+	NoEntropy     bool     `json:"noEntropy" flag:"no-entropy"`                        // clears the entropy field
+	OutputDir     string   `json:"outputDir" flag:"output-dir" preset:"output_dir"`    // empty uses the preset output dir
+	OutputPattern string   `json:"outputPattern" flag:"output"`                        // custom output filename, without extension
+	SkipPrefix    bool     `json:"skipPrefix" flag:"skip-prefix" preset:"skip_prefix"` // no filename prefix in the output filename
+}
+
+var errEntropyConflict = errors.New("cannot both add and remove entropy")
+
+func (s ModifySettings) validate() error {
+	if s.NoEntropy && s.Entropy != nil && *s.Entropy {
+		return errEntropyConflict
+	}
+	return nil
+}
+
+// ModifyOptions represents the options for modifying a torrent:
+// the modify settings, the preset to apply, and the runtime fields.
 type ModifyOptions struct {
-	IsPrivate      *bool
-	PieceLengthExp *uint
-	MaxPieceLength *uint
-	PresetName     string
-	PresetFile     string
-	Name           string
-	OutputDir      string
-	OutputPattern  string
-	TrackerURLs    []string
-	Comment        string
-	Source         string
-	Version        string
-	WebSeeds       []string
-	NoDate         bool
-	NoCreator      bool
-	DryRun         bool
-	Verbose        bool
-	Quiet          bool
-	Entropy        *bool
-	SkipPrefix     bool
-	SourceSet      bool // true when --source flag was explicitly provided (allows empty string to clear)
-	CommentSet     bool // true when --comment flag was explicitly provided (allows empty string to clear)
-	RemovePrivate  bool // true when --no-private flag is provided (removes private field entirely)
+	ModifySettings
+	PresetName string
+	PresetFile string
+	Version    string
+	DryRun     bool
+	Verbose    bool
+	Quiet      bool
 }
 
 // Result represents the result of modifying a torrent
@@ -65,6 +90,11 @@ func ModifyTorrent(path string, opts ModifyOptions) (*Result, error) {
 		Path: path,
 	}
 
+	if err := opts.validate(); err != nil {
+		result.Error = err
+		return result, err
+	}
+
 	// load torrent file
 	mi, err := metainfo.LoadFromFile(path)
 	if err != nil {
@@ -87,26 +117,14 @@ func ModifyTorrent(path string, opts ModifyOptions) (*Result, error) {
 			return result, result.Error
 		}
 
-		presetOpts, err = presets.GetPreset(opts.PresetName)
+		presetOpts, err = presets.PresetValues(opts.PresetName)
 		if err != nil {
 			result.Error = fmt.Errorf("could not get preset: %w", err)
 			return result, result.Error
 		}
-
-		presetOpts.Version = opts.Version
 	}
 
-	// apply preset modifications if any
-	wasModified := false
-	if presetOpts != nil {
-		wasModified, err = presetOpts.ApplyToMetaInfo(mi)
-		if err != nil {
-			result.Error = fmt.Errorf("could not apply preset: %w", err)
-			return result, result.Error
-		}
-	}
-
-	// read current info values via struct (for comparisons only — never marshal this back)
+	// read the original name before any change, for the output path
 	info, err := mi.UnmarshalInfo()
 	if err != nil {
 		result.Error = fmt.Errorf("could not unmarshal info: %w", err)
@@ -114,130 +132,16 @@ func ModifyTorrent(path string, opts ModifyOptions) (*Result, error) {
 	}
 	originalMetaInfoName := info.Name
 
-	// track info-level changes to apply via raw map at the end,
-	// preserving any custom keys (e.g. entropy) that the typed struct would drop
-	type infoChange struct {
-		key    string
-		value  any
-		remove bool
+	spec := modifySpec(opts, presetOpts)
+	wasModified, err := applyMetadata(mi, spec)
+	if err != nil {
+		result.Error = err
+		return result, result.Error
 	}
-	var infoChanges []infoChange
-
-	// apply flag-based overrides:
-	// update tracker if flag provided
-	if len(opts.TrackerURLs) > 0 {
-		mi.Announce = opts.TrackerURLs[0] // Primary announce is the first one
-		announceList := make([][]string, len(opts.TrackerURLs))
-		for i, tracker := range opts.TrackerURLs {
-			announceList[i] = []string{tracker}
-		}
-		mi.AnnounceList = announceList
-		wasModified = true
-		// Note: This overrides any trackers set by a preset
-	}
-
-	// update name if provided via flag
-	if opts.Name != "" && info.Name != opts.Name {
-		infoChanges = append(infoChanges, infoChange{key: "name", value: opts.Name})
-		wasModified = true
-	}
-
-	// update web seeds if provided via flag
-	if len(opts.WebSeeds) > 0 {
-		mi.UrlList = opts.WebSeeds
-		wasModified = true
-	}
-
-	// update comment if provided via flag (CommentSet allows clearing with empty string)
-	if opts.CommentSet {
-		if opts.Comment == "" || mi.Comment != opts.Comment {
-			mi.Comment = opts.Comment
-			wasModified = true
-		}
-	} else if opts.Comment != "" && mi.Comment != opts.Comment {
-		mi.Comment = opts.Comment
-		wasModified = true
-	}
-
-	// remove private field entirely if requested
-	if opts.RemovePrivate {
-		infoChanges = append(infoChanges, infoChange{key: "private", remove: true})
-		wasModified = true
-	} else if opts.IsPrivate != nil {
-		if info.Private == nil || *info.Private != *opts.IsPrivate {
-			val := int64(0)
-			if *opts.IsPrivate {
-				val = 1
-			}
-			infoChanges = append(infoChanges, infoChange{key: "private", value: val})
-			wasModified = true
-		}
-	}
-
-	// update source if provided via flag (SourceSet allows clearing with empty string)
-	if opts.SourceSet {
-		if opts.Source == "" {
-			// explicitly remove the source key from info dict
-			infoChanges = append(infoChanges, infoChange{key: "source", remove: true})
-			wasModified = true
-		} else if info.Source != opts.Source {
-			infoChanges = append(infoChanges, infoChange{key: "source", value: opts.Source})
-			wasModified = true
-		}
-	} else if opts.Source != "" && info.Source != opts.Source {
-		infoChanges = append(infoChanges, infoChange{key: "source", value: opts.Source})
-		wasModified = true
-	}
-
-	// apply entropy from preset if not explicitly set via flag
-	if opts.Entropy == nil && presetOpts != nil && presetOpts.Entropy != nil {
-		opts.Entropy = presetOpts.Entropy
-	}
-
-	// add random entropy field for cross-seeding if enabled
-	if opts.Entropy != nil && *opts.Entropy {
-		entropy, err := generateRandomString()
-		if err != nil {
-			result.Error = fmt.Errorf("could not generate entropy: %w", err)
-			return result, result.Error
-		}
-		infoChanges = append(infoChanges, infoChange{key: "entropy", value: entropy})
-		wasModified = true
-	}
-
-	// apply all info-level changes via raw map to preserve custom keys
-	if len(infoChanges) > 0 {
-		infoMap := make(map[string]any)
-		if err := bencode.Unmarshal(mi.InfoBytes, &infoMap); err != nil {
-			result.Error = fmt.Errorf("could not unmarshal info map: %w", err)
-			return result, result.Error
-		}
-		for _, c := range infoChanges {
-			if c.remove {
-				delete(infoMap, c.key)
-			} else {
-				infoMap[c.key] = c.value
-			}
-		}
-		infoBytes, err := bencode.Marshal(infoMap)
-		if err != nil {
-			result.Error = fmt.Errorf("could not marshal info map: %w", err)
-			return result, result.Error
-		}
-		mi.InfoBytes = infoBytes
-	}
-
-	// handle creator
-	if presetOpts != nil && presetOpts.NoCreator != nil && *presetOpts.NoCreator || opts.NoCreator {
-		mi.CreatedBy = ""
-		wasModified = true
-	}
-
-	// update creation date based on preset and command line options
-	if presetOpts != nil && presetOpts.NoDate != nil && *presetOpts.NoDate || opts.NoDate {
-		mi.CreationDate = 0
-		wasModified = true
-	} else {
+	// a kept creation date becomes now when anything else changes, or when
+	// the preset asks for a date and the torrent has none
+	presetWantsDate := presetOpts != nil && presetOpts.NoDate != nil && !*presetOpts.NoDate
+	if spec.CreationDate.action == keepField && (wasModified || presetWantsDate && mi.CreationDate == 0) {
 		mi.CreationDate = time.Now().Unix()
 		wasModified = true
 	}
@@ -251,11 +155,7 @@ func ModifyTorrent(path string, opts ModifyOptions) (*Result, error) {
 		return result, nil
 	}
 
-	// re-read info to get potentially updated name (e.g. if name was changed via infoChanges)
-	var metaInfoName string
-	if updatedInfo, infoErr := mi.UnmarshalInfo(); infoErr == nil {
-		metaInfoName = updatedInfo.Name
-	}
+	metaInfoName := cmp.Or(opts.Name, originalMetaInfoName)
 
 	basePath := path
 	if opts.OutputPattern == "" && originalMetaInfoName != "" {
@@ -275,7 +175,8 @@ func ModifyTorrent(path string, opts ModifyOptions) (*Result, error) {
 	} else {
 		trackerForOutput = ""
 	}
-	outPath := preset.GenerateOutputPath(basePath, outputDir, opts.PresetName, opts.OutputPattern, trackerForOutput, metaInfoName, opts.SkipPrefix)
+	skipPrefix := opts.SkipPrefix || presetOpts != nil && presetOpts.SkipPrefix != nil && *presetOpts.SkipPrefix
+	outPath := preset.GenerateOutputPath(basePath, outputDir, opts.PresetName, opts.OutputPattern, trackerForOutput, metaInfoName, skipPrefix)
 	result.OutputPath = outPath
 
 	// ensure output directory exists if specified
@@ -303,12 +204,94 @@ func ModifyTorrent(path string, opts ModifyOptions) (*Result, error) {
 	return result, nil
 }
 
+// modifySpec resolves the overrides in opts and the preset p into one
+// metadataSpec. The order is override, then preset, then keep. Only an
+// override can clear a setting.
+func modifySpec(opts ModifyOptions, p *preset.Options) metadataSpec {
+	if p == nil {
+		p = &preset.Options{}
+	}
+	var spec metadataSpec
+
+	switch {
+	case len(opts.TrackerURLs) > 0:
+		spec.Trackers = setTo(opts.TrackerURLs)
+	case len(p.Trackers) > 0:
+		spec.Trackers = setTo(p.Trackers)
+	}
+
+	switch {
+	case len(opts.WebSeeds) > 0:
+		spec.WebSeeds = opts.WebSeeds
+	case len(p.WebSeeds) > 0:
+		spec.WebSeeds = p.WebSeeds
+	}
+
+	spec.Comment = stringSetting(opts.Comment, p.Comment)
+	spec.Source = stringSetting(opts.Source, p.Source)
+
+	if opts.Name != "" {
+		spec.Name = setTo(opts.Name)
+	}
+
+	switch {
+	case opts.NoPrivate:
+		spec.Private = cleared[bool]()
+	case opts.IsPrivate != nil:
+		spec.Private = setTo(*opts.IsPrivate)
+	case p.Private != nil:
+		spec.Private = setTo(*p.Private)
+	}
+
+	switch {
+	case opts.NoCreator, p.NoCreator != nil && *p.NoCreator:
+		spec.CreatedBy = cleared[string]()
+	case p.NoCreator != nil:
+		spec.CreatedBy = setTo(createdBy(opts.Version))
+	}
+
+	if opts.NoDate || p.NoDate != nil && *p.NoDate {
+		spec.CreationDate = cleared[int64]()
+	}
+
+	switch {
+	case opts.NoEntropy:
+		spec.Entropy = clearField
+	case opts.Entropy != nil:
+		if *opts.Entropy {
+			spec.Entropy = setField
+		}
+	case p.Entropy != nil && *p.Entropy:
+		spec.Entropy = setField
+	}
+
+	return spec
+}
+
+// stringSetting resolves a string setting. An override sets the value, or
+// clears it when the value is empty. A preset cannot clear.
+func stringSetting(override *string, presetValue string) field[string] {
+	switch {
+	case override != nil && *override == "":
+		return cleared[string]()
+	case override != nil:
+		return setTo(*override)
+	case presetValue != "":
+		return setTo(presetValue)
+	}
+	return field[string]{}
+}
+
 // ProcessTorrents modifies multiple torrent files according to the given options.
 // It processes each torrent file and returns the results for all operations.
 // This function provides parallel processing for better performance with multiple files.
 func ProcessTorrents(paths []string, opts ModifyOptions) ([]*Result, error) {
 	if len(paths) == 0 {
 		return nil, fmt.Errorf("no torrent files specified")
+	}
+	// fail once before the first file, not once per file
+	if err := opts.validate(); err != nil {
+		return nil, err
 	}
 
 	results := make([]*Result, 0, len(paths))

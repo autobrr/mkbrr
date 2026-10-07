@@ -1,0 +1,38 @@
+---
+title: check
+description: 'Verify the integrity of content against a torrent file.'
+---
+
+import CheckParams from '/snippets/check-params.mdx';
+
+## Usage
+
+```bash
+  mkbrr check <torrent-file> <content-path> [flags]
+```
+
+## Arguments
+
+-   `<torrent-file>`: Path to the `.torrent` file. (Required)
+-   `<content-path>`: Path to the directory or file containing the data to check. (Required)
+
+## Flags
+
+<CheckParams />
+
+## Examples
+
+### Basic Check
+
+Verify the content in `my_download_folder` against `my_torrent.torrent`:
+
+<Terminal text="mkbrr check my_torrent.torrent my_download_folder" />
+
+### Verbose Check
+
+Verify content and show indices of any bad pieces:
+
+<Terminal text="mkbrr check -v my_torrent.torrent /path/to/data" />
+
+### Quiet Check
+<Terminal text="mkbrr check --quiet my_torrent.torrent /path/to/data" />

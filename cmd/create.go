@@ -1,25 +1,29 @@
+// Copyright (c) 2025-2026, s0up4200 <s0up4200@pm.me> and the mkbrr contributors.
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"runtime/pprof"
-	"slices"
+	"strings"
 	"time"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"github.com/autobrr/mkbrr/internal/preset"
-	"github.com/autobrr/mkbrr/internal/trackers"
 	"github.com/autobrr/mkbrr/torrent"
 )
 
 // createOptions encapsulates all command-line flag values for the create command
 type createOptions struct {
-	pieceLengthExp      *uint
-	maxPieceLengthExp   *uint
-	targetPieceCount    *uint
+	pieceLengthExp      uint
+	maxPieceLengthExp   uint
+	targetPieceCount    uint
 	trackers            []string
 	comment             string
 	name                string
@@ -40,6 +44,7 @@ type createOptions struct {
 	entropy             bool
 	quiet               bool
 	infoOnly            bool
+	plan                bool
 	skipPrefix          bool
 	failOnSeasonWarning bool
 }
@@ -88,21 +93,9 @@ func init() {
 	createCmd.Flags().BoolVarP(&options.isPrivate, "private", "p", true, "make torrent private")
 	createCmd.Flags().StringVarP(&options.comment, "comment", "c", "", "add comment")
 
-	var defaultPieceLength, defaultMaxPieceLength, defaultTargetPieceCount uint
-	createCmd.Flags().UintVarP(&defaultPieceLength, "piece-length", "l", 0, "set piece length to 2^n bytes (16-27, automatic if not specified)")
-	createCmd.Flags().UintVarP(&defaultMaxPieceLength, "max-piece-length", "m", 0, "limit maximum piece length to 2^n bytes (16-27, unlimited if not specified)")
-	createCmd.Flags().UintVar(&defaultTargetPieceCount, "target-piece-count", 0, "target approximate number of pieces (calculates optimal piece length)")
-	createCmd.PreRun = func(cmd *cobra.Command, args []string) {
-		if cmd.Flags().Changed("piece-length") {
-			options.pieceLengthExp = &defaultPieceLength
-		}
-		if cmd.Flags().Changed("max-piece-length") {
-			options.maxPieceLengthExp = &defaultMaxPieceLength
-		}
-		if cmd.Flags().Changed("target-piece-count") {
-			options.targetPieceCount = &defaultTargetPieceCount
-		}
-	}
+	createCmd.Flags().UintVarP(&options.pieceLengthExp, "piece-length", "l", 0, "set piece length to 2^n bytes (16-27, or 14-27 for a tracker with its own piece size table; automatic if not specified)")
+	createCmd.Flags().UintVarP(&options.maxPieceLengthExp, "max-piece-length", "m", 0, "limit maximum piece length to 2^n bytes (16-27, or 14-27 for a tracker with its own piece size table when target-piece-count is not set; lower if the tracker has a cap; unlimited if not specified)")
+	createCmd.Flags().UintVar(&options.targetPieceCount, "target-piece-count", 0, "target approximate number of pieces (calculates optimal piece length)")
 
 	createCmd.Flags().StringVar(&options.name, "name", "", "set torrent name (default: <filename>)")
 	createCmd.Flags().StringVarP(&options.outputPath, "output", "o", "", "set output path (default: <filename>.torrent)")
@@ -114,6 +107,7 @@ func init() {
 	createCmd.Flags().BoolVarP(&options.verbose, "verbose", "v", false, "be verbose")
 	createCmd.Flags().BoolVarP(&options.quiet, "quiet", "q", false, "reduced output mode (prints only final torrent path)")
 	createCmd.Flags().BoolVarP(&options.infoOnly, "info-only", "i", false, "display only torrent info without progress (implies verbose)")
+	createCmd.Flags().BoolVar(&options.plan, "plan", false, "print the create plan as JSON without hashing or writing a torrent")
 	createCmd.Flags().BoolVarP(&options.skipPrefix, "skip-prefix", "", false, "don't add tracker domain prefix to output filename")
 	createCmd.Flags().BoolVar(&options.failOnSeasonWarning, "fail-on-season-warning", false, "fail on season pack warning")
 	createCmd.Flags().StringArrayVarP(&options.excludePatterns, "exclude", "", nil, "exclude files matching these patterns (e.g., \"*.nfo,*.jpg\" or --exclude \"*.nfo\" --exclude \"*.jpg\")")
@@ -161,158 +155,82 @@ func processBatchMode(opts createOptions, version string, startTime time.Time) e
 		return fmt.Errorf("batch processing failed: %w", err)
 	}
 
+	failed := 0
+	for _, result := range results {
+		if !result.Success {
+			failed++
+		}
+	}
+
 	if opts.quiet {
 		for _, result := range results {
 			if result.Success {
 				fmt.Println("Wrote:", result.Info.Path)
+			} else {
+				fmt.Fprintf(os.Stderr, "Failed: %s: %v\n", result.Job.Output, result.Error)
 			}
 		}
 	} else {
 		display := torrent.NewDisplay(torrent.NewFormatter(opts.verbose))
 		display.ShowBatchResults(results, time.Since(startTime))
 	}
+
+	if failed > 0 {
+		return fmt.Errorf("%d of %d batch jobs failed", failed, len(results))
+	}
 	return nil
 }
 
-// buildCreateOptions creates a torrent.CreateOptions struct from command-line options and presets
+// buildCreateOptions turns the changed command-line flags into create settings, loads the preset, and resolves the create options
 func buildCreateOptions(cmd *cobra.Command, inputPath string, opts createOptions, version string) (torrent.CreateOptions, error) {
-	createOpts := torrent.CreateOptions{
-		Path:                    inputPath,
-		Name:                    opts.name,
-		TrackerURLs:             opts.trackers,
-		WebSeeds:                opts.webSeeds,
-		IsPrivate:               opts.isPrivate,
-		Comment:                 opts.comment,
-		PieceLengthExp:          opts.pieceLengthExp,
-		MaxPieceLength:          opts.maxPieceLengthExp,
-		TargetPieceCount:        opts.targetPieceCount,
-		Source:                  opts.source,
-		NoDate:                  opts.noDate,
-		NoCreator:               opts.noCreator,
-		Verbose:                 opts.verbose,
-		Version:                 version,
-		Entropy:                 opts.entropy,
-		Quiet:                   opts.quiet,
-		InfoOnly:                opts.infoOnly,
-		SkipPrefix:              opts.skipPrefix,
-		ExcludePatterns:         opts.excludePatterns,
-		IncludePatterns:         opts.includePatterns,
-		Workers:                 opts.createWorkers,
-		OutputDir:               opts.outputDir,
-		FailOnSeasonPackWarning: opts.failOnSeasonWarning,
+	flags := cmd.Flags()
+	var s torrent.CreateSettings
+	setIfChanged := func(name string, set func()) {
+		if flags.Changed(name) {
+			set()
+		}
 	}
+	setIfChanged("piece-length", func() { s.PieceLengthExp = &opts.pieceLengthExp })
+	setIfChanged("max-piece-length", func() { s.MaxPieceLength = &opts.maxPieceLengthExp })
+	setIfChanged("target-piece-count", func() { s.TargetPieceCount = &opts.targetPieceCount })
+	setIfChanged("tracker", func() { s.TrackerURLs = opts.trackers })
+	setIfChanged("web-seed", func() { s.WebSeeds = opts.webSeeds })
+	setIfChanged("exclude", func() { s.ExcludePatterns = opts.excludePatterns })
+	setIfChanged("include", func() { s.IncludePatterns = opts.includePatterns })
+	setIfChanged("private", func() { s.IsPrivate = &opts.isPrivate })
+	setIfChanged("comment", func() { s.Comment = &opts.comment })
+	setIfChanged("source", func() { s.Source = &opts.source })
+	setIfChanged("output-dir", func() { s.OutputDir = &opts.outputDir })
+	setIfChanged("no-date", func() { s.NoDate = &opts.noDate })
+	setIfChanged("no-creator", func() { s.NoCreator = &opts.noCreator })
+	setIfChanged("skip-prefix", func() { s.SkipPrefix = &opts.skipPrefix })
+	setIfChanged("entropy", func() { s.Entropy = &opts.entropy })
+	setIfChanged("fail-on-season-warning", func() { s.FailOnSeasonPackWarning = &opts.failOnSeasonWarning })
+	setIfChanged("workers", func() { s.Workers = &opts.createWorkers })
 
-	// If a preset is specified, load the preset options and merge with command-line flags
+	var presetOpts *preset.Options
 	if opts.presetName != "" {
 		presetFilePath, err := preset.FindPresetFile(opts.presetFile)
 		if err != nil {
-			return createOpts, fmt.Errorf("could not find preset file: %w", err)
+			return torrent.CreateOptions{}, fmt.Errorf("could not find preset file: %w", err)
 		}
 
-		presetOpts, err := preset.LoadPresetOptions(presetFilePath, opts.presetName)
+		presetOpts, err = preset.LoadPresetOptions(presetFilePath, opts.presetName)
 		if err != nil {
-			return createOpts, fmt.Errorf("could not load preset options: %w", err)
-		}
-
-		if len(presetOpts.Trackers) > 0 && !cmd.Flags().Changed("tracker") {
-			createOpts.TrackerURLs = presetOpts.Trackers
-		}
-
-		if len(presetOpts.WebSeeds) > 0 && !cmd.Flags().Changed("web-seed") {
-			createOpts.WebSeeds = presetOpts.WebSeeds
-		}
-
-		if presetOpts.Private != nil && !cmd.Flags().Changed("private") {
-			createOpts.IsPrivate = *presetOpts.Private
-		}
-
-		if presetOpts.Comment != "" && !cmd.Flags().Changed("comment") {
-			createOpts.Comment = presetOpts.Comment
-		}
-
-		if presetOpts.Source != "" && !cmd.Flags().Changed("source") {
-			createOpts.Source = presetOpts.Source
-		}
-
-		if presetOpts.OutputDir != "" && !cmd.Flags().Changed("output-dir") {
-			createOpts.OutputDir = presetOpts.OutputDir
-		}
-
-		if presetOpts.NoDate != nil && !cmd.Flags().Changed("no-date") {
-			createOpts.NoDate = *presetOpts.NoDate
-		}
-
-		if presetOpts.NoCreator != nil && !cmd.Flags().Changed("no-creator") {
-			createOpts.NoCreator = *presetOpts.NoCreator
-		}
-
-		if presetOpts.SkipPrefix != nil && !cmd.Flags().Changed("skip-prefix") {
-			createOpts.SkipPrefix = *presetOpts.SkipPrefix
-		}
-
-		// piece_length and target_piece_count are cross-flag aware:
-		// CLI --target-piece-count suppresses preset piece_length and vice versa
-		if presetOpts.PieceLength != 0 && !cmd.Flags().Changed("piece-length") && !cmd.Flags().Changed("target-piece-count") {
-			pieceLen := presetOpts.PieceLength
-			createOpts.PieceLengthExp = &pieceLen
-		}
-
-		if presetOpts.TargetPieceCount != 0 && !cmd.Flags().Changed("target-piece-count") && !cmd.Flags().Changed("piece-length") {
-			count := presetOpts.TargetPieceCount
-			createOpts.TargetPieceCount = &count
-		}
-
-		if presetOpts.MaxPieceLength != 0 && !cmd.Flags().Changed("max-piece-length") {
-			maxPieceLen := presetOpts.MaxPieceLength
-			createOpts.MaxPieceLength = &maxPieceLen
-		}
-
-		if !cmd.Flags().Changed("entropy") && presetOpts.Entropy != nil {
-			createOpts.Entropy = *presetOpts.Entropy
-		}
-
-		if presetOpts.FailOnSeasonWarning != nil && !cmd.Flags().Changed("fail-on-season-warning") {
-			createOpts.FailOnSeasonPackWarning = *presetOpts.FailOnSeasonWarning
-		}
-
-		if len(presetOpts.ExcludePatterns) > 0 {
-			if !cmd.Flags().Changed("exclude") {
-				createOpts.ExcludePatterns = slices.Clone(presetOpts.ExcludePatterns)
-			} else {
-				createOpts.ExcludePatterns = append(slices.Clone(presetOpts.ExcludePatterns), createOpts.ExcludePatterns...)
-			}
-		}
-
-		if len(presetOpts.IncludePatterns) > 0 {
-			if !cmd.Flags().Changed("include") {
-				createOpts.IncludePatterns = slices.Clone(presetOpts.IncludePatterns)
-			} else {
-				createOpts.IncludePatterns = append(slices.Clone(presetOpts.IncludePatterns), createOpts.IncludePatterns...)
-			}
-		}
-
-		if presetOpts.Workers != 0 && !cmd.Flags().Changed("workers") {
-			createOpts.Workers = presetOpts.Workers
+			return torrent.CreateOptions{}, fmt.Errorf("could not load preset options: %w", err)
 		}
 	}
 
-	// Check for tracker's default source only if no source is set by flag or preset
-	if createOpts.Source == "" && !cmd.Flags().Changed("source") && len(createOpts.TrackerURLs) > 0 {
-		if trackerSource, ok := trackers.GetTrackerDefaultSource(createOpts.TrackerURLs[0]); ok {
-			createOpts.Source = trackerSource
-		}
-	}
-
-	// validate: piece_length and target_piece_count are mutually exclusive after all merging
-	if createOpts.PieceLengthExp != nil && createOpts.TargetPieceCount != nil {
-		return createOpts, fmt.Errorf("cannot use both --piece-length and --target-piece-count; use one or the other")
-	}
-
-	if opts.outputPath != "" {
-		createOpts.OutputPath = opts.outputPath
-	}
-
-	return createOpts, nil
+	return torrent.ResolveCreateOptions(torrent.CreateOverrides{
+		CreateSettings: s,
+		Path:           inputPath,
+		Name:           opts.name,
+		OutputPath:     opts.outputPath,
+		Version:        version,
+		Verbose:        opts.verbose,
+		Quiet:          opts.quiet,
+		InfoOnly:       opts.infoOnly,
+	}, presetOpts)
 }
 
 // createSingleTorrent handles creating a single torrent file
@@ -322,6 +240,16 @@ func createSingleTorrent(cmd *cobra.Command, args []string, opts createOptions, 
 	createOpts, err := buildCreateOptions(cmd, inputPath, opts, version)
 	if err != nil {
 		return err
+	}
+
+	if opts.plan {
+		plan, err := torrent.PlanCreate(createOpts)
+		if err != nil {
+			return err
+		}
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetEscapeHTML(false)
+		return encoder.Encode(plan)
 	}
 
 	torrentInfo, err := torrent.Create(createOpts)
@@ -347,7 +275,30 @@ func createSingleTorrent(cmd *cobra.Command, args []string, opts createOptions, 
 	return nil
 }
 
+// batchFlags are the create flags that work with --batch: they change only the output, not the torrents
+var batchFlags = map[string]bool{"batch": true, "verbose": true, "quiet": true, "info-only": true, "cpuprofile": true}
+
+// checkBatchFlags returns an error that names each changed flag that --batch does not accept
+func checkBatchFlags(cmd *cobra.Command) error {
+	var rejected []string
+	cmd.Flags().VisitAll(func(f *pflag.Flag) {
+		if f.Changed && !batchFlags[f.Name] {
+			rejected = append(rejected, "--"+f.Name)
+		}
+	})
+	if len(rejected) > 0 {
+		return fmt.Errorf("--batch takes its settings from the batch file; remove %s", strings.Join(rejected, ", "))
+	}
+	return nil
+}
+
 func runCreate(cmd *cobra.Command, args []string) error {
+	if options.batchFile != "" {
+		if err := checkBatchFlags(cmd); err != nil {
+			return err
+		}
+	}
+
 	cleanup, err := setupProfiling(cmd)
 	if err != nil {
 		return err

@@ -1,3 +1,6 @@
+// Copyright (c) 2025-2026, s0up4200 <s0up4200@pm.me> and the mkbrr contributors.
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 package cmd
 
 import (
@@ -29,6 +32,7 @@ type modifyOptions struct {
 	Private    bool
 	NoPrivate  bool
 	Entropy    bool
+	NoEntropy  bool
 }
 
 var modifyOpts = modifyOptions{
@@ -57,8 +61,8 @@ func init() {
 	modifyCmd.Flags().StringVar(&modifyOpts.Name, "name", "", "set the torrent's internal name")
 	modifyCmd.Flags().StringVar(&modifyOpts.OutputDir, "output-dir", "", "output directory for modified files")
 	modifyCmd.Flags().StringVarP(&modifyOpts.Output, "output", "o", "", "custom output filename (without extension)")
-	modifyCmd.Flags().BoolVarP(&modifyOpts.NoDate, "no-date", "d", false, "don't update creation date")
-	modifyCmd.Flags().BoolVarP(&modifyOpts.NoCreator, "no-creator", "", false, "don't write creator")
+	modifyCmd.Flags().BoolVarP(&modifyOpts.NoDate, "no-date", "d", false, "remove creation date")
+	modifyCmd.Flags().BoolVarP(&modifyOpts.NoCreator, "no-creator", "", false, "remove creator")
 	modifyCmd.Flags().StringArrayVarP(&modifyOpts.Trackers, "tracker", "t", nil, "tracker URLs (can be specified multiple times)")
 	modifyCmd.Flags().StringArrayVarP(&modifyOpts.WebSeeds, "web-seed", "w", nil, "add web seed URLs")
 	modifyCmd.Flags().BoolVarP(&modifyOpts.Private, "private", "p", true, "make torrent private")
@@ -66,9 +70,10 @@ func init() {
 	modifyCmd.Flags().StringVarP(&modifyOpts.Comment, "comment", "c", "", "set comment (use empty string to remove)")
 	modifyCmd.Flags().StringVarP(&modifyOpts.Source, "source", "s", "", "set source string (use empty string to remove)")
 	modifyCmd.Flags().BoolVarP(&modifyOpts.Entropy, "entropy", "e", false, "randomize info hash by adding entropy field")
+	modifyCmd.Flags().BoolVar(&modifyOpts.NoEntropy, "no-entropy", false, "remove entropy field")
 	modifyCmd.Flags().BoolVarP(&modifyOpts.Verbose, "verbose", "v", false, "be verbose")
 	modifyCmd.Flags().BoolVarP(&modifyOpts.Quiet, "quiet", "q", false, "reduced output mode (prints only final torrent paths)")
-	modifyCmd.Flags().BoolVarP(&modifyOpts.SkipPrefix, "skip-prefix", "", false, "don't add tracker domain prefix to output filename")
+	modifyCmd.Flags().BoolVarP(&modifyOpts.SkipPrefix, "skip-prefix", "", false, "leave out the filename prefix from the output filename")
 	modifyCmd.Flags().BoolVarP(&modifyOpts.DryRun, "dry-run", "n", false, "show what would be modified without making changes")
 
 	modifyCmd.SetUsageTemplate(`Usage:
@@ -82,41 +87,35 @@ Flags:
 // buildTorrentOptions creates a torrent.ModifyOptions struct from command-line flags
 func buildTorrentOptions(cmd *cobra.Command, opts modifyOptions) torrent.ModifyOptions {
 	torrentOpts := torrent.ModifyOptions{
-		PresetName:    opts.PresetName,
-		PresetFile:    opts.PresetFile,
-		Name:          opts.Name,
-		OutputDir:     opts.OutputDir,
-		OutputPattern: opts.Output,
-		NoDate:        opts.NoDate,
-		NoCreator:     opts.NoCreator,
-		DryRun:        opts.DryRun,
-		Verbose:       opts.Verbose,
-		Quiet:         opts.Quiet,
-		TrackerURLs:   opts.Trackers,
-		WebSeeds:      opts.WebSeeds,
-		Comment:       opts.Comment,
-		Source:        opts.Source,
-		Version:       version,
-		SkipPrefix:    opts.SkipPrefix,
+		ModifySettings: torrent.ModifySettings{
+			TrackerURLs:   opts.Trackers,
+			WebSeeds:      opts.WebSeeds,
+			Name:          opts.Name,
+			NoPrivate:     opts.NoPrivate,
+			NoDate:        opts.NoDate,
+			NoCreator:     opts.NoCreator,
+			NoEntropy:     opts.NoEntropy,
+			OutputDir:     opts.OutputDir,
+			OutputPattern: opts.Output,
+			SkipPrefix:    opts.SkipPrefix,
+		},
+		PresetName: opts.PresetName,
+		PresetFile: opts.PresetFile,
+		Version:    version,
+		DryRun:     opts.DryRun,
+		Verbose:    opts.Verbose,
+		Quiet:      opts.Quiet,
 	}
 
 	if cmd.Flags().Changed("private") {
 		torrentOpts.IsPrivate = &opts.Private
 	}
-
-	if opts.NoPrivate {
-		torrentOpts.RemovePrivate = true
-		torrentOpts.IsPrivate = nil // --no-private takes precedence over --private
-	}
-
 	if cmd.Flags().Changed("source") {
-		torrentOpts.SourceSet = true
+		torrentOpts.Source = &opts.Source
 	}
-
 	if cmd.Flags().Changed("comment") {
-		torrentOpts.CommentSet = true
+		torrentOpts.Comment = &opts.Comment
 	}
-
 	if cmd.Flags().Changed("entropy") {
 		torrentOpts.Entropy = &opts.Entropy
 	}

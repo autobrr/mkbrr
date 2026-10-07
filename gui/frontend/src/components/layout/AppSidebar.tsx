@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026, s0up4200 <s0up4200@pm.me> and the mkbrr contributors.
+ * SPDX-License-Identifier: GPL-2.0-or-later
+ */
+
 import { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { FilePlus, FileSearch, FileCheck, FileEdit, Settings, Moon, Sun, Monitor, Palette, ExternalLink, Heart } from 'lucide-react';

@@ -1,3 +1,6 @@
+// Copyright (c) 2025-2026, s0up4200 <s0up4200@pm.me> and the mkbrr contributors.
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 package torrent
 
 import (
@@ -19,57 +22,33 @@ type BatchConfig struct {
 
 // BatchJob represents a single torrent creation job within a batch
 type BatchJob struct {
-	Output              string   `yaml:"output"`
-	Path                string   `yaml:"path"`
-	Name                string   `yaml:"-"`
-	Comment             string   `yaml:"comment"`
-	Source              string   `yaml:"source"`
-	Trackers            []string `yaml:"trackers"`
-	WebSeeds            []string `yaml:"webseeds"`
-	ExcludePatterns     []string `yaml:"exclude_patterns"`
-	IncludePatterns     []string `yaml:"include_patterns"`
-	PieceLength         uint     `yaml:"piece_length"`
-	TargetPieceCount    uint     `yaml:"target_piece_count"`
-	Private             bool     `yaml:"private"`
-	NoDate              bool     `yaml:"no_date"`
-	SkipPrefix          bool     `yaml:"skip_prefix"`
-	Entropy             bool     `yaml:"entropy"`
-	FailOnSeasonWarning bool     `yaml:"fail_on_season_warning"`
+	CreateSettings `yaml:",inline"`
+	Output         string `yaml:"output"`
+	Path           string `yaml:"path"`
+	Name           string `yaml:"-"`
 }
 
-// ToCreateOptions converts a BatchJob to CreateOptions
-func (j *BatchJob) ToCreateOptions(verbose bool, quiet bool, infoOnly bool, version string) CreateOptions {
-	opts := CreateOptions{
-		Path:                    j.Path,
-		Name:                    j.Name,
-		TrackerURLs:             j.Trackers,
-		WebSeeds:                j.WebSeeds,
-		IsPrivate:               j.Private,
-		Comment:                 j.Comment,
-		Source:                  j.Source,
-		NoDate:                  j.NoDate,
-		Verbose:                 verbose,
-		Quiet:                   quiet,
-		InfoOnly:                infoOnly,
-		Version:                 version,
-		SkipPrefix:              j.SkipPrefix,
-		Entropy:                 j.Entropy,
-		ExcludePatterns:         j.ExcludePatterns,
-		IncludePatterns:         j.IncludePatterns,
-		FailOnSeasonPackWarning: j.FailOnSeasonWarning,
-	}
+// normalizedSettings returns a copy of the job's create settings. A zero piece setting
+// means "not set" in a batch job, so the copy has nil in its place.
+func (j *BatchJob) normalizedSettings() CreateSettings {
+	s := j.CreateSettings
+	s.PieceLengthExp = nilIfZero(s.PieceLengthExp)
+	s.MaxPieceLength = nilIfZero(s.MaxPieceLength)
+	s.TargetPieceCount = nilIfZero(s.TargetPieceCount)
+	return s
+}
 
-	if j.PieceLength != 0 {
-		pieceLen := j.PieceLength
-		opts.PieceLengthExp = &pieceLen
-	}
-
-	if j.TargetPieceCount != 0 {
-		count := j.TargetPieceCount
-		opts.TargetPieceCount = &count
-	}
-
-	return opts
+// ToCreateOptions resolves a BatchJob into CreateOptions. Batch jobs have no preset.
+func (j *BatchJob) ToCreateOptions(verbose bool, quiet bool, infoOnly bool, version string) (CreateOptions, error) {
+	return ResolveCreateOptions(CreateOverrides{
+		CreateSettings: j.normalizedSettings(),
+		Path:           j.Path,
+		Name:           j.Name,
+		Version:        version,
+		Verbose:        verbose,
+		Quiet:          quiet,
+		InfoOnly:       infoOnly,
+	}, nil)
 }
 
 // BatchResult represents the result of a single job in the batch
@@ -138,6 +117,13 @@ func ProcessBatch(configPath string, verbose bool, quiet bool, infoOnly bool, ve
 	return results, nil
 }
 
+func nilIfZero(p *uint) *uint {
+	if p == nil || *p == 0 {
+		return nil
+	}
+	return p
+}
+
 func validateJob(job BatchJob) error {
 	if job.Path == "" {
 		return fmt.Errorf("path is required")
@@ -151,11 +137,13 @@ func validateJob(job BatchJob) error {
 		return fmt.Errorf("output is required")
 	}
 
-	if job.PieceLength != 0 && (job.PieceLength < 14 || job.PieceLength > 24) {
-		return fmt.Errorf("piece length must be between 14 and 24")
+	s := job.normalizedSettings()
+	// create applies the stricter bounds for each tracker
+	if exp := s.PieceLengthExp; exp != nil && (*exp < 14 || *exp > 27) {
+		return fmt.Errorf("piece length must be between 14 and 27")
 	}
 
-	if job.PieceLength != 0 && job.TargetPieceCount != 0 {
+	if s.PieceLengthExp != nil && s.TargetPieceCount != nil {
 		return fmt.Errorf("cannot set both piece_length and target_piece_count; use one or the other")
 	}
 
@@ -165,19 +153,26 @@ func validateJob(job BatchJob) error {
 func processJob(job BatchJob, verbose bool, quiet bool, infoOnly bool, version string) BatchResult {
 	result := BatchResult{
 		Job:      job,
-		Trackers: job.Trackers,
+		Trackers: job.TrackerURLs,
+	}
+
+	// convert job to CreateOptions
+	opts, err := job.ToCreateOptions(verbose, quiet, infoOnly, version)
+	if err != nil {
+		result.Error = fmt.Errorf("invalid job options: %w", err)
+		return result
 	}
 
 	var trackerURL string
-	if len(job.Trackers) > 0 {
-		trackerURL = job.Trackers[0]
+	if len(opts.TrackerURLs) > 0 {
+		trackerURL = opts.TrackerURLs[0]
 	}
 
 	output := job.Output
 	if output == "" {
 		baseName := filepath.Base(filepath.Clean(job.Path))
 
-		if trackerURL != "" && !job.SkipPrefix {
+		if trackerURL != "" && !opts.SkipPrefix {
 			prefix := preset.GetDomainPrefix(trackerURL)
 			baseName = prefix + "_" + baseName
 		}
@@ -189,9 +184,6 @@ func processJob(job BatchJob, verbose bool, quiet bool, infoOnly bool, version s
 	if filepath.Ext(output) != ".torrent" {
 		output += ".torrent"
 	}
-
-	// convert job to CreateOptions
-	opts := job.ToCreateOptions(verbose, quiet, infoOnly, version)
 
 	// create the torrent
 	mi, err := CreateTorrent(opts)

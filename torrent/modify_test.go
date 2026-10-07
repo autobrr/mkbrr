@@ -1,3 +1,6 @@
+// Copyright (c) 2025-2026, s0up4200 <s0up4200@pm.me> and the mkbrr contributors.
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 package torrent
 
 import (
@@ -7,6 +10,10 @@ import (
 	"testing"
 
 	"github.com/autobrr/go-torrent/bencode"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/autobrr/mkbrr/internal/preset"
 )
 
 func TestModifyTorrent_OutputDirPriority(t *testing.T) {
@@ -172,7 +179,7 @@ func TestModifyTorrent_MultipleAndNoTrackers(t *testing.T) {
 		}
 	})
 
-	t.Run("No tracker", func(t *testing.T) {
+	t.Run("No changes writes no file", func(t *testing.T) {
 		opts := ModifyOptions{
 			OutputDir:   tmpDir,
 			TrackerURLs: nil,
@@ -182,18 +189,11 @@ func TestModifyTorrent_MultipleAndNoTrackers(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ModifyTorrent failed: %v", err)
 		}
-		if result.OutputPath == "" {
-			t.Errorf("Expected output path to be set")
+		if result.WasModified {
+			t.Error("Expected no modification")
 		}
-		mi, err := LoadFromFile(result.OutputPath)
-		if err != nil {
-			t.Fatalf("Failed to load modified torrent: %v", err)
-		}
-		if mi.Announce != "" {
-			t.Errorf("Announce should be empty when no tracker, got %q", mi.Announce)
-		}
-		if len(mi.AnnounceList) > 0 {
-			t.Errorf("AnnounceList should be empty or nil when no tracker, got %#v", mi.AnnounceList)
+		if result.OutputPath != "" {
+			t.Errorf("Expected no output path, got %q", result.OutputPath)
 		}
 	})
 }
@@ -438,6 +438,9 @@ func TestModify_NameArgument(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
+			// a run with no change writes no file
+			tt.opts.Comment = new("changed")
+
 			// Modify the torrent
 			result, err := ModifyTorrent(tt.path, tt.opts)
 			if err != nil {
@@ -505,7 +508,7 @@ func TestModifyTorrent_RemoveFields(t *testing.T) {
 	t.Run("RemovePrivate", func(t *testing.T) {
 		outPath := filepath.Join(tmpDir, "removed_private.torrent")
 		result, err := ModifyTorrent(torrentPath, ModifyOptions{
-			RemovePrivate: true,
+			NoPrivate:     true,
 			OutputDir:     tmpDir,
 			OutputPattern: "removed_private",
 			Version:       "test",
@@ -534,8 +537,7 @@ func TestModifyTorrent_RemoveFields(t *testing.T) {
 	t.Run("ClearSource", func(t *testing.T) {
 		outPath := filepath.Join(tmpDir, "cleared_source.torrent")
 		result, err := ModifyTorrent(torrentPath, ModifyOptions{
-			Source:        "",
-			SourceSet:     true,
+			Source:        new(""),
 			OutputDir:     tmpDir,
 			OutputPattern: "cleared_source",
 			Version:       "test",
@@ -573,8 +575,7 @@ func TestModifyTorrent_RemoveFields(t *testing.T) {
 	t.Run("ClearComment", func(t *testing.T) {
 		outPath := filepath.Join(tmpDir, "cleared_comment.torrent")
 		result, err := ModifyTorrent(torrentPath, ModifyOptions{
-			Comment:       "",
-			CommentSet:    true,
+			Comment:       new(""),
 			OutputDir:     tmpDir,
 			OutputPattern: "cleared_comment",
 			Version:       "test",
@@ -599,11 +600,9 @@ func TestModifyTorrent_RemoveFields(t *testing.T) {
 	t.Run("RemovePrivateAndClearSourceAndComment", func(t *testing.T) {
 		outPath := filepath.Join(tmpDir, "removed_all.torrent")
 		result, err := ModifyTorrent(torrentPath, ModifyOptions{
-			RemovePrivate: true,
-			Source:        "",
-			SourceSet:     true,
-			Comment:       "",
-			CommentSet:    true,
+			NoPrivate:     true,
+			Source:        new(""),
+			Comment:       new(""),
 			OutputDir:     tmpDir,
 			OutputPattern: "removed_all",
 			Version:       "test",
@@ -667,9 +666,8 @@ func TestModifyTorrent_RemoveFields(t *testing.T) {
 		// remove private and clear source — entropy must survive
 		outPath := filepath.Join(tmpDir, "entropy_preserved.torrent")
 		result, err := ModifyTorrent(entropyTorrentPath, ModifyOptions{
-			RemovePrivate: true,
-			Source:        "",
-			SourceSet:     true,
+			NoPrivate:     true,
+			Source:        new(""),
 			OutputDir:     tmpDir,
 			OutputPattern: "entropy_preserved",
 			Version:       "test",
@@ -761,8 +759,7 @@ func TestModifyTorrent_RemoveFields(t *testing.T) {
 		// now use --source "" to clear it
 		outPath := filepath.Join(tmpDir, "cleared_empty_source.torrent")
 		result, err := ModifyTorrent(emptySourcePath, ModifyOptions{
-			Source:        "",
-			SourceSet:     true,
+			Source:        new(""),
 			OutputDir:     tmpDir,
 			OutputPattern: "cleared_empty_source",
 			Version:       "test",
@@ -787,4 +784,190 @@ func TestModifyTorrent_RemoveFields(t *testing.T) {
 			t.Error("Expected source key to be completely removed from info dict")
 		}
 	})
+}
+
+func TestModifySpec_Precedence(t *testing.T) {
+	creator := createdBy("1")
+
+	tests := []struct {
+		name   string
+		opts   ModifyOptions
+		preset *preset.Options
+		want   metadataSpec
+	}{
+		{
+			name: "no override and no preset keeps everything",
+			opts: ModifyOptions{Version: "1"},
+			want: metadataSpec{},
+		},
+		{
+			name: "override beats preset",
+			opts: ModifyOptions{
+				TrackerURLs: []string{"https://flag.test/announce"},
+				WebSeeds:    []string{"https://flag.test/seed"},
+				Source:      new("FLAG"),
+				Comment:     new("flag"),
+				IsPrivate:   new(false),
+				Entropy:     new(false),
+			},
+			preset: &preset.Options{
+				Trackers: []string{"https://preset.test/announce"},
+				WebSeeds: []string{"https://preset.test/seed"},
+				Source:   "PRESET",
+				Comment:  "preset",
+				Private:  new(true),
+				Entropy:  new(true),
+			},
+			want: metadataSpec{
+				Trackers: setTo([]string{"https://flag.test/announce"}),
+				WebSeeds: []string{"https://flag.test/seed"},
+				Source:   setTo("FLAG"),
+				Comment:  setTo("flag"),
+				Private:  setTo(false),
+			},
+		},
+		{
+			name:   "preset fills what no override sets",
+			opts:   ModifyOptions{Version: "1"},
+			preset: &preset.Options{Trackers: []string{"https://preset.test/announce"}, Source: "PRESET", Private: new(true), Entropy: new(true)},
+			want: metadataSpec{
+				Trackers: setTo([]string{"https://preset.test/announce"}),
+				Source:   setTo("PRESET"),
+				Private:  setTo(true),
+				Entropy:  setField,
+			},
+		},
+		{
+			name:   "explicit preset false writes the creator",
+			opts:   ModifyOptions{Version: "1"},
+			preset: &preset.Options{NoCreator: new(false)},
+			want:   metadataSpec{CreatedBy: setTo(creator)},
+		},
+		{
+			name:   "--no-creator beats preset false",
+			opts:   ModifyOptions{Version: "1", NoCreator: true},
+			preset: &preset.Options{NoCreator: new(false)},
+			want:   metadataSpec{CreatedBy: cleared[string]()},
+		},
+		{
+			name:   "only an override clears",
+			opts:   ModifyOptions{Source: new(""), Comment: new(""), NoPrivate: true, IsPrivate: new(true), NoEntropy: true},
+			preset: &preset.Options{Source: "PRESET", Comment: "preset"},
+			want:   metadataSpec{Source: cleared[string](), Comment: cleared[string](), Private: cleared[bool](), Entropy: clearField},
+		},
+		{
+			name:   "preset entropy false keeps the entropy field",
+			preset: &preset.Options{Entropy: new(false)},
+			want:   metadataSpec{},
+		},
+		{
+			name:   "preset no date clears the creation date",
+			preset: &preset.Options{NoDate: new(true)},
+			want:   metadataSpec{CreationDate: cleared[int64]()},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, modifySpec(tt.opts, tt.preset))
+		})
+	}
+}
+
+func TestModifyTorrent_ChangeRule(t *testing.T) {
+	dir := t.TempDir()
+	content := filepath.Join(dir, "file.txt")
+	require.NoError(t, os.WriteFile(content, []byte("change rule"), 0o644))
+	torrentPath := filepath.Join(dir, "in.torrent")
+	_, err := Create(CreateOptions{Path: content, OutputPath: torrentPath, IsPrivate: true, Source: "SRC", NoDate: true, Quiet: true})
+	require.NoError(t, err)
+
+	presetPath := filepath.Join(dir, "presets.yaml")
+	require.NoError(t, os.WriteFile(presetPath, []byte(`version: 1
+presets:
+  same:
+    private: true
+    source: SRC
+  date:
+    no_date: false
+`), 0o644))
+
+	for _, dryRun := range []bool{true, false} {
+		result, err := ModifyTorrent(torrentPath, ModifyOptions{PresetName: "same", PresetFile: presetPath, OutputDir: dir, DryRun: dryRun, Version: "test"})
+		require.NoError(t, err)
+		assert.False(t, result.WasModified, "unchanged preset, dry run %v", dryRun)
+		assert.Empty(t, result.OutputPath, "unchanged preset, dry run %v", dryRun)
+	}
+
+	result, err := ModifyTorrent(torrentPath, ModifyOptions{PresetName: "date", PresetFile: presetPath, OutputDir: dir, Version: "test"})
+	require.NoError(t, err)
+	require.True(t, result.WasModified, "preset no_date: false must write a missing date")
+	mi, err := LoadFromFile(result.OutputPath)
+	require.NoError(t, err)
+	assert.NotZero(t, mi.CreationDate)
+}
+
+func TestModifyTorrent_NoEntropy(t *testing.T) {
+	dir := t.TempDir()
+	content := filepath.Join(dir, "file.txt")
+	require.NoError(t, os.WriteFile(content, []byte("no entropy"), 0o644))
+	withEntropy := filepath.Join(dir, "with.torrent")
+	_, err := Create(CreateOptions{Path: content, OutputPath: withEntropy, IsPrivate: true, NoDate: true, Entropy: true, Quiet: true})
+	require.NoError(t, err)
+	withoutEntropy := filepath.Join(dir, "without.torrent")
+	_, err = Create(CreateOptions{Path: content, OutputPath: withoutEntropy, IsPrivate: true, NoDate: true, Quiet: true})
+	require.NoError(t, err)
+
+	opts := ModifyOptions{NoEntropy: true, OutputDir: dir, OutputPattern: "cleared", Version: "test"}
+
+	t.Run("clears entropy and changes the info hash", func(t *testing.T) {
+		result, err := ModifyTorrent(withEntropy, opts)
+		require.NoError(t, err)
+		require.True(t, result.WasModified)
+
+		before, err := LoadFromFile(withEntropy)
+		require.NoError(t, err)
+		after, err := LoadFromFile(result.OutputPath)
+		require.NoError(t, err)
+		info := make(map[string]any)
+		require.NoError(t, bencode.Unmarshal(after.InfoBytes, &info))
+		assert.NotContains(t, info, "entropy")
+		assert.NotEqual(t, before.HashInfoBytes(), after.HashInfoBytes())
+	})
+
+	t.Run("no entropy field reports no change", func(t *testing.T) {
+		result, err := ModifyTorrent(withoutEntropy, opts)
+		require.NoError(t, err)
+		assert.False(t, result.WasModified)
+	})
+
+	t.Run("entropy with no entropy is an error", func(t *testing.T) {
+		conflict := opts
+		conflict.Entropy = new(true)
+		_, err := ModifyTorrent(withEntropy, conflict)
+		require.ErrorIs(t, err, errEntropyConflict)
+		_, err = ProcessTorrents([]string{withEntropy}, conflict)
+		require.ErrorIs(t, err, errEntropyConflict)
+	})
+}
+
+func TestModifyTorrent_PresetSkipPrefix(t *testing.T) {
+	dir := t.TempDir()
+	content := filepath.Join(dir, "file.txt")
+	require.NoError(t, os.WriteFile(content, []byte("skip prefix"), 0o644))
+	torrentPath := filepath.Join(dir, "in.torrent")
+	_, err := Create(CreateOptions{Path: content, OutputPath: torrentPath, IsPrivate: true, NoDate: true, Quiet: true})
+	require.NoError(t, err)
+
+	presetPath := filepath.Join(dir, "presets.yaml")
+	require.NoError(t, os.WriteFile(presetPath, []byte(`version: 1
+presets:
+  noprefix:
+    source: NEW
+    skip_prefix: true
+`), 0o644))
+
+	result, err := ModifyTorrent(torrentPath, ModifyOptions{PresetName: "noprefix", PresetFile: presetPath, OutputDir: dir, Version: "test"})
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(dir, "file.txt.torrent"), result.OutputPath)
 }

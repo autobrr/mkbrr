@@ -1,3 +1,6 @@
+// Copyright (c) 2025-2026, s0up4200 <s0up4200@pm.me> and the mkbrr contributors.
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 package torrent
 
 import (
@@ -5,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/autobrr/go-torrent/bencode"
 	"github.com/autobrr/go-torrent/metainfo"
@@ -192,7 +196,7 @@ func TestShowTorrentInfo_Complete(t *testing.T) {
 				"Source:       test-source",
 				"Comment:      Test torrent comment",
 				"Created by:   mkbrr/1.0.0",
-				"Created on:   2022-01-01",
+				"Created on:   " + time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC).Local().Format(time.DateOnly),
 				"Files:        2",
 			},
 		},

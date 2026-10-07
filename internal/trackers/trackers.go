@@ -1,9 +1,12 @@
+// Copyright (c) 2025-2026, s0up4200 <s0up4200@pm.me> and the mkbrr contributors.
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 package trackers
 
 import "strings"
 
-// TrackerConfig holds tracker-specific configuration
-type TrackerConfig struct {
+// Rules holds the tracker rules that mkbrr enforces for one tracker
+type Rules struct {
 	DefaultSource    string           // default source to use for this tracker
 	URLs             []string         // list of tracker URLs that share this config
 	PieceSizeRanges  []PieceSizeRange // custom piece size ranges for specific content sizes
@@ -19,7 +22,7 @@ type PieceSizeRange struct {
 }
 
 // trackerConfigs maps known tracker base URLs to their configurations
-var trackerConfigs = []TrackerConfig{
+var trackerConfigs = []Rules{
 	{
 		URLs: []string{
 			"anthelion.me",
@@ -221,6 +224,28 @@ var trackerConfigs = []TrackerConfig{
 	},
 	{
 		URLs: []string{
+			"portugas.org",
+		},
+		PieceSizeRanges: []PieceSizeRange{
+			{MaxSize: 40 << 20, PieceExp: 14},   // 16 KiB for <= 40 MiB
+			{MaxSize: 70 << 20, PieceExp: 15},   // 32 KiB for 40-70 MiB
+			{MaxSize: 150 << 20, PieceExp: 16},  // 64 KiB for 70-150 MiB
+			{MaxSize: 300 << 20, PieceExp: 17},  // 128 KiB for 150-300 MiB
+			{MaxSize: 600 << 20, PieceExp: 18},  // 256 KiB for 300-600 MiB
+			{MaxSize: 1 << 30, PieceExp: 19},    // 512 KiB for 600 MiB-1 GiB
+			{MaxSize: 2304 << 20, PieceExp: 20}, // 1 MiB for 1-2.25 GiB
+			{MaxSize: 5 << 30, PieceExp: 21},    // 2 MiB for 2.25-5 GiB
+			{MaxSize: 8 << 30, PieceExp: 22},    // 4 MiB for 5-8 GiB
+			{MaxSize: 16 << 30, PieceExp: 23},   // 8 MiB for 8-16 GiB
+			{MaxSize: 35 << 30, PieceExp: 24},   // 16 MiB for 16-35 GiB
+			{MaxSize: 72 << 30, PieceExp: 25},   // 32 MiB for 35-72 GiB
+			{MaxSize: ^uint64(0), PieceExp: 25}, // 32+ MiB above 72 GiB
+		},
+		UseDefaultRanges: false,
+		MaxTorrentSize:   2 << 20, // 2 MiB .torrent file size limit
+	},
+	{
+		URLs: []string{
 			"lst.gg",
 		},
 		MaxPieceLength: 24, // max 16 MiB pieces (2^24)
@@ -293,25 +318,16 @@ var trackerConfigs = []TrackerConfig{
 	},
 }
 
-// findTrackerConfig returns the config for a given tracker URL
-func findTrackerConfig(trackerURL string) *TrackerConfig {
-	for i := range trackerConfigs {
-		for _, url := range trackerConfigs[i].URLs {
+// Lookup returns the rules for a tracker URL.
+func Lookup(trackerURL string) (Rules, bool) {
+	for _, r := range trackerConfigs {
+		for _, url := range r.URLs {
 			if strings.Contains(trackerURL, url) {
-				return &trackerConfigs[i]
+				return r, true
 			}
 		}
 	}
-	return nil
-}
-
-// GetTrackerMaxPieceLength returns the maximum piece length exponent for a tracker if known.
-// This is a hard limit that will not be exceeded.
-func GetTrackerMaxPieceLength(trackerURL string) (uint, bool) {
-	if config := findTrackerConfig(trackerURL); config != nil {
-		return config.MaxPieceLength, config.MaxPieceLength > 0
-	}
-	return 0, false
+	return Rules{}, false
 }
 
 // DefaultPieceSizeRanges defines the default piece size calculation ranges
@@ -332,55 +348,26 @@ var DefaultPieceSizeRanges = []PieceSizeRange{
 	{MaxSize: ^uint64(0), PieceExp: 27},   // 128 MiB for > 128 GB
 }
 
-// GetTrackerPieceSizeExp returns the recommended piece size exponent for a given content size and tracker
-func GetTrackerPieceSizeExp(trackerURL string, contentSize uint64) (uint, bool) {
-	config := findTrackerConfig(trackerURL)
-	if config == nil {
-		return 0, false
-	}
-
-	// Determine which ranges to use
-	ranges := config.PieceSizeRanges
-	if len(ranges) == 0 && config.UseDefaultRanges {
+// PieceSizeExp returns the recommended piece size exponent for a content size,
+// clamped to MaxPieceLength.
+func (r Rules) PieceSizeExp(contentSize uint64) (uint, bool) {
+	ranges := r.PieceSizeRanges
+	if len(ranges) == 0 && r.UseDefaultRanges {
 		ranges = DefaultPieceSizeRanges
 	}
-
 	if len(ranges) == 0 {
 		return 0, false
 	}
 
-	// Find the appropriate piece size for the content size
-	for _, r := range ranges {
-		if contentSize <= r.MaxSize {
-			exp := r.PieceExp
-			// Clamp to tracker's max piece length if set
-			if config.MaxPieceLength > 0 && exp > config.MaxPieceLength {
-				exp = config.MaxPieceLength
-			}
-			return exp, true
+	exp := ranges[len(ranges)-1].PieceExp
+	for _, pr := range ranges {
+		if contentSize <= pr.MaxSize {
+			exp = pr.PieceExp
+			break
 		}
 	}
-
-	// Use the highest defined piece size (clamped to max)
-	exp := ranges[len(ranges)-1].PieceExp
-	if config.MaxPieceLength > 0 && exp > config.MaxPieceLength {
-		exp = config.MaxPieceLength
+	if r.MaxPieceLength > 0 && exp > r.MaxPieceLength {
+		exp = r.MaxPieceLength
 	}
 	return exp, true
-}
-
-// GetTrackerMaxTorrentSize returns the maximum allowed .torrent file size for a tracker if known
-func GetTrackerMaxTorrentSize(trackerURL string) (uint64, bool) {
-	if config := findTrackerConfig(trackerURL); config != nil {
-		return config.MaxTorrentSize, config.MaxTorrentSize > 0
-	}
-	return 0, false
-}
-
-// GetTrackerDefaultSource returns the default source for a tracker if defined
-func GetTrackerDefaultSource(trackerURL string) (string, bool) {
-	if config := findTrackerConfig(trackerURL); config != nil && config.DefaultSource != "" {
-		return config.DefaultSource, true
-	}
-	return "", false
 }

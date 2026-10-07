@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026, s0up4200 <s0up4200@pm.me> and the mkbrr contributors.
+ * SPDX-License-Identifier: GPL-2.0-or-later
+ */
+
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -231,12 +236,16 @@ export function ModifyPage() {
         torrentPath,
         trackerUrls: trackers.filter(t => t.trim() !== ''),
         webSeeds: [],
+        name: '',
         isPrivate: setPrivate,
-        source,
-        comment,
+        noPrivate: false,
+        // an empty string clears, so send nothing to keep
+        source: source || undefined,
+        comment: comment || undefined,
         noDate,
         noCreator,
         entropy: false,
+        noEntropy: false,
         skipPrefix: false,
         outputDir,
         outputPattern: '',

@@ -1,3 +1,6 @@
+// Copyright (c) 2025-2026, s0up4200 <s0up4200@pm.me> and the mkbrr contributors.
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 package torrent
 
 import (
@@ -43,11 +46,11 @@ type pieceVerifier struct {
 	numPieces int
 	readSize  int
 
-	goodPieces    uint64
-	badPieces     uint64
-	missingPieces uint64 // Pieces belonging to missing files
+	goodPieces    atomic.Uint64
+	badPieces     atomic.Uint64
+	missingPieces atomic.Uint64 // Pieces belonging to missing files
 
-	bytesVerified int64
+	bytesVerified atomic.Int64
 	mutex         sync.RWMutex
 }
 
@@ -261,10 +264,10 @@ func VerifyData(opts VerifyOptions) (*VerificationResult, error) {
 	// 6. Compile and Return Results
 	result := &VerificationResult{
 		TotalPieces:     verifier.numPieces,
-		GoodPieces:      int(verifier.goodPieces),
-		BadPieces:       int(verifier.badPieces),
-		MissingPieces:   int(verifier.missingPieces), // This is now correctly counted atomically
-		Completion:      0.0,                         // Will be calculated below
+		GoodPieces:      int(verifier.goodPieces.Load()),
+		BadPieces:       int(verifier.badPieces.Load()),
+		MissingPieces:   int(verifier.missingPieces.Load()),
+		Completion:      0.0, // Will be calculated below
 		BadPieceIndices: verifier.badPieceIndices,
 		MissingFiles:    verifier.missingFiles,
 	}
@@ -380,7 +383,7 @@ func (v *pieceVerifier) verifyPieces(numWorkersOverride int) error {
 	}
 
 	v.startTime = time.Now()
-	v.bytesVerified = 0
+	v.bytesVerified.Store(0)
 
 	v.display.ShowFiles(v.files, numWorkers)
 
@@ -443,7 +446,7 @@ func (v *pieceVerifier) verifyPieces(numWorkersOverride int) error {
 				v.mutex.RUnlock()
 				var rate float64
 				if elapsed > 0 {
-					bytesVerified := atomic.LoadInt64(&v.bytesVerified)
+					bytesVerified := v.bytesVerified.Load()
 					rate = float64(bytesVerified) / elapsed
 				}
 				// Pass total completed count and rate to UpdateProgress
@@ -467,7 +470,7 @@ func (v *pieceVerifier) verifyPieces(numWorkersOverride int) error {
 		v.mutex.RUnlock()
 		var rate float64
 		if elapsed > 0 {
-			rate = float64(atomic.LoadInt64(&v.bytesVerified)) / elapsed
+			rate = float64(v.bytesVerified.Load()) / elapsed
 		}
 		v.progressCallback(v.numPieces, v.numPieces, rate/(1024*1024)) // Shows 100% completion, convert to MiB/s
 	}
@@ -518,7 +521,7 @@ func (v *pieceVerifier) verifyPieceRange(startPiece, endPiece int, completedPiec
 		}
 
 		if isMissing {
-			atomic.AddUint64(&v.missingPieces, 1)
+			v.missingPieces.Add(1)
 			atomic.AddUint64(completedPieces, 1)
 			continue // Skip hashing/comparison for missing pieces
 		}
@@ -539,7 +542,7 @@ func (v *pieceVerifier) verifyPieceRange(startPiece, endPiece int, completedPiec
 		}
 		if !foundStartFile {
 			// Should not happen if missingRanges logic is correct and piece is not missing
-			atomic.AddUint64(&v.badPieces, 1)
+			v.badPieces.Add(1)
 			v.mutex.Lock()
 			v.badPieceIndices = append(v.badPieceIndices, pieceIndex)
 			v.mutex.Unlock()
@@ -571,20 +574,20 @@ func (v *pieceVerifier) verifyPieceRange(startPiece, endPiece int, completedPiec
 				f, err := os.OpenFile(file.path, os.O_RDONLY, 0)
 				if err != nil {
 					// File became unreadable after initial check? Mark as bad.
-					atomic.AddUint64(&v.badPieces, 1)
+					v.badPieces.Add(1)
 					v.mutex.Lock()
 					v.badPieceIndices = append(v.badPieceIndices, pieceIndex)
 					v.mutex.Unlock()
 					goto nextPiece // Use goto to ensure completedPieces is incremented
 				}
-				reader = &fileReader{file: f, position: -1, length: file.length}
+				reader = &fileReader{file: f, position: -1}
 				readers[fIdx] = reader
 			}
 
 			if reader.position != readStartInFile {
 				_, err := reader.file.Seek(readStartInFile, io.SeekStart)
 				if err != nil {
-					atomic.AddUint64(&v.badPieces, 1)
+					v.badPieces.Add(1)
 					v.mutex.Lock()
 					v.badPieceIndices = append(v.badPieceIndices, pieceIndex)
 					v.mutex.Unlock()
@@ -601,7 +604,7 @@ func (v *pieceVerifier) verifyPieceRange(startPiece, endPiece int, completedPiec
 				}
 				n, err := reader.file.Read(buf[:readSize])
 				if err != nil && err != io.EOF {
-					atomic.AddUint64(&v.badPieces, 1)
+					v.badPieces.Add(1)
 					v.mutex.Lock()
 					v.badPieceIndices = append(v.badPieceIndices, pieceIndex)
 					v.mutex.Unlock()
@@ -619,16 +622,16 @@ func (v *pieceVerifier) verifyPieceRange(startPiece, endPiece int, completedPiec
 		}
 
 		if bytesHashedThisPiece > 0 {
-			atomic.AddInt64(&v.bytesVerified, bytesHashedThisPiece)
+			v.bytesVerified.Add(bytesHashedThisPiece)
 		}
 
 		expectedHash = v.torrentInfo.Pieces[pieceIndex*20 : (pieceIndex+1)*20]
 		actualHash = hasher.Sum(actualHashBuf[:0])
 
 		if bytes.Equal(actualHash, expectedHash) {
-			atomic.AddUint64(&v.goodPieces, 1)
+			v.goodPieces.Add(1)
 		} else {
-			atomic.AddUint64(&v.badPieces, 1)
+			v.badPieces.Add(1)
 			v.mutex.Lock()
 			v.badPieceIndices = append(v.badPieceIndices, pieceIndex)
 			v.mutex.Unlock()
