@@ -794,7 +794,7 @@ func writeTorrentAtomically(rootMap map[string]bencode.Bytes, outputPath string,
 	}()
 
 	mode := fallbackMode
-	if existing, statErr := os.Lstat(outputPath); statErr == nil && existing.Mode().IsRegular() {
+	if existing, statErr := os.Lstat(outputPath); replace && statErr == nil && existing.Mode().IsRegular() {
 		mode = existing.Mode().Perm()
 	}
 	if err := tempFile.Chmod(mode); err != nil {
