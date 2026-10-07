@@ -576,7 +576,7 @@ func (r *pieceReuse) findReusablePieces(files []fileEntry, baseDir string, input
 
 	r.reused = len(reusable)
 	oldTotalPieces := len(r.oldPieces) / 20
-	if max(oldTotalPieces, totalPieces) > 1 && r.reused == 0 && !r.allowNoReuse {
+	if r.reused == 0 && !r.allowNoReuse {
 		return nil, fmt.Errorf("refusing update with 0 reusable pieces (existing torrent: %d, updated torrent: %d); verify the content path or use --force", oldTotalPieces, totalPieces)
 	}
 	return reusable, nil

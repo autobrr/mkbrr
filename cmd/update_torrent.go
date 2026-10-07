@@ -49,7 +49,7 @@ By default, output is written beside the input with ".updated" before the
 extension and must not already exist. Output must be outside the content
 directory; this also applies to the input selected by --in-place. Use --output
 to choose a destination or --in-place to replace the input atomically.
-Multi-piece updates that reuse no hashes are rejected unless --force explicitly
+Updates that reuse no hashes are rejected unless --force explicitly
 permits them.`,
 	Args:                  cobra.ExactArgs(2),
 	RunE:                  runUpdateTorrent,
@@ -62,7 +62,7 @@ func init() {
 	updateTorrentCmd.Flags().SortFlags = false
 	updateTorrentCmd.Flags().StringVarP(&updateTorrentOpts.OutputPath, "output", "o", "", `output path (default: add ".updated" before the input extension)`)
 	updateTorrentCmd.Flags().BoolVar(&updateTorrentOpts.InPlace, "in-place", false, "replace the input torrent atomically")
-	updateTorrentCmd.Flags().BoolVar(&updateTorrentOpts.Force, "force", false, "allow a multi-piece update that reuses no hashes")
+	updateTorrentCmd.Flags().BoolVar(&updateTorrentOpts.Force, "force", false, "allow an update that reuses no hashes")
 	updateTorrentCmd.Flags().StringArrayVar(&updateTorrentOpts.RenamePairs, "rename", nil, "map an old torrent path to a new path as old=new (repeatable)")
 	updateTorrentCmd.Flags().StringArrayVar(&updateTorrentOpts.ExcludePatterns, "exclude", nil, "exclude files matching these patterns (comma-separated or repeatable)")
 	updateTorrentCmd.Flags().StringArrayVar(&updateTorrentOpts.IncludePatterns, "include", nil, "include only files matching these patterns (comma-separated or repeatable)")

@@ -743,17 +743,19 @@ func TestUpdateTorrentDefaultOutputDoesNotReplaceRacedFile(t *testing.T) {
 // TestUpdateTorrentRequiresForceForZeroReuse verifies a wrong content path cannot replace the input by default.
 func TestUpdateTorrentRequiresForceForZeroReuse(t *testing.T) {
 	for _, test := range []struct {
-		name          string
-		unrelatedSize int
-		updatedPieces int
+		name           string
+		originalPieces int
+		unrelatedSize  int
+		updatedPieces  int
 	}{
-		{name: "multi-piece replacement", unrelatedSize: 196_608, updatedPieces: 3},
-		{name: "single-piece replacement", unrelatedSize: 32_768, updatedPieces: 1},
+		{name: "multi-piece replacement", originalPieces: 3, unrelatedSize: 196_608, updatedPieces: 3},
+		{name: "multi-piece to single-piece", originalPieces: 3, unrelatedSize: 32_768, updatedPieces: 1},
+		{name: "single-piece replacement", originalPieces: 1, unrelatedSize: 32_768, updatedPieces: 1},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			originalDir := t.TempDir()
 			unrelatedDir := t.TempDir()
-			writeUpdateTestFile(t, filepath.Join(originalDir, "original.bin"), bytes.Repeat([]byte{'a'}, 196_608))
+			writeUpdateTestFile(t, filepath.Join(originalDir, "original.bin"), bytes.Repeat([]byte{'a'}, test.originalPieces*65_536))
 			writeUpdateTestFile(t, filepath.Join(unrelatedDir, "unrelated.bin"), bytes.Repeat([]byte{'b'}, test.unrelatedSize))
 
 			pieceLength := uint(16)
@@ -778,7 +780,7 @@ func TestUpdateTorrentRequiresForceForZeroReuse(t *testing.T) {
 					hashStarted = true
 				},
 			})
-			wantError := fmt.Sprintf("0 reusable pieces (existing torrent: 3, updated torrent: %d)", test.updatedPieces)
+			wantError := fmt.Sprintf("0 reusable pieces (existing torrent: %d, updated torrent: %d)", test.originalPieces, test.updatedPieces)
 			require.ErrorContains(t, err, wantError)
 			assert.False(t, hashStarted)
 			afterRefusal, err := os.ReadFile(torrentPath)
@@ -869,6 +871,7 @@ func TestUpdateTorrentSameSizeReplacementRehashes(t *testing.T) {
 		ContentPath: contentDir,
 		Quiet:       true,
 		InPlace:     true,
+		Force:       true,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, 0, result.ReusedPieces)
