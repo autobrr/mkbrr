@@ -73,6 +73,12 @@ The `.torrent` file does not record that a file was a link. `mkbrr check` does n
 If the target of a link changed or moved after you created the torrent, `mkbrr check` fails for the pieces of that file.
 </Warning>
 
+## Update after file changes
+
+Use `mkbrr update-torrent <torrent-file> <content-path>` to update an existing v1 torrent after files are added, removed, or renamed. Files with matching paths and sizes are assumed to be unchanged. If their bytes changed, use `mkbrr create` for a full rehash.
+
+An update that reuses no piece hashes is rejected, even when both torrents have only one piece. If you checked that the content path is correct, add `--force` to allow the full rehash. By default, the command writes a separate file with `.updated` before the input extension. Use `--in-place` to replace the input torrent.
+
 ## Examples
 
 <Tabs>
