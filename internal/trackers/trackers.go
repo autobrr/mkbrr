@@ -3,7 +3,10 @@
 
 package trackers
 
-import "strings"
+import (
+	"slices"
+	"strings"
+)
 
 // Rules holds the tracker rules that mkbrr enforces for one tracker
 type Rules struct {
@@ -370,4 +373,9 @@ func (r Rules) PieceSizeExp(contentSize uint64) (uint, bool) {
 		exp = r.MaxPieceLength
 	}
 	return exp, true
+}
+
+// Configs returns a copy of the rules for every known tracker.
+func Configs() []Rules {
+	return slices.Clone(trackerConfigs)
 }
