@@ -64,8 +64,10 @@ func formatPieceSize(exp uint) string {
 }
 
 // pieceLengthBounds returns the piece length bounds for the tracker rules and
-// create settings. The lower bound is 14 (16 KiB) for a tracker with its own
-// piece length table, else 16 (64 KiB). A target piece count always uses 16.
+// create settings. The lower bound is the smallest exponent that automatic
+// mode can pick: 14 (16 KiB) for a tracker with its own piece length table,
+// 15 (32 KiB) with no tracker rules, else 16 (64 KiB). A target piece count
+// always uses 16.
 // The upper bound is the tracker cap, or the user max if it is lower. With no
 // tracker cap, it is the user max (27 at most), else 24 (16 MiB). A tracker
 // with its own table uses 27 (128 MiB) in place of 24, but a target piece
@@ -74,8 +76,14 @@ func formatPieceSize(exp uint) string {
 // tracker rule (see "Tracker rule" in GLOSSARY.md).
 func pieceLengthBounds(rules trackers.Rules, userMax *uint, targetCount bool) (lower, upper uint) {
 	lower, upper = 16, 24
-	if len(rules.PieceSizeRanges) > 0 && !targetCount {
+	switch {
+	case targetCount:
+		// a target piece count keeps the defaults
+	case len(rules.PieceSizeRanges) > 0:
 		lower, upper = 14, 27
+	case !rules.UseDefaultRanges:
+		// automatic mode uses the default ranges unclamped, so it can pick 32 KiB
+		lower = trackers.DefaultPieceSizeRanges[0].PieceExp
 	}
 
 	switch {

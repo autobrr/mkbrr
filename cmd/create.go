@@ -93,8 +93,8 @@ func init() {
 	createCmd.Flags().BoolVarP(&options.isPrivate, "private", "p", true, "make torrent private")
 	createCmd.Flags().StringVarP(&options.comment, "comment", "c", "", "add comment")
 
-	createCmd.Flags().UintVarP(&options.pieceLengthExp, "piece-length", "l", 0, "set piece length to 2^n bytes (16-27, or 14-27 for a tracker with its own piece size table; automatic if not specified)")
-	createCmd.Flags().UintVarP(&options.maxPieceLengthExp, "max-piece-length", "m", 0, "limit maximum piece length to 2^n bytes (16-27, or 14-27 for a tracker with its own piece size table when target-piece-count is not set; lower if the tracker has a cap; unlimited if not specified)")
+	createCmd.Flags().UintVarP(&options.pieceLengthExp, "piece-length", "l", 0, "set piece length to 2^n bytes (16-27, 15-27 without tracker rules, or 14-27 for a tracker with its own piece size table; automatic if not specified)")
+	createCmd.Flags().UintVarP(&options.maxPieceLengthExp, "max-piece-length", "m", 0, "limit maximum piece length to 2^n bytes (16-27, or 15-27 without tracker rules and 14-27 for a tracker with its own piece size table when target-piece-count is not set; lower if the tracker has a cap; unlimited if not specified)")
 	createCmd.Flags().UintVar(&options.targetPieceCount, "target-piece-count", 0, "target approximate number of pieces (calculates optimal piece length)")
 
 	createCmd.Flags().StringVar(&options.name, "name", "", "set torrent name (default: <filename>)")

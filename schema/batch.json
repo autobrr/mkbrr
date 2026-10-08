@@ -54,7 +54,7 @@
           },
           "max_piece_length": {
             "type": "integer",
-            "description": "Maximum piece length as 2^n bytes (16-27, or 14-27 for a tracker with its own piece size table when target piece count is not set)",
+            "description": "Maximum piece length as 2^n bytes (16-27, or 15-27 without tracker rules and 14-27 for a tracker with its own piece size table when target piece count is not set)",
             "minimum": 14,
             "maximum": 27
           },

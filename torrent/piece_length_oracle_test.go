@@ -59,6 +59,9 @@ func TestChoosePieceLengthMatchesOracle(t *testing.T) {
 				opts.TrackerURLs = urls
 				got, gotNotices, gotErr := choosePieceLength(size, opts, rules, torrentSize(size))
 				want, wantNotices, wantErr := oracleChoosePieceLength(size, opts, rules, torrentSize(size))
+				if gotErr == nil && wantErr != nil && widenedNoTrackerLowerBound(opts, rules) {
+					return
+				}
 				if (gotErr != nil) != (wantErr != nil) || got != want || !slices.Equal(gotNotices, wantNotices) {
 					t.Fatalf("rules %v (limit %d), size %d, -l %v, -m %v, target %v: got %d %v %v, want %d %v %v",
 						urls, rules.MaxTorrentSize, size, deref(opts.PieceLengthExp), deref(opts.MaxPieceLength), deref(opts.TargetPieceCount),
@@ -79,6 +82,20 @@ func TestChoosePieceLengthMatchesOracle(t *testing.T) {
 		}
 	}
 	t.Logf("%d cases", cases)
+}
+
+// widenedNoTrackerLowerBound reports whether opts uses the 32 KiB exponent that
+// is now accepted with no tracker rules, where the oracle still rejects it.
+// The oracle has no info hash to compare for these settings.
+func widenedNoTrackerLowerBound(opts CreateOptions, rules trackers.Rules) bool {
+	if len(rules.PieceSizeRanges) > 0 || rules.UseDefaultRanges || opts.TargetPieceCount != nil {
+		return false
+	}
+	is15 := func(p *uint) bool { return p != nil && *p == 15 }
+	if opts.PieceLengthExp != nil {
+		return is15(opts.PieceLengthExp)
+	}
+	return is15(opts.MaxPieceLength)
 }
 
 func deref(p *uint) string {
