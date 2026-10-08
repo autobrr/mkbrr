@@ -37,6 +37,10 @@ The CLI, the GUI, and batch mode share one settings type for each operation: `to
   3. Merge `main` back into `develop`. If you skip this step, the fast-forward at the next release fails.
 - See `docs/adr/0002-develop-main-and-docs-site.md`.
 
+## Code
+
+- Before you write logic that a published spec or format defines (Markdown, HTML, URLs, CSV, semver, cron, time zones), use a well-proven library for it. Name the library in the PR body. If hand-written logic of this kind needs a second fix for an edge case, replace it with the library.
+
 ## Commits and PRs
 
 - Use Conventional Commits: `type(scope): description`, for example `fix(torrent): correct piece length for small files`.
