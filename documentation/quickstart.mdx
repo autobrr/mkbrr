@@ -74,10 +74,10 @@ mkbrr automatically handles many settings for you:
   ```
 
   ### Invalid Piece Size
-  Piece size must be a power of 2 between 16 and 27 (14 to 27 for trackers with their own piece size table):
+  Piece size must be a power of 2 between 16 and 27 (15 to 27 without tracker rules, 14 to 27 for trackers with their own piece size table):
   ```bash
-  # Valid sizes: 16(64KiB), 17(128KiB), 18(256KiB)...27(128MiB)
-  # Trackers with custom piece ranges also allow 14(16KiB) and 15(32KiB)
+  # Valid sizes: 15(32KiB), 16(64KiB), 17(128KiB), 18(256KiB)...27(128MiB)
+  # Trackers with custom piece ranges also allow 14(16KiB)
   mkbrr create data -t tracker.url --piece-length 16
   ```
 
