@@ -33,6 +33,32 @@ Tracker rules set the limits for the `-l` and `-m` flags:
 - If the tracker has a maximum .torrent size, mkbrr increases the piece length until the .torrent file fits. This also changes a `-l` value. If the file does not fit at the largest piece length, mkbrr stops with an error.
 </Warning>
 
+## Default piece sizes
+
+If the tracker URL does not match a known tracker and you do not give `-l` or `--target-piece-count`, mkbrr selects the piece size from the total size of the content:
+
+| Content size | Piece size |
+|--------------|------------|
+| 64 MiB or less | 32 KiB |
+| 64 MiB to 128 MiB | 64 KiB |
+| 128 MiB to 256 MiB | 128 KiB |
+| 256 MiB to 512 MiB | 256 KiB |
+| 512 MiB to 1 GiB | 512 KiB |
+| 1 GiB to 2 GiB | 1 MiB |
+| 2 GiB to 4 GiB | 2 MiB |
+| 4 GiB to 8 GiB | 4 MiB |
+| 8 GiB to 16 GiB | 8 MiB |
+| 16 GiB to 32 GiB | 16 MiB |
+| 32 GiB to 64 GiB | 32 MiB |
+| 64 GiB to 128 GiB | 64 MiB |
+| More than 128 GiB | 128 MiB |
+
+Each range includes its upper limit. For example, content of exactly 1 GiB gets 512 KiB pieces.
+
+By default, the automatic piece size is not more than 16 MiB. Thus content of more than 16 GiB gets 16 MiB pieces. To use the last three rows, set `-m` to a higher value, for example `-m 27` for 128 MiB.
+
+To see the piece size for your content before you create the torrent, run `mkbrr create` with `--plan`.
+
 ## Implemented Trackers
 
 Below is a list of implemented trackers and their specific requirements:
