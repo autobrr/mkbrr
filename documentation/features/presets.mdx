@@ -127,7 +127,7 @@ The following options can be used within the `default` section or any specific p
 
   <Tab title="Piece Settings">
     <ParamField path="piece_length" type="integer">
-      Piece size exponent (e.g., `18` for 256 KiB). Accepts 16-27, or 14-27 for a tracker with its own piece size table. Mutually exclusive with `target_piece_count`.
+      Piece size exponent (e.g., `18` for 256 KiB). Accepts 16-27, 15-27 without tracker rules, or 14-27 for a tracker with its own piece size table. Mutually exclusive with `target_piece_count`.
     </ParamField>
 
     <ParamField path="target_piece_count" type="integer">
@@ -135,7 +135,7 @@ The following options can be used within the `default` section or any specific p
     </ParamField>
 
     <ParamField path="max_piece_length" type="integer">
-      Maximum piece size exponent for automatic calculation. Accepts 16-27, or 14-27 for a tracker with its own piece size table when target piece count is not set.
+      Maximum piece size exponent for automatic calculation. Accepts 16-27, or 15-27 without tracker rules and 14-27 for a tracker with its own piece size table, when target piece count is not set.
     </ParamField>
   </Tab>
 

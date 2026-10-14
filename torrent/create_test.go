@@ -266,16 +266,29 @@ func Test_pieceLengthBounds(t *testing.T) {
 			wantMax:    24,
 		},
 		{
-			name:       "no tracker rules keeps default ceiling",
+			name:       "no tracker rules allows the 32 KiB automatic mode picks",
 			trackerURL: "https://example.invalid/announce",
-			wantMin:    16,
+			wantMin:    15,
 			wantMax:    24,
+		},
+		{
+			name:       "no tracker allows the 32 KiB automatic mode picks",
+			trackerURL: "",
+			wantMin:    15,
+			wantMax:    24,
+		},
+		{
+			name:        "target piece count with no tracker keeps 64 KiB",
+			trackerURL:  "",
+			targetCount: true,
+			wantMin:     16,
+			wantMax:     24,
 		},
 		{
 			name:           "no tracker cap lets user max raise the ceiling",
 			trackerURL:     "https://example.invalid/announce",
 			maxPieceLength: new(uint(26)),
-			wantMin:        16,
+			wantMin:        15,
 			wantMax:        26,
 		},
 	}
@@ -474,7 +487,8 @@ func Test_choosePieceLength_ExplicitBounds(t *testing.T) {
 		{"bhd default ranges reject 32 KiB", "https://beyond-hd.me/announce?passkey=123", 15, true},
 		{"portugas custom table rejects 8 KiB", "https://portugas.org/announce/passkey", 13, true},
 		{"ggn hard cap rejects 128 MiB", "https://gazellegames.net/announce?passkey=123", 27, true},
-		{"no tracker rejects 32 KiB", "", 15, true},
+		{"no tracker accepts 32 KiB", "", 15, false},
+		{"no tracker rejects 16 KiB", "", 14, true},
 	}
 
 	for _, tt := range tests {
@@ -1414,8 +1428,10 @@ func Test_choosePieceLength_MaxPieceLengthBounds(t *testing.T) {
 		targetCount *uint
 		wantErr     bool
 	}{
-		{"no tracker rejects 32 KiB", "", 15, nil, true},
+		{"no tracker accepts 32 KiB", "", 15, nil, false},
+		{"no tracker rejects 16 KiB", "", 14, nil, true},
 		{"no tracker accepts 64 KiB", "", 16, nil, false},
+		{"target piece count rejects 32 KiB with no tracker", "", 15, new(uint(1000)), true},
 		{"bhd default ranges reject 32 KiB", bhdURL, 15, nil, true},
 		{"bhd default ranges accept 64 KiB", bhdURL, 16, nil, false},
 		{"portugas custom table accepts 16 KiB", portugasURL, 14, nil, false},
