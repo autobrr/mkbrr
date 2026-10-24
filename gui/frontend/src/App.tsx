@@ -4,7 +4,7 @@
  */
 
 import { useEffect } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import { Layout } from '@/components/layout/Layout';
 import { CreatePage } from '@/pages/Create';
 import { InspectPage } from '@/pages/Inspect';
@@ -13,12 +13,35 @@ import { ModifyPage } from '@/pages/Modify';
 import { SettingsPage } from '@/pages/Settings';
 import { Toaster } from '@/components/ui/sonner';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
-import { WindowGetSize, WindowSetSize } from '../wailsjs/runtime/runtime';
+import { EventsOn, WindowGetSize, WindowSetSize } from '../wailsjs/runtime/runtime';
+import { TakeLaunchCommand } from '../wailsjs/go/main/App';
 
 const WINDOW_SIZE_KEY = 'mkbrr-window-size';
 // Mirror MinWidth/MinHeight in gui/main.go — keep these in sync.
 const MIN_WIDTH = 900;
 const MIN_HEIGHT = 600;
+
+// Runs the command from the command line, for example "mkbrr-gui inspect file.torrent",
+// at start and each time a second launch passes one to this window.
+function LaunchCommandHandler() {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const run = () => {
+      TakeLaunchCommand()
+        .then((cmd) => {
+          if (cmd?.command === 'inspect') {
+            navigate('/inspect', { state: { inspectPath: cmd.path } });
+          }
+        })
+        .catch((e) => console.error('Failed to run launch command:', e));
+    };
+    run();
+    return EventsOn('launch:command', run);
+  }, [navigate]);
+
+  return null;
+}
 
 function App() {
   // Restore saved window size on startup, and persist it whenever the window is resized.
@@ -62,6 +85,7 @@ function App() {
   return (
     <ErrorBoundary>
       <BrowserRouter>
+        <LaunchCommandHandler />
         <Routes>
           <Route element={<Layout />}>
             <Route path="/" element={<CreatePage />} />

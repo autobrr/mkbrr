@@ -5,6 +5,7 @@ package main
 
 import (
 	"embed"
+	"os"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -19,6 +20,8 @@ var assets embed.FS
 func main() {
 	// Create an instance of the app structure
 	app := NewApp(version)
+	wd, _ := os.Getwd() // On error a relative path stays relative to the process
+	app.queueLaunch(os.Args[1:], wd)
 
 	// Create application with options
 	err := wails.Run(&options.App{
@@ -36,6 +39,10 @@ func main() {
 			DisableWebViewDrop: true,
 		},
 		OnStartup: app.startup,
+		SingleInstanceLock: &options.SingleInstanceLock{
+			UniqueId:               "com.autobrr.mkbrr-gui",
+			OnSecondInstanceLaunch: app.onSecondInstanceLaunch,
+		},
 		Bind: []interface{}{
 			app,
 		},
