@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -398,6 +399,23 @@ export function InspectPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [trackersOpen, setTrackersOpen] = useState(true);
   const [filesOpen, setFilesOpen] = useState(true);
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // Shared by the file picker, a dropped file, and "mkbrr-gui inspect <file>".
+  const inspectPath = async (path: string) => {
+    try {
+      setError('');
+      setIsLoading(true);
+      const info = await InspectTorrent(path);
+      setTorrentInfo(info);
+    } catch (e) {
+      setError(String(e));
+      setTorrentInfo(null);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Drag-and-drop: accept .torrent files and inspect them immediately.
   const { isDragging } = useFileDrop(async (paths) => {
@@ -406,17 +424,7 @@ export function InspectPage() {
       toast.error('Please drop a .torrent file');
       return;
     }
-    try {
-      setError('');
-      setIsLoading(true);
-      const info = await InspectTorrent(torrentPath);
-      setTorrentInfo(info);
-    } catch (e) {
-      setError(String(e));
-      setTorrentInfo(null);
-    } finally {
-      setIsLoading(false);
-    }
+    await inspectPath(torrentPath);
   });
 
   // Load persisted state on mount
@@ -432,20 +440,27 @@ export function InspectPage() {
     saveInspectState(torrentInfo);
   }, [torrentInfo]);
 
+  // Load the torrent from "mkbrr-gui inspect <file>". Each launch is a new
+  // navigation with a new location key, so the same file loads again. Clear
+  // the state after use, so that a reload does not load the file again.
+  useEffect(() => {
+    const launchPath = (location.state as { inspectPath?: string } | null)?.inspectPath;
+    if (launchPath) {
+      navigate(location.pathname, { replace: true, state: null });
+      inspectPath(launchPath);
+    }
+  }, [location.key]);
+
   const handleSelectTorrent = async () => {
     try {
       setError('');
-      setIsLoading(true);
       const path = await SelectTorrentFile();
       if (path) {
-        const info = await InspectTorrent(path);
-        setTorrentInfo(info);
+        await inspectPath(path);
       }
     } catch (e) {
       setError(String(e));
       setTorrentInfo(null);
-    } finally {
-      setIsLoading(false);
     }
   };
 
