@@ -74,6 +74,15 @@ func TestModifyReturnsErrorWhenAFileFails(t *testing.T) {
 	}
 }
 
+func TestModifyDryRunReturnsErrorWhenAFileFails(t *testing.T) {
+	goodTorrent, brokenTorrent, _ := writeModifyFixture(t)
+
+	stdout, _, err := runModifyCommand(t, goodTorrent, brokenTorrent, "--comment", "new comment", "--dry-run")
+
+	require.EqualError(t, err, "1 of 2 torrent files failed")
+	assert.Contains(t, stdout, "Would modify "+goodTorrent)
+}
+
 func TestModifySucceedsWhenAllFilesPass(t *testing.T) {
 	goodTorrent, _, outputDir := writeModifyFixture(t)
 
