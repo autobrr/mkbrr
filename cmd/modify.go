@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -123,13 +124,18 @@ func buildTorrentOptions(cmd *cobra.Command, opts modifyOptions) torrent.ModifyO
 	return torrentOpts
 }
 
-// displayModifyResults handles showing the results of torrent modification
+// displayModifyResults handles showing the results of torrent modification and returns the number of files that failed
 func displayModifyResults(results []*torrent.Result, opts modifyOptions, display *torrent.Display, startTime time.Time) int {
-	successCount := 0
+	failed := 0
 
 	for _, result := range results {
 		if result.Error != nil {
-			display.ShowError(fmt.Sprintf("Error processing %s: %v", result.Path, result.Error))
+			failed++
+			if opts.Quiet {
+				fmt.Fprintf(os.Stderr, "Failed: %s: %v\n", result.Path, result.Error)
+			} else {
+				display.ShowError(fmt.Sprintf("Error processing %s: %v", result.Path, result.Error))
+			}
 			continue
 		}
 
@@ -159,10 +165,9 @@ func displayModifyResults(results []*torrent.Result, opts modifyOptions, display
 		} else {
 			display.ShowOutputPathWithTime(result.OutputPath, time.Since(startTime))
 		}
-		successCount++
 	}
 
-	return successCount
+	return failed
 }
 
 func runModify(cmd *cobra.Command, args []string) error {
@@ -182,7 +187,9 @@ func runModify(cmd *cobra.Command, args []string) error {
 	}
 
 	// Display the results
-	displayModifyResults(results, modifyOpts, display, start)
+	if failed := displayModifyResults(results, modifyOpts, display, start); failed > 0 {
+		return fmt.Errorf("%d of %d torrent files failed", failed, len(results))
+	}
 
 	return nil
 }
