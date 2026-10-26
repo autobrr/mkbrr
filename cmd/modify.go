@@ -139,7 +139,7 @@ func displayModifyResults(results []*torrent.Result, opts modifyOptions, display
 		}
 
 		if opts.DryRun {
-			display.ShowMessage(fmt.Sprintf("Would modify %s", result.Path))
+			display.ShowMessage("Would modify " + result.Path)
 			continue
 		}
 

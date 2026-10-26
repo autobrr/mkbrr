@@ -364,7 +364,7 @@ func TestUpdateTorrentReplacesOutputSymlinkWithoutFollowingTarget(t *testing.T) 
 		Quiet:       true,
 	})
 	require.NoError(t, err)
-	assert.Equal(t, float64(100), verification.Completion)
+	assert.InDelta(t, 100.0, verification.Completion, 1e-9)
 }
 
 func TestUpdateTorrentRejectsEquivalentContentDirectorySpellings(t *testing.T) {
@@ -579,7 +579,7 @@ func TestUpdateTorrentHandlesExtremePieceLength(t *testing.T) {
 		Quiet:       true,
 	})
 	require.NoError(t, err)
-	assert.Equal(t, float64(100), verification.Completion)
+	assert.InDelta(t, 100.0, verification.Completion, 1e-9)
 }
 
 // TestUpdateTorrentReusesSymlinkAliases verifies torrent-visible aliases remain distinct.
@@ -621,7 +621,7 @@ func TestUpdateTorrentReusesSymlinkAliases(t *testing.T) {
 		Quiet:       true,
 	})
 	require.NoError(t, err)
-	assert.Equal(t, float64(100), verification.Completion)
+	assert.InDelta(t, 100.0, verification.Completion, 1e-9)
 }
 
 func TestUpdateTorrentSupportsSymlinkedContentRoot(t *testing.T) {
@@ -657,7 +657,7 @@ func TestUpdateTorrentSupportsSymlinkedContentRoot(t *testing.T) {
 		Quiet:       true,
 	})
 	require.NoError(t, err)
-	assert.Equal(t, float64(100), verification.Completion)
+	assert.InDelta(t, 100.0, verification.Completion, 1e-9)
 }
 
 // TestUpdateTorrentDefaultsToSeparateOutput verifies the input is untouched without --in-place.

@@ -4,6 +4,7 @@
 package torrent
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -79,7 +80,7 @@ func ProcessBatch(configPath string, verbose bool, quiet bool, infoOnly bool, ve
 	}
 
 	if len(config.Jobs) == 0 {
-		return nil, fmt.Errorf("no jobs defined in batch config")
+		return nil, errors.New("no jobs defined in batch config")
 	}
 
 	// validate all jobs before processing
@@ -126,7 +127,7 @@ func nilIfZero(p *uint) *uint {
 
 func validateJob(job BatchJob) error {
 	if job.Path == "" {
-		return fmt.Errorf("path is required")
+		return errors.New("path is required")
 	}
 
 	if _, err := os.Stat(job.Path); err != nil {
@@ -134,17 +135,17 @@ func validateJob(job BatchJob) error {
 	}
 
 	if job.Output == "" {
-		return fmt.Errorf("output is required")
+		return errors.New("output is required")
 	}
 
 	s := job.normalizedSettings()
 	// create applies the stricter bounds for each tracker
 	if exp := s.PieceLengthExp; exp != nil && (*exp < 14 || *exp > 27) {
-		return fmt.Errorf("piece length must be between 14 and 27")
+		return errors.New("piece length must be between 14 and 27")
 	}
 
 	if s.PieceLengthExp != nil && s.TargetPieceCount != nil {
-		return fmt.Errorf("cannot set both piece_length and target_piece_count; use one or the other")
+		return errors.New("cannot set both piece_length and target_piece_count; use one or the other")
 	}
 
 	return nil

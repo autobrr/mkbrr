@@ -121,7 +121,7 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 	h.bufferPool = &sync.Pool{
 		New: func() interface{} {
 			buf := make([]byte, h.readSize)
-			return buf
+			return &buf
 		},
 	}
 
@@ -212,8 +212,9 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 //	completedPieces: atomic counter for progress tracking
 func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *uint64) error {
 	// reuse buffer from pool to minimize allocations
-	buf := h.bufferPool.Get().([]byte)
-	defer h.bufferPool.Put(buf)
+	bufp := h.bufferPool.Get().(*[]byte)
+	defer h.bufferPool.Put(bufp)
+	buf := *bufp
 
 	hasher := sha1.New()
 	// pieces and the files within them are processed in ascending order, so a

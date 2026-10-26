@@ -83,6 +83,7 @@ func applyMetadata(mi *metainfo.MetaInfo, spec metadataSpec) (bool, error) {
 			mi.AnnounceList = nil
 			changed = true
 		}
+	case keepField:
 	}
 
 	if spec.WebSeeds != nil && !slices.Equal(mi.UrlList, spec.WebSeeds) {
@@ -119,6 +120,7 @@ func applyMetadata(mi *metainfo.MetaInfo, spec metadataSpec) (bool, error) {
 		infoChanged = true
 	case clearField:
 		infoChanged = applyInfoValue(info, "entropy", cleared[string]()) || infoChanged
+	case keepField:
 	}
 
 	if !infoChanged {
@@ -163,6 +165,7 @@ func applyInfoValue[T comparable](info map[string]any, key string, f field[T]) b
 	case clearField:
 		delete(info, key)
 		return present
+	case keepField:
 	}
 	return false
 }

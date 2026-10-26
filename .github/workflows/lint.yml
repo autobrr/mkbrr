@@ -1,0 +1,47 @@
+name: Lint
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  golangci-lint:
+    name: golangci-lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Lint CLI module
+        uses: golangci/golangci-lint-action@v9.3.0
+        with:
+          version: v2.14.0
+          only-new-issues: false
+
+      # The GUI embeds frontend/dist, which git ignores. A placeholder file
+      # lets the GUI module type-check without a frontend build.
+      - name: Create placeholder frontend dist for embed
+        if: ${{ !cancelled() }}
+        run: |
+          mkdir -p gui/frontend/dist
+          touch gui/frontend/dist/.gitkeep
+
+      # The GUI module has its own go.mod, so the root run skips it. This run
+      # finds the root configuration.
+      - name: Lint GUI module
+        if: ${{ !cancelled() }}
+        uses: golangci/golangci-lint-action@v9.3.0
+        with:
+          version: v2.14.0
+          only-new-issues: false
+          working-directory: gui

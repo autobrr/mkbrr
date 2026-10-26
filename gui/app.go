@@ -14,10 +14,11 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/wailsapp/wails/v2/pkg/runtime"
+
 	"github.com/autobrr/mkbrr/internal/preset"
 	"github.com/autobrr/mkbrr/internal/trackers"
 	"github.com/autobrr/mkbrr/torrent"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // App struct holds the application state
@@ -207,7 +208,7 @@ func (a *App) SelectMultipleTorrentFiles() ([]string, error) {
 // CreateTorrent creates a new torrent file
 func (a *App) CreateTorrent(req CreateRequest) (*TorrentResult, error) {
 	if req.Path == "" {
-		return nil, fmt.Errorf("path is required")
+		return nil, errors.New("path is required")
 	}
 
 	var presetOpts *preset.Options
@@ -413,10 +414,10 @@ func (a *App) InspectTorrent(path string) (*InspectResult, error) {
 // VerifyTorrent verifies torrent data against local files
 func (a *App) VerifyTorrent(req VerifyRequest) (*VerifyResult, error) {
 	if req.TorrentPath == "" {
-		return nil, fmt.Errorf("torrent path is required")
+		return nil, errors.New("torrent path is required")
 	}
 	if req.ContentPath == "" {
-		return nil, fmt.Errorf("content path is required")
+		return nil, errors.New("content path is required")
 	}
 
 	opts := torrent.VerifyOptions{
@@ -466,7 +467,7 @@ func (a *App) VerifyTorrent(req VerifyRequest) (*VerifyResult, error) {
 // ModifyTorrent modifies an existing torrent file
 func (a *App) ModifyTorrent(req ModifyRequest) (*ModifyResult, error) {
 	if req.TorrentPath == "" {
-		return nil, fmt.Errorf("torrent path is required")
+		return nil, errors.New("torrent path is required")
 	}
 
 	opts := torrent.ModifyOptions{
@@ -563,13 +564,13 @@ func (a *App) GetAllPresets() (*PresetsResult, error) {
 // validatePresetName validates a preset name for safe usage
 func validatePresetName(name string) error {
 	if name == "" {
-		return fmt.Errorf("preset name cannot be empty")
+		return errors.New("preset name cannot be empty")
 	}
 	if len(name) > 64 {
-		return fmt.Errorf("preset name too long (max 64 characters)")
+		return errors.New("preset name too long (max 64 characters)")
 	}
 	if strings.ContainsAny(name, "/\\:*?\"<>|") {
-		return fmt.Errorf("preset name contains invalid characters")
+		return errors.New("preset name contains invalid characters")
 	}
 	return nil
 }
@@ -730,14 +731,14 @@ func (a *App) GetVersion() string {
 // OpenURL opens a URL in the default browser
 func (a *App) OpenURL(rawURL string) error {
 	if !strings.HasPrefix(rawURL, "http://") && !strings.HasPrefix(rawURL, "https://") {
-		return fmt.Errorf("invalid URL scheme: must be http or https")
+		return errors.New("invalid URL scheme: must be http or https")
 	}
 	parsedURL, err := url.Parse(rawURL)
 	if err != nil {
 		return fmt.Errorf("invalid URL format: %w", err)
 	}
 	if parsedURL.Host == "" {
-		return fmt.Errorf("invalid URL: missing host")
+		return errors.New("invalid URL: missing host")
 	}
 	runtime.BrowserOpenURL(a.ctx, rawURL)
 	return nil

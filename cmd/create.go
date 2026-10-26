@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"runtime/pprof"
@@ -62,17 +63,17 @@ Supports presets for commonly used settings.
 When a single tracker URL is provided, the output filename will use the tracker domain (without TLD) as prefix by default (e.g. "example_filename.torrent"). This behavior can be disabled with --skip-prefix. When multiple trackers are specified, no prefix is added.`,
 	Args: func(cmd *cobra.Command, args []string) error {
 		if len(args) > 1 {
-			return fmt.Errorf("accepts at most one arg")
+			return errors.New("accepts at most one arg")
 		}
 		if len(args) == 0 && options.batchFile == "" {
 			presetFlag := cmd.Flags().Lookup("preset")
 			if presetFlag != nil && presetFlag.Changed {
-				return fmt.Errorf("when using a preset (-P/--preset), you must provide a path to the content")
+				return errors.New("when using a preset (-P/--preset), you must provide a path to the content")
 			}
-			return fmt.Errorf("requires a path argument or --batch flag")
+			return errors.New("requires a path argument or --batch flag")
 		}
 		if len(args) == 1 && options.batchFile != "" {
-			return fmt.Errorf("cannot specify both path argument and --batch flag")
+			return errors.New("cannot specify both path argument and --batch flag")
 		}
 		return nil
 	},
