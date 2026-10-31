@@ -32,17 +32,88 @@ function getDirectory(path: string): string {
   return lastSlash > 0 ? path.substring(0, lastSlash) : path;
 }
 
+type PrivateMode = 'unchanged' | 'private' | 'public' | 'remove';
+type EntropyMode = 'keep' | 'add' | 'remove';
+
 // Form state persistence
 interface ModifyFormState {
   torrentPath: string;
   outputDir: string;
+  outputPattern: string;
   trackers: string[];
-  setPrivate: boolean | undefined;
+  webSeeds: string[];
+  name: string;
+  privateMode: PrivateMode;
+  entropyMode: EntropyMode;
   source: string;
   comment: string;
   noDate: boolean;
   noCreator: boolean;
+  skipPrefix: boolean;
   presetName: string;
+}
+
+function RadioRow<T extends string>({ name, value, options, onChange }: {
+  name: string;
+  value: T;
+  options: [T, string][];
+  onChange: (value: T) => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-4">
+      {options.map(([option, label]) => (
+        <label key={option} className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="radio"
+            name={name}
+            checked={value === option}
+            onChange={() => onChange(option)}
+            className="w-4 h-4"
+          />
+          <span className="text-sm">{label}</span>
+        </label>
+      ))}
+    </div>
+  );
+}
+
+function UrlListInput({ urls, onChange, placeholder, addLabel }: {
+  urls: string[];
+  onChange: (urls: string[]) => void;
+  placeholder: string;
+  addLabel: string;
+}) {
+  return (
+    <div className="space-y-2">
+      {urls.map((url, index) => (
+        <div key={index} className="flex gap-2">
+          <Input
+            value={url}
+            onChange={(e) => onChange(urls.map((u, i) => (i === index ? e.target.value : u)))}
+            placeholder={placeholder}
+            className="flex-1"
+          />
+          {urls.length > 1 && (
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => onChange(urls.filter((_, i) => i !== index))}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+      ))}
+      <Button variant="outline" size="sm" onClick={() => onChange([...urls, ''])}>
+        <Plus className="mr-2 h-4 w-4" />
+        {addLabel}
+      </Button>
+    </div>
+  );
+}
+
+function nonEmptyList(list: unknown): string[] {
+  return Array.isArray(list) && list.length > 0 ? list : [''];
 }
 
 const STORAGE_KEY = 'mkbrr-modify-form';
@@ -78,14 +149,17 @@ export function ModifyPage() {
   const savedState = loadFormState();
   const [torrentPath, setTorrentPath] = useState(savedState.torrentPath ?? '');
   const [outputDir, setOutputDir] = useState(savedState.outputDir ?? '');
-  const [trackers, setTrackers] = useState<string[]>(
-    Array.isArray(savedState.trackers) && savedState.trackers.length > 0 ? savedState.trackers : ['']
-  );
-  const [setPrivate, setSetPrivate] = useState<boolean | undefined>(savedState.setPrivate);
+  const [outputPattern, setOutputPattern] = useState(savedState.outputPattern ?? '');
+  const [trackers, setTrackers] = useState(nonEmptyList(savedState.trackers));
+  const [webSeeds, setWebSeeds] = useState(nonEmptyList(savedState.webSeeds));
+  const [name, setName] = useState(savedState.name ?? '');
+  const [privateMode, setPrivateMode] = useState<PrivateMode>(savedState.privateMode ?? 'unchanged');
+  const [entropyMode, setEntropyMode] = useState<EntropyMode>(savedState.entropyMode ?? 'keep');
   const [source, setSource] = useState(savedState.source ?? '');
   const [comment, setComment] = useState(savedState.comment ?? '');
   const [noDate, setNoDate] = useState(savedState.noDate ?? false);
   const [noCreator, setNoCreator] = useState(savedState.noCreator ?? false);
+  const [skipPrefix, setSkipPrefix] = useState(savedState.skipPrefix ?? false);
   const [presetName, setPresetName] = useState(savedState.presetName ?? '');
 
   const [presets, setPresets] = useState<string[]>([]);
@@ -115,25 +189,35 @@ export function ModifyPage() {
     saveFormState({
       torrentPath,
       outputDir,
+      outputPattern,
       trackers,
-      setPrivate,
+      webSeeds,
+      name,
+      privateMode,
+      entropyMode,
       source,
       comment,
       noDate,
       noCreator,
+      skipPrefix,
       presetName,
     });
-  }, [torrentPath, outputDir, trackers, setPrivate, source, comment, noDate, noCreator, presetName]);
+  }, [torrentPath, outputDir, outputPattern, trackers, webSeeds, name, privateMode, entropyMode, source, comment, noDate, noCreator, skipPrefix, presetName]);
 
   const handleReset = () => {
     setTorrentPath('');
     setOutputDir('');
+    setOutputPattern('');
     setTrackers(['']);
-    setSetPrivate(undefined);
+    setWebSeeds(['']);
+    setName('');
+    setPrivateMode('unchanged');
+    setEntropyMode('keep');
     setSource('');
     setComment('');
     setNoDate(false);
     setNoCreator(false);
+    setSkipPrefix(false);
     setPresetName('');
     setResult(null);
     setError('');
@@ -158,8 +242,10 @@ export function ModifyPage() {
 
         if (trackerList && trackerList.length > 0) setTrackers(trackerList);
         if (sourceVal) setSource(sourceVal);
-        if (privateVal !== undefined) setSetPrivate(privateVal);
+        if (privateVal !== undefined) setPrivateMode(privateVal ? 'private' : 'public');
         if (commentVal) setComment(commentVal);
+        // "Keep" sends entropy false, which wins over the preset, so show the preset value
+        if (preset.entropy !== undefined) setEntropyMode(preset.entropy ? 'add' : 'keep');
       }
     } catch (e) {
       setError('Failed to load preset: ' + String(e));
@@ -188,28 +274,6 @@ export function ModifyPage() {
     }
   };
 
-  const addTracker = () => {
-    setTrackers([...trackers, '']);
-  };
-
-  const removeTracker = (index: number) => {
-    setTrackers(trackers.filter((_, i) => i !== index));
-  };
-
-  const updateTracker = (index: number, value: string) => {
-    const newTrackers = [...trackers];
-    newTrackers[index] = value;
-    setTrackers(newTrackers);
-  };
-
-  const handlePrivateChange = (value: string) => {
-    if (value === 'unchanged') {
-      setSetPrivate(undefined);
-    } else {
-      setSetPrivate(value === 'private');
-    }
-  };
-
   const handleInspectResult = async () => {
     if (!result?.outputPath) return;
     try {
@@ -235,20 +299,21 @@ export function ModifyPage() {
       const req: ModifyRequest = {
         torrentPath,
         trackerUrls: trackers.filter(t => t.trim() !== ''),
-        webSeeds: [],
-        name: '',
-        isPrivate: setPrivate,
-        noPrivate: false,
+        webSeeds: webSeeds.filter(w => w.trim() !== ''),
+        name,
+        isPrivate: privateMode === 'private' ? true : privateMode === 'public' ? false : undefined,
+        noPrivate: privateMode === 'remove',
         // an empty string clears, so send nothing to keep
         source: source || undefined,
         comment: comment || undefined,
         noDate,
         noCreator,
-        entropy: false,
-        noEntropy: false,
-        skipPrefix: false,
+        // false keeps the entropy, also over a preset
+        entropy: entropyMode === 'add',
+        noEntropy: entropyMode === 'remove',
+        skipPrefix,
         outputDir,
-        outputPattern: '',
+        outputPattern,
         presetName,
         presetFile: '',
         dryRun: false,
@@ -327,68 +392,23 @@ export function ModifyPage() {
             {/* Trackers */}
             <div className="space-y-1.5">
               <Label>Add Trackers</Label>
-              <div className="space-y-2">
-                {trackers.map((tracker, index) => (
-                  <div key={index} className="flex gap-2">
-                    <Input
-                      value={tracker}
-                      onChange={(e) => updateTracker(index, e.target.value)}
-                      placeholder="https://tracker.example.com/announce"
-                      className="flex-1"
-                    />
-                    {trackers.length > 1 && (
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => removeTracker(index)}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                ))}
-                <Button variant="outline" size="sm" onClick={addTracker}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Tracker
-                </Button>
-              </div>
+              <UrlListInput
+                urls={trackers}
+                onChange={setTrackers}
+                placeholder="https://tracker.example.com/announce"
+                addLabel="Add Tracker"
+              />
             </div>
 
             {/* Private Flag */}
             <div className="space-y-1.5">
               <Label>Private Flag</Label>
-              <div className="flex gap-4">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="private"
-                    checked={setPrivate === undefined}
-                    onChange={() => handlePrivateChange('unchanged')}
-                    className="w-4 h-4"
-                  />
-                  <span className="text-sm">Unchanged</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="private"
-                    checked={setPrivate === true}
-                    onChange={() => handlePrivateChange('private')}
-                    className="w-4 h-4"
-                  />
-                  <span className="text-sm">Private</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="private"
-                    checked={setPrivate === false}
-                    onChange={() => handlePrivateChange('public')}
-                    className="w-4 h-4"
-                  />
-                  <span className="text-sm">Public</span>
-                </label>
-              </div>
+              <RadioRow
+                name="private"
+                value={privateMode}
+                onChange={setPrivateMode}
+                options={[['unchanged', 'Unchanged'], ['private', 'Private'], ['public', 'Public'], ['remove', 'Remove flag']]}
+              />
             </div>
 
             {/* Output Directory */}
@@ -458,6 +478,48 @@ export function ModifyPage() {
                   </div>
                 </div>
 
+                {/* Name + Output Filename */}
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label>Name</Label>
+                    <Input
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Leave empty to keep unchanged"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Output Filename</Label>
+                    <Input
+                      value={outputPattern}
+                      onChange={(e) => setOutputPattern(e.target.value)}
+                      placeholder="Without .torrent; empty uses the torrent name"
+                    />
+                  </div>
+                </div>
+
+                {/* Web Seeds */}
+                <div className="space-y-1.5">
+                  <Label>Web Seeds</Label>
+                  <UrlListInput
+                    urls={webSeeds}
+                    onChange={setWebSeeds}
+                    placeholder="Leave empty to keep unchanged"
+                    addLabel="Add Web Seed"
+                  />
+                </div>
+
+                {/* Entropy */}
+                <div className="space-y-1.5">
+                  <Label>Entropy</Label>
+                  <RadioRow
+                    name="entropy"
+                    value={entropyMode}
+                    onChange={setEntropyMode}
+                    options={[['keep', 'Keep'], ['add', 'Add new'], ['remove', 'Remove']]}
+                  />
+                </div>
+
                 {/* Toggles */}
                 <div className="flex flex-wrap gap-6">
                   <div className="flex items-center gap-2">
@@ -475,6 +537,14 @@ export function ModifyPage() {
                       onCheckedChange={setNoCreator}
                     />
                     <Label htmlFor="noCreator" className="text-sm">Remove creator</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="skipPrefix"
+                      checked={skipPrefix}
+                      onCheckedChange={setSkipPrefix}
+                    />
+                    <Label htmlFor="skipPrefix" className="text-sm">Skip tracker prefix in filename</Label>
                   </div>
                 </div>
               </div>

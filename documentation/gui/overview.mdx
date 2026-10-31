@@ -49,6 +49,33 @@ Tracker rules still apply. If the first tracker has a maximum piece length, the 
 
 You set the worker count on the Settings page, not on the Create page.
 
+### Modify settings
+
+The Modify page changes the metadata of a `.torrent` file. Each control has the same effect as a flag of [`mkbrr modify`](/cli-reference/modify):
+
+| Control | CLI flag |
+|---------|----------|
+| Add Trackers | `--tracker` |
+| Web Seeds | `--web-seed` |
+| Name | `--name` |
+| Source | `--source` |
+| Comment | `--comment` |
+| Private Flag: Private or Public | `--private` or `--private=false` |
+| Private Flag: Remove flag | `--no-private` |
+| Entropy: Add new | `--entropy` |
+| Entropy: Remove | `--no-entropy` |
+| Remove creation date | `--no-date` |
+| Remove creator | `--no-creator` |
+| Skip tracker prefix in filename | `--skip-prefix` |
+| Output Directory | `--output-dir` |
+| Output Filename | `--output` |
+
+The Entropy control has three options. Keep does not change the entropy field, also when the preset adds entropy. Add new writes a new random value. Remove deletes the entropy field. If you select a preset that sets `entropy: true`, the page selects Add new. If you select a preset that sets `entropy: false`, the page selects Keep.
+
+<Warning>
+Add new, Remove, and a new Name change the info hash. A torrent with a new info hash does not cross-seed with the old torrent.
+</Warning>
+
 ### Settings
 
 The Settings page allows you to:
@@ -242,6 +269,7 @@ Both interfaces provide the same core torrent operations. Choose based on your w
 | Inspect metadata | Yes | Yes |
 | Check integrity | Yes | Yes |
 | Modify metadata | Yes | Yes |
+| All modify settings | Yes | Yes |
 | Batch operations | Yes | No |
 | Preset support | Yes | Yes |
 | Preset management | Manual YAML | Visual editor |
