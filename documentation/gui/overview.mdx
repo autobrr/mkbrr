@@ -29,6 +29,26 @@ The GUI provides the same core functionality as the CLI with additional usabilit
   </Card>
 </CardGroup>
 
+### Create settings
+
+The Create page has a control for each create setting of the CLI. The controls in this table are in the Advanced Options section:
+
+| Control | CLI flag | What it does |
+|---------|----------|--------------|
+| Web Seeds | `--web-seed` | Adds web seed URLs, one URL per input. |
+| Piece Length | `--piece-length` | Sets the piece length. |
+| Max Piece Length | `--max-piece-length` | Sets the largest piece length that mkbrr can select. |
+| Target Piece Count | `--target-piece-count` | Sets the approximate number of pieces. mkbrr selects the piece length from it. You cannot set it together with a piece length. |
+| Exclude Patterns | `--exclude` | Leaves out the files that match the patterns. |
+| Include Patterns | `--include` | Adds only the files that match the patterns. |
+| Skip filename prefix | `--skip-prefix` | Does not add the tracker domain to the start of the output filename. |
+
+Write the patterns as a comma-separated list, for example `*.nfo,*.jpg`. If you select a preset, the patterns of the preset also apply. See the [filtering guide](/features/filtering) for the pattern rules.
+
+Tracker rules still apply. If the first tracker has a maximum piece length, the piece length lists show no larger sizes. A target piece count also cannot select a larger piece length.
+
+You set the worker count on the Settings page, not on the Create page.
+
 ### Settings
 
 The Settings page allows you to:
@@ -218,6 +238,7 @@ Both interfaces provide the same core torrent operations. Choose based on your w
 | Feature | CLI | GUI |
 |---------|-----|-----|
 | Create torrents | Yes | Yes |
+| All create settings | Yes | Yes |
 | Inspect metadata | Yes | Yes |
 | Check integrity | Yes | Yes |
 | Modify metadata | Yes | Yes |

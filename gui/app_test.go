@@ -67,6 +67,38 @@ func TestPlanCreateMatchesCreateTorrent(t *testing.T) {
 			wantContent: mainSize,
 		},
 		{
+			// The tracker caps pieces at 8 MiB. One piece would need 32 MiB.
+			name: "target piece count, tracker cap",
+			setup: func(t *testing.T, dir string) CreateRequest {
+				writeFile(t, filepath.Join(dir, "content", "main.mkv"), 20<<20)
+				return CreateRequest{
+					Path: filepath.Join(dir, "content"),
+					CreateSettings: torrent.CreateSettings{
+						TrackerURLs:      []string{"https://morethantv.me/announce"},
+						TargetPieceCount: new(uint(1)),
+					},
+				}
+			},
+			wantExp:     23,
+			wantContent: 20 << 20,
+		},
+		{
+			name: "target piece count, max piece length below the tracker cap",
+			setup: func(t *testing.T, dir string) CreateRequest {
+				writeFile(t, filepath.Join(dir, "content", "main.mkv"), 20<<20)
+				return CreateRequest{
+					Path: filepath.Join(dir, "content"),
+					CreateSettings: torrent.CreateSettings{
+						TrackerURLs:      []string{"https://morethantv.me/announce"},
+						TargetPieceCount: new(uint(1)),
+						MaxPieceLength:   new(uint(22)),
+					},
+				}
+			},
+			wantExp:     22,
+			wantContent: 20 << 20,
+		},
+		{
 			name: "preset piece length",
 			setup: func(t *testing.T, dir string) CreateRequest {
 				writeFile(t, filepath.Join(dir, "content", "main.mkv"), mainSize)
