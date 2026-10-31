@@ -31,15 +31,8 @@ const (
 // presetEditorKeys are the preset keys that the GUI preset editor (Settings.tsx) has a control for.
 var presetEditorKeys = []string{
 	"source", "comment", "private", "no_date", "no_creator", "entropy", "skip_prefix",
-	"trackers", "workers",
-}
-
-// presetEditorGaps are the preset keys that the GUI preset editor has no control for now.
-// When the editor saves a preset, it keeps piece_length and max_piece_length, and drops the other values.
-// Remove a key when its control is added.
-var presetEditorGaps = []string{
-	"piece_length", "max_piece_length", "target_piece_count", "fail_on_season_warning",
-	"webseeds", "exclude_patterns", "include_patterns", "output_dir",
+	"fail_on_season_warning", "trackers", "webseeds", "output_dir", "piece_length",
+	"max_piece_length", "target_piece_count", "exclude_patterns", "include_patterns", "workers",
 }
 
 type settingsParity struct {
@@ -138,10 +131,9 @@ func TestSettingsParity(t *testing.T) {
 	}
 
 	for _, key := range slices.Sorted(maps.Keys(usedPresetKeys)) {
-		assert.NotEqualf(t, slices.Contains(presetEditorKeys, key), slices.Contains(presetEditorGaps, key),
-			"preset key %q must be in exactly one of presetEditorKeys and presetEditorGaps", key)
+		assert.Containsf(t, presetEditorKeys, key, "the GUI preset editor has no control for preset key %q; add one, and add the key to presetEditorKeys", key)
 	}
-	for _, key := range slices.Concat(presetEditorKeys, presetEditorGaps) {
+	for _, key := range presetEditorKeys {
 		assert.Truef(t, usedPresetKeys[key], "preset key %q is in a preset editor list, but no setting has it", key)
 	}
 }

@@ -12,6 +12,8 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { PIECE_LENGTHS } from '@/lib/utils';
 import {
   Dialog,
   DialogContent,
@@ -30,17 +32,21 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { RefreshCw, Plus, Pencil, Trash2, X, ChevronDown } from 'lucide-react';
+import { RefreshCw, Plus, Pencil, Trash2, X, ChevronDown, FolderOpen } from 'lucide-react';
 import {
   GetPresetFilePath,
   GetAllPresets,
   SavePreset,
   DeletePreset,
   CreatePresetFile,
+  SelectPath,
 } from '../../wailsjs/go/main/App';
 import { preset } from '../../wailsjs/go/models';
 
 type PresetOptions = preset.Options;
+
+const textareaClass =
+  'border-input dark:bg-input/30 placeholder:text-muted-foreground w-full min-h-16 rounded-md border bg-transparent px-3 py-2 font-mono text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]';
 
 // === Default Settings Storage ===
 const DEFAULT_SETTINGS_KEY = 'mkbrr-default-settings';
@@ -86,14 +92,22 @@ interface PresetFormData {
   name: string;
   source: string;
   comment: string;
-  isPrivate: boolean;
-  noDate: boolean;
-  noCreator: boolean;
-  entropy: boolean;
-  skipPrefix: boolean;
+  // undefined: the preset does not set the switch, so the default section applies
+  isPrivate?: boolean;
+  noDate?: boolean;
+  noCreator?: boolean;
+  entropy?: boolean;
+  skipPrefix?: boolean;
+  failOnSeasonWarning?: boolean;
   trackers: string[];
+  // One URL or pattern on each line
+  webSeeds: string;
+  excludePatterns: string;
+  includePatterns: string;
+  outputDir: string;
   pieceLength: number;
   maxPieceLength: number;
+  targetPieceCount: number;
   workers: number;
 }
 
@@ -101,14 +115,14 @@ const emptyFormData: PresetFormData = {
   name: '',
   source: '',
   comment: '',
-  isPrivate: true,
-  noDate: false,
-  noCreator: false,
-  entropy: false,
-  skipPrefix: false,
   trackers: [''],
+  webSeeds: '',
+  excludePatterns: '',
+  includePatterns: '',
+  outputDir: '',
   pieceLength: 0,
   maxPieceLength: 0,
+  targetPieceCount: 0,
   workers: 0, // 0 = use default from settings
 };
 
@@ -136,11 +150,11 @@ function optionsToFormData(name: string, options: PresetOptions): PresetFormData
     name,
     source: options.source || (options as any).Source || '',
     comment: options.comment || (options as any).Comment || '',
-    isPrivate: options.private ?? (options as any).Private ?? true,
-    noDate: options.noDate ?? (options as any).NoDate ?? false,
-    noCreator: options.noCreator ?? (options as any).NoCreator ?? false,
-    entropy: options.entropy ?? (options as any).Entropy ?? false,
-    skipPrefix: options.skipPrefix ?? (options as any).SkipPrefix ?? false,
+    isPrivate: options.private ?? (options as any).Private,
+    noDate: options.noDate ?? (options as any).NoDate,
+    noCreator: options.noCreator ?? (options as any).NoCreator,
+    entropy: options.entropy ?? (options as any).Entropy,
+    skipPrefix: options.skipPrefix ?? (options as any).SkipPrefix,
     trackers: (options.trackers && options.trackers.length > 0)
       ? options.trackers
       : ((options as any).Trackers && (options as any).Trackers.length > 0)
@@ -148,8 +162,24 @@ function optionsToFormData(name: string, options: PresetOptions): PresetFormData
         : [''],
     pieceLength: options.pieceLength || (options as any).PieceLength || 0,
     maxPieceLength: options.maxPieceLength || (options as any).MaxPieceLength || 0,
+    failOnSeasonWarning: options.failOnSeasonWarning,
+    webSeeds: (options.webSeeds ?? []).join('\n'),
+    excludePatterns: (options.excludePatterns ?? []).join('\n'),
+    includePatterns: (options.includePatterns ?? []).join('\n'),
+    outputDir: options.outputDir ?? '',
+    targetPieceCount: options.targetPieceCount ?? 0,
     workers: options.workers ?? (options as any).Workers ?? 0, // 0 = use default
   };
+}
+
+// parseCount reads a number input as a whole number. Number reads "1e3" as 1000, where parseInt gives 1.
+function parseCount(value: string): number {
+  const n = Math.floor(Number(value));
+  return Number.isFinite(n) ? Math.max(0, n) : 0;
+}
+
+function splitLines(text: string): string[] {
+  return text.split('\n').map(l => l.trim()).filter(l => l !== '');
 }
 
 function formDataToOptions(data: PresetFormData): PresetOptions {
@@ -160,22 +190,29 @@ function formDataToOptions(data: PresetFormData): PresetOptions {
   options.noCreator = data.noCreator;
   options.entropy = data.entropy;
   options.skipPrefix = data.skipPrefix;
+  options.failOnSeasonWarning = data.failOnSeasonWarning;
   options.source = data.source;
   options.comment = data.comment;
   options.trackers = data.trackers.filter(t => t.trim() !== '');
   options.pieceLength = data.pieceLength;
   options.maxPieceLength = data.maxPieceLength;
-  options.webSeeds = [];
-  options.excludePatterns = [];
-  options.includePatterns = [];
-  options.outputDir = '';
+  options.targetPieceCount = data.targetPieceCount;
+  options.webSeeds = splitLines(data.webSeeds);
+  options.excludePatterns = splitLines(data.excludePatterns);
+  options.includePatterns = splitLines(data.includePatterns);
+  // Keep the spaces of a real path. A folder name can start or end with a space.
+  options.outputDir = data.outputDir.trim() === '' ? '' : data.outputDir;
   options.workers = data.workers;
   return options;
 }
 
 export function SettingsPage() {
   const [presetPath, setPresetPath] = useState('');
+  // presets holds the merged values for the list. ownPresets holds what each preset sets itself, for the editor.
   const [presets, setPresets] = useState<Record<string, PresetOptions>>({});
+  const [ownPresets, setOwnPresets] = useState<Record<string, PresetOptions>>({});
+  // The values that a preset gets when it sets nothing itself
+  const [presetDefaults, setPresetDefaults] = useState<Partial<PresetOptions>>({});
   const [presetErrors, setPresetErrors] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -220,8 +257,10 @@ export function SettingsPage() {
       }
 
       if (presetMapResult.status === 'fulfilled') {
-        const result = presetMapResult.value as { presets: Record<string, PresetOptions>; errors?: string[] };
+        const result = presetMapResult.value;
         setPresets(result.presets || {});
+        setOwnPresets(result.own || {});
+        setPresetDefaults(result.defaults || {});
         setPresetErrors(result.errors || []);
         // Show toast for any preset loading errors
         if (result.errors && result.errors.length > 0) {
@@ -231,6 +270,8 @@ export function SettingsPage() {
         console.error('Failed to load presets:', presetMapResult.reason);
         toast.error('Failed to load presets: ' + String(presetMapResult.reason));
         setPresets({});
+        setOwnPresets({});
+        setPresetDefaults({});
         setPresetErrors([]);
       }
     } catch (e) {
@@ -261,7 +302,7 @@ export function SettingsPage() {
   };
 
   const handleEditPreset = (name: string) => {
-    const options = presets[name];
+    const options = ownPresets[name];
     if (options) {
       setFormData(optionsToFormData(name, options));
       setIsEditing(true);
@@ -344,7 +385,18 @@ export function SettingsPage() {
     setFormData({ ...formData, trackers: newTrackers });
   };
 
+  const handleSelectOutputDir = async () => {
+    try {
+      const selected = await SelectPath();
+      if (selected) setFormData(f => ({ ...f, outputDir: selected }));
+    } catch (e) {
+      toast.error('Failed to select folder: ' + String(e));
+    }
+  };
+
   const presetNames = Object.keys(presets).sort();
+  // A switch that the preset does not set shows the value that applies to it.
+  const inherited: Partial<PresetOptions> = (isEditing && originalName && presets[originalName]) || presetDefaults;
 
   return (
     <div className="flex flex-col h-full overflow-auto">
@@ -371,7 +423,7 @@ export function SettingsPage() {
                 min={0}
                 max={64}
                 value={defaultWorkers}
-                onChange={(e) => handleDefaultWorkersChange(parseInt(e.target.value))}
+                onChange={(e) => handleDefaultWorkersChange(parseCount(e.target.value))}
                 placeholder="0 = automatic"
                 className="w-32"
               />
@@ -474,13 +526,14 @@ export function SettingsPage() {
 
       {/* Edit/Create Preset Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{isEditing ? 'Edit Preset' : 'New Preset'}</DialogTitle>
             <DialogDescription>
               {isEditing
                 ? 'Modify the preset settings below.'
-                : 'Create a new preset with the settings below.'}
+                : 'Create a new preset with the settings below.'}{' '}
+              An empty field, or a switch that you do not change, uses the default section of the preset file.
             </DialogDescription>
           </DialogHeader>
 
@@ -530,7 +583,7 @@ export function SettingsPage() {
               <div className="flex items-center gap-2">
                 <Switch
                   id="preset-private"
-                  checked={formData.isPrivate}
+                  checked={formData.isPrivate ?? inherited.private ?? true}
                   onCheckedChange={(checked) => setFormData({ ...formData, isPrivate: checked })}
                 />
                 <Label htmlFor="preset-private" className="text-sm">Private</Label>
@@ -538,7 +591,7 @@ export function SettingsPage() {
               <div className="flex items-center gap-2">
                 <Switch
                   id="preset-noDate"
-                  checked={formData.noDate}
+                  checked={formData.noDate ?? inherited.noDate ?? false}
                   onCheckedChange={(checked) => setFormData({ ...formData, noDate: checked })}
                 />
                 <Label htmlFor="preset-noDate" className="text-sm">No Date</Label>
@@ -546,7 +599,7 @@ export function SettingsPage() {
               <div className="flex items-center gap-2">
                 <Switch
                   id="preset-noCreator"
-                  checked={formData.noCreator}
+                  checked={formData.noCreator ?? inherited.noCreator ?? false}
                   onCheckedChange={(checked) => setFormData({ ...formData, noCreator: checked })}
                 />
                 <Label htmlFor="preset-noCreator" className="text-sm">No Creator</Label>
@@ -583,6 +636,35 @@ export function SettingsPage() {
               </div>
             </div>
 
+            {/* Web seeds */}
+            <div className="space-y-1.5">
+              <Label htmlFor="preset-webSeeds">Web Seeds</Label>
+              <textarea
+                id="preset-webSeeds"
+                value={formData.webSeeds}
+                onChange={(e) => setFormData({ ...formData, webSeeds: e.target.value })}
+                placeholder="One URL on each line"
+                className={textareaClass}
+              />
+            </div>
+
+            {/* Output directory */}
+            <div className="space-y-1.5">
+              <Label htmlFor="preset-outputDir">Output Directory</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="preset-outputDir"
+                  value={formData.outputDir}
+                  onChange={(e) => setFormData({ ...formData, outputDir: e.target.value })}
+                  placeholder="Same as source"
+                  className="flex-1"
+                />
+                <Button variant="outline" size="icon" onClick={handleSelectOutputDir} aria-label="Select folder">
+                  <FolderOpen className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
             {/* Advanced Options */}
             <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
               <CollapsibleTrigger asChild>
@@ -596,7 +678,7 @@ export function SettingsPage() {
                   <div className="flex items-center gap-2">
                     <Switch
                       id="preset-entropy"
-                      checked={formData.entropy}
+                      checked={formData.entropy ?? inherited.entropy ?? false}
                       onCheckedChange={(checked) => setFormData({ ...formData, entropy: checked })}
                     />
                     <Label htmlFor="preset-entropy" className="text-sm">Add Entropy</Label>
@@ -604,12 +686,107 @@ export function SettingsPage() {
                   <div className="flex items-center gap-2">
                     <Switch
                       id="preset-skipPrefix"
-                      checked={formData.skipPrefix}
+                      checked={formData.skipPrefix ?? inherited.skipPrefix ?? false}
                       onCheckedChange={(checked) => setFormData({ ...formData, skipPrefix: checked })}
                     />
                     <Label htmlFor="preset-skipPrefix" className="text-sm">Skip Prefix</Label>
                   </div>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="preset-failOnSeasonWarning"
+                      checked={formData.failOnSeasonWarning ?? inherited.failOnSeasonWarning ?? false}
+                      onCheckedChange={(checked) => setFormData({ ...formData, failOnSeasonWarning: checked })}
+                    />
+                    <Label htmlFor="preset-failOnSeasonWarning" className="text-sm">Fail on Season Warning</Label>
+                  </div>
                 </div>
+
+                {/* Piece size */}
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="preset-pieceLength">Piece Length</Label>
+                    <Select
+                      value={formData.pieceLength.toString()}
+                      onValueChange={(v) => {
+                        const pieceLength = parseInt(v);
+                        // A preset cannot have both a piece length and a target piece count.
+                        setFormData({ ...formData, pieceLength, targetPieceCount: pieceLength ? 0 : formData.targetPieceCount });
+                      }}
+                    >
+                      <SelectTrigger id="preset-pieceLength" className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PIECE_LENGTHS.map((pl) => (
+                          <SelectItem key={pl.value} value={pl.value.toString()}>{pl.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="preset-maxPieceLength">Max Piece Length</Label>
+                    <Select
+                      value={formData.maxPieceLength.toString()}
+                      onValueChange={(v) => setFormData({ ...formData, maxPieceLength: parseInt(v) })}
+                    >
+                      <SelectTrigger id="preset-maxPieceLength" className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PIECE_LENGTHS.map((pl) => (
+                          <SelectItem key={pl.value} value={pl.value.toString()}>
+                            {pl.value === 0 ? 'No limit' : pl.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="preset-targetPieceCount">Target Piece Count</Label>
+                  <Input
+                    id="preset-targetPieceCount"
+                    type="number"
+                    min={0}
+                    value={formData.targetPieceCount}
+                    onChange={(e) => {
+                      const targetPieceCount = parseCount(e.target.value);
+                      setFormData({ ...formData, targetPieceCount, pieceLength: targetPieceCount ? 0 : formData.pieceLength });
+                    }}
+                    placeholder="0 = not set"
+                    className="w-32"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    mkbrr picks the piece length that gives about this many pieces. Set to 0 to not use it.
+                    A target piece count clears the piece length, and a piece length clears the target piece count.
+                  </p>
+                </div>
+
+                {/* File patterns */}
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="preset-excludePatterns">Exclude Patterns</Label>
+                    <textarea
+                      id="preset-excludePatterns"
+                      value={formData.excludePatterns}
+                      onChange={(e) => setFormData({ ...formData, excludePatterns: e.target.value })}
+                      placeholder={'*.nfo\n*sample*'}
+                      className={textareaClass}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="preset-includePatterns">Include Patterns</Label>
+                    <textarea
+                      id="preset-includePatterns"
+                      value={formData.includePatterns}
+                      onChange={(e) => setFormData({ ...formData, includePatterns: e.target.value })}
+                      placeholder={'*.mkv'}
+                      className={textareaClass}
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">One glob pattern on each line.</p>
 
                 <div className="space-y-1.5">
                   <Label htmlFor="preset-workers">Workers Override</Label>
@@ -620,8 +797,7 @@ export function SettingsPage() {
                     max={64}
                     value={formData.workers}
                     onChange={(e) => {
-                      const parsed = parseInt(e.target.value);
-                      const clamped = Math.max(0, Math.min(64, Number.isNaN(parsed) ? 0 : parsed));
+                      const clamped = Math.min(64, parseCount(e.target.value));
                       setFormData({ ...formData, workers: clamped });
                     }}
                     placeholder="0 = use default"

@@ -167,8 +167,15 @@ type PresetInfo struct {
 
 // PresetsResult represents all presets with any loading errors
 type PresetsResult struct {
+	// Presets holds each preset merged with the default section and the hardcoded defaults.
 	Presets map[string]*preset.Options `json:"presets"`
-	Errors  []string                   `json:"errors,omitempty"`
+	// Own holds the values that each preset sets itself. The editor loads and saves these,
+	// so that a save does not copy the default section into the preset.
+	Own map[string]preset.Options `json:"own"`
+	// Defaults holds the values that a preset gets when it sets nothing itself.
+	// A new preset shows its switches with these values.
+	Defaults *preset.Options `json:"defaults,omitempty"`
+	Errors   []string        `json:"errors,omitempty"`
 }
 
 // === File Dialogs ===
@@ -524,6 +531,7 @@ func (a *App) GetPresetFilePath() (string, error) {
 func (a *App) GetAllPresets() (*PresetsResult, error) {
 	result := &PresetsResult{
 		Presets: make(map[string]*preset.Options),
+		Own:     make(map[string]preset.Options),
 		Errors:  []string{},
 	}
 
@@ -541,6 +549,9 @@ func (a *App) GetAllPresets() (*PresetsResult, error) {
 		return nil, err
 	}
 
+	empty := preset.Config{Default: config.Default, Presets: map[string]preset.Options{"": {}}}
+	result.Defaults, _ = empty.GetPreset("") // the only preset exists, so no error
+
 	for name := range config.Presets {
 		opts, err := config.GetPreset(name)
 		if err != nil {
@@ -548,6 +559,7 @@ func (a *App) GetAllPresets() (*PresetsResult, error) {
 			continue
 		}
 		result.Presets[name] = opts
+		result.Own[name] = config.Presets[name]
 	}
 	return result, nil
 }

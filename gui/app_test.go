@@ -6,8 +6,10 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
+	"github.com/autobrr/mkbrr/internal/preset"
 	"github.com/autobrr/mkbrr/torrent"
 )
 
@@ -148,5 +150,97 @@ func TestPlanCreateMatchesCreateTorrent(t *testing.T) {
 				t.Errorf("written size = %d, planned %d", res.Size, plan.ContentSize)
 			}
 		})
+	}
+}
+
+// TestSavePresetLoadsInCLI saves presets with every option set through
+// App.SavePreset and loads them as the CLI does. The CLI must get the same values.
+func TestSavePresetLoadsInCLI(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	t.Chdir(dir)
+
+	all := preset.Options{
+		Private:             new(false),
+		NoDate:              new(true),
+		NoCreator:           new(true),
+		SkipPrefix:          new(true),
+		Entropy:             new(true),
+		FailOnSeasonWarning: new(true),
+		Comment:             "comment",
+		Source:              "SRC",
+		OutputDir:           "/out",
+		Trackers:            []string{"https://tracker.example.invalid/announce"},
+		WebSeeds:            []string{"https://seed.example.invalid/files/"},
+		ExcludePatterns:     []string{"*.nfo", "*sample*"},
+		IncludePatterns:     []string{"*.mkv"},
+		PieceLength:         20,
+		MaxPieceLength:      24,
+		TargetPieceCount:    1000,
+		Workers:             4,
+	}
+	for f, v := range reflect.ValueOf(all).Fields() {
+		if v.IsZero() {
+			t.Fatalf("set %s in the test preset, so that the test covers it", f.Name)
+		}
+	}
+
+	// A preset cannot have both a piece length and a target piece count.
+	withPieceLength, withTarget := all, all
+	withPieceLength.TargetPieceCount = 0
+	withTarget.PieceLength = 0
+
+	for name, want := range map[string]preset.Options{"piece-length": withPieceLength, "target": withTarget} {
+		if err := (&App{}).SavePreset(name, want); err != nil {
+			t.Fatal(err)
+		}
+		got, err := preset.LoadPresetOptions("", name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(*got, want) {
+			t.Errorf("preset %s: loaded %+v, want %+v", name, *got, want)
+		}
+	}
+}
+
+// The editor saves the values that it loads, so it must load what the preset
+// sets itself. A value that comes from the default section stays out of Own.
+func TestGetAllPresetsOwnValues(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	t.Chdir(dir)
+
+	yaml := `version: 1
+default:
+  private: false
+  webseeds: [https://seed.example.invalid/]
+presets:
+  p:
+    source: SRC
+`
+	if err := os.WriteFile("presets.yaml", []byte(yaml), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := (&App{}).GetAllPresets()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	merged := result.Presets["p"]
+	own, ok := result.Own["p"]
+	if merged == nil || !ok {
+		t.Fatalf("preset p missing: presets=%v own=%v", result.Presets, result.Own)
+	}
+	if len(merged.WebSeeds) != 1 || merged.Private == nil || *merged.Private {
+		t.Errorf("merged preset lost the default section: %+v", merged)
+	}
+	if own.WebSeeds != nil || own.Private != nil || own.Source != "SRC" {
+		t.Errorf("own values = %+v, want only source SRC", own)
+	}
+	// A new preset shows these switch values, so they must come from the default section.
+	if d := result.Defaults; d == nil || d.Private == nil || *d.Private {
+		t.Errorf("defaults = %+v, want private false from the default section", d)
 	}
 }
