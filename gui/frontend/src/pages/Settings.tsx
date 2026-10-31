@@ -92,12 +92,13 @@ interface PresetFormData {
   name: string;
   source: string;
   comment: string;
-  isPrivate: boolean;
-  noDate: boolean;
-  noCreator: boolean;
-  entropy: boolean;
-  skipPrefix: boolean;
-  failOnSeasonWarning: boolean;
+  // undefined: the preset does not set the switch, so the default section applies
+  isPrivate?: boolean;
+  noDate?: boolean;
+  noCreator?: boolean;
+  entropy?: boolean;
+  skipPrefix?: boolean;
+  failOnSeasonWarning?: boolean;
   trackers: string[];
   // One URL or pattern on each line
   webSeeds: string;
@@ -114,12 +115,6 @@ const emptyFormData: PresetFormData = {
   name: '',
   source: '',
   comment: '',
-  isPrivate: true,
-  noDate: false,
-  noCreator: false,
-  entropy: false,
-  skipPrefix: false,
-  failOnSeasonWarning: false,
   trackers: [''],
   webSeeds: '',
   excludePatterns: '',
@@ -155,11 +150,11 @@ function optionsToFormData(name: string, options: PresetOptions): PresetFormData
     name,
     source: options.source || (options as any).Source || '',
     comment: options.comment || (options as any).Comment || '',
-    isPrivate: options.private ?? (options as any).Private ?? true,
-    noDate: options.noDate ?? (options as any).NoDate ?? false,
-    noCreator: options.noCreator ?? (options as any).NoCreator ?? false,
-    entropy: options.entropy ?? (options as any).Entropy ?? false,
-    skipPrefix: options.skipPrefix ?? (options as any).SkipPrefix ?? false,
+    isPrivate: options.private ?? (options as any).Private,
+    noDate: options.noDate ?? (options as any).NoDate,
+    noCreator: options.noCreator ?? (options as any).NoCreator,
+    entropy: options.entropy ?? (options as any).Entropy,
+    skipPrefix: options.skipPrefix ?? (options as any).SkipPrefix,
     trackers: (options.trackers && options.trackers.length > 0)
       ? options.trackers
       : ((options as any).Trackers && (options as any).Trackers.length > 0)
@@ -167,7 +162,7 @@ function optionsToFormData(name: string, options: PresetOptions): PresetFormData
         : [''],
     pieceLength: options.pieceLength || (options as any).PieceLength || 0,
     maxPieceLength: options.maxPieceLength || (options as any).MaxPieceLength || 0,
-    failOnSeasonWarning: options.failOnSeasonWarning ?? false,
+    failOnSeasonWarning: options.failOnSeasonWarning,
     webSeeds: (options.webSeeds ?? []).join('\n'),
     excludePatterns: (options.excludePatterns ?? []).join('\n'),
     includePatterns: (options.includePatterns ?? []).join('\n'),
@@ -175,6 +170,12 @@ function optionsToFormData(name: string, options: PresetOptions): PresetFormData
     targetPieceCount: options.targetPieceCount ?? 0,
     workers: options.workers ?? (options as any).Workers ?? 0, // 0 = use default
   };
+}
+
+// parseCount reads a number input as a whole number. Number reads "1e3" as 1000, where parseInt gives 1.
+function parseCount(value: string): number {
+  const n = Math.floor(Number(value));
+  return Number.isFinite(n) ? Math.max(0, n) : 0;
 }
 
 function splitLines(text: string): string[] {
@@ -199,14 +200,17 @@ function formDataToOptions(data: PresetFormData): PresetOptions {
   options.webSeeds = splitLines(data.webSeeds);
   options.excludePatterns = splitLines(data.excludePatterns);
   options.includePatterns = splitLines(data.includePatterns);
-  options.outputDir = data.outputDir.trim();
+  // Keep the spaces of a real path. A folder name can start or end with a space.
+  options.outputDir = data.outputDir.trim() === '' ? '' : data.outputDir;
   options.workers = data.workers;
   return options;
 }
 
 export function SettingsPage() {
   const [presetPath, setPresetPath] = useState('');
+  // presets holds the merged values for the list. ownPresets holds what each preset sets itself, for the editor.
   const [presets, setPresets] = useState<Record<string, PresetOptions>>({});
+  const [ownPresets, setOwnPresets] = useState<Record<string, PresetOptions>>({});
   const [presetErrors, setPresetErrors] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -251,8 +255,9 @@ export function SettingsPage() {
       }
 
       if (presetMapResult.status === 'fulfilled') {
-        const result = presetMapResult.value as { presets: Record<string, PresetOptions>; errors?: string[] };
+        const result = presetMapResult.value;
         setPresets(result.presets || {});
+        setOwnPresets(result.own || {});
         setPresetErrors(result.errors || []);
         // Show toast for any preset loading errors
         if (result.errors && result.errors.length > 0) {
@@ -262,6 +267,7 @@ export function SettingsPage() {
         console.error('Failed to load presets:', presetMapResult.reason);
         toast.error('Failed to load presets: ' + String(presetMapResult.reason));
         setPresets({});
+        setOwnPresets({});
         setPresetErrors([]);
       }
     } catch (e) {
@@ -292,7 +298,7 @@ export function SettingsPage() {
   };
 
   const handleEditPreset = (name: string) => {
-    const options = presets[name];
+    const options = ownPresets[name];
     if (options) {
       setFormData(optionsToFormData(name, options));
       setIsEditing(true);
@@ -378,13 +384,15 @@ export function SettingsPage() {
   const handleSelectOutputDir = async () => {
     try {
       const selected = await SelectPath();
-      if (selected) setFormData({ ...formData, outputDir: selected });
+      if (selected) setFormData(f => ({ ...f, outputDir: selected }));
     } catch (e) {
       toast.error('Failed to select folder: ' + String(e));
     }
   };
 
   const presetNames = Object.keys(presets).sort();
+  // A switch that the preset does not set shows the value that applies to it.
+  const inherited: Partial<PresetOptions> = (isEditing && originalName && presets[originalName]) || {};
 
   return (
     <div className="flex flex-col h-full overflow-auto">
@@ -411,7 +419,7 @@ export function SettingsPage() {
                 min={0}
                 max={64}
                 value={defaultWorkers}
-                onChange={(e) => handleDefaultWorkersChange(parseInt(e.target.value))}
+                onChange={(e) => handleDefaultWorkersChange(parseCount(e.target.value))}
                 placeholder="0 = automatic"
                 className="w-32"
               />
@@ -520,7 +528,8 @@ export function SettingsPage() {
             <DialogDescription>
               {isEditing
                 ? 'Modify the preset settings below.'
-                : 'Create a new preset with the settings below.'}
+                : 'Create a new preset with the settings below.'}{' '}
+              An empty field, or a switch that you do not change, uses the default section of the preset file.
             </DialogDescription>
           </DialogHeader>
 
@@ -570,7 +579,7 @@ export function SettingsPage() {
               <div className="flex items-center gap-2">
                 <Switch
                   id="preset-private"
-                  checked={formData.isPrivate}
+                  checked={formData.isPrivate ?? inherited.private ?? true}
                   onCheckedChange={(checked) => setFormData({ ...formData, isPrivate: checked })}
                 />
                 <Label htmlFor="preset-private" className="text-sm">Private</Label>
@@ -578,7 +587,7 @@ export function SettingsPage() {
               <div className="flex items-center gap-2">
                 <Switch
                   id="preset-noDate"
-                  checked={formData.noDate}
+                  checked={formData.noDate ?? inherited.noDate ?? false}
                   onCheckedChange={(checked) => setFormData({ ...formData, noDate: checked })}
                 />
                 <Label htmlFor="preset-noDate" className="text-sm">No Date</Label>
@@ -586,7 +595,7 @@ export function SettingsPage() {
               <div className="flex items-center gap-2">
                 <Switch
                   id="preset-noCreator"
-                  checked={formData.noCreator}
+                  checked={formData.noCreator ?? inherited.noCreator ?? false}
                   onCheckedChange={(checked) => setFormData({ ...formData, noCreator: checked })}
                 />
                 <Label htmlFor="preset-noCreator" className="text-sm">No Creator</Label>
@@ -665,7 +674,7 @@ export function SettingsPage() {
                   <div className="flex items-center gap-2">
                     <Switch
                       id="preset-entropy"
-                      checked={formData.entropy}
+                      checked={formData.entropy ?? inherited.entropy ?? false}
                       onCheckedChange={(checked) => setFormData({ ...formData, entropy: checked })}
                     />
                     <Label htmlFor="preset-entropy" className="text-sm">Add Entropy</Label>
@@ -673,7 +682,7 @@ export function SettingsPage() {
                   <div className="flex items-center gap-2">
                     <Switch
                       id="preset-skipPrefix"
-                      checked={formData.skipPrefix}
+                      checked={formData.skipPrefix ?? inherited.skipPrefix ?? false}
                       onCheckedChange={(checked) => setFormData({ ...formData, skipPrefix: checked })}
                     />
                     <Label htmlFor="preset-skipPrefix" className="text-sm">Skip Prefix</Label>
@@ -681,7 +690,7 @@ export function SettingsPage() {
                   <div className="flex items-center gap-2">
                     <Switch
                       id="preset-failOnSeasonWarning"
-                      checked={formData.failOnSeasonWarning}
+                      checked={formData.failOnSeasonWarning ?? inherited.failOnSeasonWarning ?? false}
                       onCheckedChange={(checked) => setFormData({ ...formData, failOnSeasonWarning: checked })}
                     />
                     <Label htmlFor="preset-failOnSeasonWarning" className="text-sm">Fail on Season Warning</Label>
@@ -738,8 +747,7 @@ export function SettingsPage() {
                     min={0}
                     value={formData.targetPieceCount}
                     onChange={(e) => {
-                      const parsed = parseInt(e.target.value);
-                      const targetPieceCount = Number.isNaN(parsed) ? 0 : Math.max(0, parsed);
+                      const targetPieceCount = parseCount(e.target.value);
                       setFormData({ ...formData, targetPieceCount, pieceLength: targetPieceCount ? 0 : formData.pieceLength });
                     }}
                     placeholder="0 = not set"
@@ -785,8 +793,7 @@ export function SettingsPage() {
                     max={64}
                     value={formData.workers}
                     onChange={(e) => {
-                      const parsed = parseInt(e.target.value);
-                      const clamped = Math.max(0, Math.min(64, Number.isNaN(parsed) ? 0 : parsed));
+                      const clamped = Math.min(64, parseCount(e.target.value));
                       setFormData({ ...formData, workers: clamped });
                     }}
                     placeholder="0 = use default"

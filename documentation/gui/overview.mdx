@@ -50,7 +50,7 @@ Type one URL or one glob pattern on each line of the web seeds, exclude patterns
 </Frame>
 
 <Note>
-The editor shows a preset with the values of the `default` section filled in. When you save the preset, the editor writes those values into the preset. A preset cannot clear a value that the `default` section sets. If you clear such a value in the editor, the preset gets the value from the `default` section again. To remove the value, remove it from the `default` section of the preset file.
+The editor shows only the values that the preset sets itself. An empty field uses the value of the `default` section of the preset file. A switch that the preset does not set shows the value that applies, and the editor saves the switch only if you change it. So a later change to the `default` section also applies to each preset that does not set that value.
 </Note>
 
 <Frame>

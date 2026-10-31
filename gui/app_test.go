@@ -121,8 +121,8 @@ func TestPlanCreateMatchesCreateTorrent(t *testing.T) {
 	}
 }
 
-// TestSavePresetLoadsInCLI saves presets with every option set, as the preset
-// editor does, and loads them as the CLI does. The CLI must get the same values.
+// TestSavePresetLoadsInCLI saves presets with every option set through
+// App.SavePreset and loads them as the CLI does. The CLI must get the same values.
 func TestSavePresetLoadsInCLI(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
@@ -169,5 +169,42 @@ func TestSavePresetLoadsInCLI(t *testing.T) {
 		if !reflect.DeepEqual(*got, want) {
 			t.Errorf("preset %s: loaded %+v, want %+v", name, *got, want)
 		}
+	}
+}
+
+// The editor saves the values that it loads, so it must load what the preset
+// sets itself. A value that comes from the default section stays out of Own.
+func TestGetAllPresetsOwnValues(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	t.Chdir(dir)
+
+	yaml := `version: 1
+default:
+  private: false
+  webseeds: [https://seed.example.invalid/]
+presets:
+  p:
+    source: SRC
+`
+	if err := os.WriteFile("presets.yaml", []byte(yaml), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := (&App{}).GetAllPresets()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	merged := result.Presets["p"]
+	own, ok := result.Own["p"]
+	if merged == nil || !ok {
+		t.Fatalf("preset p missing: presets=%v own=%v", result.Presets, result.Own)
+	}
+	if len(merged.WebSeeds) != 1 || merged.Private == nil || *merged.Private {
+		t.Errorf("merged preset lost the default section: %+v", merged)
+	}
+	if own.WebSeeds != nil || own.Private != nil || own.Source != "SRC" {
+		t.Errorf("own values = %+v, want only source SRC", own)
 	}
 }
