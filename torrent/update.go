@@ -138,7 +138,7 @@ func UpdateTorrent(opts UpdateOptions) (*UpdateResult, error) {
 	}
 	reuse.allowNoReuse = opts.Force
 
-	generated, err := createTorrent(CreateOptions{
+	generated, _, err := createTorrent(CreateOptions{
 		Path:             opts.ContentPath,
 		Name:             oldInfo.Name,
 		ExcludePatterns:  opts.ExcludePatterns,

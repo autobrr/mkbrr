@@ -282,7 +282,8 @@ type createTorrentOptions struct {
 // Returns a Torrent struct containing the metainfo.
 // This is the lower-level function; use Create() for a higher-level interface.
 func CreateTorrent(opts CreateOptions) (*Torrent, error) {
-	return createTorrent(opts, createTorrentOptions{})
+	t, _, err := createTorrent(opts, createTorrentOptions{})
+	return t, err
 }
 
 type preparedCreate struct {
@@ -618,10 +619,11 @@ func PlanCreate(opts CreateOptions) (*CreatePlan, error) {
 }
 
 // createTorrent contains the shared creation pipeline with optional internal hash-reuse controls.
-func createTorrent(opts CreateOptions, internalOpts createTorrentOptions) (*Torrent, error) {
+// It also returns the season pack check of the files in the torrent.
+func createTorrent(opts CreateOptions, internalOpts createTorrentOptions) (*Torrent, *SeasonPackInfo, error) {
 	prepared, err := prepareCreate(opts, internalOpts)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	files := prepared.files
 	totalSize := prepared.totalSize
@@ -642,7 +644,7 @@ func createTorrent(opts CreateOptions, internalOpts createTorrentOptions) (*Torr
 	}
 	numPieces, err := pieceCountForSize(totalSize, pieceLength)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	var display Displayer
@@ -661,33 +663,33 @@ func createTorrent(opts CreateOptions, internalOpts createTorrentOptions) (*Torr
 	if internalOpts.pieceReuse != nil {
 		reusablePieces, err := internalOpts.pieceReuse.findReusablePieces(files, baseDir, inputInfo.IsDir(), pieceLength)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		hasher.reusablePieces = reusablePieces
 	}
 	// Pass the specified or default worker count from opts
 	if err := hasher.hashPieces(opts.Workers); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	t, err := encode(pieceLength, bytes.Join(hasher.pieces, nil))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// guard: the pre-hash prediction must match the real size exactly.
 	if rules.MaxTorrentSize > 0 {
 		data, err := bencode.Marshal(t.MetaInfo)
 		if err != nil {
-			return nil, fmt.Errorf("error marshaling torrent data: %w", err)
+			return nil, nil, fmt.Errorf("error marshaling torrent data: %w", err)
 		}
 		want := prepared.plan.PredictedTorrentSize
 		if uint64(len(data)) != want {
-			return nil, fmt.Errorf("torrent size %d bytes does not match the predicted %d bytes", len(data), want)
+			return nil, nil, fmt.Errorf("torrent size %d bytes does not match the predicted %d bytes", len(data), want)
 		}
 	}
 
-	return t, nil
+	return t, prepared.seasonInfo, nil
 }
 
 // Create creates a new torrent file with the given options.
@@ -726,7 +728,7 @@ func Create(opts CreateOptions) (*TorrentInfo, error) {
 	}
 
 	// create torrent
-	t, err := CreateTorrent(opts)
+	t, seasonInfo, err := createTorrent(opts, createTorrentOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -747,17 +749,9 @@ func Create(opts CreateOptions) (*TorrentInfo, error) {
 	info := t.GetInfo()
 
 	// create torrent info for return
-	torrentInfo := &TorrentInfo{
-		Path:     opts.OutputPath,
-		Size:     info.Length,
-		InfoHash: t.MetaInfo.HashInfoBytes().String(),
-		Files:    len(info.Files),
-		Announce: func() string {
-			if len(opts.TrackerURLs) > 0 {
-				return opts.TrackerURLs[0]
-			}
-			return ""
-		}(),
+	torrentInfo := newTorrentInfo(t, opts.OutputPath, seasonInfo)
+	if len(opts.TrackerURLs) > 0 {
+		torrentInfo.Announce = opts.TrackerURLs[0]
 	}
 
 	// display info if verbose or info-only
@@ -773,4 +767,17 @@ func Create(opts CreateOptions) (*TorrentInfo, error) {
 	}
 
 	return torrentInfo, nil
+}
+
+// newTorrentInfo summarizes a created torrent written to path.
+func newTorrentInfo(t *Torrent, path string, seasonInfo *SeasonPackInfo) *TorrentInfo {
+	info := t.GetInfo()
+	return &TorrentInfo{
+		Path:       path,
+		InfoHash:   t.HashInfoBytes().String(),
+		Size:       info.TotalLength(),
+		Files:      max(1, len(info.Files)),
+		PieceCount: info.NumPieces(),
+		SeasonPack: seasonInfo,
+	}
 }
