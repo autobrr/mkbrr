@@ -60,17 +60,15 @@ var settingsParityCases = map[string]settingsParity{
 		cmd:      createCmd,
 		batch:    true,
 		guiForm: []string{
-			"PieceLengthExp", "Comment", "Source", "OutputDir", "IsPrivate", "NoDate",
-			"NoCreator", "Entropy", "FailOnSeasonPackWarning", "TrackerURLs",
+			"PieceLengthExp", "MaxPieceLength", "TargetPieceCount", "Comment", "Source", "OutputDir",
+			"IsPrivate", "NoDate", "NoCreator", "Entropy", "SkipPrefix", "FailOnSeasonPackWarning",
+			"TrackerURLs", "WebSeeds", "ExcludePatterns", "IncludePatterns",
 		},
 		exceptions: map[string][]string{
 			// A batch file sets the output path of each job. Batch mode uses the automatic worker count.
 			placeBatch: {"OutputDir", "Workers"},
 			// The GUI settings page sets the default workers for all torrents.
 			placeGUIForm: {"Workers"},
-		},
-		knownGaps: map[string][]string{
-			placeGUIForm: {"MaxPieceLength", "TargetPieceCount", "SkipPrefix", "WebSeeds", "ExcludePatterns", "IncludePatterns"},
 		},
 	},
 	"modify": {
