@@ -50,14 +50,20 @@ interface CreateFormState {
   path: string;
   name: string;
   trackers: string[];
+  webSeeds: string[];
   isPrivate: boolean;
   comment: string;
   source: string;
   pieceLengthExp: number;
+  maxPieceLengthExp: number;
+  targetPieceCount: number;
+  excludePatterns: string;
+  includePatterns: string;
   outputDir: string;
   noDate: boolean;
   noCreator: boolean;
   entropy: boolean;
+  skipPrefix: boolean;
   presetName: string;
   failOnSeasonWarning: boolean;
 }
@@ -131,6 +137,45 @@ const PIECE_LENGTHS = [
   { value: 27, label: '128 MiB' },
 ];
 
+// UrlList is a list of URL inputs with add and remove buttons.
+function UrlList({ urls, onChange, placeholder, addLabel }: {
+  urls: string[];
+  onChange: (urls: string[]) => void;
+  placeholder: string;
+  addLabel: string;
+}) {
+  return (
+    <div className="space-y-2">
+      {urls.map((url, index) => (
+        <div key={index} className="flex gap-2">
+          <Input
+            value={url}
+            onChange={(e) => onChange(urls.map((u, i) => (i === index ? e.target.value : u)))}
+            placeholder={placeholder}
+            className="flex-1"
+          />
+          {urls.length > 1 && (
+            <Button variant="outline" size="icon" onClick={() => onChange(urls.filter((_, i) => i !== index))}>
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+      ))}
+      <Button variant="outline" size="sm" onClick={() => onChange([...urls, ''])}>
+        <Plus className="mr-2 h-4 w-4" />
+        {addLabel}
+      </Button>
+    </div>
+  );
+}
+
+// nonBlank drops the empty inputs of a URL list.
+const nonBlank = (urls: string[]) => urls.filter(u => u.trim() !== '');
+
+// patternList sends a pattern field as one comma-separated group, as the CLI flag does.
+// An empty field sends nothing, so only the preset patterns apply.
+const patternList = (patterns: string) => (patterns.trim() ? [patterns.trim()] : undefined);
+
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
   const k = 1024;
@@ -149,14 +194,22 @@ export function CreatePage() {
   const [trackers, setTrackers] = useState<string[]>(
     Array.isArray(savedState.trackers) && savedState.trackers.length > 0 ? savedState.trackers : ['']
   );
+  const [webSeeds, setWebSeeds] = useState<string[]>(
+    Array.isArray(savedState.webSeeds) && savedState.webSeeds.length > 0 ? savedState.webSeeds : ['']
+  );
   const [isPrivate, setIsPrivate] = useState(savedState.isPrivate ?? true);
   const [comment, setComment] = useState(savedState.comment ?? '');
   const [source, setSource] = useState(savedState.source ?? '');
   const [pieceLengthExp, setPieceLengthExp] = useState(savedState.pieceLengthExp ?? 0);
+  const [maxPieceLengthExp, setMaxPieceLengthExp] = useState(savedState.maxPieceLengthExp ?? 0);
+  const [targetPieceCount, setTargetPieceCount] = useState(savedState.targetPieceCount ?? 0);
+  const [excludePatterns, setExcludePatterns] = useState(savedState.excludePatterns ?? '');
+  const [includePatterns, setIncludePatterns] = useState(savedState.includePatterns ?? '');
   const [outputDir, setOutputDir] = useState(savedState.outputDir ?? '');
   const [noDate, setNoDate] = useState(savedState.noDate ?? false);
   const [noCreator, setNoCreator] = useState(savedState.noCreator ?? false);
   const [entropy, setEntropy] = useState(savedState.entropy ?? false);
+  const [skipPrefix, setSkipPrefix] = useState(savedState.skipPrefix ?? false);
   const [presetName, setPresetName] = useState(savedState.presetName ?? '');
   const [failOnSeasonWarning, setFailOnSeasonWarning] = useState(savedState.failOnSeasonWarning ?? false);
 
@@ -188,18 +241,25 @@ export function CreatePage() {
       path,
       name,
       trackers,
+      webSeeds,
       isPrivate,
       comment,
       source,
       pieceLengthExp,
+      maxPieceLengthExp,
+      targetPieceCount,
+      excludePatterns,
+      includePatterns,
       outputDir,
       noDate,
       noCreator,
       entropy,
+      skipPrefix,
       presetName,
       failOnSeasonWarning,
     });
-  }, [path, name, trackers, isPrivate, comment, source, pieceLengthExp, outputDir, noDate, noCreator, entropy, presetName, failOnSeasonWarning]);
+  }, [path, name, trackers, webSeeds, isPrivate, comment, source, pieceLengthExp, maxPieceLengthExp, targetPieceCount,
+    excludePatterns, includePatterns, outputDir, noDate, noCreator, entropy, skipPrefix, presetName, failOnSeasonWarning]);
 
   // Check for pending result on mount (in case user navigated away during creation)
   useEffect(() => {
@@ -256,20 +316,27 @@ export function CreatePage() {
     setSource(current => (current === '' || current === previous ? defaultSource : current));
   }, [defaultSource]);
 
-  // createFrom leaves out the fields the form does not have, so the preset fills them.
-  // An empty web seed list would hide the preset web seeds.
+  // The piece length fields, the output directory, the web seeds, and the patterns are
+  // left out when they are not set, so the preset fills them, as with the CLI flags.
+  // The preset patterns and the form patterns both apply.
   const buildRequest = () => main.CreateRequest.createFrom({
     path,
     name,
-    trackerUrls: trackers.filter(t => t.trim() !== ''),
+    trackerUrls: nonBlank(trackers),
+    webSeeds: nonBlank(webSeeds).length > 0 ? nonBlank(webSeeds) : undefined,
     isPrivate,
     comment,
     source,
     pieceLengthExp: pieceLengthExp || undefined,
+    maxPieceLength: maxPieceLengthExp || undefined,
+    targetPieceCount: targetPieceCount || undefined,
+    excludePatterns: patternList(excludePatterns),
+    includePatterns: patternList(includePatterns),
     outputDir: outputDir || undefined,
     noDate,
     noCreator,
     entropy,
+    skipPrefix,
     failOnSeasonWarning,
     presetName,
     // Workers from settings. The backend gives a preset value priority over it.
@@ -307,12 +374,16 @@ export function CreatePage() {
     };
   }, [planKey]);
 
-  // Reset piece length if it exceeds tracker's max
+  // Reset the piece length and the max piece length if they exceed the tracker's max
   useEffect(() => {
-    if (trackerInfo?.maxPieceLength && pieceLengthExp > trackerInfo.maxPieceLength) {
+    const trackerMax = trackerInfo?.maxPieceLength;
+    if (trackerMax && pieceLengthExp > trackerMax) {
       setPieceLengthExp(0); // Reset to Auto
     }
-  }, [trackerInfo?.maxPieceLength, pieceLengthExp]);
+    if (trackerMax && maxPieceLengthExp > trackerMax) {
+      setMaxPieceLengthExp(0); // Reset to no limit
+    }
+  }, [trackerInfo?.maxPieceLength, pieceLengthExp, maxPieceLengthExp]);
 
   const handleSelectFolder = async () => {
     try {
@@ -351,12 +422,17 @@ export function CreatePage() {
     setPath('');
     setName('');
     setTrackers(['']);
+    setWebSeeds(['']);
     setIsPrivate(true);
     setComment('');
     setSource('');
     setPieceLengthExp(0);
+    setMaxPieceLengthExp(0);
+    setTargetPieceCount(0);
+    setExcludePatterns('');
+    setIncludePatterns('');
     setOutputDir('');
-    // Don't reset noDate, noCreator, entropy, failOnSeasonWarning - they're preferences, not form fields
+    // Don't reset noDate, noCreator, entropy, skipPrefix, failOnSeasonWarning - they're preferences, not form fields
     setPresetName('');
     setResult(null);
     setError('');
@@ -371,6 +447,7 @@ export function CreatePage() {
       // Clear preset-related fields when "None" is selected
       setPresetName('');
       setTrackers(['']);
+      setWebSeeds(['']);
       setSource('');
       setComment('');
       setIsPrivate(true);
@@ -389,6 +466,7 @@ export function CreatePage() {
           const commentVal = preset.comment || (preset as any).Comment;
 
           if (trackerList && trackerList.length > 0) setTrackers(trackerList);
+          setWebSeeds(preset.webSeeds?.length ? preset.webSeeds : ['']);
           if (sourceVal) setSource(sourceVal);
           if (privateVal !== undefined) setIsPrivate(privateVal);
           if (commentVal) setComment(commentVal);
@@ -397,26 +475,13 @@ export function CreatePage() {
           if (preset.noDate !== undefined) setNoDate(preset.noDate);
           if (preset.noCreator !== undefined) setNoCreator(preset.noCreator);
           if (preset.entropy !== undefined) setEntropy(preset.entropy);
+          if (preset.skipPrefix !== undefined) setSkipPrefix(preset.skipPrefix);
           if (preset.failOnSeasonWarning !== undefined) setFailOnSeasonWarning(preset.failOnSeasonWarning);
         }
       } catch (e) {
         toast.error('Failed to load preset: ' + String(e));
       }
     }
-  };
-
-  const addTracker = () => {
-    setTrackers([...trackers, '']);
-  };
-
-  const removeTracker = (index: number) => {
-    setTrackers(trackers.filter((_, i) => i !== index));
-  };
-
-  const updateTracker = (index: number, value: string) => {
-    const newTrackers = [...trackers];
-    newTrackers[index] = value;
-    setTrackers(newTrackers);
   };
 
   const handleDialogClose = () => {
@@ -559,31 +624,12 @@ export function CreatePage() {
             {/* Trackers */}
             <div className="space-y-1.5">
               <Label>Trackers</Label>
-              <div className="space-y-2">
-                {trackers.map((tracker, index) => (
-                  <div key={index} className="flex gap-2">
-                    <Input
-                      value={tracker}
-                      onChange={(e) => updateTracker(index, e.target.value)}
-                      placeholder="https://tracker.example.com/announce"
-                      className="flex-1"
-                    />
-                    {trackers.length > 1 && (
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => removeTracker(index)}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                ))}
-                <Button variant="outline" size="sm" onClick={addTracker}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Tracker
-                </Button>
-              </div>
+              <UrlList
+                urls={trackers}
+                onChange={setTrackers}
+                placeholder="https://tracker.example.com/announce"
+                addLabel="Add Tracker"
+              />
             </div>
 
             {/* Output Directory */}
@@ -711,32 +757,77 @@ export function CreatePage() {
                   </div>
                 </div>
 
-                {/* Piece Length */}
+                {/* Web Seeds */}
                 <div className="space-y-1.5">
-                  <Label>Piece Length</Label>
-                  <Select
-                    value={pieceLengthExp.toString()}
-                    onValueChange={(v) => setPieceLengthExp(parseInt(v))}
-                  >
-                    <SelectTrigger className="w-48">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PIECE_LENGTHS
-                        .filter((pl) => {
-                          // If tracker has max piece length limit, filter out larger sizes
-                          if (trackerInfo?.maxPieceLength && pl.value > 0) {
-                            return pl.value <= trackerInfo.maxPieceLength;
-                          }
-                          return true;
-                        })
-                        .map((pl) => (
-                          <SelectItem key={pl.value} value={pl.value.toString()}>
-                            {pl.label}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
+                  <Label>Web Seeds</Label>
+                  <UrlList
+                    urls={webSeeds}
+                    onChange={setWebSeeds}
+                    placeholder="https://example.com/files/"
+                    addLabel="Add Web Seed"
+                  />
+                </div>
+
+                {/* Piece Length, Max Piece Length, Target Piece Count */}
+                <div className="grid gap-4 sm:grid-cols-3">
+                  {[
+                    { label: 'Piece Length', value: pieceLengthExp, set: setPieceLengthExp, unset: 'Auto', min: 0 },
+                    // create rejects a max below 64 KiB in some cases, and a smaller max has no use
+                    { label: 'Max Piece Length', value: maxPieceLengthExp, set: setMaxPieceLengthExp, unset: 'No limit', min: 16 },
+                  ].map((field) => (
+                    <div key={field.label} className="space-y-1.5">
+                      <Label>{field.label}</Label>
+                      <Select value={field.value.toString()} onValueChange={(v) => field.set(parseInt(v))}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PIECE_LENGTHS
+                            // If tracker has max piece length limit, filter out larger sizes
+                            .filter((pl) => !(trackerInfo?.maxPieceLength && pl.value > trackerInfo.maxPieceLength))
+                            .filter((pl) => pl.value === 0 || pl.value >= field.min)
+                            .map((pl) => (
+                              <SelectItem key={pl.value} value={pl.value.toString()}>
+                                {pl.value === 0 ? field.unset : pl.label}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ))}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="targetPieceCount">Target Piece Count</Label>
+                    <Input
+                      id="targetPieceCount"
+                      type="number"
+                      min={1}
+                      value={targetPieceCount || ''}
+                      onChange={(e) => setTargetPieceCount(Math.max(0, parseInt(e.target.value) || 0))}
+                      placeholder="Auto"
+                    />
+                  </div>
+                </div>
+
+                {/* Exclude + Include patterns */}
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="excludePatterns">Exclude Patterns</Label>
+                    <Input
+                      id="excludePatterns"
+                      value={excludePatterns}
+                      onChange={(e) => setExcludePatterns(e.target.value)}
+                      placeholder="e.g., *.nfo,*.jpg"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="includePatterns">Include Patterns</Label>
+                    <Input
+                      id="includePatterns"
+                      value={includePatterns}
+                      onChange={(e) => setIncludePatterns(e.target.value)}
+                      placeholder="e.g., *.mkv,*.mp4"
+                    />
+                  </div>
                 </div>
 
                 {/* Toggles */}
@@ -764,6 +855,21 @@ export function CreatePage() {
                       onCheckedChange={setEntropy}
                     />
                     <Label htmlFor="entropy" className="text-sm">Add entropy</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="skipPrefix"
+                      checked={skipPrefix}
+                      onCheckedChange={setSkipPrefix}
+                    />
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Label htmlFor="skipPrefix" className="text-sm cursor-help">Skip filename prefix</Label>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="max-w-xs">Do not add the tracker domain to the start of the output filename</p>
+                      </TooltipContent>
+                    </Tooltip>
                   </div>
                   <div className="flex items-center gap-2">
                     <Switch
