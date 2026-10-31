@@ -211,6 +211,8 @@ export function SettingsPage() {
   // presets holds the merged values for the list. ownPresets holds what each preset sets itself, for the editor.
   const [presets, setPresets] = useState<Record<string, PresetOptions>>({});
   const [ownPresets, setOwnPresets] = useState<Record<string, PresetOptions>>({});
+  // The values that a preset gets when it sets nothing itself
+  const [presetDefaults, setPresetDefaults] = useState<Partial<PresetOptions>>({});
   const [presetErrors, setPresetErrors] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -258,6 +260,7 @@ export function SettingsPage() {
         const result = presetMapResult.value;
         setPresets(result.presets || {});
         setOwnPresets(result.own || {});
+        setPresetDefaults(result.defaults || {});
         setPresetErrors(result.errors || []);
         // Show toast for any preset loading errors
         if (result.errors && result.errors.length > 0) {
@@ -268,6 +271,7 @@ export function SettingsPage() {
         toast.error('Failed to load presets: ' + String(presetMapResult.reason));
         setPresets({});
         setOwnPresets({});
+        setPresetDefaults({});
         setPresetErrors([]);
       }
     } catch (e) {
@@ -392,7 +396,7 @@ export function SettingsPage() {
 
   const presetNames = Object.keys(presets).sort();
   // A switch that the preset does not set shows the value that applies to it.
-  const inherited: Partial<PresetOptions> = (isEditing && originalName && presets[originalName]) || {};
+  const inherited: Partial<PresetOptions> = (isEditing && originalName && presets[originalName]) || presetDefaults;
 
   return (
     <div className="flex flex-col h-full overflow-auto">

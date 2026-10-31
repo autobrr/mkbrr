@@ -239,4 +239,8 @@ presets:
 	if own.WebSeeds != nil || own.Private != nil || own.Source != "SRC" {
 		t.Errorf("own values = %+v, want only source SRC", own)
 	}
+	// A new preset shows these switch values, so they must come from the default section.
+	if d := result.Defaults; d == nil || d.Private == nil || *d.Private {
+		t.Errorf("defaults = %+v, want private false from the default section", d)
+	}
 }

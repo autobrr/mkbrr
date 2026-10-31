@@ -219,6 +219,7 @@ export namespace main {
 	export class PresetsResult {
 	    presets: Record<string, preset.Options>;
 	    own: Record<string, preset.Options>;
+	    defaults?: preset.Options;
 	    errors?: string[];
 
 	    static createFrom(source: any = {}) {
@@ -229,6 +230,7 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.presets = this.convertValues(source["presets"], preset.Options, true);
 	        this.own = this.convertValues(source["own"], preset.Options, true);
+	        this.defaults = this.convertValues(source["defaults"], preset.Options);
 	        this.errors = source["errors"];
 	    }
 
