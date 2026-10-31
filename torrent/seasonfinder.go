@@ -13,13 +13,13 @@ import (
 )
 
 type SeasonPackInfo struct {
-	Episodes        []int
-	MissingEpisodes []int
-	Season          int
-	MaxEpisode      int
-	VideoFileCount  int
-	IsSeasonPack    bool
-	IsSuspicious    bool
+	Episodes        []int `json:"episodes"`
+	MissingEpisodes []int `json:"missing_episodes"`
+	Season          int   `json:"season"`
+	MaxEpisode      int   `json:"max_episode"`
+	VideoFileCount  int   `json:"video_file_count"`
+	IsSeasonPack    bool  `json:"is_season_pack"`
+	IsSuspicious    bool  `json:"is_suspicious"`
 }
 
 var seasonPackPatterns = []*regexp.Regexp{

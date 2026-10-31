@@ -1363,6 +1363,43 @@ func TestPlanCreateFailOnSeasonWarningMatchesCreate(t *testing.T) {
 
 	_, err = CreateTorrent(opts)
 	require.ErrorContains(t, err, "season pack is suspicious")
+
+	// without the fail flag, the plan shows the missing episodes before hashing,
+	// and it has the same season pack check as create
+	opts.FailOnSeasonPackWarning = false
+	opts.OutputDir = t.TempDir()
+	plan, err := PlanCreate(opts)
+	require.NoError(t, err)
+	require.Equal(t, &SeasonPackInfo{
+		Episodes:        []int{1, 3},
+		MissingEpisodes: []int{2},
+		Season:          1,
+		MaxEpisode:      3,
+		VideoFileCount:  2,
+		IsSeasonPack:    true,
+		IsSuspicious:    true,
+	}, plan.SeasonPack)
+	info, err := Create(opts)
+	require.NoError(t, err)
+	require.Equal(t, plan.SeasonPack, info.SeasonPack)
+
+	// the check runs after the exclude patterns: excluding E03 leaves a complete pack
+	opts.ExcludePatterns = []string{"*E03*"}
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "Show.S01E02.mkv"), []byte("two"), 0o644))
+	plan, err = PlanCreate(opts)
+	require.NoError(t, err)
+	require.Equal(t, &SeasonPackInfo{
+		Episodes:        []int{1, 2},
+		MissingEpisodes: []int{},
+		Season:          1,
+		MaxEpisode:      2,
+		VideoFileCount:  2,
+		IsSeasonPack:    true,
+	}, plan.SeasonPack)
+
+	info, err = Create(opts)
+	require.NoError(t, err)
+	require.Equal(t, plan.SeasonPack, info.SeasonPack)
 }
 
 func TestPlanCreateLargeSparseInputDoesNotMaterializePieceHashes(t *testing.T) {

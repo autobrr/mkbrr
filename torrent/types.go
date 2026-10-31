@@ -55,6 +55,9 @@ type CreatePlan struct {
 	PredictedTorrentSize uint64   `json:"predicted_torrent_size"`
 	TrackerSizeLimit     uint64   `json:"tracker_size_limit"`
 	Notices              []Notice `json:"notices"`
+	// SeasonPack is the season pack check of the files in the torrent,
+	// after the exclude and include patterns.
+	SeasonPack *SeasonPackInfo `json:"season_pack"`
 }
 
 // Torrent represents a torrent file with additional functionality
