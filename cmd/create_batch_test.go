@@ -171,14 +171,17 @@ func TestCreatePlanPrintsJSONWithoutWritingTorrent(t *testing.T) {
 	assert.NoFileExists(t, output)
 
 	var plan struct {
-		ContentSize         int64  `json:"content_size"`
-		PieceLengthExponent uint   `json:"piece_length_exponent"`
-		PieceLengthBytes    int64  `json:"piece_length_bytes"`
-		TrackerSizeLimit    uint64 `json:"tracker_size_limit"`
+		ContentSize         int64          `json:"content_size"`
+		PieceLengthExponent uint           `json:"piece_length_exponent"`
+		PieceLengthBytes    int64          `json:"piece_length_bytes"`
+		TrackerSizeLimit    uint64         `json:"tracker_size_limit"`
+		SeasonPack          map[string]any `json:"season_pack"`
 	}
 	require.NoError(t, json.Unmarshal([]byte(stdout), &plan))
 	assert.Equal(t, int64(128*1024), plan.ContentSize)
 	assert.Equal(t, uint(14), plan.PieceLengthExponent)
 	assert.Equal(t, int64(1<<14), plan.PieceLengthBytes)
 	assert.Equal(t, uint64(2<<20), plan.TrackerSizeLimit)
+	require.Contains(t, plan.SeasonPack, "missing_episodes")
+	assert.Equal(t, false, plan.SeasonPack["is_season_pack"])
 }

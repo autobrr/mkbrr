@@ -595,6 +595,7 @@ func prepareCreate(opts CreateOptions, internalOpts createTorrentOptions) (*prep
 			PredictedTorrentSize: predictedTorrentSize,
 			TrackerSizeLimit:     rules.MaxTorrentSize,
 			Notices:              append([]Notice{}, notices...),
+			SeasonPack:           seasonInfo,
 		},
 	}, nil
 }
