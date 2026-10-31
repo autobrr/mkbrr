@@ -50,6 +50,16 @@ The `mkbrr modify` command allows you to update metadata in existing `.torrent` 
 
 <ModifyParams />
 
+## Failed files
+
+When a file fails, for example because it is not a valid torrent, mkbrr continues with the other files. The files that succeed are written. After all files run, mkbrr exits with a non-zero code and prints `N of M torrent files failed`. A script can use this exit code to find a torrent that was not modified. `--dry-run` uses the same exit code.
+
+With `--quiet`, mkbrr prints each failed file to stderr as `Failed: <path>: <error>`.
+
+<Warning>
+In mkbrr v1.27.0 and earlier, `modify` exited with code 0 when a file failed, and `--quiet` did not print the error.
+</Warning>
+
 ## Examples
 
 <Tabs>
