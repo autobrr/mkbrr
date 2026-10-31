@@ -116,7 +116,7 @@ jobs:
 		// check specific job details
 		switch i {
 		case 0: // file1.txt
-			if result.Info.Files != 0 {
+			if result.Info.Files != 1 {
 				t.Errorf("Expected single file torrent, got %d files", result.Info.Files)
 			}
 		case 1: // dir1

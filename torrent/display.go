@@ -371,9 +371,7 @@ func (d *Display) ShowBatchResults(results []BatchResult, duration time.Duration
 				fmt.Fprintf(d.output, "  %-11s %s\n", label("Size:"), d.formatter.FormatBytes(result.Info.Size))
 				fmt.Fprintf(d.output, "  %-11s %s\n", label("Info hash:"), result.Info.InfoHash)
 				fmt.Fprintf(d.output, "  %-11s %s\n", label("Trackers:"), strings.Join(result.Trackers, ", "))
-				if result.Info.Files > 0 {
-					fmt.Fprintf(d.output, "  %-11s %d\n", label("Files:"), result.Info.Files)
-				}
+				fmt.Fprintf(d.output, "  %-11s %d\n", label("Files:"), result.Info.Files)
 			} else {
 				fmt.Fprintf(d.output, "  %-11s %s\n", label("Status:"), errorColor("Failed"))
 				fmt.Fprintf(d.output, "  %-11s %v\n", label("Error:"), result.Error)

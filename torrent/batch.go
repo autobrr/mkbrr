@@ -187,7 +187,7 @@ func processJob(job BatchJob, verbose bool, quiet bool, infoOnly bool, version s
 	}
 
 	// create the torrent
-	mi, err := CreateTorrent(opts)
+	mi, seasonInfo, err := createTorrent(opts, createTorrentOptions{})
 	if err != nil {
 		result.Error = fmt.Errorf("failed to create torrent: %w", err)
 		return result
@@ -206,15 +206,8 @@ func processJob(job BatchJob, verbose bool, quiet bool, infoOnly bool, version s
 		return result
 	}
 
-	// collect torrent info
-	info := mi.GetInfo()
 	result.Success = true
-	result.Info = &TorrentInfo{
-		Path:     output,
-		Size:     info.TotalLength(),
-		InfoHash: mi.HashInfoBytes().String(),
-		Files:    len(info.Files),
-	}
+	result.Info = newTorrentInfo(mi, output, seasonInfo)
 
 	return result
 }

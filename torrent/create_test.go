@@ -1459,3 +1459,58 @@ func Test_choosePieceLength_MaxPieceLengthBounds(t *testing.T) {
 		})
 	}
 }
+
+func TestCreateResultReportsSizeFilesPiecesAndSeasonPack(t *testing.T) {
+	t.Run("single file", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "single.bin")
+		require.NoError(t, os.WriteFile(path, make([]byte, 150*1024), 0o644))
+
+		info, err := Create(CreateOptions{
+			Path:           path,
+			OutputDir:      filepath.Join(dir, "out"),
+			PieceLengthExp: new(uint(16)), // 64 KiB pieces
+			NoCreator:      true,
+			NoDate:         true,
+			Quiet:          true,
+		})
+		require.NoError(t, err)
+		require.Equal(t, int64(150*1024), info.Size)
+		require.Equal(t, 1, info.Files)
+		require.Equal(t, 3, info.PieceCount)
+		require.False(t, info.SeasonPack.IsSeasonPack)
+	})
+
+	t.Run("folder with an excluded episode", func(t *testing.T) {
+		root := t.TempDir()
+		dir := filepath.Join(root, "Show.S01.1080p")
+		require.NoError(t, os.MkdirAll(dir, 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "Show.S01E01.mkv"), make([]byte, 100*1024), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "Show.S01E03.mkv"), make([]byte, 100*1024), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "Show.S01E05.mkv"), make([]byte, 100*1024), 0o644))
+
+		info, err := Create(CreateOptions{
+			Path:            dir,
+			OutputDir:       filepath.Join(root, "out"),
+			ExcludePatterns: []string{"*E05*"},
+			PieceLengthExp:  new(uint(16)),
+			NoCreator:       true,
+			NoDate:          true,
+			Quiet:           true,
+		})
+		require.NoError(t, err)
+		require.Equal(t, int64(200*1024), info.Size)
+		require.Equal(t, 2, info.Files)
+		require.Equal(t, 4, info.PieceCount)
+		// the excluded E05 is not in the torrent, so only E02 is missing
+		require.Equal(t, &SeasonPackInfo{
+			Episodes:        []int{1, 3},
+			MissingEpisodes: []int{2},
+			Season:          1,
+			MaxEpisode:      3,
+			VideoFileCount:  2,
+			IsSeasonPack:    true,
+			IsSuspicious:    true,
+		}, info.SeasonPack)
+	})
+}
