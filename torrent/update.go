@@ -63,13 +63,13 @@ type pieceReuse struct {
 // callers must perform a full recreate when file bytes may change without changing size.
 func UpdateTorrent(opts UpdateOptions) (*UpdateResult, error) {
 	if opts.TorrentPath == "" {
-		return nil, fmt.Errorf("torrent path is required")
+		return nil, errors.New("torrent path is required")
 	}
 	if opts.ContentPath == "" {
-		return nil, fmt.Errorf("content path is required")
+		return nil, errors.New("content path is required")
 	}
 	if opts.InPlace && opts.OutputPath != "" {
-		return nil, fmt.Errorf("in-place update and output path are mutually exclusive")
+		return nil, errors.New("in-place update and output path are mutually exclusive")
 	}
 
 	outputPath := opts.OutputPath
@@ -105,7 +105,7 @@ func UpdateTorrent(opts UpdateOptions) (*UpdateResult, error) {
 	}
 	oldInfoBytes, ok := rootMap["info"]
 	if !ok {
-		return nil, fmt.Errorf("torrent has no info dictionary")
+		return nil, errors.New("torrent has no info dictionary")
 	}
 
 	var oldInfo metainfo.Info
@@ -121,15 +121,15 @@ func UpdateTorrent(opts UpdateOptions) (*UpdateResult, error) {
 	_, hasLength := oldInfoMap["length"]
 	if hasFiles == hasLength {
 		if hasFiles {
-			return nil, fmt.Errorf("torrent info must not contain both files and length")
+			return nil, errors.New("torrent info must not contain both files and length")
 		}
-		return nil, fmt.Errorf("torrent info must contain either files or length")
+		return nil, errors.New("torrent info must contain either files or length")
 	}
 	if _, ok := oldInfoMap["meta version"]; ok {
-		return nil, fmt.Errorf("updating v2 or hybrid torrents is not supported")
+		return nil, errors.New("updating v2 or hybrid torrents is not supported")
 	}
 	if _, ok := oldInfoMap["file tree"]; ok {
-		return nil, fmt.Errorf("updating v2 or hybrid torrents is not supported")
+		return nil, errors.New("updating v2 or hybrid torrents is not supported")
 	}
 
 	reuse, err := newPieceReuse(oldInfo, opts.Renames)
@@ -177,7 +177,7 @@ func UpdateTorrent(opts UpdateOptions) (*UpdateResult, error) {
 	} else if length, ok := newInfoMap["length"]; ok {
 		oldInfoMap["length"] = length
 	} else {
-		return nil, fmt.Errorf("updated torrent has neither files nor length")
+		return nil, errors.New("updated torrent has neither files nor length")
 	}
 	oldInfoMap["pieces"] = newInfoMap["pieces"]
 
@@ -198,7 +198,7 @@ func UpdateTorrent(opts UpdateOptions) (*UpdateResult, error) {
 		return nil, fmt.Errorf("re-resolve output parent: %w", err)
 	}
 	if currentWriteOutputPath != writeOutputPath {
-		return nil, fmt.Errorf("output parent changed during update")
+		return nil, errors.New("output parent changed during update")
 	}
 	torrentInfo, err := os.Stat(opts.TorrentPath)
 	if err != nil {
@@ -272,7 +272,7 @@ func validateUpdateOutputPath(torrentPath, contentPath, outputPath string, inPla
 			return fmt.Errorf("compare output and torrent paths: %w", err)
 		}
 		if updatePathsEqual(outputWritePath, torrentWritePath) || sameExistingFile {
-			return fmt.Errorf("output path refers to the input torrent; use in-place update instead")
+			return errors.New("output path refers to the input torrent; use in-place update instead")
 		}
 	}
 
@@ -290,9 +290,9 @@ func validateUpdateOutputPath(torrentPath, contentPath, outputPath string, inPla
 	}
 	if updatePathsEqual(outputWritePath, contentEntryPath) || sameExistingFile {
 		if contentInfo.IsDir() {
-			return fmt.Errorf("output path must not replace the content directory")
+			return errors.New("output path must not replace the content directory")
 		}
-		return fmt.Errorf("output path must not replace the content file")
+		return errors.New("output path must not replace the content file")
 	}
 	contentResolved, err := resolvedUpdatePath(contentPath)
 	if err != nil {
@@ -308,9 +308,9 @@ func validateUpdateOutputPath(torrentPath, contentPath, outputPath string, inPla
 	}
 	if insideContent {
 		if inPlace {
-			return fmt.Errorf("input torrent must be outside the content directory for in-place update")
+			return errors.New("input torrent must be outside the content directory for in-place update")
 		}
-		return fmt.Errorf("output path must not be inside the content directory")
+		return errors.New("output path must not be inside the content directory")
 	}
 	return nil
 }
@@ -415,7 +415,7 @@ func newPieceReuse(info metainfo.Info, renames map[string]string) (*pieceReuse, 
 		return nil, fmt.Errorf("torrent has invalid piece length %d", info.PieceLength)
 	}
 	if len(info.Pieces) == 0 || len(info.Pieces)%20 != 0 {
-		return nil, fmt.Errorf("torrent has invalid v1 piece hashes")
+		return nil, errors.New("torrent has invalid v1 piece hashes")
 	}
 
 	torrentName := normalizeTorrentPath(info.Name)
@@ -427,7 +427,7 @@ func newPieceReuse(info metainfo.Info, renames map[string]string) (*pieceReuse, 
 	var offset int64
 	if len(info.Files) == 0 {
 		if info.Length <= 0 {
-			return nil, fmt.Errorf("torrent contains no v1 file data")
+			return nil, errors.New("torrent contains no v1 file data")
 		}
 		oldFiles = append(oldFiles, reuseFile{
 			path:   torrentName,
@@ -469,7 +469,7 @@ func newPieceReuse(info metainfo.Info, renames map[string]string) (*pieceReuse, 
 		normalizedOldPath := normalizeTorrentPath(oldPath)
 		normalizedNewPath := normalizeTorrentPath(newPath)
 		if normalizedOldPath == "" || normalizedNewPath == "" {
-			return nil, fmt.Errorf("rename paths must not be empty")
+			return nil, errors.New("rename paths must not be empty")
 		}
 		if _, exists := normalizedRenames[normalizedOldPath]; exists {
 			return nil, fmt.Errorf("duplicate normalized rename source %q", normalizedOldPath)

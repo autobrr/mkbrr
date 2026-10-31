@@ -87,7 +87,7 @@ func Load(configPath string) (*Config, error) {
 	}
 
 	if len(config.Presets) == 0 {
-		return nil, fmt.Errorf("no presets defined in config")
+		return nil, errors.New("no presets defined in config")
 	}
 
 	return &config, nil

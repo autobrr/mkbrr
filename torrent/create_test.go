@@ -714,7 +714,7 @@ func TestCreateTorrent_IgnoresSynologyMetadataDir(t *testing.T) {
 
 	info := tor.GetInfo()
 	if len(info.Files) != 1 {
-		var paths []string
+		paths := make([]string, 0, len(info.Files))
 		for _, f := range info.Files {
 			paths = append(paths, strings.Join(f.Path, "/"))
 		}
@@ -1018,7 +1018,6 @@ func TestCreate_UsesCustomNameForOutputPath(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.scenario, func(t *testing.T) {
 			t.Parallel()
 
@@ -1055,7 +1054,6 @@ func TestCreate_UsesCustomNameForOutputPath(t *testing.T) {
 }
 
 func TestCreate_NameArgument(t *testing.T) {
-
 	tracker := "https://unknown.customtracker.com/announce"
 	tracker2 := "https://unknown.customtracker2.com/announce"
 
@@ -1271,7 +1269,6 @@ func TestCreate_NameArgument(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			// Create the torrent
 			result, err := Create(tt.opts)
 			if err != nil {
@@ -1339,9 +1336,9 @@ func TestPlanCreateMatchesCreateAndAppliesFilters(t *testing.T) {
 	require.NotZero(t, plan.PredictedTorrentSize)
 	require.False(t, hashed, "planning must not hash content")
 
-	exp, notices, err := ChoosePieceLength(opts)
+	wantExp, notices, err := ChoosePieceLength(opts)
 	require.NoError(t, err)
-	require.Equal(t, plan.PieceLengthExponent, exp)
+	require.Equal(t, wantExp, plan.PieceLengthExponent)
 	require.Equal(t, plan.Notices, notices)
 
 	tor, err := CreateTorrent(opts)
@@ -1451,9 +1448,9 @@ func Test_choosePieceLength_MaxPieceLengthBounds(t *testing.T) {
 				TargetPieceCount: tt.targetCount,
 			}, rulesFor(trackerURLs), nil)
 			if tt.wantErr {
-				assert.ErrorContains(t, err, "max piece length exponent must be between")
+				require.ErrorContains(t, err, "max piece length exponent must be between")
 				if tt.trackerURL != "" {
-					assert.ErrorContains(t, err, " for "+tt.trackerURL)
+					require.ErrorContains(t, err, " for "+tt.trackerURL)
 				}
 				return
 			}

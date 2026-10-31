@@ -74,11 +74,11 @@ func TestPresetTargetPieceCountMerge(t *testing.T) {
 	defer func() { _ = os.Remove(tmpFile.Name()) }()
 
 	tests := []struct {
-		name             string
-		config           string
-		presetName       string
-		wantPieceLength  uint
-		wantTargetCount  uint
+		name            string
+		config          string
+		presetName      string
+		wantPieceLength uint
+		wantTargetCount uint
 	}{
 		{
 			name: "preset with both values: last writer wins (target_piece_count clears piece_length)",

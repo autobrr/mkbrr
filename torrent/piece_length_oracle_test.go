@@ -4,9 +4,11 @@
 package torrent
 
 import (
+	"errors"
 	"fmt"
 	"math/bits"
 	"slices"
+	"strconv"
 	"testing"
 
 	"github.com/autobrr/mkbrr/internal/trackers"
@@ -16,7 +18,7 @@ import (
 // the piece length choice before the bounds moved into pieceLengthBounds. A
 // difference for a setting that both accept changes the info hash.
 func TestChoosePieceLengthMatchesOracle(t *testing.T) {
-	ruleSets := []trackers.Rules{{}}
+	ruleSets := make([]trackers.Rules, 1, 1+3*len(trackers.Configs()))
 	for _, r := range trackers.Configs() {
 		noLimit, smallLimit := r, r
 		noLimit.MaxTorrentSize = 0
@@ -33,7 +35,7 @@ func TestChoosePieceLengthMatchesOracle(t *testing.T) {
 	for e := uint(10); e <= 28; e++ {
 		exps = append(exps, new(e))
 	}
-	targets := []*uint{nil}
+	targets := make([]*uint, 1, 4)
 	for _, n := range []uint{1, 1000, 50000} {
 		targets = append(targets, new(n))
 	}
@@ -102,7 +104,7 @@ func deref(p *uint) string {
 	if p == nil {
 		return "nil"
 	}
-	return fmt.Sprint(*p)
+	return strconv.FormatUint(uint64(*p), 10)
 }
 
 // The functions below are copies of the piece length choice from develop at
@@ -146,10 +148,10 @@ func oracleSizeLimitPieceLengthCeiling(rules trackers.Rules, maxPieceLength *uin
 
 func oracleChoosePieceLength(totalSize int64, opts CreateOptions, rules trackers.Rules, torrentSize func(exp uint) (uint64, error)) (uint, []Notice, error) {
 	if opts.PieceLengthExp != nil && opts.TargetPieceCount != nil {
-		return 0, nil, fmt.Errorf("cannot use both piece length and target piece count; use one or the other")
+		return 0, nil, errors.New("cannot use both piece length and target piece count; use one or the other")
 	}
 	if opts.TargetPieceCount != nil && opts.PieceLengthExp == nil && *opts.TargetPieceCount == 0 {
-		return 0, nil, fmt.Errorf("target piece count must be greater than zero")
+		return 0, nil, errors.New("target piece count must be greater than zero")
 	}
 
 	var (
@@ -165,7 +167,7 @@ func oracleChoosePieceLength(totalSize int64, opts CreateOptions, rules trackers
 
 		minExp, _ := oracleTrackerPieceLengthBounds(rules, nil)
 		if exp < minExp || exp > maxExp {
-			return 0, nil, fmt.Errorf("piece length exponent out of range")
+			return 0, nil, errors.New("piece length exponent out of range")
 		}
 
 		if rec, ok := rules.PieceSizeExp(uint64(totalSize)); ok {
@@ -183,7 +185,7 @@ func oracleChoosePieceLength(totalSize int64, opts CreateOptions, rules trackers
 				minExp = 16
 			}
 			if *opts.MaxPieceLength < minExp || *opts.MaxPieceLength > maxExp {
-				return 0, nil, fmt.Errorf("max piece length exponent out of range")
+				return 0, nil, errors.New("max piece length exponent out of range")
 			}
 		}
 
@@ -213,7 +215,7 @@ func oracleChoosePieceLength(totalSize int64, opts CreateOptions, rules trackers
 			break
 		}
 		if exp >= ceiling {
-			return 0, nil, fmt.Errorf("unable to create torrent under size limit")
+			return 0, nil, errors.New("unable to create torrent under size limit")
 		}
 		exp++
 	}

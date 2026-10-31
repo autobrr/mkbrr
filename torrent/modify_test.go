@@ -271,7 +271,6 @@ presets:
 }
 
 func TestModify_NameArgument(t *testing.T) {
-
 	tracker := "https://unknown.customtracker.com/announce"
 	tracker2 := "https://unknown.customtracker2.com/announce"
 
@@ -437,7 +436,6 @@ func TestModify_NameArgument(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			// a run with no change writes no file
 			tt.opts.Comment = new("changed")
 
@@ -751,7 +749,7 @@ func TestModifyTorrent_RemoveFields(t *testing.T) {
 		// verify the empty source key exists before modification
 		preMi, _ := LoadFromFile(emptySourcePath)
 		preMap := make(map[string]any)
-		bencode.Unmarshal(preMi.InfoBytes, &preMap)
+		require.NoError(t, bencode.Unmarshal(preMi.InfoBytes, &preMap))
 		if _, exists := preMap["source"]; !exists {
 			t.Fatal("Setup failed: expected source key to exist (even if empty)")
 		}

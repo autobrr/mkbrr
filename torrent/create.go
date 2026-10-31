@@ -7,6 +7,8 @@ import (
 	"bytes"
 	"cmp"
 	"crypto/rand"
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"math/bits"
 	"os"
@@ -28,10 +30,10 @@ const maxTorrentDataSize = int64(^uint64(0) >> 1)
 
 func pieceCountForSize(totalSize, pieceLength int64) (int, error) {
 	if totalSize < 0 {
-		return 0, fmt.Errorf("content size must not be negative")
+		return 0, errors.New("content size must not be negative")
 	}
 	if pieceLength <= 0 {
-		return 0, fmt.Errorf("piece length must be positive")
+		return 0, errors.New("piece length must be positive")
 	}
 	pieces := totalSize / pieceLength
 	if totalSize%pieceLength != 0 {
@@ -46,7 +48,7 @@ func pieceCountForSize(totalSize, pieceLength int64) (int, error) {
 
 func addTorrentFileSize(totalSize, fileSize int64) (int64, error) {
 	if fileSize < 0 {
-		return 0, fmt.Errorf("file size must not be negative")
+		return 0, errors.New("file size must not be negative")
 	}
 	if fileSize > maxTorrentDataSize-totalSize {
 		return 0, fmt.Errorf("total content size exceeds %d bytes", maxTorrentDataSize)
@@ -122,10 +124,10 @@ type Notice struct {
 // .torrent size for an exponent; it is used only when the rules set a size limit.
 func choosePieceLength(totalSize int64, opts CreateOptions, rules trackers.Rules, torrentSize func(exp uint) (uint64, error)) (uint, []Notice, error) {
 	if opts.PieceLengthExp != nil && opts.TargetPieceCount != nil {
-		return 0, nil, fmt.Errorf("cannot use both piece length and target piece count; use one or the other")
+		return 0, nil, errors.New("cannot use both piece length and target piece count; use one or the other")
 	}
 	if opts.TargetPieceCount != nil && opts.PieceLengthExp == nil && *opts.TargetPieceCount == 0 {
-		return 0, nil, fmt.Errorf("target piece count must be greater than zero")
+		return 0, nil, errors.New("target piece count must be greater than zero")
 	}
 
 	var (
@@ -268,7 +270,7 @@ func generateRandomString() (string, error) {
 	if _, err := rand.Read(b); err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("%x", b), nil
+	return hex.EncodeToString(b), nil
 }
 
 type createTorrentOptions struct {
@@ -361,13 +363,6 @@ func prepareCreate(opts CreateOptions, internalOpts createTorrentOptions) (*prep
 
 	err = filepath.Walk(walkPath, func(currentPath string, walkInfo os.FileInfo, walkErr error) error {
 		if walkErr != nil {
-			// check if the error is due to a broken symlink during walk
-			// if lstat works but stat fails, it's likely a broken link we might handle later
-			if _, lerr := os.Lstat(currentPath); lerr == nil {
-				// we can lstat it, maybe it's a broken link we can ignore?
-				// for now, let's return the original error to maintain behavior.
-				// consider adding verbose logging here if needed.
-			}
 			return walkErr
 		}
 
@@ -479,7 +474,7 @@ func prepareCreate(opts CreateOptions, internalOpts createTorrentOptions) (*prep
 
 	// recalculate offsets based on the sorted file order
 	// context: https://github.com/autobrr/mkbrr/issues/64
-	var currentOffset int64 = 0
+	var currentOffset int64
 	for i := range files {
 		files[i].offset = currentOffset
 		currentOffset += files[i].length
@@ -721,7 +716,7 @@ func Create(opts CreateOptions) (*TorrentInfo, error) {
 	} else if opts.OutputPath == "" {
 		opts.OutputPath = fileName + ".torrent"
 	} else if !strings.HasSuffix(opts.OutputPath, ".torrent") {
-		opts.OutputPath = opts.OutputPath + ".torrent"
+		opts.OutputPath += ".torrent"
 	}
 
 	if opts.OutputDir != "" {
@@ -775,9 +770,6 @@ func Create(opts CreateOptions) (*TorrentInfo, error) {
 
 		display := NewDisplay(NewFormatter(opts.Verbose || opts.InfoOnly))
 		display.ShowTorrentInfo(t, info)
-		//if len(info.Files) > 0 {
-		//display.ShowFileTree(info)
-		//}
 	}
 
 	return torrentInfo, nil

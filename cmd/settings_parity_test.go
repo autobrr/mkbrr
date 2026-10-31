@@ -140,7 +140,7 @@ func TestSettingsParity(t *testing.T) {
 	}
 
 	for _, key := range slices.Sorted(maps.Keys(usedPresetKeys)) {
-		assert.Truef(t, slices.Contains(presetEditorKeys, key) != slices.Contains(presetEditorGaps, key),
+		assert.NotEqualf(t, slices.Contains(presetEditorKeys, key), slices.Contains(presetEditorGaps, key),
 			"preset key %q must be in exactly one of presetEditorKeys and presetEditorGaps", key)
 	}
 	for _, key := range slices.Concat(presetEditorKeys, presetEditorGaps) {
