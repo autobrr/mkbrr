@@ -7,6 +7,8 @@ import (
 	"bytes"
 	"cmp"
 	"crypto/rand"
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"math/bits"
 	"os"
@@ -28,10 +30,10 @@ const maxTorrentDataSize = int64(^uint64(0) >> 1)
 
 func pieceCountForSize(totalSize, pieceLength int64) (int, error) {
 	if totalSize < 0 {
-		return 0, fmt.Errorf("content size must not be negative")
+		return 0, errors.New("content size must not be negative")
 	}
 	if pieceLength <= 0 {
-		return 0, fmt.Errorf("piece length must be positive")
+		return 0, errors.New("piece length must be positive")
 	}
 	pieces := totalSize / pieceLength
 	if totalSize%pieceLength != 0 {
@@ -46,7 +48,7 @@ func pieceCountForSize(totalSize, pieceLength int64) (int, error) {
 
 func addTorrentFileSize(totalSize, fileSize int64) (int64, error) {
 	if fileSize < 0 {
-		return 0, fmt.Errorf("file size must not be negative")
+		return 0, errors.New("file size must not be negative")
 	}
 	if fileSize > maxTorrentDataSize-totalSize {
 		return 0, fmt.Errorf("total content size exceeds %d bytes", maxTorrentDataSize)
@@ -122,10 +124,10 @@ type Notice struct {
 // .torrent size for an exponent; it is used only when the rules set a size limit.
 func choosePieceLength(totalSize int64, opts CreateOptions, rules trackers.Rules, torrentSize func(exp uint) (uint64, error)) (uint, []Notice, error) {
 	if opts.PieceLengthExp != nil && opts.TargetPieceCount != nil {
-		return 0, nil, fmt.Errorf("cannot use both piece length and target piece count; use one or the other")
+		return 0, nil, errors.New("cannot use both piece length and target piece count; use one or the other")
 	}
 	if opts.TargetPieceCount != nil && opts.PieceLengthExp == nil && *opts.TargetPieceCount == 0 {
-		return 0, nil, fmt.Errorf("target piece count must be greater than zero")
+		return 0, nil, errors.New("target piece count must be greater than zero")
 	}
 
 	var (
@@ -268,7 +270,7 @@ func generateRandomString() (string, error) {
 	if _, err := rand.Read(b); err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("%x", b), nil
+	return hex.EncodeToString(b), nil
 }
 
 type createTorrentOptions struct {
@@ -280,7 +282,8 @@ type createTorrentOptions struct {
 // Returns a Torrent struct containing the metainfo.
 // This is the lower-level function; use Create() for a higher-level interface.
 func CreateTorrent(opts CreateOptions) (*Torrent, error) {
-	return createTorrent(opts, createTorrentOptions{})
+	t, _, err := createTorrent(opts, createTorrentOptions{})
+	return t, err
 }
 
 type preparedCreate struct {
@@ -361,13 +364,6 @@ func prepareCreate(opts CreateOptions, internalOpts createTorrentOptions) (*prep
 
 	err = filepath.Walk(walkPath, func(currentPath string, walkInfo os.FileInfo, walkErr error) error {
 		if walkErr != nil {
-			// check if the error is due to a broken symlink during walk
-			// if lstat works but stat fails, it's likely a broken link we might handle later
-			if _, lerr := os.Lstat(currentPath); lerr == nil {
-				// we can lstat it, maybe it's a broken link we can ignore?
-				// for now, let's return the original error to maintain behavior.
-				// consider adding verbose logging here if needed.
-			}
 			return walkErr
 		}
 
@@ -479,7 +475,7 @@ func prepareCreate(opts CreateOptions, internalOpts createTorrentOptions) (*prep
 
 	// recalculate offsets based on the sorted file order
 	// context: https://github.com/autobrr/mkbrr/issues/64
-	var currentOffset int64 = 0
+	var currentOffset int64
 	for i := range files {
 		files[i].offset = currentOffset
 		currentOffset += files[i].length
@@ -623,10 +619,11 @@ func PlanCreate(opts CreateOptions) (*CreatePlan, error) {
 }
 
 // createTorrent contains the shared creation pipeline with optional internal hash-reuse controls.
-func createTorrent(opts CreateOptions, internalOpts createTorrentOptions) (*Torrent, error) {
+// It also returns the season pack check of the files in the torrent.
+func createTorrent(opts CreateOptions, internalOpts createTorrentOptions) (*Torrent, *SeasonPackInfo, error) {
 	prepared, err := prepareCreate(opts, internalOpts)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	files := prepared.files
 	totalSize := prepared.totalSize
@@ -647,7 +644,7 @@ func createTorrent(opts CreateOptions, internalOpts createTorrentOptions) (*Torr
 	}
 	numPieces, err := pieceCountForSize(totalSize, pieceLength)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	var display Displayer
@@ -666,33 +663,33 @@ func createTorrent(opts CreateOptions, internalOpts createTorrentOptions) (*Torr
 	if internalOpts.pieceReuse != nil {
 		reusablePieces, err := internalOpts.pieceReuse.findReusablePieces(files, baseDir, inputInfo.IsDir(), pieceLength)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		hasher.reusablePieces = reusablePieces
 	}
 	// Pass the specified or default worker count from opts
 	if err := hasher.hashPieces(opts.Workers); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	t, err := encode(pieceLength, bytes.Join(hasher.pieces, nil))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// guard: the pre-hash prediction must match the real size exactly.
 	if rules.MaxTorrentSize > 0 {
 		data, err := bencode.Marshal(t.MetaInfo)
 		if err != nil {
-			return nil, fmt.Errorf("error marshaling torrent data: %w", err)
+			return nil, nil, fmt.Errorf("error marshaling torrent data: %w", err)
 		}
 		want := prepared.plan.PredictedTorrentSize
 		if uint64(len(data)) != want {
-			return nil, fmt.Errorf("torrent size %d bytes does not match the predicted %d bytes", len(data), want)
+			return nil, nil, fmt.Errorf("torrent size %d bytes does not match the predicted %d bytes", len(data), want)
 		}
 	}
 
-	return t, nil
+	return t, prepared.seasonInfo, nil
 }
 
 // Create creates a new torrent file with the given options.
@@ -721,7 +718,7 @@ func Create(opts CreateOptions) (*TorrentInfo, error) {
 	} else if opts.OutputPath == "" {
 		opts.OutputPath = fileName + ".torrent"
 	} else if !strings.HasSuffix(opts.OutputPath, ".torrent") {
-		opts.OutputPath = opts.OutputPath + ".torrent"
+		opts.OutputPath += ".torrent"
 	}
 
 	if opts.OutputDir != "" {
@@ -731,7 +728,7 @@ func Create(opts CreateOptions) (*TorrentInfo, error) {
 	}
 
 	// create torrent
-	t, err := CreateTorrent(opts)
+	t, seasonInfo, err := createTorrent(opts, createTorrentOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -752,17 +749,9 @@ func Create(opts CreateOptions) (*TorrentInfo, error) {
 	info := t.GetInfo()
 
 	// create torrent info for return
-	torrentInfo := &TorrentInfo{
-		Path:     opts.OutputPath,
-		Size:     info.Length,
-		InfoHash: t.MetaInfo.HashInfoBytes().String(),
-		Files:    len(info.Files),
-		Announce: func() string {
-			if len(opts.TrackerURLs) > 0 {
-				return opts.TrackerURLs[0]
-			}
-			return ""
-		}(),
+	torrentInfo := newTorrentInfo(t, opts.OutputPath, seasonInfo)
+	if len(opts.TrackerURLs) > 0 {
+		torrentInfo.Announce = opts.TrackerURLs[0]
 	}
 
 	// display info if verbose or info-only
@@ -775,10 +764,20 @@ func Create(opts CreateOptions) (*TorrentInfo, error) {
 
 		display := NewDisplay(NewFormatter(opts.Verbose || opts.InfoOnly))
 		display.ShowTorrentInfo(t, info)
-		//if len(info.Files) > 0 {
-		//display.ShowFileTree(info)
-		//}
 	}
 
 	return torrentInfo, nil
+}
+
+// newTorrentInfo summarizes a created torrent written to path.
+func newTorrentInfo(t *Torrent, path string, seasonInfo *SeasonPackInfo) *TorrentInfo {
+	info := t.GetInfo()
+	return &TorrentInfo{
+		Path:       path,
+		InfoHash:   t.HashInfoBytes().String(),
+		Size:       info.TotalLength(),
+		Files:      max(1, len(info.Files)),
+		PieceCount: info.NumPieces(),
+		SeasonPack: seasonInfo,
+	}
 }

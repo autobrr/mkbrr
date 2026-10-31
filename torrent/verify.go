@@ -30,7 +30,6 @@ type VerifyOptions struct {
 
 type pieceVerifier struct {
 	startTime   time.Time
-	lastUpdate  time.Time
 	torrentInfo *metainfo.Info
 	display     *Display // Changed to concrete type
 	bufferPool  *sync.Pool
@@ -165,7 +164,6 @@ func VerifyData(opts VerifyOptions) (*VerificationResult, error) {
 			}
 			currentOffset += f.Length
 		}
-
 	} else {
 		// Single-file torrent
 		contentFileInfo, err := os.Stat(baseContentPath)
@@ -277,12 +275,6 @@ func VerifyData(opts VerifyOptions) (*VerificationResult, error) {
 	if checkablePieces > 0 {
 		// Base completion on pieces that were actually checked (good / checkable)
 		result.Completion = (float64(result.GoodPieces) / float64(checkablePieces)) * 100.0
-	} else if result.TotalPieces > 0 {
-		// All pieces were missing or part of missing files
-		result.Completion = 0.0
-	} else {
-		// 0 total pieces (empty torrent)
-		result.Completion = 0.0 // Verification of nothing is 0% complete
 	}
 
 	return result, nil
@@ -378,7 +370,7 @@ func (v *pieceVerifier) verifyPieces(numWorkersOverride int) error {
 				allocSize = 64 << 10
 			}
 			buf := make([]byte, allocSize)
-			return buf
+			return &buf
 		},
 	}
 
@@ -489,8 +481,9 @@ func (v *pieceVerifier) verifyPieces(numWorkersOverride int) error {
 
 // verifyPieceRange processes and verifies a specific range of pieces.
 func (v *pieceVerifier) verifyPieceRange(startPiece, endPiece int, completedPieces *uint64) error {
-	buf := v.bufferPool.Get().([]byte)
-	defer v.bufferPool.Put(buf)
+	bufp := v.bufferPool.Get().(*[]byte)
+	defer v.bufferPool.Put(bufp)
+	buf := *bufp
 
 	hasher := sha1.New()
 	readers := make([]*fileReader, len(v.files))

@@ -16,8 +16,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/autobrr/mkbrr/internal/trackers"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/autobrr/mkbrr/internal/trackers"
 )
 
 // mockDisplay implements Displayer interface for testing
@@ -179,7 +180,7 @@ func createTestFilesFast(t *testing.T, numFiles int, fileSize, pieceLen int64) (
 func createTestFilesWithPattern(tb testing.TB, tempDir string, fileSizes []int64, pieceLen int64) ([]fileEntry, [][]byte) {
 	tb.Helper()
 
-	var files []fileEntry
+	files := make([]fileEntry, 0, len(fileSizes))
 	var allExpectedHashes [][]byte
 	var offset int64
 	var globalBuffer bytes.Buffer

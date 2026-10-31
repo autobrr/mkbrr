@@ -714,7 +714,7 @@ func TestCreateTorrent_IgnoresSynologyMetadataDir(t *testing.T) {
 
 	info := tor.GetInfo()
 	if len(info.Files) != 1 {
-		var paths []string
+		paths := make([]string, 0, len(info.Files))
 		for _, f := range info.Files {
 			paths = append(paths, strings.Join(f.Path, "/"))
 		}
@@ -1018,7 +1018,6 @@ func TestCreate_UsesCustomNameForOutputPath(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.scenario, func(t *testing.T) {
 			t.Parallel()
 
@@ -1055,7 +1054,6 @@ func TestCreate_UsesCustomNameForOutputPath(t *testing.T) {
 }
 
 func TestCreate_NameArgument(t *testing.T) {
-
 	tracker := "https://unknown.customtracker.com/announce"
 	tracker2 := "https://unknown.customtracker2.com/announce"
 
@@ -1271,7 +1269,6 @@ func TestCreate_NameArgument(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			// Create the torrent
 			result, err := Create(tt.opts)
 			if err != nil {
@@ -1339,9 +1336,9 @@ func TestPlanCreateMatchesCreateAndAppliesFilters(t *testing.T) {
 	require.NotZero(t, plan.PredictedTorrentSize)
 	require.False(t, hashed, "planning must not hash content")
 
-	exp, notices, err := ChoosePieceLength(opts)
+	wantExp, notices, err := ChoosePieceLength(opts)
 	require.NoError(t, err)
-	require.Equal(t, plan.PieceLengthExponent, exp)
+	require.Equal(t, wantExp, plan.PieceLengthExponent)
 	require.Equal(t, plan.Notices, notices)
 
 	tor, err := CreateTorrent(opts)
@@ -1451,9 +1448,9 @@ func Test_choosePieceLength_MaxPieceLengthBounds(t *testing.T) {
 				TargetPieceCount: tt.targetCount,
 			}, rulesFor(trackerURLs), nil)
 			if tt.wantErr {
-				assert.ErrorContains(t, err, "max piece length exponent must be between")
+				require.ErrorContains(t, err, "max piece length exponent must be between")
 				if tt.trackerURL != "" {
-					assert.ErrorContains(t, err, " for "+tt.trackerURL)
+					require.ErrorContains(t, err, " for "+tt.trackerURL)
 				}
 				return
 			}
@@ -1461,4 +1458,59 @@ func Test_choosePieceLength_MaxPieceLengthBounds(t *testing.T) {
 			assert.LessOrEqual(t, got, tt.maxExp)
 		})
 	}
+}
+
+func TestCreateResultReportsSizeFilesPiecesAndSeasonPack(t *testing.T) {
+	t.Run("single file", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "single.bin")
+		require.NoError(t, os.WriteFile(path, make([]byte, 150*1024), 0o644))
+
+		info, err := Create(CreateOptions{
+			Path:           path,
+			OutputDir:      filepath.Join(dir, "out"),
+			PieceLengthExp: new(uint(16)), // 64 KiB pieces
+			NoCreator:      true,
+			NoDate:         true,
+			Quiet:          true,
+		})
+		require.NoError(t, err)
+		require.Equal(t, int64(150*1024), info.Size)
+		require.Equal(t, 1, info.Files)
+		require.Equal(t, 3, info.PieceCount)
+		require.False(t, info.SeasonPack.IsSeasonPack)
+	})
+
+	t.Run("folder with an excluded episode", func(t *testing.T) {
+		root := t.TempDir()
+		dir := filepath.Join(root, "Show.S01.1080p")
+		require.NoError(t, os.MkdirAll(dir, 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "Show.S01E01.mkv"), make([]byte, 100*1024), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "Show.S01E03.mkv"), make([]byte, 100*1024), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "Show.S01E05.mkv"), make([]byte, 100*1024), 0o644))
+
+		info, err := Create(CreateOptions{
+			Path:            dir,
+			OutputDir:       filepath.Join(root, "out"),
+			ExcludePatterns: []string{"*E05*"},
+			PieceLengthExp:  new(uint(16)),
+			NoCreator:       true,
+			NoDate:          true,
+			Quiet:           true,
+		})
+		require.NoError(t, err)
+		require.Equal(t, int64(200*1024), info.Size)
+		require.Equal(t, 2, info.Files)
+		require.Equal(t, 4, info.PieceCount)
+		// the excluded E05 is not in the torrent, so only E02 is missing
+		require.Equal(t, &SeasonPackInfo{
+			Episodes:        []int{1, 3},
+			MissingEpisodes: []int{2},
+			Season:          1,
+			MaxEpisode:      3,
+			VideoFileCount:  2,
+			IsSeasonPack:    true,
+			IsSuspicious:    true,
+		}, info.SeasonPack)
+	})
 }

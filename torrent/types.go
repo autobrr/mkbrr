@@ -86,11 +86,17 @@ type fileReader struct {
 // TorrentInfo contains summary information about the created torrent
 type TorrentInfo struct {
 	MetaInfo *metainfo.MetaInfo
-	Path     string
-	InfoHash string
-	Announce string
-	Size     int64
-	Files    int
+	// SeasonPack is the season pack check of the files in the torrent,
+	// after the exclude and include patterns.
+	SeasonPack *SeasonPackInfo
+	Path       string
+	InfoHash   string
+	Announce   string
+	// Size is the total size of the files in the torrent.
+	Size int64
+	// Files is 1 for a single-file torrent.
+	Files      int
+	PieceCount int
 }
 
 // VerificationResult holds the outcome of a torrent data verification check

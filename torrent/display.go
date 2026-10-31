@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -189,15 +190,14 @@ func (d *Display) ShowFiles(files []fileEntry, numWorkers int) {
 		// Display children
 		for i, childName := range childNames {
 			child := node.children[childName]
-			childPrefix := prefix
-			if prefix == "" {
+			var childPrefix string
+			switch {
+			case prefix == "":
 				childPrefix = "  "
-			} else {
-				if isLast {
-					childPrefix = prefix + "  "
-				} else {
-					childPrefix = prefix + "│ "
-				}
+			case isLast:
+				childPrefix = prefix + "  "
+			default:
+				childPrefix = prefix + "│ "
 			}
 			displayTree(child, childPrefix, i == len(childNames)-1)
 		}
@@ -229,8 +229,7 @@ func (d *Display) SetBatch(isBatch bool) {
 }
 
 var (
-	magenta = color.New(color.FgMagenta).SprintFunc()
-	//green      = color.New(color.FgGreen).SprintFunc()
+	magenta    = color.New(color.FgMagenta).SprintFunc()
 	yellow     = color.New(color.FgYellow).SprintFunc()
 	success    = color.New(color.FgGreen).SprintFunc()
 	label      = color.New(color.FgCyan).SprintFunc()
@@ -308,7 +307,6 @@ func (d *Display) ShowTorrentInfo(t *Torrent, info *metainfo.Info) {
 	}
 
 	fmt.Fprintln(d.output)
-
 }
 
 // ShowFileTree displays the file structure of a multi-file torrent
@@ -336,7 +334,7 @@ func (d *Display) ShowOutputPathWithTime(path string, duration time.Duration) {
 	fmt.Fprintf(d.output, "%s %s (%s)\n",
 		success("Wrote"),
 		white(path),
-		magenta(fmt.Sprintf("elapsed %s", d.formatter.FormatDuration(duration))))
+		magenta("elapsed "+d.formatter.FormatDuration(duration)))
 }
 
 func (d *Display) ShowBatchResults(results []BatchResult, duration time.Duration) {
@@ -373,9 +371,7 @@ func (d *Display) ShowBatchResults(results []BatchResult, duration time.Duration
 				fmt.Fprintf(d.output, "  %-11s %s\n", label("Size:"), d.formatter.FormatBytes(result.Info.Size))
 				fmt.Fprintf(d.output, "  %-11s %s\n", label("Info hash:"), result.Info.InfoHash)
 				fmt.Fprintf(d.output, "  %-11s %s\n", label("Trackers:"), strings.Join(result.Trackers, ", "))
-				if result.Info.Files > 0 {
-					fmt.Fprintf(d.output, "  %-11s %d\n", label("Files:"), result.Info.Files)
-				}
+				fmt.Fprintf(d.output, "  %-11s %d\n", label("Files:"), result.Info.Files)
 			} else {
 				fmt.Fprintf(d.output, "  %-11s %s\n", label("Status:"), errorColor("Failed"))
 				fmt.Fprintf(d.output, "  %-11s %v\n", label("Error:"), result.Error)
@@ -453,7 +449,7 @@ func (d *Display) ShowVerificationResult(result *VerificationResult, duration ti
 					indicesStr = append(indicesStr, "...")
 					break
 				}
-				indicesStr = append(indicesStr, fmt.Sprintf("%d", idx))
+				indicesStr = append(indicesStr, strconv.Itoa(idx))
 			}
 			fmt.Fprintf(d.output, "    %s %s\n", label("Indices:"), strings.Join(indicesStr, ", "))
 		}

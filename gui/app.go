@@ -8,16 +8,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/wailsapp/wails/v2/pkg/runtime"
+
 	"github.com/autobrr/mkbrr/internal/preset"
 	"github.com/autobrr/mkbrr/internal/trackers"
 	"github.com/autobrr/mkbrr/torrent"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // App struct holds the application state
@@ -207,7 +207,7 @@ func (a *App) SelectMultipleTorrentFiles() ([]string, error) {
 // CreateTorrent creates a new torrent file
 func (a *App) CreateTorrent(req CreateRequest) (*TorrentResult, error) {
 	if req.Path == "" {
-		return nil, fmt.Errorf("path is required")
+		return nil, errors.New("path is required")
 	}
 
 	var presetOpts *preset.Options
@@ -257,62 +257,29 @@ func (a *App) CreateTorrent(req CreateRequest) (*TorrentResult, error) {
 	}
 	opts.Workers = cmp.Or(opts.Workers, req.DefaultWorkers)
 
-	// Analyze season pack info before creation
-	var seasonPackInfo *SeasonPackInfo
-	torrentSeasonInfo, err := torrent.AnalyzeSeasonPackFromPath(req.Path)
-	if err != nil {
-		log.Printf("Warning: failed to analyze season pack: %v", err)
-	} else if torrentSeasonInfo != nil && torrentSeasonInfo.IsSeasonPack {
-		seasonPackInfo = &SeasonPackInfo{
-			IsSeasonPack:    torrentSeasonInfo.IsSeasonPack,
-			IsSuspicious:    torrentSeasonInfo.IsSuspicious,
-			Season:          torrentSeasonInfo.Season,
-			MaxEpisode:      torrentSeasonInfo.MaxEpisode,
-			VideoFileCount:  torrentSeasonInfo.VideoFileCount,
-			MissingEpisodes: torrentSeasonInfo.MissingEpisodes,
-		}
-
-		// If fail on season warning is enabled and pack is suspicious, return error
-		if opts.FailOnSeasonPackWarning && torrentSeasonInfo.IsSuspicious {
-			return &TorrentResult{
-				SeasonPackInfo: seasonPackInfo,
-				Warning:        "Incomplete season pack detected and fail-on-season-warning is enabled",
-			}, fmt.Errorf("incomplete season pack detected: missing episodes %v", torrentSeasonInfo.MissingEpisodes)
-		}
-	}
-
-	// Use the high-level Create function which returns TorrentInfo
 	info, err := torrent.Create(opts)
 	if err != nil {
 		return nil, err
 	}
 
-	// Read back the created torrent to get accurate piece/file counts
-	pieceCount := 0
-	fileCount := 1
-	size := info.Size
-	var warning string
-
-	t, err := torrent.LoadFromFile(info.Path)
-	if err != nil {
-		log.Printf("Warning: failed to re-read created torrent for metadata: %v", err)
-		warning = fmt.Sprintf("Created torrent but failed to verify metadata: %v", err)
-	} else {
-		mi := t.GetInfo()
-		pieceCount = mi.NumPieces()
-		size = mi.TotalLength()
-		if len(mi.Files) > 0 {
-			fileCount = len(mi.Files)
+	var seasonPackInfo *SeasonPackInfo
+	if sp := info.SeasonPack; sp != nil && sp.IsSeasonPack {
+		seasonPackInfo = &SeasonPackInfo{
+			IsSeasonPack:    sp.IsSeasonPack,
+			IsSuspicious:    sp.IsSuspicious,
+			Season:          sp.Season,
+			MaxEpisode:      sp.MaxEpisode,
+			VideoFileCount:  sp.VideoFileCount,
+			MissingEpisodes: sp.MissingEpisodes,
 		}
 	}
 
 	return &TorrentResult{
 		Path:           info.Path,
 		InfoHash:       info.InfoHash,
-		Size:           size,
-		PieceCount:     pieceCount,
-		FileCount:      fileCount,
-		Warning:        warning,
+		Size:           info.Size,
+		PieceCount:     info.PieceCount,
+		FileCount:      info.Files,
 		SeasonPackInfo: seasonPackInfo,
 	}, nil
 }
@@ -413,10 +380,10 @@ func (a *App) InspectTorrent(path string) (*InspectResult, error) {
 // VerifyTorrent verifies torrent data against local files
 func (a *App) VerifyTorrent(req VerifyRequest) (*VerifyResult, error) {
 	if req.TorrentPath == "" {
-		return nil, fmt.Errorf("torrent path is required")
+		return nil, errors.New("torrent path is required")
 	}
 	if req.ContentPath == "" {
-		return nil, fmt.Errorf("content path is required")
+		return nil, errors.New("content path is required")
 	}
 
 	opts := torrent.VerifyOptions{
@@ -466,7 +433,7 @@ func (a *App) VerifyTorrent(req VerifyRequest) (*VerifyResult, error) {
 // ModifyTorrent modifies an existing torrent file
 func (a *App) ModifyTorrent(req ModifyRequest) (*ModifyResult, error) {
 	if req.TorrentPath == "" {
-		return nil, fmt.Errorf("torrent path is required")
+		return nil, errors.New("torrent path is required")
 	}
 
 	opts := torrent.ModifyOptions{
@@ -563,13 +530,13 @@ func (a *App) GetAllPresets() (*PresetsResult, error) {
 // validatePresetName validates a preset name for safe usage
 func validatePresetName(name string) error {
 	if name == "" {
-		return fmt.Errorf("preset name cannot be empty")
+		return errors.New("preset name cannot be empty")
 	}
 	if len(name) > 64 {
-		return fmt.Errorf("preset name too long (max 64 characters)")
+		return errors.New("preset name too long (max 64 characters)")
 	}
 	if strings.ContainsAny(name, "/\\:*?\"<>|") {
-		return fmt.Errorf("preset name contains invalid characters")
+		return errors.New("preset name contains invalid characters")
 	}
 	return nil
 }
@@ -730,14 +697,14 @@ func (a *App) GetVersion() string {
 // OpenURL opens a URL in the default browser
 func (a *App) OpenURL(rawURL string) error {
 	if !strings.HasPrefix(rawURL, "http://") && !strings.HasPrefix(rawURL, "https://") {
-		return fmt.Errorf("invalid URL scheme: must be http or https")
+		return errors.New("invalid URL scheme: must be http or https")
 	}
 	parsedURL, err := url.Parse(rawURL)
 	if err != nil {
 		return fmt.Errorf("invalid URL format: %w", err)
 	}
 	if parsedURL.Host == "" {
-		return fmt.Errorf("invalid URL: missing host")
+		return errors.New("invalid URL: missing host")
 	}
 	runtime.BrowserOpenURL(a.ctx, rawURL)
 	return nil

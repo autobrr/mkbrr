@@ -4,6 +4,7 @@ BINARY_NAME=mkbrr
 # go related variables
 GO=go
 GOBIN=$(shell $(GO) env GOPATH)/bin
+GOLANGCI_LINT ?= $(GO) run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0
 
 # build variables
 BUILD_DIR=build
@@ -135,15 +136,14 @@ test-coverage:
 		cat "./race_report.log"; \
 	fi
 
-# run golangci-lint
+# run golangci-lint on the CLI module and the GUI module, at the CI version.
+# The GUI embeds frontend/dist, so lint needs a placeholder file when there is no frontend build.
 .PHONY: lint
 lint:
-	@echo "Running linter..."
-	@if ! command -v golangci-lint &> /dev/null; then \
-		echo "Installing golangci-lint..."; \
-		go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest; \
-	fi
-	golangci-lint run
+	@mkdir -p gui/frontend/dist
+	@[ -n "$$(ls -A gui/frontend/dist)" ] || touch gui/frontend/dist/.gitkeep
+	$(GOLANGCI_LINT) run
+	cd gui && $(GOLANGCI_LINT) run
 
 # clean build artifacts
 .PHONY: clean
@@ -200,7 +200,7 @@ help:
 	@echo "  test-race      - Run all tests with race detector (excluding large tests)"
 	@echo "  test-large     - Run large tests (resource intensive)"
 	@echo "  test-coverage  - Run tests with coverage report"
-	@echo "  lint           - Run golangci-lint"
+	@echo "  lint           - Run golangci-lint on the CLI and GUI modules"
 	@echo "  clean          - Remove build artifacts"
 	@echo "  help           - Show this help"
 	@echo ""

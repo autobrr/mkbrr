@@ -287,7 +287,7 @@ func stringSetting(override *string, presetValue string) field[string] {
 // This function provides parallel processing for better performance with multiple files.
 func ProcessTorrents(paths []string, opts ModifyOptions) ([]*Result, error) {
 	if len(paths) == 0 {
-		return nil, fmt.Errorf("no torrent files specified")
+		return nil, errors.New("no torrent files specified")
 	}
 	// fail once before the first file, not once per file
 	if err := opts.validate(); err != nil {

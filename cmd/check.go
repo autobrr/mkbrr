@@ -4,6 +4,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -119,7 +120,7 @@ func runCheck(cmd *cobra.Command, args []string) error {
 	displayCheckResults(display, result, duration, checkOpts)
 
 	if result.BadPieces > 0 || len(result.MissingFiles) > 0 {
-		return fmt.Errorf("verification failed or incomplete")
+		return errors.New("verification failed or incomplete")
 	}
 
 	return nil

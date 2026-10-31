@@ -1,0 +1,81 @@
+version: "2"
+
+issues:
+  max-same-issues: 0
+
+formatters:
+  enable:
+    - goimports
+    - gofmt
+
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/autobrr/mkbrr
+
+linters:
+  enable:
+    - copyloopvar
+    - errname
+    - errorlint
+    - exhaustive
+    - fatcontext
+    - gocritic
+    - gosec
+    - mirror
+    - misspell
+    - noctx
+    - perfsprint
+    - prealloc
+    - revive
+    - testifylint
+    - unconvert
+    - whitespace
+
+  settings:
+    exhaustive:
+      # A switch with a default has handled the rest by definition.
+      default-signifies-exhaustive: true
+
+    gocritic:
+      disabled-checks:
+        # Taste, not correctness.
+        - ifElseChain
+
+    gosec:
+      excludes:
+        - G115
+
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+
+    rules:
+      # A parameter an interface forces on an implementation still documents
+      # what the caller passes; renaming it to _ loses that.
+      - linters:
+          - revive
+        text: "unused-parameter"
+
+      # Renaming a type to drop the package name is a wide rename through
+      # every caller for a naming preference.
+      - linters:
+          - revive
+        text: "stutters"
+
+      # BitTorrent v1 piece hashes are SHA-1 by spec (BEP 3).
+      - path: torrent/(hasher|verify)\.go
+        linters:
+          - gosec
+        text: "G401|G505"
+
+      # Test fixtures may build requests without a context and hold obvious
+      # fake credentials.
+      - path: _test\.go
+        linters:
+          - gosec
+          - noctx
