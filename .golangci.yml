@@ -20,6 +20,7 @@ linters:
     - errorlint
     - exhaustive
     - fatcontext
+    - forbidigo
     - gocritic
     - gosec
     - mirror
@@ -46,6 +47,20 @@ linters:
       excludes:
         - G115
 
+    # The GUI create preview must show the create plan, so that it matches
+    # the torrent that create writes. The exclusion rule below limits this
+    # guard to gui/, because torrent/ walks folders itself.
+    forbidigo:
+      # Without analyze-types, a rule that has pkg matches nothing.
+      analyze-types: true
+      forbid:
+        - pattern: ^torrent\.(GetRecommendedPieceLengthExp|AnalyzeSeasonPackFromPath)$
+          pkg: ^github\.com/autobrr/mkbrr/torrent$
+          msg: use the create plan (torrent.PlanCreate, through the GUI App.PlanCreate method), so the GUI matches the torrent that create writes
+        - pattern: ^filepath\.(Walk|WalkDir)$
+          pkg: ^path/filepath$
+          msg: do not scan the content folder in the GUI; use the create plan (torrent.PlanCreate, through the GUI App.PlanCreate method)
+
   exclusions:
     generated: lax
     presets:
@@ -55,6 +70,11 @@ linters:
       - std-error-handling
 
     rules:
+      # The create plan guard applies only to GUI code.
+      - path-except: ^gui/
+        linters:
+          - forbidigo
+
       # A parameter an interface forces on an implementation still documents
       # what the caller passes; renaming it to _ loses that.
       - linters:

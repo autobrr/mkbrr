@@ -51,8 +51,10 @@ The Settings page allows you to:
     Drag a file or folder onto the Create, Check, Inspect, or Modify page to fill in its path. On Create, drop the content. On Check, drop a `.torrent` file or the content. On Inspect and Modify, drop a `.torrent` file.
   </Accordion>
 
-  <Accordion title="Tracker Detection">
-    When creating torrents, the GUI automatically detects tracker-specific requirements and suggests optimal piece sizes based on your content size and tracker rules.
+  <Accordion title="Create Plan">
+    The Create page shows the create plan under the form. The create plan is what create will do, worked out before mkbrr hashes the files. It shows the content size after the exclude and include patterns, the piece length, the notices, and the season pack check. The GUI makes a new plan after each change to the form.
+
+    If the plan fails, for example because the path does not exist, the error shows on one line under the plan. If the first tracker has tracker rules, the plan also shows its default source, its maximum piece length, and its maximum .torrent size. The rules of the other trackers do not apply, because create applies only the rules of the first tracker.
   </Accordion>
 
   <Accordion title="Form Persistence">
