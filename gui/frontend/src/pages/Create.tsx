@@ -771,8 +771,9 @@ export function CreatePage() {
                 {/* Piece Length, Max Piece Length, Target Piece Count */}
                 <div className="grid gap-4 sm:grid-cols-3">
                   {[
-                    { label: 'Piece Length', value: pieceLengthExp, set: setPieceLengthExp, unset: 'Auto' },
-                    { label: 'Max Piece Length', value: maxPieceLengthExp, set: setMaxPieceLengthExp, unset: 'No limit' },
+                    { label: 'Piece Length', value: pieceLengthExp, set: setPieceLengthExp, unset: 'Auto', min: 0 },
+                    // create rejects a max below 64 KiB in some cases, and a smaller max has no use
+                    { label: 'Max Piece Length', value: maxPieceLengthExp, set: setMaxPieceLengthExp, unset: 'No limit', min: 16 },
                   ].map((field) => (
                     <div key={field.label} className="space-y-1.5">
                       <Label>{field.label}</Label>
@@ -784,6 +785,7 @@ export function CreatePage() {
                           {PIECE_LENGTHS
                             // If tracker has max piece length limit, filter out larger sizes
                             .filter((pl) => !(trackerInfo?.maxPieceLength && pl.value > trackerInfo.maxPieceLength))
+                            .filter((pl) => pl.value === 0 || pl.value >= field.min)
                             .map((pl) => (
                               <SelectItem key={pl.value} value={pl.value.toString()}>
                                 {pl.value === 0 ? field.unset : pl.label}
