@@ -17,18 +17,19 @@ import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { FolderOpen, File, Plus, X, Loader2, ChevronDown, Sparkles, FileSearch, AlertTriangle } from 'lucide-react';
-import { SelectPath, SelectFile, CreateTorrent, ListPresets, GetPreset, GetTrackerInfo, GetContentSize, GetRecommendedPieceSize, InspectTorrent } from '../../wailsjs/go/main/App';
+import { SelectPath, SelectFile, CreateTorrent, ListPresets, GetPreset, GetTrackerInfo, PlanCreate, InspectTorrent } from '../../wailsjs/go/main/App';
 import { EventsOn } from '../../wailsjs/runtime/runtime';
 import { getEffectiveWorkers } from './Settings';
 import { useFileDrop } from '@/hooks/useFileDrop';
 import { DropOverlay } from '@/components/ui/drop-overlay';
 
-import { main, preset as presetTypes } from '../../wailsjs/go/models';
+import { main, preset as presetTypes, torrent } from '../../wailsjs/go/models';
 
 // Re-export types from generated models
 type TorrentResultType = main.TorrentResult;
 type PresetOptions = presetTypes.Options;
 type TrackerInfoType = main.TrackerInfo;
+type CreatePlanType = torrent.CreatePlan;
 
 interface ProgressEvent {
   completed: number;
@@ -167,8 +168,8 @@ export function CreatePage() {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [trackerInfo, setTrackerInfo] = useState<TrackerInfoType | null>(null);
   const [defaultSource, setDefaultSource] = useState('');
-  const [contentSize, setContentSize] = useState<number>(0);
-  const [recommendedPieceSize, setRecommendedPieceSize] = useState<number>(0);
+  const [plan, setPlan] = useState<CreatePlanType | null>(null);
+  const [planError, setPlanError] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
 
   // Drag-and-drop: accept any file or folder and use it as the source path.
@@ -223,35 +224,26 @@ export function CreatePage() {
     };
   }, []);
 
-  // Check trackers for known tracker configurations
+  // Look up the rules of the first tracker. Create applies only the rules of the first tracker.
   useEffect(() => {
-    const checkTrackers = async () => {
-      const validTrackers = trackers.filter(t => t.trim() !== '');
-      if (validTrackers.length === 0) {
-        setTrackerInfo(null);
-        setDefaultSource('');
-        return;
-      }
-
-      // Check each tracker URL
-      for (const [i, tracker] of validTrackers.entries()) {
-        try {
-          const info = await GetTrackerInfo(tracker);
-          // Like the resolver, take the default source from the first tracker only.
-          if (i === 0) setDefaultSource(info?.defaultSource ?? '');
-          if (info && info.hasCustomRules) {
-            setTrackerInfo(info);
-            return;
-          }
-        } catch (e) {
-          if (i === 0) setDefaultSource('');
-          toast.error('Failed to get tracker info: ' + String(e));
-        }
-      }
+    const firstTracker = trackers.find(t => t.trim() !== '');
+    if (!firstTracker) {
       setTrackerInfo(null);
-    };
+      setDefaultSource('');
+      return;
+    }
 
-    const debounce = setTimeout(checkTrackers, 300);
+    const debounce = setTimeout(async () => {
+      try {
+        const info = await GetTrackerInfo(firstTracker);
+        setDefaultSource(info?.defaultSource ?? '');
+        setTrackerInfo(info?.hasCustomRules ? info : null);
+      } catch (e) {
+        setDefaultSource('');
+        setTrackerInfo(null);
+        toast.error('Failed to get tracker info: ' + String(e));
+      }
+    }, 300);
     return () => clearTimeout(debounce);
   }, [trackers]);
 
@@ -264,52 +256,56 @@ export function CreatePage() {
     setSource(current => (current === '' || current === previous ? defaultSource : current));
   }, [defaultSource]);
 
-  // Get content size when path changes
+  // createFrom leaves out the fields the form does not have, so the preset fills them.
+  // An empty web seed list would hide the preset web seeds.
+  const buildRequest = () => main.CreateRequest.createFrom({
+    path,
+    name,
+    trackerUrls: trackers.filter(t => t.trim() !== ''),
+    isPrivate,
+    comment,
+    source,
+    pieceLengthExp: pieceLengthExp || undefined,
+    outputDir: outputDir || undefined,
+    noDate,
+    noCreator,
+    entropy,
+    failOnSeasonWarning,
+    presetName,
+    // Workers from settings. The backend gives a preset value priority over it.
+    defaultWorkers: getEffectiveWorkers(),
+  });
+
+  // Ask for a new create plan after each change to the request. The name, the comment,
+  // the source, and the toggles change the .torrent size, so they can change the piece length.
+  const planRequest = buildRequest();
+  const planKey = JSON.stringify(planRequest);
   useEffect(() => {
     if (!path) {
-      setContentSize(0);
+      setPlan(null);
+      setPlanError('');
       return;
     }
 
-    const fetchSize = async () => {
+    // A slow plan for an old path must not replace the plan for the current form.
+    let stale = false;
+    const debounce = setTimeout(async () => {
       try {
-        const size = await GetContentSize(path);
-        setContentSize(size);
+        const next = await PlanCreate(planRequest);
+        if (stale) return;
+        setPlan(next);
+        setPlanError('');
       } catch (e) {
-        toast.error('Failed to get content size: ' + String(e));
-        setContentSize(0);
+        if (stale) return;
+        setPlan(null);
+        setPlanError(e instanceof Error ? e.message : String(e));
       }
+    }, 300);
+    return () => {
+      stale = true;
+      clearTimeout(debounce);
     };
-
-    const debounce = setTimeout(fetchSize, 300);
-    return () => clearTimeout(debounce);
-  }, [path]);
-
-  // Calculate recommended piece size when tracker info and content size are available
-  useEffect(() => {
-    const calculatePieceSize = async () => {
-      if (!trackerInfo?.hasCustomRules || contentSize === 0) {
-        setRecommendedPieceSize(0);
-        return;
-      }
-
-      const validTrackers = trackers.filter(t => t.trim() !== '');
-      for (const tracker of validTrackers) {
-        try {
-          const exp = await GetRecommendedPieceSize(tracker, contentSize);
-          if (exp > 0) {
-            setRecommendedPieceSize(exp);
-            return;
-          }
-        } catch (e) {
-          toast.error('Failed to get recommended piece size: ' + String(e));
-        }
-      }
-      setRecommendedPieceSize(0);
-    };
-
-    calculatePieceSize();
-  }, [trackerInfo, contentSize, trackers]);
+  }, [planKey]);
 
   // Reset piece length if it exceeds tracker's max
   useEffect(() => {
@@ -365,8 +361,8 @@ export function CreatePage() {
     setResult(null);
     setError('');
     setTrackerInfo(null);
-    setContentSize(0);
-    setRecommendedPieceSize(0);
+    setPlan(null);
+    setPlanError('');
     clearFormState(); // Also clear localStorage
   };
 
@@ -460,29 +456,7 @@ export function CreatePage() {
     setDialogOpen(true);
 
     try {
-      // Workers from settings. The backend gives a preset value priority over it.
-      const defaultWorkers = getEffectiveWorkers();
-
-      // createFrom leaves out the fields the form does not have, so the preset fills them.
-      // An empty web seed list would hide the preset web seeds.
-      const req = main.CreateRequest.createFrom({
-        path,
-        name,
-        trackerUrls: trackers.filter(t => t.trim() !== ''),
-        isPrivate,
-        comment,
-        source,
-        pieceLengthExp: pieceLengthExp || undefined,
-        outputDir: outputDir || undefined,
-        noDate,
-        noCreator,
-        entropy,
-        failOnSeasonWarning,
-        presetName,
-        defaultWorkers,
-      });
-
-      const res = await CreateTorrent(req);
+      const res = await CreateTorrent(buildRequest());
       setResult(res as TorrentResultType);
       // Save result to localStorage in case user navigates away
       try {
@@ -641,47 +615,57 @@ export function CreatePage() {
               </div>
             </div>
 
-            {/* Tracker Optimization Indicator */}
-            {trackerInfo && trackerInfo.hasCustomRules && (
-              <div className="flex items-start gap-3 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-                <Sparkles className="h-4 w-4 text-emerald-500 mt-0.5 flex-shrink-0" />
+            {/* Create preview: the create plan, and the rules of the first tracker */}
+            {(plan || trackerInfo) && (
+              <div className={`flex items-start gap-3 p-3 rounded-lg border ${trackerInfo ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-muted/50'}`}>
+                {trackerInfo ? (
+                  <Sparkles className="h-4 w-4 text-emerald-500 mt-0.5 flex-shrink-0" />
+                ) : (
+                  <FileSearch className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                )}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-4">
-                    <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
-                      Tracker optimizations detected
+                    <p className={`text-sm font-medium ${trackerInfo ? 'text-emerald-600 dark:text-emerald-400' : ''}`}>
+                      {trackerInfo ? 'Tracker optimizations detected' : 'Create plan'}
                     </p>
-                    {recommendedPieceSize > 0 && (
-                      <div className="flex items-center gap-2 px-2.5 py-1 rounded-md bg-emerald-500/20">
-                        <span className="text-xs text-emerald-600 dark:text-emerald-400">Piece size:</span>
-                        {pieceLengthExp > 0 ? (
-                          <span className="text-sm font-bold text-amber-600 dark:text-amber-400 line-through">{formatPieceSize(recommendedPieceSize)}</span>
-                        ) : (
-                          <span className="text-sm font-bold text-emerald-700 dark:text-emerald-300">{formatPieceSize(recommendedPieceSize)}</span>
-                        )}
+                    {plan && (
+                      <div className={`flex items-center gap-2 px-2.5 py-1 rounded-md ${trackerInfo ? 'bg-emerald-500/20' : 'bg-muted'}`}>
+                        <span className="text-xs text-muted-foreground">Piece size:</span>
+                        <span className="text-sm font-bold">{formatPieceSize(plan.piece_length_exponent)}</span>
                       </div>
                     )}
                   </div>
-                  {pieceLengthExp > 0 && (
-                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                      Manual override: using {formatPieceSize(pieceLengthExp)} instead
-                    </p>
-                  )}
                   <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-xs text-muted-foreground">
-                    {trackerInfo.defaultSource && (
+                    {plan && (
+                      <span>Content: <span className="font-medium text-foreground">{formatBytes(plan.content_size)}</span></span>
+                    )}
+                    {trackerInfo?.defaultSource && (
                       <span>Source: <span className="font-medium text-foreground">{trackerInfo.defaultSource}</span></span>
                     )}
-                    {trackerInfo.maxPieceLength > 0 && (
+                    {trackerInfo && trackerInfo.maxPieceLength > 0 && (
                       <span>Max piece: <span className="font-medium text-foreground">{formatPieceSize(trackerInfo.maxPieceLength)}</span></span>
                     )}
-                    {trackerInfo.maxTorrentSize > 0 && (
+                    {trackerInfo && trackerInfo.maxTorrentSize > 0 && (
                       <span>Max .torrent: <span className="font-medium text-foreground">{formatBytes(trackerInfo.maxTorrentSize)}</span></span>
                     )}
-                    {contentSize > 0 && (
-                      <span>Content: <span className="font-medium text-foreground">{formatBytes(contentSize)}</span></span>
-                    )}
                   </div>
+                  {plan?.notices?.map((notice, i) => (
+                    <p key={i} className={`text-xs mt-1 ${notice.warn ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}`}>
+                      {notice.text}
+                    </p>
+                  ))}
+                  {plan?.season_pack?.is_season_pack && (
+                    <p className={`flex items-center gap-1 text-xs mt-1 ${plan.season_pack.is_suspicious ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}`}>
+                      {plan.season_pack.is_suspicious && <AlertTriangle className="h-3 w-3 flex-shrink-0" />}
+                      Season {plan.season_pack.season}: {plan.season_pack.video_file_count} video files, highest episode {plan.season_pack.max_episode}
+                      {plan.season_pack.missing_episodes?.length > 0 && `, missing episodes ${plan.season_pack.missing_episodes.join(', ')}`}
+                    </p>
+                  )}
                 </div>
               </div>
+            )}
+            {planError && (
+              <p className="text-xs text-destructive truncate" title={planError}>{planError}</p>
             )}
           </CardContent>
         </Card>

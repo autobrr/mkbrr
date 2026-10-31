@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -210,10 +209,11 @@ func (a *App) SelectMultipleTorrentFiles() ([]string, error) {
 
 // === Create Operations ===
 
-// CreateTorrent creates a new torrent file
-func (a *App) CreateTorrent(req CreateRequest) (*TorrentResult, error) {
+// resolveCreate resolves a create request into create options. PlanCreate
+// and CreateTorrent both use it, so the plan matches the torrent that create writes.
+func (a *App) resolveCreate(req CreateRequest) (torrent.CreateOptions, error) {
 	if req.Path == "" {
-		return nil, errors.New("path is required")
+		return torrent.CreateOptions{}, errors.New("path is required")
 	}
 
 	var presetOpts *preset.Options
@@ -221,7 +221,7 @@ func (a *App) CreateTorrent(req CreateRequest) (*TorrentResult, error) {
 		var err error
 		presetOpts, err = preset.LoadPresetOptions(req.PresetFile, req.PresetName)
 		if err != nil {
-			return nil, fmt.Errorf("failed to load preset: %w", err)
+			return torrent.CreateOptions{}, fmt.Errorf("failed to load preset: %w", err)
 		}
 	}
 
@@ -235,26 +235,11 @@ func (a *App) CreateTorrent(req CreateRequest) (*TorrentResult, error) {
 		OutputPath:     req.OutputPath,
 		Version:        a.version,
 		Quiet:          true, // Suppress CLI output
-		ProgressCallback: func(completed, total int, hashRate float64) {
-			if a.ctx == nil {
-				return
-			}
-			percent := 0.0
-			if total > 0 {
-				percent = float64(completed) / float64(total) * 100
-			}
-			runtime.EventsEmit(a.ctx, "create:progress", ProgressEvent{
-				Completed: completed,
-				Total:     total,
-				HashRate:  hashRate,
-				Percent:   percent,
-			})
-		},
 	}
 
 	opts, err := torrent.ResolveCreateOptions(overrides, presetOpts)
 	if err != nil {
-		return nil, err
+		return torrent.CreateOptions{}, err
 	}
 
 	// Default output directory to source directory for GUI
@@ -262,6 +247,40 @@ func (a *App) CreateTorrent(req CreateRequest) (*TorrentResult, error) {
 		opts.OutputDir = filepath.Dir(req.Path)
 	}
 	opts.Workers = cmp.Or(opts.Workers, req.DefaultWorkers)
+	return opts, nil
+}
+
+// PlanCreate returns the create plan for a create request, without hashing.
+// The create preview shows it.
+func (a *App) PlanCreate(req CreateRequest) (*torrent.CreatePlan, error) {
+	opts, err := a.resolveCreate(req)
+	if err != nil {
+		return nil, err
+	}
+	return torrent.PlanCreate(opts)
+}
+
+// CreateTorrent creates a new torrent file
+func (a *App) CreateTorrent(req CreateRequest) (*TorrentResult, error) {
+	opts, err := a.resolveCreate(req)
+	if err != nil {
+		return nil, err
+	}
+	opts.ProgressCallback = func(completed, total int, hashRate float64) {
+		if a.ctx == nil {
+			return
+		}
+		percent := 0.0
+		if total > 0 {
+			percent = float64(completed) / float64(total) * 100
+		}
+		runtime.EventsEmit(a.ctx, "create:progress", ProgressEvent{
+			Completed: completed,
+			Total:     total,
+			HashRate:  hashRate,
+			Percent:   percent,
+		})
+	}
 
 	info, err := torrent.Create(opts)
 	if err != nil {
@@ -647,36 +666,6 @@ func (a *App) GetTrackerInfo(url string) *TrackerInfo {
 		DefaultSource:  rules.DefaultSource,
 		HasCustomRules: rules.MaxPieceLength > 0 || rules.MaxTorrentSize > 0 || rules.DefaultSource != "",
 	}
-}
-
-// GetRecommendedPieceSize returns the recommended piece size for a tracker and content size
-func (a *App) GetRecommendedPieceSize(trackerURL string, contentSize uint64) uint {
-	return torrent.GetRecommendedPieceLengthExp(trackerURL, contentSize)
-}
-
-// GetContentSize returns the total size of the content at the given path
-func (a *App) GetContentSize(path string) (uint64, error) {
-	info, err := os.Stat(path)
-	if err != nil {
-		return 0, err
-	}
-
-	if !info.IsDir() {
-		return uint64(info.Size()), nil
-	}
-
-	var totalSize uint64
-	err = filepath.Walk(path, func(_ string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if !info.IsDir() {
-			totalSize += uint64(info.Size())
-		}
-		return nil
-	})
-
-	return totalSize, err
 }
 
 // === Utility Functions ===

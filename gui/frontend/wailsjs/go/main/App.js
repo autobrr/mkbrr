@@ -22,20 +22,12 @@ export function GetAllPresets() {
   return window['go']['main']['App']['GetAllPresets']();
 }
 
-export function GetContentSize(arg1) {
-  return window['go']['main']['App']['GetContentSize'](arg1);
-}
-
 export function GetPreset(arg1) {
   return window['go']['main']['App']['GetPreset'](arg1);
 }
 
 export function GetPresetFilePath() {
   return window['go']['main']['App']['GetPresetFilePath']();
-}
-
-export function GetRecommendedPieceSize(arg1, arg2) {
-  return window['go']['main']['App']['GetRecommendedPieceSize'](arg1, arg2);
 }
 
 export function GetTrackerInfo(arg1) {
@@ -60,6 +52,10 @@ export function ModifyTorrent(arg1) {
 
 export function OpenURL(arg1) {
   return window['go']['main']['App']['OpenURL'](arg1);
+}
+
+export function PlanCreate(arg1) {
+  return window['go']['main']['App']['PlanCreate'](arg1);
 }
 
 export function SavePreset(arg1, arg2) {

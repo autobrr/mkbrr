@@ -32,6 +32,10 @@ _Avoid_: min/max exp, clamp range
 A limit that mkbrr enforces for a tracker: a piece length table, a maximum piece length, or a maximum .torrent size. A tracker rule is not a setting, and an override cannot raise it.
 _Avoid_: tracker config, tracker default
 
+**Create plan**:
+What create will do, worked out before hashing: the content size after filters, the piece length, the predicted .torrent size, the season pack check, and the notices. The GUI preview shows the create plan.
+_Avoid_: preview, estimate
+
 ## Modify settings
 
 **Keep**:
