@@ -56,6 +56,18 @@ jobs:
       - name: Run Tests with Race Detection
         run: make test-race
 
+      # The GUI module has its own go.mod, so the root run skips it. The GUI
+      # embeds frontend/dist, which git ignores: a placeholder file lets it
+      # build without a frontend build. With cgo off, it needs no GTK.
+      - name: Run GUI Tests
+        env:
+          CGO_ENABLED: 0
+        working-directory: gui
+        run: |
+          mkdir -p frontend/dist
+          touch frontend/dist/.gitkeep
+          go test ./...
+
       - name: Generate Test Summary
         run: go run gotest.tools/gotestsum@latest --junitfile unit-tests.xml --format pkgname
 
