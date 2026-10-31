@@ -12,6 +12,8 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { PIECE_LENGTHS } from '@/lib/utils';
 import {
   Dialog,
   DialogContent,
@@ -30,17 +32,21 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { RefreshCw, Plus, Pencil, Trash2, X, ChevronDown } from 'lucide-react';
+import { RefreshCw, Plus, Pencil, Trash2, X, ChevronDown, FolderOpen } from 'lucide-react';
 import {
   GetPresetFilePath,
   GetAllPresets,
   SavePreset,
   DeletePreset,
   CreatePresetFile,
+  SelectPath,
 } from '../../wailsjs/go/main/App';
 import { preset } from '../../wailsjs/go/models';
 
 type PresetOptions = preset.Options;
+
+const textareaClass =
+  'border-input dark:bg-input/30 placeholder:text-muted-foreground w-full min-h-16 rounded-md border bg-transparent px-3 py-2 font-mono text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]';
 
 // === Default Settings Storage ===
 const DEFAULT_SETTINGS_KEY = 'mkbrr-default-settings';
@@ -91,9 +97,16 @@ interface PresetFormData {
   noCreator: boolean;
   entropy: boolean;
   skipPrefix: boolean;
+  failOnSeasonWarning: boolean;
   trackers: string[];
+  // One URL or pattern on each line
+  webSeeds: string;
+  excludePatterns: string;
+  includePatterns: string;
+  outputDir: string;
   pieceLength: number;
   maxPieceLength: number;
+  targetPieceCount: number;
   workers: number;
 }
 
@@ -106,9 +119,15 @@ const emptyFormData: PresetFormData = {
   noCreator: false,
   entropy: false,
   skipPrefix: false,
+  failOnSeasonWarning: false,
   trackers: [''],
+  webSeeds: '',
+  excludePatterns: '',
+  includePatterns: '',
+  outputDir: '',
   pieceLength: 0,
   maxPieceLength: 0,
+  targetPieceCount: 0,
   workers: 0, // 0 = use default from settings
 };
 
@@ -148,8 +167,18 @@ function optionsToFormData(name: string, options: PresetOptions): PresetFormData
         : [''],
     pieceLength: options.pieceLength || (options as any).PieceLength || 0,
     maxPieceLength: options.maxPieceLength || (options as any).MaxPieceLength || 0,
+    failOnSeasonWarning: options.failOnSeasonWarning ?? false,
+    webSeeds: (options.webSeeds ?? []).join('\n'),
+    excludePatterns: (options.excludePatterns ?? []).join('\n'),
+    includePatterns: (options.includePatterns ?? []).join('\n'),
+    outputDir: options.outputDir ?? '',
+    targetPieceCount: options.targetPieceCount ?? 0,
     workers: options.workers ?? (options as any).Workers ?? 0, // 0 = use default
   };
+}
+
+function splitLines(text: string): string[] {
+  return text.split('\n').map(l => l.trim()).filter(l => l !== '');
 }
 
 function formDataToOptions(data: PresetFormData): PresetOptions {
@@ -160,15 +189,17 @@ function formDataToOptions(data: PresetFormData): PresetOptions {
   options.noCreator = data.noCreator;
   options.entropy = data.entropy;
   options.skipPrefix = data.skipPrefix;
+  options.failOnSeasonWarning = data.failOnSeasonWarning;
   options.source = data.source;
   options.comment = data.comment;
   options.trackers = data.trackers.filter(t => t.trim() !== '');
   options.pieceLength = data.pieceLength;
   options.maxPieceLength = data.maxPieceLength;
-  options.webSeeds = [];
-  options.excludePatterns = [];
-  options.includePatterns = [];
-  options.outputDir = '';
+  options.targetPieceCount = data.targetPieceCount;
+  options.webSeeds = splitLines(data.webSeeds);
+  options.excludePatterns = splitLines(data.excludePatterns);
+  options.includePatterns = splitLines(data.includePatterns);
+  options.outputDir = data.outputDir.trim();
   options.workers = data.workers;
   return options;
 }
@@ -344,6 +375,15 @@ export function SettingsPage() {
     setFormData({ ...formData, trackers: newTrackers });
   };
 
+  const handleSelectOutputDir = async () => {
+    try {
+      const selected = await SelectPath();
+      if (selected) setFormData({ ...formData, outputDir: selected });
+    } catch (e) {
+      toast.error('Failed to select folder: ' + String(e));
+    }
+  };
+
   const presetNames = Object.keys(presets).sort();
 
   return (
@@ -474,7 +514,7 @@ export function SettingsPage() {
 
       {/* Edit/Create Preset Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{isEditing ? 'Edit Preset' : 'New Preset'}</DialogTitle>
             <DialogDescription>
@@ -583,6 +623,35 @@ export function SettingsPage() {
               </div>
             </div>
 
+            {/* Web seeds */}
+            <div className="space-y-1.5">
+              <Label htmlFor="preset-webSeeds">Web Seeds</Label>
+              <textarea
+                id="preset-webSeeds"
+                value={formData.webSeeds}
+                onChange={(e) => setFormData({ ...formData, webSeeds: e.target.value })}
+                placeholder="One URL on each line"
+                className={textareaClass}
+              />
+            </div>
+
+            {/* Output directory */}
+            <div className="space-y-1.5">
+              <Label htmlFor="preset-outputDir">Output Directory</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="preset-outputDir"
+                  value={formData.outputDir}
+                  onChange={(e) => setFormData({ ...formData, outputDir: e.target.value })}
+                  placeholder="Same as source"
+                  className="flex-1"
+                />
+                <Button variant="outline" size="icon" onClick={handleSelectOutputDir} aria-label="Select folder">
+                  <FolderOpen className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
             {/* Advanced Options */}
             <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
               <CollapsibleTrigger asChild>
@@ -609,7 +678,103 @@ export function SettingsPage() {
                     />
                     <Label htmlFor="preset-skipPrefix" className="text-sm">Skip Prefix</Label>
                   </div>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="preset-failOnSeasonWarning"
+                      checked={formData.failOnSeasonWarning}
+                      onCheckedChange={(checked) => setFormData({ ...formData, failOnSeasonWarning: checked })}
+                    />
+                    <Label htmlFor="preset-failOnSeasonWarning" className="text-sm">Fail on Season Warning</Label>
+                  </div>
                 </div>
+
+                {/* Piece size */}
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="preset-pieceLength">Piece Length</Label>
+                    <Select
+                      value={formData.pieceLength.toString()}
+                      onValueChange={(v) => {
+                        const pieceLength = parseInt(v);
+                        // A preset cannot have both a piece length and a target piece count.
+                        setFormData({ ...formData, pieceLength, targetPieceCount: pieceLength ? 0 : formData.targetPieceCount });
+                      }}
+                    >
+                      <SelectTrigger id="preset-pieceLength" className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PIECE_LENGTHS.map((pl) => (
+                          <SelectItem key={pl.value} value={pl.value.toString()}>{pl.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="preset-maxPieceLength">Max Piece Length</Label>
+                    <Select
+                      value={formData.maxPieceLength.toString()}
+                      onValueChange={(v) => setFormData({ ...formData, maxPieceLength: parseInt(v) })}
+                    >
+                      <SelectTrigger id="preset-maxPieceLength" className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PIECE_LENGTHS.map((pl) => (
+                          <SelectItem key={pl.value} value={pl.value.toString()}>
+                            {pl.value === 0 ? 'No limit' : pl.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="preset-targetPieceCount">Target Piece Count</Label>
+                  <Input
+                    id="preset-targetPieceCount"
+                    type="number"
+                    min={0}
+                    value={formData.targetPieceCount}
+                    onChange={(e) => {
+                      const parsed = parseInt(e.target.value);
+                      const targetPieceCount = Number.isNaN(parsed) ? 0 : Math.max(0, parsed);
+                      setFormData({ ...formData, targetPieceCount, pieceLength: targetPieceCount ? 0 : formData.pieceLength });
+                    }}
+                    placeholder="0 = not set"
+                    className="w-32"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    mkbrr picks the piece length that gives about this many pieces. Set to 0 to not use it.
+                    A target piece count clears the piece length, and a piece length clears the target piece count.
+                  </p>
+                </div>
+
+                {/* File patterns */}
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="preset-excludePatterns">Exclude Patterns</Label>
+                    <textarea
+                      id="preset-excludePatterns"
+                      value={formData.excludePatterns}
+                      onChange={(e) => setFormData({ ...formData, excludePatterns: e.target.value })}
+                      placeholder={'*.nfo\n*sample*'}
+                      className={textareaClass}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="preset-includePatterns">Include Patterns</Label>
+                    <textarea
+                      id="preset-includePatterns"
+                      value={formData.includePatterns}
+                      onChange={(e) => setFormData({ ...formData, includePatterns: e.target.value })}
+                      placeholder={'*.mkv'}
+                      className={textareaClass}
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">One glob pattern on each line.</p>
 
                 <div className="space-y-1.5">
                   <Label htmlFor="preset-workers">Workers Override</Label>

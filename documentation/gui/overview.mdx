@@ -36,6 +36,23 @@ The Settings page allows you to:
 - Manage presets (create, edit, delete)
 - View and reload the preset file location
 
+The preset editor has a control for each [preset](/features/presets) setting. A preset that you save in the GUI loads with the same values in the CLI.
+
+| Section | Settings |
+|---------|----------|
+| Main | Name, source, comment, private, no date, no creator, trackers, web seeds, output directory |
+| Advanced options | Entropy, skip prefix, fail on season warning, piece length, maximum piece length, target piece count, exclude patterns, include patterns, workers |
+
+Type one URL or one glob pattern on each line of the web seeds, exclude patterns, and include patterns fields. A preset cannot have both a piece length and a target piece count. If you set one, the editor clears the other.
+
+<Frame>
+  <img src="/images/preset-editor.png" alt="mkbrr GUI preset editor with the advanced options open" />
+</Frame>
+
+<Note>
+The editor shows a preset with the values of the `default` section filled in. When you save the preset, the editor writes those values into the preset. A preset cannot clear a value that the `default` section sets. If you clear such a value in the editor, the preset gets the value from the `default` section again. To remove the value, remove it from the `default` section of the preset file.
+</Note>
+
 <Frame>
   <img src="/images/settings.png" alt="mkbrr GUI - Settings page" />
 </Frame>
@@ -62,7 +79,7 @@ The Settings page allows you to:
   </Accordion>
 
   <Accordion title="Preset Management">
-    Full preset management with validation. Create, edit, and delete presets directly from the GUI without manually editing YAML files.
+    Create, edit, and delete presets on the Settings page. You do not have to edit the YAML file. The editor has a control for each preset setting.
   </Accordion>
 
   <Accordion title="File Tree Viewer">
