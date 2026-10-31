@@ -72,6 +72,42 @@ The Settings page allows you to:
   </Accordion>
 </AccordionGroup>
 
+## Open a torrent from the command line
+
+To open a `.torrent` file on the Inspect page, run `mkbrr-gui` with the `inspect` command and the path to the file:
+
+```bash
+mkbrr-gui inspect /path/to/file.torrent
+```
+
+The GUI resolves a relative path against the folder where you run the command. If the file does not exist or is not a valid torrent, the Inspect page shows the error. If you run `mkbrr-gui inspect` with no path, the GUI opens on the Inspect page.
+
+If a GUI window is already open, no second window opens. The open window comes to the front and shows the new torrent on the Inspect page.
+
+<Note>
+On macOS, use an absolute path when a GUI window is already open. On macOS, the open window resolves a relative path against the folder of the app, not against the folder where you run the command.
+</Note>
+
+### Windows context menu
+
+You can add an "Inspect with mkbrr" entry to the right-click menu of `.torrent` files. The entry runs this command, where `%1` is the path of the file that you clicked:
+
+```text
+"C:\path\to\mkbrr-gui.exe" inspect "%1"
+```
+
+To add the entry, save this text as a `.reg` file. Change `C:\\path\\to\\mkbrr-gui.exe` to the location of your `mkbrr-gui.exe`, and keep the double backslashes. Then double-click the file to import it.
+
+```reg
+Windows Registry Editor Version 5.00
+
+[HKEY_CURRENT_USER\Software\Classes\SystemFileAssociations\.torrent\shell\mkbrr-inspect]
+@="Inspect with mkbrr"
+
+[HKEY_CURRENT_USER\Software\Classes\SystemFileAssociations\.torrent\shell\mkbrr-inspect\command]
+@="\"C:\\path\\to\\mkbrr-gui.exe\" inspect \"%1\""
+```
+
 ## Installation
 
 Download the GUI binary for your platform from the [GitHub Releases page](https://github.com/autobrr/mkbrr/releases).

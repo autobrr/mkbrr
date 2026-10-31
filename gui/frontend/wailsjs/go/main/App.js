@@ -82,6 +82,10 @@ export function SelectTorrentFile() {
   return window['go']['main']['App']['SelectTorrentFile']();
 }
 
+export function TakeLaunchCommand() {
+  return window['go']['main']['App']['TakeLaunchCommand']();
+}
+
 export function VerifyTorrent(arg1) {
   return window['go']['main']['App']['VerifyTorrent'](arg1);
 }

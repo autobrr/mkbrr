@@ -43,4 +43,6 @@ export function SelectPath():Promise<string>;
 
 export function SelectTorrentFile():Promise<string>;
 
+export function TakeLaunchCommand():Promise<main.LaunchCommand>;
+
 export function VerifyTorrent(arg1:main.VerifyRequest):Promise<main.VerifyResult>;

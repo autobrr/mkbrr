@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
@@ -24,6 +25,9 @@ import (
 type App struct {
 	ctx     context.Context
 	version string
+
+	mu     sync.Mutex     // guards ctx and launch
+	launch *LaunchCommand // pending command from the command line
 }
 
 // NewApp creates a new App application struct
@@ -33,7 +37,9 @@ func NewApp(version string) *App {
 
 // startup is called when the app starts
 func (a *App) startup(ctx context.Context) {
+	a.mu.Lock()
 	a.ctx = ctx
+	a.mu.Unlock()
 }
 
 // ProgressEvent represents progress data sent to the frontend
