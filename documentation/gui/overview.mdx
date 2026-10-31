@@ -50,7 +50,7 @@ The Modify page changes the metadata of a `.torrent` file. Each control has the 
 | Output Directory | `--output-dir` |
 | Output Filename | `--output` |
 
-The Entropy control has three options. Keep does not change the entropy field, also when the preset adds entropy. Add new writes a new random value. Remove deletes the entropy field. If you select a preset that adds entropy, the page selects Add new.
+The Entropy control has three options. Keep does not change the entropy field, also when the preset adds entropy. Add new writes a new random value. Remove deletes the entropy field. If you select a preset that sets `entropy: true`, the page selects Add new. If you select a preset that sets `entropy: false`, the page selects Keep.
 
 <Warning>
 Add new, Remove, and a new Name change the info hash. A torrent with a new info hash does not cross-seed with the old torrent.

@@ -245,7 +245,7 @@ export function ModifyPage() {
         if (privateVal !== undefined) setPrivateMode(privateVal ? 'private' : 'public');
         if (commentVal) setComment(commentVal);
         // "Keep" sends entropy false, which wins over the preset, so show the preset value
-        if (preset.entropy) setEntropyMode('add');
+        if (preset.entropy !== undefined) setEntropyMode(preset.entropy ? 'add' : 'keep');
       }
     } catch (e) {
       setError('Failed to load preset: ' + String(e));
