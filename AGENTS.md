@@ -41,6 +41,16 @@ The CLI, the GUI, and batch mode share one settings type for each operation: `to
 
 - Before you write logic that a published spec or format defines (Markdown, HTML, URLs, CSV, semver, cron, time zones), use a well-proven library for it. Name the library in the PR body. If hand-written logic of this kind needs a second fix for an edge case, replace it with the library.
 
+### Comments
+
+Default to no comment. Add one line only for a constraint the code cannot show: a hidden constraint, a workaround (link the issue or upstream bug), or a link to another file.
+
+- Delete a comment that restates the code, such as step narration, section banners, or the function name above the function.
+- Put the history of an edit in the commit message.
+- Leave out commented-out code and unprompted `TODO` or `FIXME` markers.
+- Older comments are no reason to add more.
+- When you change a line that has a comment, update or delete the comment.
+
 ## Commits and PRs
 
 - Use Conventional Commits: `type(scope): description`, for example `fix(torrent): correct piece length for small files`.
@@ -69,7 +79,7 @@ These rules are for AI PR reviewers. The agent workflow rules in this file are f
 - Report a defect only when the change causes a concrete wrong behavior. Name the trigger and the result for the user. If you cannot name both, omit the finding.
 - Check the merge base. If `develop` already has the problem, still report it, but label it "already on develop" and do not call it a regression.
 - When the PR body, a linked issue, an ADR in `docs/adr/`, or a code comment calls a behavior deliberate, respond to that reason. Report a design flaw only when you can say why the stated reason does not hold.
-- Do not report what gofmt or golangci-lint already report. Do not ask for docstrings.
+- Do not report what gofmt or golangci-lint already report. Do not ask for docstrings or other code comments. Report a stale comment.
 - Read earlier review threads. Do not repeat a finding that was resolved or refuted, unless you have new evidence.
 - Treat a change that gives a different info hash for the same files and settings as P1, unless the PR body names it under "Behaviour change". Users cross-seed with these torrents, so a new hash breaks their existing seeds.
 - Treat a change to an exported name in `torrent/` as P1 when the PR title has no `!`. Go programs outside this repo import the package.
