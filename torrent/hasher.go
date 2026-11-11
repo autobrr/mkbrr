@@ -4,6 +4,7 @@
 package torrent
 
 import (
+	"context"
 	"crypto/sha1"
 	"fmt"
 	"io"
@@ -89,6 +90,12 @@ func (h *pieceHasher) optimizeForWorkload() (int, int) {
 // The pieces are distributed evenly across the specified number of workers.
 // Returns an error if any worker encounters issues during hashing.
 func (h *pieceHasher) hashPieces(numWorkers int) error {
+	return h.hashPiecesContext(context.Background(), numWorkers)
+}
+
+// hashPiecesContext is hashPieces that stops before the next read once ctx is
+// done. It then returns ctx.Err() and skips the final progress report.
+func (h *pieceHasher) hashPiecesContext(ctx context.Context, numWorkers int) error {
 	// Determine readSize and numWorkers. Use optimizeForWorkload if numWorkers isn't specified.
 	if numWorkers <= 0 {
 		h.readSize, numWorkers = h.optimizeForWorkload()
@@ -148,7 +155,7 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 		wg.Add(1)
 		go func(startPiece, endPiece int) {
 			defer wg.Done()
-			if err := h.hashPieceRange(startPiece, endPiece, &completedPieces); err != nil {
+			if err := h.hashPieceRange(ctx, startPiece, endPiece, &completedPieces); err != nil {
 				errorsCh <- err
 			}
 		}(start, end)
@@ -159,7 +166,7 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 	progressDone := make(chan struct{})
 	go func() {
 		defer close(progressDone)
-		ticker := time.NewTicker(200 * time.Millisecond)
+		ticker := time.NewTicker(progressInterval)
 		defer ticker.Stop()
 
 		for {
@@ -189,6 +196,9 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 	<-progressDone
 	close(errorsCh)
 
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	for err := range errorsCh {
 		if err != nil {
 			return err
@@ -210,7 +220,7 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 //	startPiece: first piece index to process
 //	endPiece: last piece index to process (exclusive)
 //	completedPieces: atomic counter for progress tracking
-func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *uint64) error {
+func (h *pieceHasher) hashPieceRange(ctx context.Context, startPiece, endPiece int, completedPieces *uint64) error {
 	// reuse buffer from pool to minimize allocations
 	bufp := h.bufferPool.Get().(*[]byte)
 	defer h.bufferPool.Put(bufp)
@@ -286,6 +296,9 @@ func (h *pieceHasher) hashPieceRange(startPiece, endPiece int, completedPieces *
 					n = len(buf)
 				}
 
+				if err := ctx.Err(); err != nil {
+					return err
+				}
 				read, err := io.ReadFull(reader.file, buf[:n])
 				if err != nil && err != io.ErrUnexpectedEOF {
 					return fmt.Errorf("failed to read file %s: %w", file.path, err)

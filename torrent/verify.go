@@ -5,6 +5,7 @@ package torrent
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha1"
 	"fmt"
 	"io"
@@ -57,6 +58,20 @@ type pieceVerifier struct {
 // It compares the actual file data against the piece hashes in the torrent.
 // Returns detailed verification results including bad pieces and missing files.
 func VerifyData(opts VerifyOptions) (*VerificationResult, error) {
+	return VerifyDataContext(context.Background(), opts)
+}
+
+// VerifyDataContext is VerifyData that stops when ctx is done. Each worker
+// stops before its next read, and the call returns after all workers and
+// progress reports have stopped and all files are closed. On a stop it returns
+// a nil result and an error that wraps ctx.Err(), and it skips the final
+// progress report. A read that the operating system blocks continues until it
+// returns. If ctx is done after the last piece is verified, the result can be
+// complete.
+func VerifyDataContext(ctx context.Context, opts VerifyOptions) (*VerificationResult, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	mi, err := metainfo.LoadFromFile(opts.TorrentPath)
 	if err != nil {
 		return nil, fmt.Errorf("could not load torrent file %q: %w", opts.TorrentPath, err)
@@ -253,8 +268,7 @@ func VerifyData(opts VerifyOptions) (*VerificationResult, error) {
 	}
 
 	// 5. Perform Verification (Hashing and Comparison)
-	// Pass opts.Workers to verifyPieces
-	err = verifier.verifyPieces(opts.Workers) // Pass workers from options
+	err = verifier.verifyPiecesContext(ctx, opts.Workers)
 	if err != nil {
 		return nil, fmt.Errorf("verification failed: %w", err)
 	}
@@ -336,6 +350,12 @@ func (v *pieceVerifier) optimizeForWorkload() (int, int) {
 // verifyPieces coordinates the parallel verification of pieces.
 // Accepts numWorkersOverride: if > 0, uses this value; otherwise, optimizes automatically.
 func (v *pieceVerifier) verifyPieces(numWorkersOverride int) error {
+	return v.verifyPiecesContext(context.Background(), numWorkersOverride)
+}
+
+// verifyPiecesContext is verifyPieces that stops before the next read once ctx
+// is done. It then returns ctx.Err() and skips the final progress report.
+func (v *pieceVerifier) verifyPiecesContext(ctx context.Context, numWorkersOverride int) error {
 	if v.numPieces == 0 {
 		// Don't show progress for 0 pieces
 		return nil
@@ -381,7 +401,7 @@ func (v *pieceVerifier) verifyPieces(numWorkersOverride int) error {
 
 	var completedPieces uint64
 	piecesPerWorker := (v.numPieces + numWorkers - 1) / numWorkers
-	errorsCh := make(chan error, numWorkers)
+	errorsCh := make(chan error, numWorkers+1)
 	done := make(chan struct{}) // Signal channel to stop progress monitoring
 
 	v.display.ShowProgress(v.numPieces) // Show progress bar only if numPieces > 0
@@ -389,7 +409,7 @@ func (v *pieceVerifier) verifyPieces(numWorkersOverride int) error {
 	var wg sync.WaitGroup
 
 	// Verify first piece immediately
-	if err := v.verifyPieceRange(0, 1, &completedPieces); err != nil {
+	if err := v.verifyPieceRange(ctx, 0, 1, &completedPieces); err != nil {
 		errorsCh <- err
 	}
 	if piecesPerWorker > 1 {
@@ -397,7 +417,7 @@ func (v *pieceVerifier) verifyPieces(numWorkersOverride int) error {
 		wg.Add(1)
 		go func(startPiece, endPiece int) {
 			defer wg.Done()
-			if err := v.verifyPieceRange(startPiece, endPiece, &completedPieces); err != nil {
+			if err := v.verifyPieceRange(ctx, startPiece, endPiece, &completedPieces); err != nil {
 				errorsCh <- err
 			}
 		}(1, piecesPerWorker) // Start from piece 1 since piece 0 is already processed
@@ -413,18 +433,17 @@ func (v *pieceVerifier) verifyPieces(numWorkersOverride int) error {
 		wg.Add(1)
 		go func(startPiece, endPiece int) {
 			defer wg.Done()
-			if err := v.verifyPieceRange(startPiece, endPiece, &completedPieces); err != nil {
+			if err := v.verifyPieceRange(ctx, startPiece, endPiece, &completedPieces); err != nil {
 				errorsCh <- err
 			}
 		}(start, end)
 	}
 
 	monitorDone := make(chan struct{}) // Channel to signal when the progress monitoring goroutine has fully exited
-	tickPeriod := 200 * time.Millisecond
 	// Progress monitoring goroutine
 	go func() {
 		defer close(monitorDone)
-		ticker := time.NewTicker(tickPeriod)
+		ticker := time.NewTicker(progressInterval)
 		defer ticker.Stop()
 		for {
 			select {
@@ -455,6 +474,10 @@ func (v *pieceVerifier) verifyPieces(numWorkersOverride int) error {
 	wg.Wait()
 	close(done)   // Signal progress goroutine to stop
 	<-monitorDone // Ensure the progress monitoring has fully exited before the final callback
+	if err := ctx.Err(); err != nil {
+		v.display.FinishProgress()
+		return err
+	}
 	// Emit one final progress update so consumers observe 100% completion.
 	if v.progressCallback != nil {
 		v.mutex.RLock()
@@ -480,7 +503,7 @@ func (v *pieceVerifier) verifyPieces(numWorkersOverride int) error {
 }
 
 // verifyPieceRange processes and verifies a specific range of pieces.
-func (v *pieceVerifier) verifyPieceRange(startPiece, endPiece int, completedPieces *uint64) error {
+func (v *pieceVerifier) verifyPieceRange(ctx context.Context, startPiece, endPiece int, completedPieces *uint64) error {
 	bufp := v.bufferPool.Get().(*[]byte)
 	defer v.bufferPool.Put(bufp)
 	buf := *bufp
@@ -594,6 +617,9 @@ func (v *pieceVerifier) verifyPieceRange(startPiece, endPiece int, completedPiec
 				readSize := int64(len(buf))
 				if bytesToRead < readSize {
 					readSize = bytesToRead
+				}
+				if err := ctx.Err(); err != nil {
+					return err
 				}
 				n, err := reader.file.Read(buf[:readSize])
 				if err != nil && err != io.EOF {

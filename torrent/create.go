@@ -6,6 +6,7 @@ package torrent
 import (
 	"bytes"
 	"cmp"
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
@@ -282,7 +283,18 @@ type createTorrentOptions struct {
 // Returns a Torrent struct containing the metainfo.
 // This is the lower-level function; use Create() for a higher-level interface.
 func CreateTorrent(opts CreateOptions) (*Torrent, error) {
-	t, _, err := createTorrent(opts, createTorrentOptions{})
+	return CreateTorrentContext(context.Background(), opts)
+}
+
+// CreateTorrentContext is CreateTorrent that stops when ctx is done. Each
+// hashing worker stops before its next read, and the call returns after all
+// workers and progress reports have stopped and all files are closed. On a
+// stop it returns a nil torrent and an error that wraps ctx.Err(), and it
+// skips the final progress report. A read that the operating system blocks
+// continues until it returns. If ctx is done after the last piece is hashed,
+// the torrent can be complete.
+func CreateTorrentContext(ctx context.Context, opts CreateOptions) (*Torrent, error) {
+	t, _, err := createTorrent(ctx, opts, createTorrentOptions{})
 	return t, err
 }
 
@@ -621,7 +633,10 @@ func PlanCreate(opts CreateOptions) (*CreatePlan, error) {
 
 // createTorrent contains the shared creation pipeline with optional internal hash-reuse controls.
 // It also returns the season pack check of the files in the torrent.
-func createTorrent(opts CreateOptions, internalOpts createTorrentOptions) (*Torrent, *SeasonPackInfo, error) {
+func createTorrent(ctx context.Context, opts CreateOptions, internalOpts createTorrentOptions) (*Torrent, *SeasonPackInfo, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, nil, err
+	}
 	prepared, err := prepareCreate(opts, internalOpts)
 	if err != nil {
 		return nil, nil, err
@@ -668,8 +683,7 @@ func createTorrent(opts CreateOptions, internalOpts createTorrentOptions) (*Torr
 		}
 		hasher.reusablePieces = reusablePieces
 	}
-	// Pass the specified or default worker count from opts
-	if err := hasher.hashPieces(opts.Workers); err != nil {
+	if err := hasher.hashPiecesContext(ctx, opts.Workers); err != nil {
 		return nil, nil, err
 	}
 
@@ -698,6 +712,17 @@ func createTorrent(opts CreateOptions, internalOpts createTorrentOptions) (*Torr
 // The torrent file is automatically saved to disk based on the output options.
 // This is the main high-level function for torrent creation.
 func Create(opts CreateOptions) (*TorrentInfo, error) {
+	return CreateContext(context.Background(), opts)
+}
+
+// CreateContext is Create that stops when ctx is done, as CreateTorrentContext
+// describes. A read that the operating system blocks continues until it returns.
+// It checks ctx again before it writes the output file, so a stop never
+// creates or changes the file at the output path.
+func CreateContext(ctx context.Context, opts CreateOptions) (*TorrentInfo, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	// validate input path
 	if _, err := os.Stat(opts.Path); err != nil {
 		return nil, fmt.Errorf("invalid path %q: %w", opts.Path, err)
@@ -729,8 +754,11 @@ func Create(opts CreateOptions) (*TorrentInfo, error) {
 	}
 
 	// create torrent
-	t, seasonInfo, err := createTorrent(opts, createTorrentOptions{})
+	t, seasonInfo, err := createTorrent(ctx, opts, createTorrentOptions{})
 	if err != nil {
+		return nil, err
+	}
+	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
