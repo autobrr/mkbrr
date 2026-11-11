@@ -475,7 +475,6 @@ func (v *pieceVerifier) verifyPiecesContext(ctx context.Context, numWorkersOverr
 	close(done)   // Signal progress goroutine to stop
 	<-monitorDone // Ensure the progress monitoring has fully exited before the final callback
 	if err := ctx.Err(); err != nil {
-		v.display.FinishProgress()
 		return err
 	}
 	// Emit one final progress update so consumers observe 100% completion.
