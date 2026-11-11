@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -364,5 +365,30 @@ func TestPrepareCreateStopsWalkWhenContextDone(t *testing.T) {
 
 	if _, err := prepareCreateContext(ctx, CreateOptions{Path: dir}, createTorrentOptions{}); !errors.Is(err, context.Canceled) {
 		t.Errorf("prepareCreateContext error = %v, want context.Canceled", err)
+	}
+}
+
+type cancelAfterFirstErr struct {
+	context.Context
+	calls atomic.Int32
+}
+
+func (c *cancelAfterFirstErr) Err() error {
+	if c.calls.Add(1) > 1 {
+		return context.Canceled
+	}
+	return nil
+}
+
+func TestVerifyDataContextStopsWalkWhenContextDone(t *testing.T) {
+	content := writeCancelContent(t, 64<<10)
+	opts := cancelVerifyOptions(t, filepath.Dir(content))
+
+	res, err := VerifyDataContext(&cancelAfterFirstErr{Context: t.Context()}, opts)
+	if res != nil || !errors.Is(err, context.Canceled) {
+		t.Fatalf("VerifyDataContext = %v, %v, want nil, context.Canceled", res, err)
+	}
+	if !strings.HasPrefix(err.Error(), "error walking content path") {
+		t.Errorf("VerifyDataContext error = %v, want the walk to stop", err)
 	}
 }

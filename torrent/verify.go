@@ -109,6 +109,9 @@ func VerifyDataContext(ctx context.Context, opts VerifyOptions) (*VerificationRe
 		byNorm := make(map[string][]string) // pathKey -> byte-exact relative paths
 
 		err = filepath.Walk(baseContentPath, func(currentPath string, fileInfo os.FileInfo, walkErr error) error {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			if walkErr != nil {
 				fmt.Fprintf(os.Stderr, "Warning: error walking path %q: %v\n", currentPath, walkErr)
 				return nil
