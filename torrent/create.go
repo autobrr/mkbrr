@@ -286,13 +286,9 @@ func CreateTorrent(opts CreateOptions) (*Torrent, error) {
 	return CreateTorrentContext(context.Background(), opts)
 }
 
-// CreateTorrentContext is CreateTorrent that stops when ctx is done. Each
-// hashing worker stops before its next read, and the call returns after all
-// workers and progress reports have stopped and all files are closed. On a
-// stop it returns a nil torrent and an error that wraps ctx.Err(), and it
-// skips the final progress report. A read that the operating system blocks
-// continues until it returns. If ctx is done after the last piece is hashed,
-// the torrent can be complete.
+// CreateTorrentContext is CreateTorrent that stops when ctx is done. On a stop it
+// returns a nil torrent and an error that wraps ctx.Err(), after every worker has
+// stopped. A read that the operating system blocks continues until it returns.
 func CreateTorrentContext(ctx context.Context, opts CreateOptions) (*Torrent, error) {
 	t, _, err := createTorrent(ctx, opts, createTorrentOptions{})
 	return t, err
@@ -314,6 +310,10 @@ type preparedCreate struct {
 
 // prepareCreate builds the exact pre-hash state shared by planning and creation.
 func prepareCreate(opts CreateOptions, internalOpts createTorrentOptions) (*preparedCreate, error) {
+	return prepareCreateContext(context.Background(), opts, internalOpts)
+}
+
+func prepareCreateContext(ctx context.Context, opts CreateOptions, internalOpts createTorrentOptions) (*preparedCreate, error) {
 	path := filepath.ToSlash(opts.Path)
 	name := opts.Name
 	if name == "" {
@@ -377,6 +377,9 @@ func prepareCreate(opts CreateOptions, internalOpts createTorrentOptions) (*prep
 	err = filepath.Walk(walkPath, func(currentPath string, walkInfo os.FileInfo, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
+		}
+		if err := ctx.Err(); err != nil {
+			return err
 		}
 
 		lstatInfo, err := os.Lstat(currentPath)
@@ -637,7 +640,7 @@ func createTorrent(ctx context.Context, opts CreateOptions, internalOpts createT
 	if err := ctx.Err(); err != nil {
 		return nil, nil, err
 	}
-	prepared, err := prepareCreate(opts, internalOpts)
+	prepared, err := prepareCreateContext(ctx, opts, internalOpts)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -716,9 +719,7 @@ func Create(opts CreateOptions) (*TorrentInfo, error) {
 }
 
 // CreateContext is Create that stops when ctx is done, as CreateTorrentContext
-// describes. A read that the operating system blocks continues until it returns.
-// It checks ctx again before it writes the output file, so a stop never
-// creates or changes the file at the output path.
+// describes. A stop never creates or changes the file at the output path.
 func CreateContext(ctx context.Context, opts CreateOptions) (*TorrentInfo, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err

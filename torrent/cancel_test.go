@@ -8,6 +8,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -56,8 +57,6 @@ func (r *progressRecorder) snapshot() []progressCall {
 	return slices.Clone(r.calls)
 }
 
-// writeCancelContent writes a file with many 32 KiB pieces, so that hashing
-// takes several reads per worker.
 func writeCancelContent(t *testing.T, size int) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "content.bin")
@@ -69,6 +68,12 @@ func writeCancelContent(t *testing.T, size int) string {
 		t.Fatal(err)
 	}
 	return path
+}
+
+func fastProgress(t *testing.T) {
+	prev := progressInterval
+	progressInterval = time.Microsecond
+	t.Cleanup(func() { progressInterval = prev })
 }
 
 func cancelCreateOptions(t *testing.T, content string) CreateOptions {
@@ -144,9 +149,7 @@ func TestContextFunctionsReturnCancelErrorWhenAlreadyDone(t *testing.T) {
 }
 
 func TestCreateContextCancelDuringHashing(t *testing.T) {
-	prev := progressInterval
-	progressInterval = time.Microsecond
-	t.Cleanup(func() { progressInterval = prev })
+	fastProgress(t)
 
 	content := writeCancelContent(t, 64<<20)
 	ctx, cancel := context.WithCancel(t.Context())
@@ -200,9 +203,7 @@ func TestCreateContextCancelOnLastPiece(t *testing.T) {
 }
 
 func TestVerifyDataContextCancelDuringVerify(t *testing.T) {
-	prev := progressInterval
-	progressInterval = time.Microsecond
-	t.Cleanup(func() { progressInterval = prev })
+	fastProgress(t)
 
 	content := writeCancelContent(t, 64<<20)
 	opts := cancelVerifyOptions(t, content)
@@ -258,12 +259,24 @@ func TestContextFunctionsWithBackgroundMatchOldFunctions(t *testing.T) {
 		t.Errorf("CreateContext callbacks = %v, Create = %v", newRec.snapshot(), oldRec.snapshot())
 	}
 
-	tr, err := CreateTorrentContext(ctx, cancelCreateOptions(t, content))
+	var oldTorrentRec, newTorrentRec progressRecorder
+	oldTorrentOpts := cancelCreateOptions(t, content)
+	oldTorrentOpts.ProgressCallback = oldTorrentRec.callback
+	newTorrentOpts := cancelCreateOptions(t, content)
+	newTorrentOpts.ProgressCallback = newTorrentRec.callback
+	oldTorrent, err := CreateTorrent(oldTorrentOpts)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := tr.HashInfoBytes().String(); got != oldInfo.InfoHash {
-		t.Errorf("CreateTorrentContext info hash = %s, Create = %s", got, oldInfo.InfoHash)
+	newTorrent, err := CreateTorrentContext(ctx, newTorrentOpts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := newTorrent.HashInfoBytes(), oldTorrent.HashInfoBytes(); got != want {
+		t.Errorf("CreateTorrentContext info hash = %s, CreateTorrent = %s", got, want)
+	}
+	if !slices.Equal(oldTorrentRec.snapshot(), newTorrentRec.snapshot()) {
+		t.Errorf("CreateTorrentContext callbacks = %v, CreateTorrent = %v", newTorrentRec.snapshot(), oldTorrentRec.snapshot())
 	}
 
 	var oldVerify, newVerify progressRecorder
@@ -278,7 +291,7 @@ func TestContextFunctionsWithBackgroundMatchOldFunctions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if oldRes.GoodPieces != newRes.GoodPieces || oldRes.TotalPieces != newRes.TotalPieces || oldRes.Completion != newRes.Completion {
+	if !reflect.DeepEqual(oldRes, newRes) {
 		t.Errorf("VerifyDataContext result = %+v, VerifyData = %+v", newRes, oldRes)
 	}
 	if !slices.Equal(oldVerify.snapshot(), newVerify.snapshot()) {
@@ -315,5 +328,41 @@ func TestWorkersStopBeforeReadingWhenContextDone(t *testing.T) {
 	}
 	if n := v.bytesVerified.Load(); n != 0 {
 		t.Errorf("verifier read %d bytes after cancel, want 0", n)
+	}
+}
+
+func TestVerifierStopsOnMissingPiecesWhenContextDone(t *testing.T) {
+	const size, pieceLen = 1 << 20, 32 << 10
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	display := NewDisplay(NewFormatter(false))
+	display.SetQuiet(true)
+	v := &pieceVerifier{
+		torrentInfo:   &metainfo.Info{PieceLength: pieceLen, Pieces: make([]byte, 20*(size/pieceLen))},
+		display:       display,
+		files:         []fileEntry{{path: filepath.Join(t.TempDir(), "missing.bin"), length: size}},
+		missingRanges: [][2]int64{{0, size}},
+		pieceLen:      pieceLen,
+		numPieces:     size / pieceLen,
+	}
+	if err := v.verifyPiecesContext(ctx, 2); !errors.Is(err, context.Canceled) {
+		t.Errorf("verifyPiecesContext error = %v, want context.Canceled", err)
+	}
+	if n := v.missingPieces.Load(); n != 0 {
+		t.Errorf("verifier checked %d missing pieces after cancel, want 0", n)
+	}
+}
+
+func TestPrepareCreateStopsWalkWhenContextDone(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "a.bin"), []byte("a"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	if _, err := prepareCreateContext(ctx, CreateOptions{Path: dir}, createTorrentOptions{}); !errors.Is(err, context.Canceled) {
+		t.Errorf("prepareCreateContext error = %v, want context.Canceled", err)
 	}
 }

@@ -93,8 +93,6 @@ func (h *pieceHasher) hashPieces(numWorkers int) error {
 	return h.hashPiecesContext(context.Background(), numWorkers)
 }
 
-// hashPiecesContext is hashPieces that stops before the next read once ctx is
-// done. It then returns ctx.Err() and skips the final progress report.
 func (h *pieceHasher) hashPiecesContext(ctx context.Context, numWorkers int) error {
 	// Determine readSize and numWorkers. Use optimizeForWorkload if numWorkers isn't specified.
 	if numWorkers <= 0 {

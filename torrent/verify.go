@@ -61,13 +61,9 @@ func VerifyData(opts VerifyOptions) (*VerificationResult, error) {
 	return VerifyDataContext(context.Background(), opts)
 }
 
-// VerifyDataContext is VerifyData that stops when ctx is done. Each worker
-// stops before its next read, and the call returns after all workers and
-// progress reports have stopped and all files are closed. On a stop it returns
-// a nil result and an error that wraps ctx.Err(), and it skips the final
-// progress report. A read that the operating system blocks continues until it
-// returns. If ctx is done after the last piece is verified, the result can be
-// complete.
+// VerifyDataContext is VerifyData that stops when ctx is done. On a stop it returns
+// a nil result and an error that wraps ctx.Err(), after every worker has stopped.
+// A read that the operating system blocks continues until it returns.
 func VerifyDataContext(ctx context.Context, opts VerifyOptions) (*VerificationResult, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -353,8 +349,6 @@ func (v *pieceVerifier) verifyPieces(numWorkersOverride int) error {
 	return v.verifyPiecesContext(context.Background(), numWorkersOverride)
 }
 
-// verifyPiecesContext is verifyPieces that stops before the next read once ctx
-// is done. It then returns ctx.Err() and skips the final progress report.
 func (v *pieceVerifier) verifyPiecesContext(ctx context.Context, numWorkersOverride int) error {
 	if v.numPieces == 0 {
 		// Don't show progress for 0 pieces
@@ -520,6 +514,9 @@ func (v *pieceVerifier) verifyPieceRange(ctx context.Context, startPiece, endPie
 	currentFileIndex := 0
 
 	for pieceIndex := startPiece; pieceIndex < endPiece; pieceIndex++ {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		var expectedHash []byte
 		var actualHash []byte
 
