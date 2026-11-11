@@ -495,7 +495,7 @@ func (v *pieceVerifier) verifyPiecesContext(ctx context.Context, numWorkersOverr
 	}
 
 	v.display.FinishProgress()
-	return nil
+	return ctx.Err()
 }
 
 // verifyPieceRange processes and verifies a specific range of pieces.

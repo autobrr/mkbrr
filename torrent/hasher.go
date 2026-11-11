@@ -204,7 +204,7 @@ func (h *pieceHasher) hashPiecesContext(ctx context.Context, numWorkers int) err
 	}
 
 	h.display.FinishProgress()
-	return nil
+	return ctx.Err()
 }
 
 // hashPieceRange processes and hashes a specific range of pieces assigned to a worker.

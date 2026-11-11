@@ -182,25 +182,55 @@ func TestCreateContextCancelDuringHashing(t *testing.T) {
 	}
 }
 
-func TestCreateContextCancelOnLastPiece(t *testing.T) {
-	content := writeCancelContent(t, 256<<10)
+func cancelOnLastPiece(t *testing.T) (context.Context, *progressRecorder) {
 	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-
-	rec := progressRecorder{onCall: func(completed, total int) {
+	t.Cleanup(cancel)
+	return ctx, &progressRecorder{onCall: func(completed, total int) {
 		if completed == total {
 			cancel()
 		}
 	}}
-	opts := cancelCreateOptions(t, content)
-	opts.ProgressCallback = rec.callback
+}
 
-	info, err := CreateContext(ctx, opts)
-	rec.finish(t)
-	if info != nil || !errors.Is(err, context.Canceled) {
-		t.Fatalf("CreateContext = %v, %v, want nil, context.Canceled", info, err)
-	}
-	assertNoFile(t, opts.OutputPath)
+func TestContextFunctionsCancelOnLastPiece(t *testing.T) {
+	content := writeCancelContent(t, 256<<10)
+
+	t.Run("CreateContext", func(t *testing.T) {
+		ctx, rec := cancelOnLastPiece(t)
+		opts := cancelCreateOptions(t, content)
+		opts.ProgressCallback = rec.callback
+
+		info, err := CreateContext(ctx, opts)
+		rec.finish(t)
+		if info != nil || !errors.Is(err, context.Canceled) {
+			t.Fatalf("CreateContext = %v, %v, want nil, context.Canceled", info, err)
+		}
+		assertNoFile(t, opts.OutputPath)
+	})
+
+	t.Run("CreateTorrentContext", func(t *testing.T) {
+		ctx, rec := cancelOnLastPiece(t)
+		opts := cancelCreateOptions(t, content)
+		opts.ProgressCallback = rec.callback
+
+		tr, err := CreateTorrentContext(ctx, opts)
+		rec.finish(t)
+		if tr != nil || !errors.Is(err, context.Canceled) {
+			t.Fatalf("CreateTorrentContext = %v, %v, want nil, context.Canceled", tr, err)
+		}
+	})
+
+	t.Run("VerifyDataContext", func(t *testing.T) {
+		opts := cancelVerifyOptions(t, content)
+		ctx, rec := cancelOnLastPiece(t)
+		opts.ProgressCallback = rec.callback
+
+		res, err := VerifyDataContext(ctx, opts)
+		rec.finish(t)
+		if res != nil || !errors.Is(err, context.Canceled) {
+			t.Fatalf("VerifyDataContext = %v, %v, want nil, context.Canceled", res, err)
+		}
+	})
 }
 
 func TestVerifyDataContextCancelDuringVerify(t *testing.T) {
