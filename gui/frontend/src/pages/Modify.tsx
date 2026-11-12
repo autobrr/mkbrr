@@ -34,13 +34,18 @@ function getDirectory(path: string): string {
 
 type PrivateMode = 'unchanged' | 'private' | 'public' | 'remove';
 type EntropyMode = 'keep' | 'add' | 'remove';
+type TrackerMode = 'keep' | 'replace' | 'remove' | 'clear';
+type WebSeedMode = 'keep' | 'replace' | 'clear';
 
 // Form state persistence
 interface ModifyFormState {
   torrentPath: string;
   outputDir: string;
   outputPattern: string;
+  trackerMode: TrackerMode;
   trackers: string[];
+  removeTrackers: string[];
+  webSeedMode: WebSeedMode;
   webSeeds: string[];
   name: string;
   privateMode: PrivateMode;
@@ -151,7 +156,13 @@ export function ModifyPage() {
   const [outputDir, setOutputDir] = useState(savedState.outputDir ?? '');
   const [outputPattern, setOutputPattern] = useState(savedState.outputPattern ?? '');
   const [trackers, setTrackers] = useState(nonEmptyList(savedState.trackers));
+  const [removeTrackers, setRemoveTrackers] = useState(nonEmptyList(savedState.removeTrackers));
   const [webSeeds, setWebSeeds] = useState(nonEmptyList(savedState.webSeeds));
+  // a form saved before the modes existed replaces the trackers and web seeds when it has any
+  const [trackerMode, setTrackerMode] = useState<TrackerMode>(
+    savedState.trackerMode ?? (savedState.trackers?.some((t) => t.trim()) ? 'replace' : 'keep'));
+  const [webSeedMode, setWebSeedMode] = useState<WebSeedMode>(
+    savedState.webSeedMode ?? (savedState.webSeeds?.some((w) => w.trim()) ? 'replace' : 'keep'));
   const [name, setName] = useState(savedState.name ?? '');
   const [privateMode, setPrivateMode] = useState<PrivateMode>(savedState.privateMode ?? 'unchanged');
   const [entropyMode, setEntropyMode] = useState<EntropyMode>(savedState.entropyMode ?? 'keep');
@@ -190,7 +201,10 @@ export function ModifyPage() {
       torrentPath,
       outputDir,
       outputPattern,
+      trackerMode,
       trackers,
+      removeTrackers,
+      webSeedMode,
       webSeeds,
       name,
       privateMode,
@@ -202,13 +216,16 @@ export function ModifyPage() {
       skipPrefix,
       presetName,
     });
-  }, [torrentPath, outputDir, outputPattern, trackers, webSeeds, name, privateMode, entropyMode, source, comment, noDate, noCreator, skipPrefix, presetName]);
+  }, [torrentPath, outputDir, outputPattern, trackerMode, trackers, removeTrackers, webSeedMode, webSeeds, name, privateMode, entropyMode, source, comment, noDate, noCreator, skipPrefix, presetName]);
 
   const handleReset = () => {
     setTorrentPath('');
     setOutputDir('');
     setOutputPattern('');
+    setTrackerMode('keep');
     setTrackers(['']);
+    setRemoveTrackers(['']);
+    setWebSeedMode('keep');
     setWebSeeds(['']);
     setName('');
     setPrivateMode('unchanged');
@@ -239,8 +256,16 @@ export function ModifyPage() {
         const sourceVal = preset.source || (preset as any).Source;
         const privateVal = preset.private ?? (preset as any).Private;
         const commentVal = preset.comment || (preset as any).Comment;
+        const webSeedList = preset.webSeeds || (preset as any).WebSeeds;
 
-        if (trackerList && trackerList.length > 0) setTrackers(trackerList);
+        if (trackerList && trackerList.length > 0) {
+          setTrackers(trackerList);
+          setTrackerMode('replace');
+        }
+        if (webSeedList && webSeedList.length > 0) {
+          setWebSeeds(webSeedList);
+          setWebSeedMode('replace');
+        }
         if (sourceVal) setSource(sourceVal);
         if (privateVal !== undefined) setPrivateMode(privateVal ? 'private' : 'public');
         if (commentVal) setComment(commentVal);
@@ -298,8 +323,11 @@ export function ModifyPage() {
     try {
       const req: ModifyRequest = {
         torrentPath,
-        trackerUrls: trackers.filter(t => t.trim() !== ''),
-        webSeeds: webSeeds.filter(w => w.trim() !== ''),
+        trackerUrls: trackerMode === 'replace' ? trackers.filter(t => t.trim() !== '') : [],
+        removeTrackers: trackerMode === 'remove' ? removeTrackers.filter(t => t.trim() !== '') : [],
+        noTracker: trackerMode === 'clear',
+        webSeeds: webSeedMode === 'replace' ? webSeeds.filter(w => w.trim() !== '') : [],
+        noWebSeed: webSeedMode === 'clear',
         name,
         isPrivate: privateMode === 'private' ? true : privateMode === 'public' ? false : undefined,
         noPrivate: privateMode === 'remove',
@@ -391,13 +419,29 @@ export function ModifyPage() {
 
             {/* Trackers */}
             <div className="space-y-1.5">
-              <Label>Add Trackers</Label>
-              <UrlListInput
-                urls={trackers}
-                onChange={setTrackers}
-                placeholder="https://tracker.example.com/announce"
-                addLabel="Add Tracker"
+              <Label>Trackers</Label>
+              <RadioRow
+                name="trackers"
+                value={trackerMode}
+                onChange={setTrackerMode}
+                options={[['keep', 'Keep'], ['replace', 'Replace'], ['remove', 'Remove matching'], ['clear', 'Remove all']]}
               />
+              {trackerMode === 'replace' && (
+                <UrlListInput
+                  urls={trackers}
+                  onChange={setTrackers}
+                  placeholder="https://tracker.example.com/announce"
+                  addLabel="Add Tracker"
+                />
+              )}
+              {trackerMode === 'remove' && (
+                <UrlListInput
+                  urls={removeTrackers}
+                  onChange={setRemoveTrackers}
+                  placeholder="Host or tracker URL, for example old.example"
+                  addLabel="Add Host"
+                />
+              )}
             </div>
 
             {/* Private Flag */}
@@ -501,12 +545,20 @@ export function ModifyPage() {
                 {/* Web Seeds */}
                 <div className="space-y-1.5">
                   <Label>Web Seeds</Label>
-                  <UrlListInput
-                    urls={webSeeds}
-                    onChange={setWebSeeds}
-                    placeholder="Leave empty to keep unchanged"
-                    addLabel="Add Web Seed"
+                  <RadioRow
+                    name="webSeeds"
+                    value={webSeedMode}
+                    onChange={setWebSeedMode}
+                    options={[['keep', 'Keep'], ['replace', 'Replace'], ['clear', 'Remove all']]}
                   />
+                  {webSeedMode === 'replace' && (
+                    <UrlListInput
+                      urls={webSeeds}
+                      onChange={setWebSeeds}
+                      placeholder="https://seed.example.com/files/"
+                      addLabel="Add Web Seed"
+                    />
+                  )}
                 </div>
 
                 {/* Entropy */}
@@ -572,6 +624,9 @@ export function ModifyPage() {
                 <span className="text-muted-foreground">Status</span>
                 <span>{result.wasModified ? 'Modified successfully' : 'No changes made'}</span>
               </div>
+              {result.notices?.map((notice, i) => (
+                <p key={i} className={`text-sm ${notice.warn ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}`}>{notice.text}</p>
+              ))}
               <div className="pt-2">
                 <Button variant="outline" size="sm" onClick={handleInspectResult}>
                   <FileSearch className="mr-2 h-4 w-4" />

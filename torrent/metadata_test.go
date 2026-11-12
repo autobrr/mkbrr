@@ -136,14 +136,14 @@ func TestApplyMetadata(t *testing.T) {
 		{
 			name:        "set web seeds",
 			before:      state{info: map[string]any{"name": "test"}},
-			spec:        metadataSpec{WebSeeds: []string{"https://seed.test/"}},
+			spec:        metadataSpec{WebSeeds: setTo([]string{"https://seed.test/"})},
 			wantChanged: true,
 			want:        state{urlList: metainfo.UrlList{"https://seed.test/"}, info: map[string]any{"name": "test"}},
 		},
 		{
 			name:        "same web seeds are no change",
 			before:      state{urlList: metainfo.UrlList{"https://seed.test/"}, info: map[string]any{"name": "test"}},
-			spec:        metadataSpec{WebSeeds: []string{"https://seed.test/"}},
+			spec:        metadataSpec{WebSeeds: setTo([]string{"https://seed.test/"})},
 			wantChanged: false,
 			want:        state{urlList: metainfo.UrlList{"https://seed.test/"}, info: map[string]any{"name": "test"}},
 		},

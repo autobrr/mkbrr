@@ -147,8 +147,9 @@ type ModifyRequest struct {
 
 // ModifyResult represents the result of torrent modification
 type ModifyResult struct {
-	OutputPath  string `json:"outputPath"`
-	WasModified bool   `json:"wasModified"`
+	OutputPath  string           `json:"outputPath"`
+	WasModified bool             `json:"wasModified"`
+	Notices     []torrent.Notice `json:"notices"`
 }
 
 // TrackerInfo represents tracker-specific information
@@ -489,6 +490,7 @@ func (a *App) ModifyTorrent(req ModifyRequest) (*ModifyResult, error) {
 	return &ModifyResult{
 		OutputPath:  result.OutputPath,
 		WasModified: result.WasModified,
+		Notices:     result.Notices,
 	}, nil
 }
 

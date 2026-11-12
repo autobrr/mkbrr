@@ -77,6 +77,20 @@ In mkbrr v1.27.0 and earlier, `modify` exited with code 0 when a file failed, an
     <Info>Outputs: `modified_file1.torrent`, `modified_file2.torrent`, etc.</Info>
   </Tab>
 
+  <Tab title="Remove trackers">
+    Remove a dead tracker and keep the tracker with your passkey:
+    ```bash
+    mkbrr modify *.torrent --remove-tracker old.example
+    ```
+    <Info>A torrent without a tracker on `old.example` gets "no changes needed" and a warning. mkbrr writes no file for it.</Info>
+
+    Remove all trackers and web seeds:
+    ```bash
+    mkbrr modify my.torrent --no-tracker --no-web-seed
+    ```
+    <Info>Outputs: `modified_my.torrent`</Info>
+  </Tab>
+
   <Tab title="Advanced Usage">
     Add a source tag and save to a specific directory:
     ```bash

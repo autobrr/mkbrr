@@ -5,7 +5,9 @@ package torrent
 
 import (
 	"fmt"
+	"net/url"
 	"slices"
+	"strings"
 
 	"github.com/autobrr/go-torrent/bencode"
 	"github.com/autobrr/go-torrent/metainfo"
@@ -18,6 +20,7 @@ const (
 	keepField fieldAction = iota
 	setField
 	clearField
+	removeField // Trackers only: removes the trackers on the hosts in the value
 )
 
 // field is one metadata value and the action for it.
@@ -34,7 +37,7 @@ func cleared[T any]() field[T] { return field[T]{action: clearField} }
 // The zero value keeps every field.
 type metadataSpec struct {
 	Trackers     field[[]string]
-	WebSeeds     []string // nil keeps the current web seeds
+	WebSeeds     field[[]string]
 	Comment      field[string]
 	CreatedBy    field[string]
 	CreationDate field[int64]
@@ -83,12 +86,23 @@ func applyMetadata(mi *metainfo.MetaInfo, spec metadataSpec) (bool, error) {
 			mi.AnnounceList = nil
 			changed = true
 		}
+	case removeField:
+		changed = removeTrackers(mi, spec.Trackers.value) || changed
 	case keepField:
 	}
 
-	if spec.WebSeeds != nil && !slices.Equal(mi.UrlList, spec.WebSeeds) {
-		mi.UrlList = spec.WebSeeds
-		changed = true
+	switch spec.WebSeeds.action {
+	case setField:
+		if !slices.Equal(mi.UrlList, spec.WebSeeds.value) {
+			mi.UrlList = spec.WebSeeds.value
+			changed = true
+		}
+	case clearField:
+		if len(mi.UrlList) > 0 {
+			mi.UrlList = nil
+			changed = true
+		}
+	case keepField, removeField:
 	}
 
 	changed = applyValue(&mi.Comment, spec.Comment) || changed
@@ -120,7 +134,7 @@ func applyMetadata(mi *metainfo.MetaInfo, spec metadataSpec) (bool, error) {
 		infoChanged = true
 	case clearField:
 		infoChanged = applyInfoValue(info, "entropy", cleared[string]()) || infoChanged
-	case keepField:
+	case keepField, removeField:
 	}
 
 	if !infoChanged {
@@ -132,6 +146,62 @@ func applyMetadata(mi *metainfo.MetaInfo, spec metadataSpec) (bool, error) {
 	}
 	mi.InfoBytes = infoBytes
 	return true, nil
+}
+
+// A removed main tracker becomes the first URL that remains.
+func removeTrackers(mi *metainfo.MetaInfo, hosts []string) bool {
+	removed := false
+	var announceList metainfo.AnnounceList
+	for _, tier := range mi.AnnounceList {
+		kept := slices.DeleteFunc(slices.Clone(tier), func(u string) bool { return onHosts(u, hosts) })
+		removed = removed || len(kept) < len(tier)
+		if len(kept) > 0 {
+			announceList = append(announceList, kept)
+		}
+	}
+	announce := mi.Announce
+	if onHosts(announce, hosts) {
+		removed = true
+		announce = ""
+		if len(announceList) > 0 {
+			announce = announceList[0][0]
+		}
+	}
+	if !removed {
+		return false
+	}
+	mi.Announce = announce
+	mi.AnnounceList = announceList
+	return true
+}
+
+func unmatchedHosts(mi *metainfo.MetaInfo, hosts []string) []string {
+	urls := append([]string{mi.Announce}, slices.Concat(mi.AnnounceList...)...)
+	var unmatched []string
+	for _, host := range hosts {
+		if !slices.ContainsFunc(urls, func(u string) bool { return onHosts(u, []string{host}) }) {
+			unmatched = append(unmatched, host)
+		}
+	}
+	return unmatched
+}
+
+// A host can also be a URL. The match never matches a subdomain.
+func onHosts(tracker string, hosts []string) bool {
+	h := hostOf(tracker)
+	return h != "" && slices.ContainsFunc(hosts, func(host string) bool { return hostOf(host) == h })
+}
+
+func hostOf(s string) string {
+	s = strings.TrimSpace(s)
+	if !strings.Contains(s, "://") {
+		s = "//" + s
+	}
+	u, err := url.Parse(s)
+	if err != nil {
+		return ""
+	}
+	return strings.ToLower(u.Hostname())
 }
 
 // applyValue writes f to *dst and reports whether *dst changed.
@@ -165,7 +235,7 @@ func applyInfoValue[T comparable](info map[string]any, key string, f field[T]) b
 	case clearField:
 		delete(info, key)
 		return present
-	case keepField:
+	case keepField, removeField:
 	}
 	return false
 }

@@ -159,7 +159,10 @@ export namespace main {
 	export class ModifyRequest {
 	    torrentPath: string;
 	    trackerUrls: string[];
+	    noTracker: boolean;
+	    removeTrackers: string[];
 	    webSeeds: string[];
+	    noWebSeed: boolean;
 	    name: string;
 	    comment?: string;
 	    source?: string;
@@ -184,7 +187,10 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.torrentPath = source["torrentPath"];
 	        this.trackerUrls = source["trackerUrls"];
+	        this.noTracker = source["noTracker"];
+	        this.removeTrackers = source["removeTrackers"];
 	        this.webSeeds = source["webSeeds"];
+	        this.noWebSeed = source["noWebSeed"];
 	        this.name = source["name"];
 	        this.comment = source["comment"];
 	        this.source = source["source"];
@@ -205,6 +211,7 @@ export namespace main {
 	export class ModifyResult {
 	    outputPath: string;
 	    wasModified: boolean;
+	    notices: torrent.Notice[];
 
 	    static createFrom(source: any = {}) {
 	        return new ModifyResult(source);
@@ -214,7 +221,26 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.outputPath = source["outputPath"];
 	        this.wasModified = source["wasModified"];
+	        this.notices = this.convertValues(source["notices"], torrent.Notice);
 	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class PresetsResult {
 	    presets: Record<string, preset.Options>;
