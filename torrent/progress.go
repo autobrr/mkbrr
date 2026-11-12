@@ -3,6 +3,11 @@
 
 package torrent
 
+import "time"
+
+// progressInterval is a var so that tests can get progress callbacks while small files hash.
+var progressInterval = 200 * time.Millisecond
+
 // Displayer defines the interface for displaying progress during torrent creation
 type Displayer interface {
 	ShowProgress(total int)

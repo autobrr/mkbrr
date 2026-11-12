@@ -4,6 +4,7 @@
 package torrent
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -138,7 +139,7 @@ func UpdateTorrent(opts UpdateOptions) (*UpdateResult, error) {
 	}
 	reuse.allowNoReuse = opts.Force
 
-	generated, _, err := createTorrent(CreateOptions{
+	generated, _, err := createTorrent(context.Background(), CreateOptions{
 		Path:             opts.ContentPath,
 		Name:             oldInfo.Name,
 		ExcludePatterns:  opts.ExcludePatterns,

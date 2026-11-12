@@ -4,6 +4,7 @@
 package torrent
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -187,7 +188,7 @@ func processJob(job BatchJob, verbose bool, quiet bool, infoOnly bool, version s
 	}
 
 	// create the torrent
-	mi, seasonInfo, err := createTorrent(opts, createTorrentOptions{})
+	mi, seasonInfo, err := createTorrent(context.Background(), opts, createTorrentOptions{})
 	if err != nil {
 		result.Error = fmt.Errorf("failed to create torrent: %w", err)
 		return result
