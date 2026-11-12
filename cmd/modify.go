@@ -15,25 +15,28 @@ import (
 
 // modifyOptions encapsulates command-line flag values for the modify command
 type modifyOptions struct {
-	PresetName string
-	PresetFile string
-	Name       string
-	OutputDir  string
-	Output     string
-	Trackers   []string
-	Comment    string
-	Source     string
-	WebSeeds   []string
-	DryRun     bool
-	NoDate     bool
-	NoCreator  bool
-	Verbose    bool
-	Quiet      bool
-	SkipPrefix bool
-	Private    bool
-	NoPrivate  bool
-	Entropy    bool
-	NoEntropy  bool
+	PresetName     string
+	PresetFile     string
+	Name           string
+	OutputDir      string
+	Output         string
+	Trackers       []string
+	NoTracker      bool
+	RemoveTrackers []string
+	Comment        string
+	Source         string
+	WebSeeds       []string
+	NoWebSeed      bool
+	DryRun         bool
+	NoDate         bool
+	NoCreator      bool
+	Verbose        bool
+	Quiet          bool
+	SkipPrefix     bool
+	Private        bool
+	NoPrivate      bool
+	Entropy        bool
+	NoEntropy      bool
 }
 
 var modifyOpts = modifyOptions{
@@ -64,8 +67,11 @@ func init() {
 	modifyCmd.Flags().StringVarP(&modifyOpts.Output, "output", "o", "", "custom output filename (without extension)")
 	modifyCmd.Flags().BoolVarP(&modifyOpts.NoDate, "no-date", "d", false, "remove creation date")
 	modifyCmd.Flags().BoolVarP(&modifyOpts.NoCreator, "no-creator", "", false, "remove creator")
-	modifyCmd.Flags().StringArrayVarP(&modifyOpts.Trackers, "tracker", "t", nil, "tracker URLs (can be specified multiple times)")
-	modifyCmd.Flags().StringArrayVarP(&modifyOpts.WebSeeds, "web-seed", "w", nil, "add web seed URLs")
+	modifyCmd.Flags().StringArrayVarP(&modifyOpts.Trackers, "tracker", "t", nil, "replace all trackers with these URLs (can be specified multiple times)")
+	modifyCmd.Flags().BoolVar(&modifyOpts.NoTracker, "no-tracker", false, "remove all trackers")
+	modifyCmd.Flags().StringArrayVar(&modifyOpts.RemoveTrackers, "remove-tracker", nil, "remove the trackers on this host or on the host of this URL (can be specified multiple times)")
+	modifyCmd.Flags().StringArrayVarP(&modifyOpts.WebSeeds, "web-seed", "w", nil, "replace all web seeds with these URLs")
+	modifyCmd.Flags().BoolVar(&modifyOpts.NoWebSeed, "no-web-seed", false, "remove all web seeds")
 	modifyCmd.Flags().BoolVarP(&modifyOpts.Private, "private", "p", true, "make torrent private")
 	modifyCmd.Flags().BoolVar(&modifyOpts.NoPrivate, "no-private", false, "remove private flag entirely")
 	modifyCmd.Flags().StringVarP(&modifyOpts.Comment, "comment", "c", "", "set comment (use empty string to remove)")
@@ -89,16 +95,19 @@ Flags:
 func buildTorrentOptions(cmd *cobra.Command, opts modifyOptions) torrent.ModifyOptions {
 	torrentOpts := torrent.ModifyOptions{
 		ModifySettings: torrent.ModifySettings{
-			TrackerURLs:   opts.Trackers,
-			WebSeeds:      opts.WebSeeds,
-			Name:          opts.Name,
-			NoPrivate:     opts.NoPrivate,
-			NoDate:        opts.NoDate,
-			NoCreator:     opts.NoCreator,
-			NoEntropy:     opts.NoEntropy,
-			OutputDir:     opts.OutputDir,
-			OutputPattern: opts.Output,
-			SkipPrefix:    opts.SkipPrefix,
+			TrackerURLs:    opts.Trackers,
+			NoTracker:      opts.NoTracker,
+			RemoveTrackers: opts.RemoveTrackers,
+			WebSeeds:       opts.WebSeeds,
+			NoWebSeed:      opts.NoWebSeed,
+			Name:           opts.Name,
+			NoPrivate:      opts.NoPrivate,
+			NoDate:         opts.NoDate,
+			NoCreator:      opts.NoCreator,
+			NoEntropy:      opts.NoEntropy,
+			OutputDir:      opts.OutputDir,
+			OutputPattern:  opts.Output,
+			SkipPrefix:     opts.SkipPrefix,
 		},
 		PresetName: opts.PresetName,
 		PresetFile: opts.PresetFile,
@@ -137,6 +146,14 @@ func displayModifyResults(results []*torrent.Result, opts modifyOptions, display
 				display.ShowError(fmt.Sprintf("Error processing %s: %v", result.Path, result.Error))
 			}
 			continue
+		}
+
+		for _, n := range result.Notices {
+			if opts.Quiet {
+				fmt.Fprintf(os.Stderr, "Warning: %s: %s\n", result.Path, n.Text)
+			} else {
+				display.ShowWarning(fmt.Sprintf("%s: %s", result.Path, n.Text))
+			}
 		}
 
 		if !result.WasModified {

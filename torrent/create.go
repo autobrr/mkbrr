@@ -111,8 +111,8 @@ func pieceLengthRangeError(name string, lower, upper, got uint, trackerURLs []st
 		name, lower, formatPieceSize(lower), upper, formatPieceSize(upper), where, got)
 }
 
-// Notice is a message from the piece length choice. The caller decides
-// whether to show it.
+// Notice is a message from the piece length choice or from modify. The caller
+// decides whether to show it.
 type Notice struct {
 	Warn bool   `json:"warn"`
 	Text string `json:"text"`
@@ -332,7 +332,7 @@ func prepareCreateContext(ctx context.Context, opts CreateOptions, internalOpts 
 		metadata.Trackers = setTo(opts.TrackerURLs)
 	}
 	if len(opts.WebSeeds) > 0 {
-		metadata.WebSeeds = opts.WebSeeds
+		metadata.WebSeeds = setTo(opts.WebSeeds)
 	}
 	if opts.Comment != "" {
 		metadata.Comment = setTo(opts.Comment)

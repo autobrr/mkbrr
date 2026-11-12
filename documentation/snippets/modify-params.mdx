@@ -6,7 +6,6 @@ description: 'Parameter fields for the modify command'
 import CommonPrivate from '/snippets/common-private.mdx';
 import CommonVerbose from '/snippets/common-verbose.mdx';
 import CommonPreset from '/snippets/common-preset.mdx';
-import CommonWebSeed from '/snippets/common-web-seed.mdx';
 import CommonSource from '/snippets/common-source.mdx';
 import CommonComment from '/snippets/common-comment.mdx';
 import CommonNoDate from '/snippets/common-no-date.mdx';
@@ -17,8 +16,24 @@ import CommonEntropy from '/snippets/common-entropy.mdx';
 ### Input & Output
 
 <ParamField query="--tracker, -t" type="string[]">
-  Tracker URLs (can be specified multiple times).
+  Replace all trackers with these URLs. You can give this flag more than one time.
 </ParamField>
+
+<ParamField query="--no-tracker" type="boolean" default={false}>
+  Remove all trackers. Use it to share a torrent without your passkey, or to make a torrent that finds peers only through DHT (the peer network that works without a tracker). Clients do not use DHT for a private torrent. For a DHT-only torrent, also use `--private=false` or `--no-private`. These flags change the info hash.
+</ParamField>
+
+<ParamField query="--remove-tracker" type="string[]">
+  Remove the trackers on a host, and keep the other trackers. Give a host, such as `old.example`, or a full tracker URL. mkbrr then uses the host of the URL. The match ignores case and the port. It does not match a different host that contains the host, such as `gold.example` or `sub.old.example`. You can give this flag more than one time.
+
+  The other trackers keep their order and their tiers. A tier is a group of trackers in the announce-list. mkbrr removes a tier that becomes empty. The main tracker is the `announce` URL. If you remove it, the next tracker becomes the main tracker.
+
+  If a host matches no tracker, mkbrr prints a warning, such as `old.example: no matching tracker`, and continues with the other files. If nothing else changes, mkbrr writes no file for that torrent.
+</ParamField>
+
+<Note>
+  You can use only one of `--tracker`, `--no-tracker`, and `--remove-tracker`. Each of them makes mkbrr ignore the `trackers` value of the preset. These three flags do not change the info hash, because the trackers are outside the info dictionary. A flag that changes the info dictionary, such as `--source`, still changes the info hash.
+</Note>
 
 <ParamField query="--name" type="string">
   Set the torrent's internal name.
@@ -56,7 +71,13 @@ import CommonEntropy from '/snippets/common-entropy.mdx';
 
 ### Seeding & Metadata
 
-<CommonWebSeed />
+<ParamField query="--web-seed, -w" type="string[]">
+  Replace all web seeds with these URLs. You can give this flag more than one time.
+</ParamField>
+
+<ParamField query="--no-web-seed" type="boolean" default={false}>
+  Remove all web seeds. mkbrr ignores the `webseeds` value of the preset. You cannot use this flag together with `--web-seed`.
+</ParamField>
 
 <CommonSource />
 

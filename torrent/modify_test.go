@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/autobrr/go-torrent/bencode"
+	"github.com/autobrr/go-torrent/metainfo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -818,7 +819,7 @@ func TestModifySpec_Precedence(t *testing.T) {
 			},
 			want: metadataSpec{
 				Trackers: setTo([]string{"https://flag.test/announce"}),
-				WebSeeds: []string{"https://flag.test/seed"},
+				WebSeeds: setTo([]string{"https://flag.test/seed"}),
 				Source:   setTo("FLAG"),
 				Comment:  setTo("flag"),
 				Private:  setTo(false),
@@ -852,6 +853,18 @@ func TestModifySpec_Precedence(t *testing.T) {
 			opts:   ModifyOptions{Source: new(""), Comment: new(""), NoPrivate: true, IsPrivate: new(true), NoEntropy: true},
 			preset: &preset.Options{Source: "PRESET", Comment: "preset"},
 			want:   metadataSpec{Source: cleared[string](), Comment: cleared[string](), Private: cleared[bool](), Entropy: clearField},
+		},
+		{
+			name:   "--no-tracker and --no-web-seed beat the preset",
+			opts:   ModifyOptions{NoTracker: true, NoWebSeed: true},
+			preset: &preset.Options{Trackers: []string{"https://preset.test/announce"}, WebSeeds: []string{"https://preset.test/seed"}},
+			want:   metadataSpec{Trackers: cleared[[]string](), WebSeeds: cleared[[]string]()},
+		},
+		{
+			name:   "--remove-tracker beats the preset",
+			opts:   ModifyOptions{RemoveTrackers: []string{"old.test"}},
+			preset: &preset.Options{Trackers: []string{"https://preset.test/announce"}},
+			want:   metadataSpec{Trackers: field[[]string]{action: removeField, value: []string{"old.test"}}},
 		},
 		{
 			name:   "preset entropy false keeps the entropy field",
@@ -968,4 +981,244 @@ presets:
 	result, err := ModifyTorrent(torrentPath, ModifyOptions{PresetName: "noprefix", PresetFile: presetPath, OutputDir: dir, Version: "test"})
 	require.NoError(t, err)
 	assert.Equal(t, filepath.Join(dir, "file.txt.torrent"), result.OutputPath)
+}
+
+func writeTrackerTorrent(t *testing.T, dir string, announce string, announceList metainfo.AnnounceList, webSeeds []string) string {
+	t.Helper()
+	content := filepath.Join(dir, "file.txt")
+	require.NoError(t, os.WriteFile(content, []byte("trackers"), 0o644))
+	created := filepath.Join(dir, "created.torrent")
+	_, err := Create(CreateOptions{Path: content, OutputPath: created, IsPrivate: true, NoDate: true, Quiet: true})
+	require.NoError(t, err)
+
+	mi, err := metainfo.LoadFromFile(created)
+	require.NoError(t, err)
+	mi.Announce = announce
+	mi.AnnounceList = announceList
+	mi.UrlList = webSeeds
+	path := filepath.Join(dir, "in.torrent")
+	f, err := os.Create(path)
+	require.NoError(t, err)
+	defer f.Close()
+	require.NoError(t, mi.Write(f))
+	return path
+}
+
+func TestModifyTorrent_RemoveTrackers(t *testing.T) {
+	const (
+		trackerA = "https://tracker-a.example/announce/PASSKEY"
+		oldUDP   = "udp://old.example:1337"
+		gold     = "https://gold.example/announce"
+	)
+
+	tests := []struct {
+		name         string
+		announce     string
+		announceList metainfo.AnnounceList
+		remove       []string
+		wantAnnounce string
+		wantList     metainfo.AnnounceList
+	}{
+		{
+			name:         "by host keeps the other tracker",
+			announce:     trackerA,
+			announceList: metainfo.AnnounceList{{trackerA}, {oldUDP}},
+			remove:       []string{"old.example"},
+			wantAnnounce: trackerA,
+			wantList:     metainfo.AnnounceList{{trackerA}},
+		},
+		{
+			name:         "by full URL",
+			announce:     trackerA,
+			announceList: metainfo.AnnounceList{{trackerA}, {oldUDP}},
+			remove:       []string{oldUDP},
+			wantAnnounce: trackerA,
+			wantList:     metainfo.AnnounceList{{trackerA}},
+		},
+		{
+			name:         "ignores case and port",
+			announce:     trackerA,
+			announceList: metainfo.AnnounceList{{trackerA}, {oldUDP}, {"udp://other.example:1"}},
+			remove:       []string{" OLD.example ", "udp://Other.Example.:6969"},
+			wantAnnounce: trackerA,
+			wantList:     metainfo.AnnounceList{{trackerA}},
+		},
+		{
+			name:         "a host with a port removes the trackers on any port",
+			announce:     trackerA,
+			announceList: metainfo.AnnounceList{{trackerA}, {oldUDP}},
+			remove:       []string{"old.example:6969"},
+			wantAnnounce: trackerA,
+			wantList:     metainfo.AnnounceList{{trackerA}},
+		},
+		{
+			name:         "keeps a tracker whose host only ends with the host",
+			announce:     gold,
+			announceList: metainfo.AnnounceList{{gold}, {oldUDP}, {"https://sub.old.example/announce"}},
+			remove:       []string{"old.example"},
+			wantAnnounce: gold,
+			wantList:     metainfo.AnnounceList{{gold}, {"https://sub.old.example/announce"}},
+		},
+		{
+			name:         "keeps the tier order and drops an empty tier",
+			announce:     trackerA,
+			announceList: metainfo.AnnounceList{{trackerA, oldUDP}, {"https://old.example/announce"}, {gold, "https://c.example/announce"}},
+			remove:       []string{"old.example"},
+			wantAnnounce: trackerA,
+			wantList:     metainfo.AnnounceList{{trackerA}, {gold, "https://c.example/announce"}},
+		},
+		{
+			name:         "the next tracker becomes the main tracker",
+			announce:     oldUDP,
+			announceList: metainfo.AnnounceList{{oldUDP}, {gold}, {trackerA}},
+			remove:       []string{"old.example"},
+			wantAnnounce: gold,
+			wantList:     metainfo.AnnounceList{{gold}, {trackerA}},
+		},
+		{
+			name:         "removes the only tracker",
+			announce:     oldUDP,
+			remove:       []string{"old.example"},
+			wantAnnounce: "",
+		},
+		{
+			name:         "removing every tracker clears the trackers",
+			announce:     trackerA,
+			announceList: metainfo.AnnounceList{{trackerA}, {oldUDP}},
+			remove:       []string{"old.example", "tracker-a.example"},
+			wantAnnounce: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			in := writeTrackerTorrent(t, dir, tt.announce, tt.announceList, nil)
+
+			result, err := ModifyTorrent(in, ModifyOptions{
+				RemoveTrackers: tt.remove, OutputDir: dir, OutputPattern: "out",
+				Version: "test",
+			})
+			require.NoError(t, err)
+			require.True(t, result.WasModified)
+			assert.Empty(t, result.Notices)
+
+			before, err := LoadFromFile(in)
+			require.NoError(t, err)
+			after, err := LoadFromFile(result.OutputPath)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantAnnounce, after.Announce)
+			assert.Equal(t, tt.wantList, after.AnnounceList)
+			assert.Equal(t, before.HashInfoBytes(), after.HashInfoBytes())
+		})
+	}
+}
+
+func TestModifyTorrent_RemoveTrackersNoMatch(t *testing.T) {
+	dir := t.TempDir()
+	in := writeTrackerTorrent(t, dir, "https://tracker-a.example/announce/PASSKEY", nil, nil)
+	opts := ModifyOptions{
+		RemoveTrackers: []string{"old.example"}, OutputDir: dir, OutputPattern: "out",
+		Version: "test",
+	}
+
+	results, err := ProcessTorrents([]string{in, in}, opts)
+	require.NoError(t, err)
+	require.Len(t, results, 2)
+	for _, result := range results {
+		require.NoError(t, result.Error)
+		assert.False(t, result.WasModified)
+		assert.Empty(t, result.OutputPath)
+		assert.Equal(t, []Notice{{Warn: true, Text: "old.example: no matching tracker"}}, result.Notices)
+	}
+	assert.NoFileExists(t, filepath.Join(dir, "out.torrent"))
+}
+
+func TestModifyTorrent_ClearTrackersAndWebSeeds(t *testing.T) {
+	dir := t.TempDir()
+	in := writeTrackerTorrent(t, dir, "https://a.example/announce",
+		metainfo.AnnounceList{{"https://a.example/announce"}, {"udp://b.example:1"}},
+		[]string{"https://seed.example/files/"})
+
+	modify := func(s ModifySettings) *Torrent {
+		t.Helper()
+		s.OutputDir, s.OutputPattern = dir, "out"
+		result, err := ModifyTorrent(in, ModifyOptions{ModifySettings: s, Version: "test"})
+		require.NoError(t, err)
+		require.True(t, result.WasModified)
+		after, err := LoadFromFile(result.OutputPath)
+		require.NoError(t, err)
+		before, err := LoadFromFile(in)
+		require.NoError(t, err)
+		assert.Equal(t, before.HashInfoBytes(), after.HashInfoBytes())
+		return after
+	}
+
+	t.Run("no tracker", func(t *testing.T) {
+		after := modify(ModifySettings{NoTracker: true})
+		assert.Empty(t, after.Announce)
+		assert.Empty(t, after.AnnounceList)
+		assert.Equal(t, metainfo.UrlList{"https://seed.example/files/"}, after.UrlList)
+	})
+
+	t.Run("no web seed", func(t *testing.T) {
+		after := modify(ModifySettings{NoWebSeed: true})
+		assert.Empty(t, after.UrlList)
+		assert.Equal(t, "https://a.example/announce", after.Announce)
+	})
+}
+
+func TestModifyTorrent_PresetTrackersAndTrackerFlags(t *testing.T) {
+	dir := t.TempDir()
+	in := writeTrackerTorrent(t, dir, "https://a.example/announce",
+		metainfo.AnnounceList{{"https://a.example/announce"}, {"udp://old.example:1"}},
+		[]string{"https://seed.example/files/"})
+	presetPath := filepath.Join(dir, "presets.yaml")
+	require.NoError(t, os.WriteFile(presetPath, []byte(`version: 1
+presets:
+  ptp:
+    trackers:
+      - https://preset.example/announce
+    webseeds:
+      - https://preset.example/seed/
+`), 0o644))
+
+	result, err := ModifyTorrent(in, ModifyOptions{
+		RemoveTrackers: []string{"old.example"}, NoWebSeed: true, OutputDir: dir,
+		PresetName: "ptp",
+		PresetFile: presetPath,
+		Version:    "test",
+	})
+	require.NoError(t, err)
+	require.True(t, result.WasModified)
+	assert.Equal(t, "ptp_file.txt.torrent", filepath.Base(result.OutputPath))
+	after, err := LoadFromFile(result.OutputPath)
+	require.NoError(t, err)
+	assert.Equal(t, "https://a.example/announce", after.Announce)
+	assert.Equal(t, metainfo.AnnounceList{{"https://a.example/announce"}}, after.AnnounceList)
+	assert.Empty(t, after.UrlList)
+}
+
+func TestModifyTorrent_TrackerFlagConflicts(t *testing.T) {
+	dir := t.TempDir()
+	in := writeTrackerTorrent(t, dir, "https://a.example/announce", nil, nil)
+
+	tests := []struct {
+		settings ModifySettings
+		wantErr  string
+	}{
+		{ModifySettings{TrackerURLs: []string{"https://b.example/announce"}, NoTracker: true}, "cannot use --tracker with --no-tracker"},
+		{ModifySettings{TrackerURLs: []string{"https://b.example/announce"}, RemoveTrackers: []string{"a.example"}}, "cannot use --tracker with --remove-tracker"},
+		{ModifySettings{NoTracker: true, RemoveTrackers: []string{"a.example"}}, "cannot use --no-tracker with --remove-tracker"},
+		{ModifySettings{WebSeeds: []string{"https://seed.example/"}, NoWebSeed: true}, "cannot use --web-seed with --no-web-seed"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.wantErr, func(t *testing.T) {
+			tt.settings.OutputDir = dir
+			_, err := ModifyTorrent(in, ModifyOptions{ModifySettings: tt.settings, Version: "test"})
+			require.EqualError(t, err, tt.wantErr)
+			_, err = ProcessTorrents([]string{in}, ModifyOptions{ModifySettings: tt.settings, Version: "test"})
+			require.EqualError(t, err, tt.wantErr)
+		})
+	}
 }

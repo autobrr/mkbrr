@@ -68,12 +68,12 @@ var settingsParityCases = map[string]settingsParity{
 		settings: reflect.TypeFor[torrent.ModifySettings](),
 		cmd:      modifyCmd,
 		guiForm: []string{
-			"TrackerURLs", "WebSeeds", "Name", "Comment", "Source", "IsPrivate", "NoPrivate", "NoDate",
-			"NoCreator", "Entropy", "NoEntropy", "OutputDir", "OutputPattern", "SkipPrefix",
+			"TrackerURLs", "NoTracker", "RemoveTrackers", "WebSeeds", "NoWebSeed", "Name", "Comment", "Source",
+			"IsPrivate", "NoPrivate", "NoDate", "NoCreator", "Entropy", "NoEntropy", "OutputDir", "OutputPattern", "SkipPrefix",
 		},
 		exceptions: map[string][]string{
 			// A preset cannot clear, and the name and the output filename belong to one torrent.
-			placePreset: {"Name", "NoPrivate", "NoEntropy", "OutputPattern"},
+			placePreset: {"Name", "NoPrivate", "NoEntropy", "NoTracker", "RemoveTrackers", "NoWebSeed", "OutputPattern"},
 		},
 	},
 }

@@ -55,8 +55,11 @@ The Modify page changes the metadata of a `.torrent` file. Each control has the 
 
 | Control | CLI flag |
 |---------|----------|
-| Add Trackers | `--tracker` |
-| Web Seeds | `--web-seed` |
+| Trackers: Replace | `--tracker` |
+| Trackers: Remove matching | `--remove-tracker` |
+| Trackers: Remove all | `--no-tracker` |
+| Web Seeds: Replace | `--web-seed` |
+| Web Seeds: Remove all | `--no-web-seed` |
 | Name | `--name` |
 | Source | `--source` |
 | Comment | `--comment` |
@@ -69,6 +72,8 @@ The Modify page changes the metadata of a `.torrent` file. Each control has the 
 | Skip tracker prefix in filename | `--skip-prefix` |
 | Output Directory | `--output-dir` |
 | Output Filename | `--output` |
+
+The Trackers control has four options. Keep sends no tracker option. The torrent keeps its trackers, but if the preset has trackers, the preset trackers replace them. Replace sets the trackers to the list that you give. Remove matching takes a list of hosts or tracker URLs, and removes the trackers on those hosts. Remove all removes every tracker. The Web Seeds control has the same Keep, Replace, and Remove all options. If a host matches no tracker, the result shows a warning.
 
 The Entropy control has three options. Keep does not change the entropy field, also when the preset adds entropy. Add new writes a new random value. Remove deletes the entropy field. If you select a preset that sets `entropy: true`, the page selects Add new. If you select a preset that sets `entropy: false`, the page selects Keep.
 
