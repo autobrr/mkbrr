@@ -20,7 +20,7 @@ import CommonEntropy from '/snippets/common-entropy.mdx';
 </ParamField>
 
 <ParamField query="--no-tracker" type="boolean" default={false}>
-  Remove all trackers. Use it to share a torrent without your passkey, or to make a torrent that finds peers only through DHT (the peer network that works without a tracker).
+  Remove all trackers. Use it to share a torrent without your passkey, or to make a torrent that finds peers only through DHT (the peer network that works without a tracker). Clients do not use DHT for a private torrent. For a DHT-only torrent, also use `--private=false` or `--no-private`. These flags change the info hash.
 </ParamField>
 
 <ParamField query="--remove-tracker" type="string[]">
@@ -32,7 +32,7 @@ import CommonEntropy from '/snippets/common-entropy.mdx';
 </ParamField>
 
 <Note>
-  You can use only one of `--tracker`, `--no-tracker`, and `--remove-tracker`. Each of them makes mkbrr ignore the `trackers` value of the preset. The info hash does not change, because the trackers are outside the info dictionary.
+  You can use only one of `--tracker`, `--no-tracker`, and `--remove-tracker`. Each of them makes mkbrr ignore the `trackers` value of the preset. These three flags do not change the info hash, because the trackers are outside the info dictionary. A flag that changes the info dictionary, such as `--source`, still changes the info hash.
 </Note>
 
 <ParamField query="--name" type="string">

@@ -1039,7 +1039,7 @@ func TestModifyTorrent_RemoveTrackers(t *testing.T) {
 			name:         "ignores case and port",
 			announce:     trackerA,
 			announceList: metainfo.AnnounceList{{trackerA}, {oldUDP}, {"udp://other.example:1"}},
-			remove:       []string{" OLD.example ", "udp://Other.Example:6969"},
+			remove:       []string{" OLD.example ", "udp://Other.Example.:6969"},
 			wantAnnounce: trackerA,
 			wantList:     metainfo.AnnounceList{{trackerA}},
 		},

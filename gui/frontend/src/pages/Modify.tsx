@@ -315,6 +315,19 @@ export function ModifyPage() {
       setError('Please select a torrent file');
       return;
     }
+    const hasValue = (list: string[]) => list.some((v) => v.trim() !== '');
+    if (trackerMode === 'replace' && !hasValue(trackers)) {
+      setError('Enter a tracker URL, or select Keep');
+      return;
+    }
+    if (trackerMode === 'remove' && !hasValue(removeTrackers)) {
+      setError('Enter a host or tracker URL to remove, or select Keep');
+      return;
+    }
+    if (webSeedMode === 'replace' && !hasValue(webSeeds)) {
+      setError('Enter a web seed URL, or select Keep');
+      return;
+    }
 
     setError('');
     setResult(null);

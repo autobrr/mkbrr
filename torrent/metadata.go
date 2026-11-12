@@ -201,7 +201,7 @@ func hostOf(s string) string {
 	if err != nil {
 		return ""
 	}
-	return strings.ToLower(u.Hostname())
+	return strings.ToLower(strings.TrimSuffix(u.Hostname(), "."))
 }
 
 // applyValue writes f to *dst and reports whether *dst changed.
