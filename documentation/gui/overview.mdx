@@ -45,7 +45,7 @@ The Create page has a control for each create setting of the CLI. The controls i
 
 Write the patterns as a comma-separated list, for example `*.nfo,*.jpg`. If you select a preset, the patterns of the preset also apply. See the [filtering guide](/features/filtering) for the pattern rules.
 
-Tracker rules still apply. If the first tracker has a maximum piece length, the piece length lists show no larger sizes. A target piece count also cannot select a larger piece length.
+Tracker rules still apply. The piece length lists show only the sizes that mkbrr accepts with the first tracker and the target piece count. If a change to the tracker or the target piece count removes the selected size from a list, the field goes back to Auto or No limit. A target piece count also cannot select a larger piece length than the tracker maximum.
 
 You set the worker count on the Settings page, not on the Create page.
 
@@ -95,7 +95,7 @@ The preset editor has a control for each [preset](/features/presets) setting. A 
 | Main | Name, source, comment, private, no date, no creator, trackers, web seeds, output directory |
 | Advanced options | Entropy, skip prefix, fail on season warning, piece length, maximum piece length, target piece count, exclude patterns, include patterns, workers |
 
-Type one URL or one glob pattern on each line of the web seeds, exclude patterns, and include patterns fields. A preset cannot have both a piece length and a target piece count. If you set one, the editor clears the other.
+Type one URL or one glob pattern on each line of the web seeds, exclude patterns, and include patterns fields. A preset cannot have both a piece length and a target piece count. If you set one, the editor clears the other. The piece length lists of the editor show every size from 16 KiB to 128 MiB, because a `--tracker` flag can replace the trackers of the preset.
 
 <Frame>
   <img src="/images/preset-editor.png" alt="mkbrr GUI preset editor with the advanced options open" />

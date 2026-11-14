@@ -9,6 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestProcessBatch(t *testing.T) {
@@ -218,7 +221,7 @@ jobs:
   - output: test.torrent
     path: test.txt
     piece_length: 28`,
-			wantErr: "piece length must be between 14 and 27",
+			wantErr: "piece length exponent must be between 15 (32 KiB) and 27 (128 MiB), got: 28",
 		},
 		{
 			name: "empty jobs",
@@ -254,6 +257,70 @@ jobs:
 			_, err := ProcessBatch("batch.yaml", false, false, false, "test-version")
 			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
 				t.Errorf("ProcessBatch() error = %v, want it to contain %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+// A piece length that the tracker of a later job does not allow stops the
+// batch before any job writes a torrent.
+func TestBatchChecksAllowedPieceLengthsBeforeAnyJob(t *testing.T) {
+	tests := []struct {
+		name    string
+		job3    string
+		wantErr string
+	}{
+		{
+			name:    "piece length below the range with no tracker",
+			job3:    "piece_length: 14",
+			wantErr: "piece length exponent must be between 15 (32 KiB) and 27 (128 MiB), got: 14",
+		},
+		{
+			name:    "max piece length below the range with no tracker",
+			job3:    "max_piece_length: 14",
+			wantErr: "max piece length exponent must be between 15 (32 KiB) and 27 (128 MiB), got: 14",
+		},
+		{
+			name: "piece length below the range of the job's tracker",
+			job3: `piece_length: 15
+    trackers:
+      - https://beyond-hd.me/announce`,
+			wantErr: "piece length exponent must be between 16 (64 KiB) and 24 (16 MiB) for https://beyond-hd.me/announce, got: 15",
+		},
+		{
+			name: "max piece length above the cap of the job's tracker",
+			job3: `max_piece_length: 25
+    trackers:
+      - https://beyond-hd.me/announce`,
+			wantErr: "max piece length exponent must be between 16 (64 KiB) and 24 (16 MiB) for https://beyond-hd.me/announce, got: 25",
+		},
+		{
+			name:    "max piece length below 64 KiB with a target piece count",
+			job3:    "max_piece_length: 15\n    target_piece_count: 10",
+			wantErr: "max piece length exponent must be between 16 (64 KiB) and 27 (128 MiB), got: 15",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			for _, name := range []string{"a.txt", "b.txt", "c.txt"} {
+				if err := os.WriteFile(name, []byte("test"), 0644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			config := "version: 1\njobs:\n" +
+				"  - path: a.txt\n    output: a.torrent\n" +
+				"  - path: b.txt\n    output: b.torrent\n" +
+				"  - path: c.txt\n    output: c.torrent\n    " + tt.job3 + "\n"
+			if err := os.WriteFile("batch.yaml", []byte(config), 0644); err != nil {
+				t.Fatal(err)
+			}
+
+			_, err := ProcessBatch("batch.yaml", false, true, false, "test-version")
+			require.ErrorContains(t, err, tt.wantErr)
+			for _, out := range []string{"a.torrent", "b.torrent", "c.torrent"} {
+				assert.NoFileExists(t, out)
 			}
 		})
 	}

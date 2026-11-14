@@ -28,6 +28,10 @@ _Avoid_: resolve piece length, piece length calculation
 The smallest and largest piece length that the **piece length choice** can give for one set of tracker rules and create settings. A tracker cap is the largest the upper bound can be. A user max piece length can only lower it.
 _Avoid_: min/max exp, clamp range
 
+**Allowed piece lengths**:
+The piece lengths that create accepts for an explicit piece length or max piece length, for one set of tracker rules and create settings. The smallest is the lower piece length bound. The largest is the tracker cap, or 128 MiB if the tracker has no cap.
+_Avoid_: valid range, explicit max
+
 **Tracker rule**:
 A limit that mkbrr enforces for a tracker: a piece length table, a maximum piece length, or a maximum .torrent size. A tracker rule is not a setting, and an override cannot raise it.
 _Avoid_: tracker config, tracker default

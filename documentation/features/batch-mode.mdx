@@ -177,6 +177,8 @@ You can find the formal JSON schema for validation [here](https://raw.githubuser
 
 ## Failed jobs
 
+Before any job runs, mkbrr reads the settings of each job. If a job has a `piece_length` or a `max_piece_length` that the rules of its first tracker do not allow, mkbrr writes no torrents. It stops with an error that gives the allowed range for that tracker.
+
 When a job fails, mkbrr continues with the other jobs. The torrents from the jobs that succeed stay on disk. After all jobs run, mkbrr exits with a non-zero code and prints `N of M batch jobs failed`. A script can use this exit code to find a missing torrent.
 
 With `--quiet`, mkbrr prints each failed job to stderr as `Failed: <output>: <error>`. Without `--quiet`, use `--verbose` to see the error for each job.
