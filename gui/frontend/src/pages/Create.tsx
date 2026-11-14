@@ -286,28 +286,29 @@ export function CreatePage() {
 
   // The form does not copy the preset target piece count, but create uses it when the form
   // sets neither a piece length nor a target piece count.
-  const [presetTargetPieceCount, setPresetTargetPieceCount] = useState(0);
+  const [presetTarget, setPresetTarget] = useState<{ name: string; count: number } | null>(null);
   useEffect(() => {
-    if (!presetName) {
-      setPresetTargetPieceCount(0);
-      return;
-    }
+    if (!presetName) return;
     let stale = false;
     GetPreset(presetName)
       .then((p) => {
-        if (!stale) setPresetTargetPieceCount((p as PresetOptions | null)?.targetPieceCount ?? 0);
+        if (!stale) setPresetTarget({ name: presetName, count: (p as PresetOptions | null)?.targetPieceCount ?? 0 });
       })
       .catch(() => {
-        if (!stale) setPresetTargetPieceCount(0);
+        if (!stale) setPresetTarget({ name: presetName, count: 0 });
       });
     return () => {
       stale = true;
     };
   }, [presetName]);
+  // Until the selected preset loads, its target piece count is unknown.
+  const presetTargetLoaded = !presetName || presetTarget?.name === presetName;
+  const presetTargetPieceCount = presetName && presetTarget?.name === presetName ? presetTarget.count : 0;
   const effectiveTargetPieceCount = targetPieceCount || (pieceLengthExp ? 0 : presetTargetPieceCount);
 
   // The reset below acts on this range, so wait until the tracker field stops changing.
   useEffect(() => {
+    if (!presetTargetLoaded) return;
     let stale = false;
     const debounce = setTimeout(async () => {
       try {
@@ -321,7 +322,7 @@ export function CreatePage() {
       stale = true;
       clearTimeout(debounce);
     };
-  }, [firstTracker, effectiveTargetPieceCount]);
+  }, [firstTracker, effectiveTargetPieceCount, presetTargetLoaded]);
 
   // The source field is an override, so put the tracker default source into it.
   // Replace the field only when it is empty or still holds the previous tracker default.
