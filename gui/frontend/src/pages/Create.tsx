@@ -17,12 +17,12 @@ import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { FolderOpen, File, Plus, X, Loader2, ChevronDown, Sparkles, FileSearch, AlertTriangle } from 'lucide-react';
-import { SelectPath, SelectFile, CreateTorrent, ListPresets, GetPreset, GetTrackerInfo, PlanCreate, InspectTorrent } from '../../wailsjs/go/main/App';
+import { SelectPath, SelectFile, CreateTorrent, ListPresets, GetPreset, GetTrackerInfo, GetAllowedPieceLengths, PlanCreate, InspectTorrent } from '../../wailsjs/go/main/App';
 import { EventsOn } from '../../wailsjs/runtime/runtime';
 import { getEffectiveWorkers } from './Settings';
 import { useFileDrop } from '@/hooks/useFileDrop';
 import { DropOverlay } from '@/components/ui/drop-overlay';
-import { PIECE_LENGTHS } from '@/lib/utils';
+import { formatPieceSize, pieceLengthOptions } from '@/lib/utils';
 
 import { main, preset as presetTypes, torrent } from '../../wailsjs/go/models';
 
@@ -30,6 +30,8 @@ import { main, preset as presetTypes, torrent } from '../../wailsjs/go/models';
 type TorrentResultType = main.TorrentResult;
 type PresetOptions = presetTypes.Options;
 type TrackerInfoType = main.TrackerInfo;
+type AllowedPieceLengthsType = main.AllowedPieceLengths;
+type PieceLengthRangeType = main.PieceLengthRange;
 type CreatePlanType = torrent.CreatePlan;
 
 interface ProgressEvent {
@@ -109,14 +111,6 @@ function clearFormState() {
   } catch (e) {
     console.error('Failed to clear form state from localStorage:', e);
   }
-}
-
-function formatPieceSize(exp: number): string {
-  if (exp === 0) return '';
-  const size = Math.pow(2, exp);
-  if (size >= 1024 * 1024) return `${size / (1024 * 1024)} MiB`;
-  if (size >= 1024) return `${size / 1024} KiB`;
-  return `${size} B`;
 }
 
 // UrlList is a list of URL inputs with add and remove buttons.
@@ -202,6 +196,7 @@ export function CreatePage() {
   const [error, setError] = useState('');
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [trackerInfo, setTrackerInfo] = useState<TrackerInfoType | null>(null);
+  const [allowedPieceLengths, setAllowedPieceLengths] = useState<AllowedPieceLengthsType | null>(null);
   const [defaultSource, setDefaultSource] = useState('');
   const [plan, setPlan] = useState<CreatePlanType | null>(null);
   const [planError, setPlanError] = useState('');
@@ -267,8 +262,8 @@ export function CreatePage() {
   }, []);
 
   // Look up the rules of the first tracker. Create applies only the rules of the first tracker.
+  const firstTracker = trackers.find(t => t.trim() !== '') ?? '';
   useEffect(() => {
-    const firstTracker = trackers.find(t => t.trim() !== '');
     if (!firstTracker) {
       setTrackerInfo(null);
       setDefaultSource('');
@@ -287,7 +282,47 @@ export function CreatePage() {
       }
     }, 300);
     return () => clearTimeout(debounce);
-  }, [trackers]);
+  }, [firstTracker]);
+
+  // The form does not copy the preset target piece count, but create uses it when the form
+  // sets neither a piece length nor a target piece count.
+  const [presetTarget, setPresetTarget] = useState<{ name: string; count: number } | null>(null);
+  useEffect(() => {
+    if (!presetName) return;
+    let stale = false;
+    GetPreset(presetName)
+      .then((p) => {
+        if (!stale) setPresetTarget({ name: presetName, count: (p as PresetOptions | null)?.targetPieceCount ?? 0 });
+      })
+      .catch(() => {
+        if (!stale) setPresetTarget({ name: presetName, count: 0 });
+      });
+    return () => {
+      stale = true;
+    };
+  }, [presetName]);
+  // Until the selected preset loads, its target piece count is unknown.
+  const presetTargetLoaded = !presetName || presetTarget?.name === presetName;
+  const presetTargetPieceCount = presetName && presetTarget?.name === presetName ? presetTarget.count : 0;
+  const effectiveTargetPieceCount = targetPieceCount || (pieceLengthExp ? 0 : presetTargetPieceCount);
+
+  // The reset below acts on this range, so wait until the tracker field stops changing.
+  useEffect(() => {
+    if (!presetTargetLoaded) return;
+    let stale = false;
+    const debounce = setTimeout(async () => {
+      try {
+        const next = await GetAllowedPieceLengths(firstTracker, effectiveTargetPieceCount);
+        if (!stale) setAllowedPieceLengths(next);
+      } catch (e) {
+        if (!stale) toast.error('Failed to get the allowed piece lengths: ' + String(e));
+      }
+    }, 300);
+    return () => {
+      stale = true;
+      clearTimeout(debounce);
+    };
+  }, [firstTracker, effectiveTargetPieceCount, presetTargetLoaded]);
 
   // The source field is an override, so put the tracker default source into it.
   // Replace the field only when it is empty or still holds the previous tracker default.
@@ -356,16 +391,16 @@ export function CreatePage() {
     };
   }, [planKey]);
 
-  // Reset the piece length and the max piece length if they exceed the tracker's max
   useEffect(() => {
-    const trackerMax = trackerInfo?.maxPieceLength;
-    if (trackerMax && pieceLengthExp > trackerMax) {
-      setPieceLengthExp(0); // Reset to Auto
+    if (!allowedPieceLengths) return;
+    const outside = (exp: number, range: PieceLengthRangeType) => exp !== 0 && (exp < range.min || exp > range.max);
+    if (outside(pieceLengthExp, allowedPieceLengths.pieceLength)) {
+      setPieceLengthExp(0);
     }
-    if (trackerMax && maxPieceLengthExp > trackerMax) {
-      setMaxPieceLengthExp(0); // Reset to no limit
+    if (outside(maxPieceLengthExp, allowedPieceLengths.maxPieceLength)) {
+      setMaxPieceLengthExp(0);
     }
-  }, [trackerInfo?.maxPieceLength, pieceLengthExp, maxPieceLengthExp]);
+  }, [allowedPieceLengths, pieceLengthExp, maxPieceLengthExp]);
 
   const handleSelectFolder = async () => {
     try {
@@ -753,9 +788,8 @@ export function CreatePage() {
                 {/* Piece Length, Max Piece Length, Target Piece Count */}
                 <div className="grid gap-4 sm:grid-cols-3">
                   {[
-                    { label: 'Piece Length', value: pieceLengthExp, set: setPieceLengthExp, unset: 'Auto', min: 0 },
-                    // create rejects a max below 64 KiB in some cases, and a smaller max has no use
-                    { label: 'Max Piece Length', value: maxPieceLengthExp, set: setMaxPieceLengthExp, unset: 'No limit', min: 16 },
+                    { label: 'Piece Length', value: pieceLengthExp, set: setPieceLengthExp, unset: 'Auto', range: allowedPieceLengths?.pieceLength },
+                    { label: 'Max Piece Length', value: maxPieceLengthExp, set: setMaxPieceLengthExp, unset: 'No limit', range: allowedPieceLengths?.maxPieceLength },
                   ].map((field) => (
                     <div key={field.label} className="space-y-1.5">
                       <Label>{field.label}</Label>
@@ -764,15 +798,10 @@ export function CreatePage() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {PIECE_LENGTHS
-                            // If tracker has max piece length limit, filter out larger sizes
-                            .filter((pl) => !(trackerInfo?.maxPieceLength && pl.value > trackerInfo.maxPieceLength))
-                            .filter((pl) => pl.value === 0 || pl.value >= field.min)
-                            .map((pl) => (
-                              <SelectItem key={pl.value} value={pl.value.toString()}>
-                                {pl.value === 0 ? field.unset : pl.label}
-                              </SelectItem>
-                            ))}
+                          <SelectItem value="0">{field.unset}</SelectItem>
+                          {pieceLengthOptions(field.range).map((pl) => (
+                            <SelectItem key={pl.value} value={pl.value.toString()}>{pl.label}</SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>

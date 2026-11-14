@@ -22,6 +22,14 @@ export function GetAllPresets() {
   return window['go']['main']['App']['GetAllPresets']();
 }
 
+export function GetAllowedPieceLengths(arg1, arg2) {
+  return window['go']['main']['App']['GetAllowedPieceLengths'](arg1, arg2);
+}
+
+export function GetPieceLengthRange() {
+  return window['go']['main']['App']['GetPieceLengthRange']();
+}
+
 export function GetPreset(arg1) {
   return window['go']['main']['App']['GetPreset'](arg1);
 }

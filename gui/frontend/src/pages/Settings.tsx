@@ -13,7 +13,7 @@ import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { PIECE_LENGTHS } from '@/lib/utils';
+import { pieceLengthOptions } from '@/lib/utils';
 import {
   Dialog,
   DialogContent,
@@ -36,12 +36,13 @@ import { RefreshCw, Plus, Pencil, Trash2, X, ChevronDown, FolderOpen } from 'luc
 import {
   GetPresetFilePath,
   GetAllPresets,
+  GetPieceLengthRange,
   SavePreset,
   DeletePreset,
   CreatePresetFile,
   SelectPath,
 } from '../../wailsjs/go/main/App';
-import { preset } from '../../wailsjs/go/models';
+import { main, preset } from '../../wailsjs/go/models';
 
 type PresetOptions = preset.Options;
 
@@ -229,9 +230,14 @@ export function SettingsPage() {
   const [nameError, setNameError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  // A preset can get its tracker from a later -t, so the editor lists the outer range.
+  const [pieceLengthRange, setPieceLengthRange] = useState<main.PieceLengthRange | null>(null);
 
   useEffect(() => {
     loadSettings();
+    GetPieceLengthRange()
+      .then(setPieceLengthRange)
+      .catch((e) => toast.error('Failed to get the piece length range: ' + String(e)));
   }, []);
 
   // Save default settings when they change
@@ -717,7 +723,8 @@ export function SettingsPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {PIECE_LENGTHS.map((pl) => (
+                        <SelectItem value="0">Auto</SelectItem>
+                        {pieceLengthOptions(pieceLengthRange).map((pl) => (
                           <SelectItem key={pl.value} value={pl.value.toString()}>{pl.label}</SelectItem>
                         ))}
                       </SelectContent>
@@ -733,10 +740,9 @@ export function SettingsPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {PIECE_LENGTHS.map((pl) => (
-                          <SelectItem key={pl.value} value={pl.value.toString()}>
-                            {pl.value === 0 ? 'No limit' : pl.label}
-                          </SelectItem>
+                        <SelectItem value="0">No limit</SelectItem>
+                        {pieceLengthOptions(pieceLengthRange).map((pl) => (
+                          <SelectItem key={pl.value} value={pl.value.toString()}>{pl.label}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>

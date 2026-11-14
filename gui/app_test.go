@@ -244,3 +244,77 @@ presets:
 		t.Errorf("defaults = %+v, want private false from the default section", d)
 	}
 }
+
+// TestGetAllowedPieceLengthsMatchesCreate checks that the create page lists
+// offer exactly the piece lengths that create accepts.
+func TestGetAllowedPieceLengthsMatchesCreate(t *testing.T) {
+	tests := []struct {
+		name          string
+		trackerURL    string
+		wantPiece     PieceLengthRange
+		wantMax       PieceLengthRange
+		wantMaxTarget PieceLengthRange
+	}{
+		{"no tracker", "", PieceLengthRange{15, 27}, PieceLengthRange{15, 27}, PieceLengthRange{16, 27}},
+		{"default table", "https://beyond-hd.me/announce?passkey=123", PieceLengthRange{16, 24}, PieceLengthRange{16, 24}, PieceLengthRange{16, 24}},
+		{"default table with a lower cap", "https://morethantv.me/announce", PieceLengthRange{16, 23}, PieceLengthRange{16, 23}, PieceLengthRange{16, 23}},
+		{"own table", "https://portugas.org/announce/passkey", PieceLengthRange{14, 27}, PieceLengthRange{14, 27}, PieceLengthRange{16, 27}},
+		{"own table with a cap", "https://gazellegames.net/announce?passkey=123", PieceLengthRange{14, 26}, PieceLengthRange{14, 26}, PieceLengthRange{16, 26}},
+	}
+
+	dir := t.TempDir()
+	content := filepath.Join(dir, "content.bin")
+	writeFile(t, content, 1<<20)
+	app := NewApp("test")
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := app.GetAllowedPieceLengths(tt.trackerURL, 0)
+			gotTarget := app.GetAllowedPieceLengths(tt.trackerURL, 100)
+			if got.PieceLength != tt.wantPiece || got.MaxPieceLength != tt.wantMax || gotTarget.MaxPieceLength != tt.wantMaxTarget {
+				t.Fatalf("GetAllowedPieceLengths() = %+v, with target %+v; want piece %v, max %v, max with target %v",
+					got, gotTarget, tt.wantPiece, tt.wantMax, tt.wantMaxTarget)
+			}
+
+			var trackerURLs []string
+			if tt.trackerURL != "" {
+				trackerURLs = []string{tt.trackerURL}
+			}
+			fields := []struct {
+				label    string
+				allowed  PieceLengthRange
+				settings func(exp uint) torrent.CreateSettings
+			}{
+				{"piece length", got.PieceLength, func(exp uint) torrent.CreateSettings {
+					return torrent.CreateSettings{PieceLengthExp: new(exp)}
+				}},
+				{"max piece length", got.MaxPieceLength, func(exp uint) torrent.CreateSettings {
+					return torrent.CreateSettings{MaxPieceLength: new(exp)}
+				}},
+				{"max piece length with target piece count", gotTarget.MaxPieceLength, func(exp uint) torrent.CreateSettings {
+					return torrent.CreateSettings{MaxPieceLength: new(exp), TargetPieceCount: new(uint(100))}
+				}},
+			}
+			for _, f := range fields {
+				for exp := uint(10); exp <= 28; exp++ {
+					settings := f.settings(exp)
+					settings.TrackerURLs = trackerURLs
+					_, err := app.PlanCreate(CreateRequest{Path: content, CreateSettings: settings})
+					allowed := exp >= f.allowed.Min && exp <= f.allowed.Max
+					if allowed && err != nil {
+						t.Errorf("%s %d is in the list, but create rejects it: %v", f.label, exp, err)
+					}
+					if !allowed && err == nil {
+						t.Errorf("%s %d is not in the list, but create accepts it", f.label, exp)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestGetPieceLengthRange(t *testing.T) {
+	if got, want := NewApp("test").GetPieceLengthRange(), (PieceLengthRange{14, 27}); got != want {
+		t.Fatalf("GetPieceLengthRange() = %v, want %v", got, want)
+	}
+}

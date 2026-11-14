@@ -5,7 +5,6 @@ package torrent
 
 import (
 	"bytes"
-	"cmp"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -66,41 +65,6 @@ func formatPieceSize(exp uint) string {
 	return fmt.Sprintf("%d KiB", size)
 }
 
-// pieceLengthBounds returns the piece length bounds for the tracker rules and
-// create settings. The lower bound is the smallest exponent that automatic
-// mode can pick: 14 (16 KiB) for a tracker with its own piece length table,
-// 15 (32 KiB) with no tracker rules, else 16 (64 KiB). A target piece count
-// always uses 16.
-// The upper bound is the tracker cap, or the user max if it is lower. With no
-// tracker cap, it is the user max (27 at most), else 24 (16 MiB). A tracker
-// with its own table uses 27 (128 MiB) in place of 24, but a target piece
-// count keeps 24.
-// The user max cannot raise a tracker cap, because an override cannot raise a
-// tracker rule (see "Tracker rule" in GLOSSARY.md).
-func pieceLengthBounds(rules trackers.Rules, userMax *uint, targetCount bool) (lower, upper uint) {
-	lower, upper = 16, 24
-	switch {
-	case targetCount:
-		// a target piece count keeps the defaults
-	case len(rules.PieceSizeRanges) > 0:
-		lower, upper = 14, 27
-	case !rules.UseDefaultRanges:
-		// automatic mode uses the default ranges unclamped, so it can pick 32 KiB
-		lower = trackers.DefaultPieceSizeRanges[0].PieceExp
-	}
-
-	switch {
-	case rules.MaxPieceLength > 0 && userMax != nil:
-		upper = min(*userMax, rules.MaxPieceLength)
-	case rules.MaxPieceLength > 0:
-		upper = rules.MaxPieceLength
-	case userMax != nil:
-		// -l skips the -m check, so keep the 128 MiB limit here
-		upper = min(*userMax, 27)
-	}
-	return lower, upper
-}
-
 // pieceLengthRangeError returns the error for a -l or -m exponent outside [lower, upper].
 func pieceLengthRangeError(name string, lower, upper, got uint, trackerURLs []string) error {
 	where := ""
@@ -109,6 +73,24 @@ func pieceLengthRangeError(name string, lower, upper, got uint, trackerURLs []st
 	}
 	return fmt.Errorf("%s exponent must be between %d (%s) and %d (%s)%s, got: %d",
 		name, lower, formatPieceSize(lower), upper, formatPieceSize(upper), where, got)
+}
+
+// checkExplicitPieceLength returns an error when the explicit piece length,
+// or the max piece length if no piece length is set, is outside the allowed
+// piece lengths. Create and batch both call it, so they accept the same values.
+func checkExplicitPieceLength(pieceLengthExp, maxPieceLength *uint, targetCount bool, rules trackers.Rules, trackerURLs []string) error {
+	name, exp := "piece length", pieceLengthExp
+	if exp == nil {
+		name, exp = "max piece length", maxPieceLength
+	}
+	if exp == nil {
+		return nil
+	}
+	lower, upper := trackers.AllowedPieceLengths(rules, targetCount)
+	if *exp < lower || *exp > upper {
+		return pieceLengthRangeError(name, lower, upper, *exp, trackerURLs)
+	}
+	return nil
 }
 
 // Notice is a message from the piece length choice or from modify. The caller
@@ -135,15 +117,12 @@ func choosePieceLength(totalSize int64, opts CreateOptions, rules trackers.Rules
 		exp     uint
 		notices []Notice
 	)
-	explicitMax := cmp.Or(rules.MaxPieceLength, 27) // -l and -m accept up to the tracker cap, else 128 MiB
-	// the lower bound also limits -l and -m, so -l allows every size the
-	// tracker can recommend, such as 16 KiB from its own table
-	lower, upper := pieceLengthBounds(rules, opts.MaxPieceLength, opts.TargetPieceCount != nil)
+	if err := checkExplicitPieceLength(opts.PieceLengthExp, opts.MaxPieceLength, opts.TargetPieceCount != nil, rules, opts.TrackerURLs); err != nil {
+		return 0, nil, err
+	}
+	lower, upper := trackers.PieceLengthBounds(rules, opts.MaxPieceLength, opts.TargetPieceCount != nil)
 	if opts.PieceLengthExp != nil {
 		exp = *opts.PieceLengthExp
-		if exp < lower || exp > explicitMax {
-			return 0, nil, pieceLengthRangeError("piece length", lower, explicitMax, exp, opts.TrackerURLs)
-		}
 
 		// A tracker recommendation never rejects an explicit piece length.
 		if rec, ok := rules.PieceSizeExp(uint64(totalSize)); ok {
@@ -155,10 +134,6 @@ func choosePieceLength(totalSize int64, opts CreateOptions, rules trackers.Rules
 			}
 		}
 	} else {
-		if opts.MaxPieceLength != nil && (*opts.MaxPieceLength < lower || *opts.MaxPieceLength > explicitMax) {
-			return 0, nil, pieceLengthRangeError("max piece length", lower, explicitMax, *opts.MaxPieceLength, opts.TrackerURLs)
-		}
-
 		var notice *Notice
 		if opts.TargetPieceCount != nil {
 			exp, notice = pieceLengthFromTarget(totalSize, *opts.TargetPieceCount, lower, upper)
@@ -175,7 +150,7 @@ func choosePieceLength(totalSize int64, opts CreateOptions, rules trackers.Rules
 	}
 
 	// the retry may grow past the 24 that a target piece count uses
-	_, ceiling := pieceLengthBounds(rules, opts.MaxPieceLength, false)
+	_, ceiling := trackers.PieceLengthBounds(rules, opts.MaxPieceLength, false)
 	start := exp
 	for {
 		size, err := torrentSize(exp)

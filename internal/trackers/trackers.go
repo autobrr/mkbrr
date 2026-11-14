@@ -4,6 +4,7 @@
 package trackers
 
 import (
+	"cmp"
 	"slices"
 	"strings"
 )
@@ -13,7 +14,7 @@ type Rules struct {
 	DefaultSource    string           // default source to use for this tracker
 	URLs             []string         // list of tracker URLs that share this config
 	PieceSizeRanges  []PieceSizeRange // custom piece size ranges for specific content sizes
-	MaxPieceLength   uint             // maximum piece length exponent (2^n). default is 24 (16 MiB) from create.go
+	MaxPieceLength   uint             // maximum piece length exponent (2^n), or 0 for no tracker cap
 	MaxTorrentSize   uint64           // maximum .torrent file size in bytes (0 means no limit)
 	UseDefaultRanges bool             // whether to use default piece size ranges when content size is outside custom ranges
 }
@@ -378,4 +379,55 @@ func (r Rules) PieceSizeExp(contentSize uint64) (uint, bool) {
 // Configs returns a copy of the rules for every known tracker.
 func Configs() []Rules {
 	return slices.Clone(trackerConfigs)
+}
+
+// The outer piece length range: every value that some tracker allows for an
+// explicit piece length or max piece length.
+const (
+	MinPieceExp uint = 14 // 16 KiB
+	MaxPieceExp uint = 27 // 128 MiB
+)
+
+// PieceLengthBounds returns the piece length bounds for the tracker rules and
+// create settings. The lower bound is the smallest exponent that automatic
+// mode can pick: 14 (16 KiB) for a tracker with its own piece length table,
+// 15 (32 KiB) with no tracker rules, else 16 (64 KiB). A target piece count
+// always uses 16.
+// The upper bound is the tracker cap, or the user max if it is lower. With no
+// tracker cap, it is the user max (27 at most), else 24 (16 MiB). A tracker
+// with its own table uses 27 (128 MiB) in place of 24, but a target piece
+// count keeps 24.
+// The user max cannot raise a tracker cap, because an override cannot raise a
+// tracker rule (see "Tracker rule" in GLOSSARY.md).
+func PieceLengthBounds(rules Rules, userMax *uint, targetCount bool) (lower, upper uint) {
+	lower, upper = 16, 24
+	switch {
+	case targetCount:
+		// a target piece count keeps the defaults
+	case len(rules.PieceSizeRanges) > 0:
+		lower, upper = MinPieceExp, MaxPieceExp
+	case !rules.UseDefaultRanges:
+		// automatic mode uses the default ranges unclamped, so it can pick 32 KiB
+		lower = DefaultPieceSizeRanges[0].PieceExp
+	}
+
+	switch {
+	case rules.MaxPieceLength > 0 && userMax != nil:
+		upper = min(*userMax, rules.MaxPieceLength)
+	case rules.MaxPieceLength > 0:
+		upper = rules.MaxPieceLength
+	case userMax != nil:
+		// create does not check -m when -l is set, so keep the 128 MiB limit here
+		upper = min(*userMax, MaxPieceExp)
+	}
+	return lower, upper
+}
+
+// AllowedPieceLengths returns the lowest and highest exponent that create
+// accepts for an explicit piece length or max piece length. The lowest is the
+// lower piece length bound. The highest is the tracker cap, or 27 (128 MiB)
+// when the tracker has no cap; a user max piece length does not lower it.
+func AllowedPieceLengths(rules Rules, targetCount bool) (lower, upper uint) {
+	lower, _ = PieceLengthBounds(rules, nil, targetCount)
+	return lower, cmp.Or(rules.MaxPieceLength, MaxPieceExp)
 }

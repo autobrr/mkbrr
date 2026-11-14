@@ -160,6 +160,19 @@ type TrackerInfo struct {
 	HasCustomRules bool   `json:"hasCustomRules"`
 }
 
+// PieceLengthRange is an inclusive range of piece length exponents (2^n bytes).
+type PieceLengthRange struct {
+	Min uint `json:"min"`
+	Max uint `json:"max"`
+}
+
+// AllowedPieceLengths holds the allowed piece lengths for the Piece Length and
+// Max Piece Length fields of the create page.
+type AllowedPieceLengths struct {
+	PieceLength    PieceLengthRange `json:"pieceLength"`
+	MaxPieceLength PieceLengthRange `json:"maxPieceLength"`
+}
+
 // PresetInfo represents a preset configuration
 type PresetInfo struct {
 	Name    string          `json:"name"`
@@ -680,6 +693,24 @@ func (a *App) GetTrackerInfo(url string) *TrackerInfo {
 		DefaultSource:  rules.DefaultSource,
 		HasCustomRules: rules.MaxPieceLength > 0 || rules.MaxTorrentSize > 0 || rules.DefaultSource != "",
 	}
+}
+
+// GetAllowedPieceLengths returns the piece lengths that create accepts for the
+// first tracker. A target piece count of 0 means none is set.
+func (a *App) GetAllowedPieceLengths(trackerURL string, targetPieceCount uint) AllowedPieceLengths {
+	rules, _ := trackers.Lookup(trackerURL)
+	pieceMin, pieceMax := trackers.AllowedPieceLengths(rules, false)
+	maxMin, maxMax := trackers.AllowedPieceLengths(rules, targetPieceCount > 0)
+	return AllowedPieceLengths{
+		PieceLength:    PieceLengthRange{Min: pieceMin, Max: pieceMax},
+		MaxPieceLength: PieceLengthRange{Min: maxMin, Max: maxMax},
+	}
+}
+
+// GetPieceLengthRange returns the outer piece length range. The tracker rules
+// can narrow it.
+func (a *App) GetPieceLengthRange() PieceLengthRange {
+	return PieceLengthRange{Min: trackers.MinPieceExp, Max: trackers.MaxPieceExp}
 }
 
 // === Utility Functions ===

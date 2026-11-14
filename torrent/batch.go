@@ -14,6 +14,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/autobrr/mkbrr/internal/preset"
+	"github.com/autobrr/mkbrr/internal/trackers"
 )
 
 // BatchConfig represents the YAML configuration for batch torrent creation
@@ -140,16 +141,16 @@ func validateJob(job BatchJob) error {
 	}
 
 	s := job.normalizedSettings()
-	// create applies the stricter bounds for each tracker
-	if exp := s.PieceLengthExp; exp != nil && (*exp < 14 || *exp > 27) {
-		return errors.New("piece length must be between 14 and 27")
-	}
-
 	if s.PieceLengthExp != nil && s.TargetPieceCount != nil {
 		return errors.New("cannot set both piece_length and target_piece_count; use one or the other")
 	}
 
-	return nil
+	// batch jobs have no preset, so the job's tracker list is final
+	var rules trackers.Rules
+	if len(s.TrackerURLs) > 0 {
+		rules, _ = trackers.Lookup(s.TrackerURLs[0])
+	}
+	return checkExplicitPieceLength(s.PieceLengthExp, s.MaxPieceLength, s.TargetPieceCount != nil, rules, s.TrackerURLs)
 }
 
 func processJob(job BatchJob, verbose bool, quiet bool, infoOnly bool, version string) BatchResult {

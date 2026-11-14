@@ -14,6 +14,10 @@ export function FormatBytes(arg1:number):Promise<string>;
 
 export function GetAllPresets():Promise<main.PresetsResult>;
 
+export function GetAllowedPieceLengths(arg1:string,arg2:number):Promise<main.AllowedPieceLengths>;
+
+export function GetPieceLengthRange():Promise<main.PieceLengthRange>;
+
 export function GetPreset(arg1:string):Promise<preset.Options>;
 
 export function GetPresetFilePath():Promise<string>;

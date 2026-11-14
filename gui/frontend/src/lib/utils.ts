@@ -5,21 +5,19 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-// Piece length exponents (2^exp bytes)
-export const PIECE_LENGTHS = [
-  { value: 0, label: 'Auto' },
-  { value: 14, label: '16 KiB' },
-  { value: 15, label: '32 KiB' },
-  { value: 16, label: '64 KiB' },
-  { value: 17, label: '128 KiB' },
-  { value: 18, label: '256 KiB' },
-  { value: 19, label: '512 KiB' },
-  { value: 20, label: '1 MiB' },
-  { value: 21, label: '2 MiB' },
-  { value: 22, label: '4 MiB' },
-  { value: 23, label: '8 MiB' },
-  { value: 24, label: '16 MiB' },
-  { value: 25, label: '32 MiB' },
-  { value: 26, label: '64 MiB' },
-  { value: 27, label: '128 MiB' },
-];
+export function formatPieceSize(exp: number): string {
+  if (exp === 0) return '';
+  const size = Math.pow(2, exp);
+  if (size >= 1024 * 1024) return `${size / (1024 * 1024)} MiB`;
+  if (size >= 1024) return `${size / 1024} KiB`;
+  return `${size} B`;
+}
+
+export function pieceLengthOptions(range: { min: number; max: number } | null | undefined) {
+  const options: { value: number; label: string }[] = [];
+  if (!range) return options;
+  for (let exp = range.min; exp <= range.max; exp++) {
+    options.push({ value: exp, label: formatPieceSize(exp) });
+  }
+  return options;
+}

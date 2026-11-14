@@ -384,3 +384,103 @@ func Test_trackerConfigConsistency(t *testing.T) {
 		}
 	}
 }
+
+func TestPieceLengthBounds(t *testing.T) {
+	tests := []struct {
+		name           string
+		trackerURL     string
+		maxPieceLength *uint
+		targetCount    bool
+		wantMin        uint
+		wantMax        uint
+	}{
+		{
+			name:       "custom table without hard cap can grow to 128 MiB",
+			trackerURL: "https://portugas.org/announce/passkey",
+			wantMin:    14,
+			wantMax:    27,
+		},
+		{
+			name:           "user max lowers custom table ceiling",
+			trackerURL:     "https://portugas.org/announce/passkey",
+			maxPieceLength: new(uint(24)),
+			wantMin:        14,
+			wantMax:        24,
+		},
+		{
+			name:       "custom table keeps tracker hard cap",
+			trackerURL: "https://gazellegames.net/announce?passkey=123",
+			wantMin:    14,
+			wantMax:    26,
+		},
+		{
+			name:           "user max can lower a tracker hard cap",
+			trackerURL:     "https://gazellegames.net/announce?passkey=123",
+			maxPieceLength: new(uint(24)),
+			wantMin:        14,
+			wantMax:        24,
+		},
+		{
+			name:           "user max cannot exceed tracker hard cap",
+			trackerURL:     "https://gazellegames.net/announce?passkey=123",
+			maxPieceLength: new(uint(27)),
+			wantMin:        14,
+			wantMax:        26,
+		},
+		{
+			name:        "target piece count never goes below 64 KiB",
+			trackerURL:  "https://gazellegames.net/announce?passkey=123",
+			targetCount: true,
+			wantMin:     16,
+			wantMax:     26,
+		},
+		{
+			name:        "target piece count keeps the 16 MiB default ceiling",
+			trackerURL:  "https://portugas.org/announce/passkey",
+			targetCount: true,
+			wantMin:     16,
+			wantMax:     24,
+		},
+		{
+			name:       "default-range tracker keeps historical bounds",
+			trackerURL: "https://beyond-hd.me/announce?passkey=123",
+			wantMin:    16,
+			wantMax:    24,
+		},
+		{
+			name:       "no tracker rules allows the 32 KiB automatic mode picks",
+			trackerURL: "https://example.invalid/announce",
+			wantMin:    15,
+			wantMax:    24,
+		},
+		{
+			name:       "no tracker allows the 32 KiB automatic mode picks",
+			trackerURL: "",
+			wantMin:    15,
+			wantMax:    24,
+		},
+		{
+			name:        "target piece count with no tracker keeps 64 KiB",
+			trackerURL:  "",
+			targetCount: true,
+			wantMin:     16,
+			wantMax:     24,
+		},
+		{
+			name:           "no tracker cap lets user max raise the ceiling",
+			trackerURL:     "https://example.invalid/announce",
+			maxPieceLength: new(uint(26)),
+			wantMin:        15,
+			wantMax:        26,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rules, _ := Lookup(tt.trackerURL)
+			gotMin, gotMax := PieceLengthBounds(rules, tt.maxPieceLength, tt.targetCount)
+			assert.Equal(t, tt.wantMin, gotMin, "min")
+			assert.Equal(t, tt.wantMax, gotMax, "max")
+		})
+	}
+}
