@@ -284,12 +284,34 @@ export function CreatePage() {
     return () => clearTimeout(debounce);
   }, [firstTracker]);
 
+  // The form does not copy the preset target piece count, but create uses it when the form
+  // sets neither a piece length nor a target piece count.
+  const [presetTargetPieceCount, setPresetTargetPieceCount] = useState(0);
+  useEffect(() => {
+    if (!presetName) {
+      setPresetTargetPieceCount(0);
+      return;
+    }
+    let stale = false;
+    GetPreset(presetName)
+      .then((p) => {
+        if (!stale) setPresetTargetPieceCount((p as PresetOptions | null)?.targetPieceCount ?? 0);
+      })
+      .catch(() => {
+        if (!stale) setPresetTargetPieceCount(0);
+      });
+    return () => {
+      stale = true;
+    };
+  }, [presetName]);
+  const effectiveTargetPieceCount = targetPieceCount || (pieceLengthExp ? 0 : presetTargetPieceCount);
+
   // The reset below acts on this range, so wait until the tracker field stops changing.
   useEffect(() => {
     let stale = false;
     const debounce = setTimeout(async () => {
       try {
-        const next = await GetAllowedPieceLengths(firstTracker, targetPieceCount);
+        const next = await GetAllowedPieceLengths(firstTracker, effectiveTargetPieceCount);
         if (!stale) setAllowedPieceLengths(next);
       } catch (e) {
         if (!stale) toast.error('Failed to get the allowed piece lengths: ' + String(e));
@@ -299,7 +321,7 @@ export function CreatePage() {
       stale = true;
       clearTimeout(debounce);
     };
-  }, [firstTracker, targetPieceCount]);
+  }, [firstTracker, effectiveTargetPieceCount]);
 
   // The source field is an override, so put the tracker default source into it.
   // Replace the field only when it is empty or still holds the previous tracker default.
