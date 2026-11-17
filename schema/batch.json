@@ -83,7 +83,7 @@
           },
           "skip_prefix": {
             "type": "boolean",
-            "description": "Don't add tracker domain prefix to output filename",
+            "description": "Has no effect in a batch job. Batch mode never adds a filename prefix, because output gives the full filename.",
             "default": false
           },
           "entropy": {
