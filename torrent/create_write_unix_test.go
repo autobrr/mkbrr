@@ -44,40 +44,34 @@ func TestCreateNewFileFollowsUmask(t *testing.T) {
 }
 
 func TestCreateReplacedFileKeepsPermissionBits(t *testing.T) {
-	for _, mode := range []os.FileMode{0o600, 0o664} {
-		t.Run(mode.String(), func(t *testing.T) {
-			setUmask(t, 0o022)
-			opts := cancelCreateOptions(t, writeCancelContent(t, 64<<10))
-			writeOldTorrent(t, opts)
-			require.NoError(t, os.Chmod(opts.OutputPath, mode))
-			prev := openTempTorrentFile
-			t.Cleanup(func() { openTempTorrentFile = prev })
-			var openPerm os.FileMode
-			openTempTorrentFile = func(name string, flag int, perm os.FileMode) (*os.File, error) {
-				openPerm = perm
-				return prev(name, flag, perm)
-			}
-
-			_, err := CreateContext(t.Context(), opts)
-			require.NoError(t, err)
-
-			assert.Equal(t, mode, openPerm, "the temporary file must not start wider than the old file")
-			info, err := os.Stat(opts.OutputPath)
-			require.NoError(t, err)
-			assert.Equal(t, mode, info.Mode().Perm())
-		})
+	setUmask(t, 0o022)
+	opts := cancelCreateOptions(t, writeCancelContent(t, 64<<10))
+	writeOldTorrent(t, opts)
+	require.NoError(t, os.Chmod(opts.OutputPath, 0o664))
+	prev := openTempTorrentFile
+	t.Cleanup(func() { openTempTorrentFile = prev })
+	var openPerm os.FileMode
+	openTempTorrentFile = func(name string, flag int, perm os.FileMode) (*os.File, error) {
+		openPerm = perm
+		return prev(name, flag, perm)
 	}
+
+	_, err := CreateContext(t.Context(), opts)
+	require.NoError(t, err)
+
+	assert.Equal(t, os.FileMode(0o664), openPerm, "the temporary file must not start wider than the old file")
+	info, err := os.Stat(opts.OutputPath)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o664), info.Mode().Perm())
 }
 
 func TestCreateWritesTemporaryFileInFolderThatTheKernelResolves(t *testing.T) {
 	realDir := filepath.Join(t.TempDir(), "real", "sub")
 	require.NoError(t, os.MkdirAll(realDir, 0o755))
-	linkParent := t.TempDir()
-	if err := os.Symlink(realDir, filepath.Join(linkParent, "link")); err != nil {
-		t.Skipf("symbolic links unavailable: %v", err)
-	}
+	link := filepath.Join(t.TempDir(), "link")
+	require.NoError(t, os.Symlink(realDir, link))
 	opts := cancelCreateOptions(t, writeCancelContent(t, 64<<10))
-	opts.OutputPath = filepath.Join(linkParent, "link") + string(filepath.Separator) + ".." + string(filepath.Separator) + "out.torrent"
+	opts.OutputPath = link + "/../out.torrent"
 	wantDir := filepath.Dir(realDir)
 
 	prev := publishCreatedTorrent

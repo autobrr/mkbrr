@@ -4,7 +4,6 @@
 package torrent
 
 import (
-	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -47,19 +46,6 @@ func TestCreateReplacesExistingFile(t *testing.T) {
 	got, err := os.ReadFile(opts.OutputPath)
 	require.NoError(t, err)
 	assert.NotEqual(t, oldTorrentBytes, got)
-	assertOnlyOutputInFolder(t, opts)
-}
-
-func TestCreateKeepsExistingFileWhenStopped(t *testing.T) {
-	ctx, rec := cancelOnLastPiece(t)
-	opts := cancelCreateOptions(t, writeCancelContent(t, 256<<10))
-	opts.ProgressCallback = rec.callback
-	writeOldTorrent(t, opts)
-
-	_, err := CreateContext(ctx, opts)
-
-	require.ErrorIs(t, err, context.Canceled)
-	assertOldTorrent(t, opts)
 	assertOnlyOutputInFolder(t, opts)
 }
 

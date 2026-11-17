@@ -199,13 +199,15 @@ func TestContextFunctionsCancelOnLastPiece(t *testing.T) {
 		ctx, rec := cancelOnLastPiece(t)
 		opts := cancelCreateOptions(t, content)
 		opts.ProgressCallback = rec.callback
+		writeOldTorrent(t, opts)
 
 		info, err := CreateContext(ctx, opts)
 		rec.finish(t)
 		if info != nil || !errors.Is(err, context.Canceled) {
 			t.Fatalf("CreateContext = %v, %v, want nil, context.Canceled", info, err)
 		}
-		assertNoFile(t, opts.OutputPath)
+		assertOldTorrent(t, opts)
+		assertOnlyOutputInFolder(t, opts)
 	})
 
 	t.Run("CreateTorrentContext", func(t *testing.T) {

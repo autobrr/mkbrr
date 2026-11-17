@@ -5,6 +5,7 @@ package torrent
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -760,7 +761,7 @@ func writeTorrentFile(t *Torrent, outputPath string) error {
 	old, err := os.Lstat(outputPath)
 	replacing := err == nil && old.Mode().IsRegular()
 	if replacing {
-		// The rename needs write access only to the folder, so check the file itself.
+		// Renaming does not require opening the old file for reading and writing.
 		probe, err := os.OpenFile(outputPath, os.O_RDWR, 0)
 		if err != nil {
 			return fmt.Errorf("error creating output file: %w", err)
@@ -782,10 +783,8 @@ func writeTorrentFile(t *Torrent, outputPath string) error {
 	if err == nil {
 		err = f.Sync()
 	}
-	if closeErr := f.Close(); err == nil {
-		err = closeErr
-	}
-	if err == nil {
+	closeErr := f.Close()
+	if err = cmp.Or(err, closeErr); err == nil {
 		err = publishCreatedTorrent(f.Name(), outputPath, true)
 	}
 	if err != nil {
