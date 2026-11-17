@@ -755,7 +755,7 @@ var publishCreatedTorrent = publishTorrentFile
 // writeTorrentFile replaces outputPath only with a complete file, so a stop or
 // a failed write leaves an existing file as it was.
 func writeTorrentFile(t *Torrent, outputPath string) error {
-	f, err := createTempTorrentFile(filepath.Dir(outputPath))
+	f, err := createTempTorrentFile(outputPath)
 	if err != nil {
 		return fmt.Errorf("error creating output file: %w", err)
 	}
@@ -801,10 +801,13 @@ func matchExistingFile(f *os.File, outputPath string) error {
 	return f.Chmod(old.Mode().Perm())
 }
 
-// createTempTorrentFile names the file so that a torrent client that watches
-// dir for .torrent files does not load it. Mode 0666 lets the umask apply.
-func createTempTorrentFile(dir string) (*os.File, error) {
-	return os.OpenFile(filepath.Join(dir, ".mkbrr-"+rand.Text()+".tmp"), os.O_RDWR|os.O_CREATE|os.O_EXCL, 0o666)
+// createTempTorrentFile creates a file in the folder of outputPath. The name
+// keeps a torrent client that watches the folder for .torrent files from
+// loading it. The parent stays as given, because a cleaned "link/.." can name a
+// folder on another filesystem. Mode 0666 lets the umask apply.
+func createTempTorrentFile(outputPath string) (*os.File, error) {
+	dir, _ := filepath.Split(outputPath)
+	return os.OpenFile(dir+".mkbrr-"+rand.Text()+".tmp", os.O_RDWR|os.O_CREATE|os.O_EXCL, 0o666)
 }
 
 // createOutputPath must not read the disk, so that a plan can give the path without a create.
