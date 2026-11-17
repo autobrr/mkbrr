@@ -7,6 +7,7 @@ package torrent
 
 import (
 	"os"
+	"path/filepath"
 	"syscall"
 	"testing"
 
@@ -70,4 +71,31 @@ func TestCreateKeepsReadOnlyFile(t *testing.T) {
 	require.ErrorIs(t, err, os.ErrPermission)
 	assertOldTorrent(t, opts)
 	assertOnlyOutputInFolder(t, opts)
+}
+
+func TestCreateWritesTemporaryFileInFolderThatTheKernelResolves(t *testing.T) {
+	realDir := filepath.Join(t.TempDir(), "real", "sub")
+	require.NoError(t, os.MkdirAll(realDir, 0o755))
+	linkParent := t.TempDir()
+	if err := os.Symlink(realDir, filepath.Join(linkParent, "link")); err != nil {
+		t.Skipf("symbolic links unavailable: %v", err)
+	}
+	opts := cancelCreateOptions(t, writeCancelContent(t, 64<<10))
+	opts.OutputPath = filepath.Join(linkParent, "link") + string(filepath.Separator) + ".." + string(filepath.Separator) + "out.torrent"
+	wantDir := filepath.Dir(realDir)
+
+	prev := publishCreatedTorrent
+	t.Cleanup(func() { publishCreatedTorrent = prev })
+	var tempInWantDir bool
+	publishCreatedTorrent = func(temp, out string, replace bool) error {
+		_, err := os.Stat(filepath.Join(wantDir, filepath.Base(temp)))
+		tempInWantDir = err == nil
+		return prev(temp, out, replace)
+	}
+
+	_, err := CreateContext(t.Context(), opts)
+	require.NoError(t, err)
+
+	assert.True(t, tempInWantDir, "temporary file must be in %s", wantDir)
+	assert.FileExists(t, filepath.Join(wantDir, "out.torrent"))
 }
