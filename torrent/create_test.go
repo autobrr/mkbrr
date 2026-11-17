@@ -19,7 +19,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/autobrr/mkbrr/internal/preset"
 	"github.com/autobrr/mkbrr/internal/trackers"
 )
 
@@ -687,108 +686,86 @@ func TestCreateTorrent_SingleFilePatterns(t *testing.T) {
 	}
 }
 
-func TestCreateTorrent_OutputDirPriority(t *testing.T) {
-	// Setup temporary directories for test
-	tmpDir, err := os.MkdirTemp("", "mkbrr-create-test")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
+func TestCreateOutputPath(t *testing.T) {
+	const tracker = "https://tracker.example.org/announce"
+	const tracker2 = "https://tracker2.example.net/announce"
+	content := filepath.Join("data", "Movie")
 
-	// Create a non-empty file in the temp directory for the torrent content
-	dummyFilePath := filepath.Join(tmpDir, "dummy.txt")
-	if err := os.WriteFile(dummyFilePath, []byte("test content"), 0644); err != nil {
-		t.Fatalf("Failed to create dummy file: %v", err)
-	}
-
-	// Create preset file
-	presetDir := filepath.Join(tmpDir, "presets")
-	if err := os.Mkdir(presetDir, 0755); err != nil {
-		t.Fatalf("Failed to create presets dir: %v", err)
-	}
-	presetPath := filepath.Join(presetDir, "presets.yaml")
-	presetConfig := `version: 1
-presets:
-  test:
-    output_dir: "` + filepath.ToSlash(filepath.Join(tmpDir, "preset_output")) + `"
-    private: true
-    source: "TEST"
-`
-	if err := os.WriteFile(presetPath, []byte(presetConfig), 0644); err != nil {
-		t.Fatalf("Failed to write preset config: %v", err)
-	}
-
-	// Create the output directories
-	cmdLineOutputDir := filepath.Join(tmpDir, "cmdline_output")
-	presetOutputDir := filepath.Join(tmpDir, "preset_output")
-	if err := os.Mkdir(cmdLineOutputDir, 0755); err != nil {
-		t.Fatalf("Failed to create cmdline output dir: %v", err)
-	}
-	if err := os.Mkdir(presetOutputDir, 0755); err != nil {
-		t.Fatalf("Failed to create preset output dir: %v", err)
-	}
-
-	// Test cases
 	tests := []struct {
-		name           string
-		opts           CreateOptions
-		expectedOutDir string
+		name string
+		opts CreateOptions
+		want string
 	}{
 		{
-			name: "Command-line OutputDir should take precedence",
-			opts: CreateOptions{
-				Path:      tmpDir,
-				OutputDir: cmdLineOutputDir,
-				IsPrivate: true,
-				NoDate:    true,
-				NoCreator: true,
-			},
-			expectedOutDir: cmdLineOutputDir,
+			name: "default filename is the base name of the content path",
+			opts: CreateOptions{Path: content},
+			want: "Movie.torrent",
 		},
 		{
-			name: "Preset OutputDir should be used when no command-line OutputDir",
-			opts: CreateOptions{
-				Path:      tmpDir,
-				OutputDir: "", // empty to simulate preset usage
-				IsPrivate: true,
-				NoDate:    true,
-				NoCreator: true,
-			},
-			expectedOutDir: presetOutputDir,
+			name: "default filename of a single file keeps its extension",
+			opts: CreateOptions{Path: filepath.Join("data", "Movie.mkv")},
+			want: "Movie.mkv.torrent",
+		},
+		{
+			name: "default filename ignores a trailing separator",
+			opts: CreateOptions{Path: content + string(filepath.Separator)},
+			want: "Movie.torrent",
+		},
+		{
+			name: "name sets the default filename",
+			opts: CreateOptions{Path: content, Name: "Custom"},
+			want: "Custom.torrent",
+		},
+		{
+			name: "one tracker adds the filename prefix",
+			opts: CreateOptions{Path: content, TrackerURLs: []string{tracker}},
+			want: "example_Movie.torrent",
+		},
+		{
+			name: "one tracker adds the filename prefix before the name",
+			opts: CreateOptions{Path: content, Name: "Custom", TrackerURLs: []string{tracker}},
+			want: "example_Custom.torrent",
+		},
+		{
+			name: "two trackers add no filename prefix",
+			opts: CreateOptions{Path: content, TrackerURLs: []string{tracker, tracker2}},
+			want: "Movie.torrent",
+		},
+		{
+			name: "skip prefix drops the filename prefix",
+			opts: CreateOptions{Path: content, TrackerURLs: []string{tracker}, SkipPrefix: true},
+			want: "Movie.torrent",
+		},
+		{
+			name: "output path gets .torrent at the end",
+			opts: CreateOptions{Path: content, OutputPath: filepath.Join("out", "custom")},
+			want: filepath.Join("out", "custom.torrent"),
+		},
+		{
+			name: "output path that ends in .torrent stays as given",
+			opts: CreateOptions{Path: content, OutputPath: "custom.torrent"},
+			want: "custom.torrent",
+		},
+		{
+			name: "output path gets no filename prefix",
+			opts: CreateOptions{Path: content, Name: "Custom", OutputPath: "custom", TrackerURLs: []string{tracker}},
+			want: "custom.torrent",
+		},
+		{
+			name: "output folder holds the default filename",
+			opts: CreateOptions{Path: content, OutputDir: "out", TrackerURLs: []string{tracker}},
+			want: filepath.Join("out", "example_Movie.torrent"),
+		},
+		{
+			name: "output folder drops the output path",
+			opts: CreateOptions{Path: content, OutputDir: "out", OutputPath: "custom.torrent", TrackerURLs: []string{tracker}},
+			want: filepath.Join("out", "example_Movie.torrent"),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// For the preset test case, we need to simulate the preset loading
-			if tt.name == "Preset OutputDir should be used when no command-line OutputDir" {
-				// Load preset options and apply them
-				presetOpts, err := preset.LoadPresetOptions(presetPath, "test")
-				if err != nil {
-					t.Fatalf("Failed to load preset options: %v", err)
-				}
-
-				// Apply preset OutputDir if command-line OutputDir is empty
-				if tt.opts.OutputDir == "" && presetOpts.OutputDir != "" {
-					tt.opts.OutputDir = presetOpts.OutputDir
-				}
-			}
-
-			result, err := Create(tt.opts)
-			if err != nil {
-				t.Fatalf("Create failed: %v", err)
-			}
-
-			// Verify the output path contains the expected directory
-			dir := filepath.Dir(result.Path)
-			if dir != tt.expectedOutDir {
-				t.Errorf("Expected output directory %q, got %q", tt.expectedOutDir, dir)
-			}
-
-			// Verify the file was actually created in the expected directory
-			if _, err := os.Stat(result.Path); os.IsNotExist(err) {
-				t.Errorf("Output file wasn't created at expected path: %s", result.Path)
-			}
+			assert.Equal(t, tt.want, createOutputPath(tt.opts))
 		})
 	}
 }
@@ -835,30 +812,20 @@ func TestCreate_MultipleTrackers(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pieceLenExp := uint(16)
-			outputPath := filepath.Join(tmpDir, tt.name+".torrent")
-
 			opts := CreateOptions{
 				Path:           tmpDir,
 				TrackerURLs:    tt.trackers,
-				OutputPath:     outputPath,
 				IsPrivate:      true,
 				NoCreator:      true,
 				NoDate:         true,
-				PieceLengthExp: &pieceLenExp,
+				PieceLengthExp: new(uint(16)),
 			}
 
-			// Create the torrent
-			result, err := Create(opts)
+			tor, err := CreateTorrent(opts)
 			if err != nil {
-				t.Fatalf("Create() failed: %v", err)
+				t.Fatalf("CreateTorrent() failed: %v", err)
 			}
-
-			// Load the created torrent file
-			mi, err := metainfo.LoadFromFile(result.Path)
-			if err != nil {
-				t.Fatalf("Failed to load created torrent file: %v", err)
-			}
+			mi := tor.MetaInfo
 
 			// Check announce URL
 			if mi.Announce != tt.expectedAnnounce {
@@ -886,325 +853,60 @@ func TestCreate_MultipleTrackers(t *testing.T) {
 					t.Errorf("Expected empty announce list, got %v", mi.AnnounceList)
 				}
 			}
-
-			// Check result announce field
-			if result.Announce != tt.expectedAnnounce {
-				t.Errorf("Expected result announce %q, got %q", tt.expectedAnnounce, result.Announce)
-			}
-		})
-	}
-}
-
-func TestCreate_UsesCustomNameForOutputPath(t *testing.T) {
-	t.Parallel()
-
-	const customName = "CustomShow"
-	content := []byte("tiny sample so the test stays fast")
-
-	cases := []struct {
-		scenario string
-		trackers []string
-		wantFile string
-	}{
-		{
-			scenario: "when I pick a custom name without any tracker, the torrent file should use it",
-			trackers: nil,
-			wantFile: customName + ".torrent",
-		},
-		{
-			scenario: "when I pick a custom name and add a tracker, the tracker prefix should still keep my name",
-			trackers: []string{"https://tracker.example.com/announce"},
-			wantFile: "example_" + customName + ".torrent",
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.scenario, func(t *testing.T) {
-			t.Parallel()
-
-			workspace := t.TempDir()
-			inputPath := filepath.Join(workspace, "video.mkv")
-			if err := os.WriteFile(inputPath, content, 0644); err != nil {
-				t.Fatalf("failed to write input file: %v", err)
-			}
-
-			outputDir := filepath.Join(workspace, "out")
-			opts := CreateOptions{
-				Path:        inputPath,
-				Name:        customName,
-				TrackerURLs: tc.trackers,
-				OutputDir:   outputDir,
-				Quiet:       true,
-			}
-
-			info, err := Create(opts)
-			if err != nil {
-				t.Fatalf("Create returned error: %v", err)
-			}
-
-			gotFile := filepath.Base(info.Path)
-			if gotFile != tc.wantFile {
-				t.Fatalf("expected torrent output %q, got %q", tc.wantFile, gotFile)
-			}
-
-			if _, err := os.Stat(info.Path); err != nil {
-				t.Fatalf("expected torrent file to exist at %q, got error: %v", info.Path, err)
-			}
 		})
 	}
 }
 
 func TestCreate_NameArgument(t *testing.T) {
-	tracker := "https://unknown.customtracker.com/announce"
-	tracker2 := "https://unknown.customtracker2.com/announce"
-
-	// Create temporary directory
-	testDir, err := os.MkdirTemp("", "mkbrr-create-TestCreate-NameArgument-*")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	baseDir := filepath.Base(testDir)
-	defer os.RemoveAll(testDir)
-
-	// Create test files
-	filename := "test.txt"
-	testFile := filepath.Join(testDir, filename)
+	testDir := t.TempDir()
+	testFile := filepath.Join(testDir, "test.txt")
 	if err := os.WriteFile(testFile, []byte("create test with -name argument"), 0644); err != nil {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
-	filename2 := "test2.txt"
-	testFile2 := filepath.Join(testDir, filename2)
-	if err := os.WriteFile(testFile2, []byte("create test with -name argument #2"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(testDir, "test2.txt"), []byte("create test with -name argument #2"), 0644); err != nil {
 		t.Fatalf("Failed to create test file2: %v", err)
 	}
 
-	// Test cases
 	tests := []struct {
-		name             string
-		opts             CreateOptions
-		expectedName     string
-		expectedFilename string
+		name         string
+		opts         CreateOptions
+		expectedName string
 	}{
 		{
-			name: "Single file with no --name argument --skip-prefix not present no -o",
-			opts: CreateOptions{
-				Path:        testFile,
-				TrackerURLs: []string{tracker},
-				SkipPrefix:  false,
-				Quiet:       true,
-			},
-			expectedName:     filename,
-			expectedFilename: "customtracker_" + filename + ".torrent",
+			name:         "Single file with no --name argument",
+			opts:         CreateOptions{Path: testFile},
+			expectedName: "test.txt",
 		},
 		{
-			name: "Single file with no --name argument --skip-prefix present -o supplied",
-			opts: CreateOptions{
-				Path:        testFile,
-				OutputPath:  filepath.Join(testDir, "customfilename"),
-				TrackerURLs: []string{tracker},
-				SkipPrefix:  true,
-				Quiet:       true,
-			},
-			expectedName:     filename,
-			expectedFilename: "customfilename.torrent",
+			name:         "Single file with --name argument",
+			opts:         CreateOptions{Path: testFile, Name: "customname"},
+			expectedName: "customname",
 		},
 		{
-			name: "Single file with --name argument --skip-prefix not present no -o",
-			opts: CreateOptions{
-				Path:        testFile,
-				Name:        "customname",
-				TrackerURLs: []string{tracker},
-				SkipPrefix:  false,
-				Quiet:       true,
-			},
-			expectedName:     "customname",
-			expectedFilename: "customtracker_customname.torrent",
+			name:         "Multiple files with no --name argument",
+			opts:         CreateOptions{Path: testDir},
+			expectedName: filepath.Base(testDir),
 		},
 		{
-			name: "Single file with --name argument --skip-prefix present -o supplied, (-o overrides --skip-prefix)",
-			opts: CreateOptions{
-				Path:        testFile,
-				Name:        "customname",
-				OutputPath:  filepath.Join(testDir, "customfilename"),
-				TrackerURLs: []string{tracker},
-				SkipPrefix:  true,
-				Quiet:       true,
-			},
-			expectedName:     "customname",
-			expectedFilename: "customfilename.torrent",
-		},
-		{
-			name: "Single file with --name argument --skip-prefix not present -o supplied",
-			opts: CreateOptions{
-				Path:        testFile,
-				Name:        "customname",
-				OutputPath:  filepath.Join(testDir, "customfilename"),
-				TrackerURLs: []string{tracker},
-				SkipPrefix:  false,
-				Quiet:       true,
-			},
-			expectedName:     "customname",
-			expectedFilename: "customfilename.torrent",
-		},
-		{
-			name: "Single file multiple trackers no --name argument --skip-prefix not present -o supplied",
-			opts: CreateOptions{
-				Path:        testFile,
-				OutputPath:  filepath.Join(testDir, "customfilename"),
-				TrackerURLs: []string{tracker, tracker2},
-				SkipPrefix:  false,
-				Quiet:       true,
-			},
-			expectedName:     filename,
-			expectedFilename: "customfilename.torrent",
-		},
-		{
-			name: "Single file multiple trackers no --name argument --skip-prefix present no -o",
-			opts: CreateOptions{
-				Path:        testFile,
-				TrackerURLs: []string{tracker, tracker2},
-				SkipPrefix:  true,
-				Quiet:       true,
-			},
-			expectedName:     filename,
-			expectedFilename: filename + ".torrent",
-		},
-		{
-			name: "Single file multiple trackers with --name argument --skip-prefix not present -o supplied",
-			opts: CreateOptions{
-				Path:        testFile,
-				Name:        "customname",
-				OutputPath:  filepath.Join(testDir, "customfilename"),
-				TrackerURLs: []string{tracker, tracker2},
-				SkipPrefix:  false,
-				Quiet:       true,
-			},
-			expectedName:     "customname",
-			expectedFilename: "customfilename.torrent",
-		},
-		{
-			name: "Single file multiple trackers with --name argument --skip-prefix present no -o",
-			opts: CreateOptions{
-				Path:        testFile,
-				Name:        "customname",
-				TrackerURLs: []string{tracker, tracker2},
-				SkipPrefix:  true,
-				Quiet:       true,
-			},
-			expectedName:     "customname",
-			expectedFilename: "customname.torrent",
-		},
-		{
-			name: "Multiple files no --name argument no --skip-prefix no -o",
-			opts: CreateOptions{
-				Path:        testDir,
-				TrackerURLs: []string{tracker},
-				SkipPrefix:  false,
-				Quiet:       true,
-			},
-			expectedName:     baseDir,
-			expectedFilename: "customtracker_" + baseDir + ".torrent",
-		},
-		{
-			name: "Multiple files no --name argument --skip-prefix present -o supplied",
-			opts: CreateOptions{
-				Path:        testDir,
-				OutputPath:  filepath.Join(testDir, "customfilename"),
-				TrackerURLs: []string{tracker},
-				SkipPrefix:  true,
-				Quiet:       true,
-			},
-			expectedName:     baseDir,
-			expectedFilename: "customfilename.torrent",
-		},
-		{
-			name: "Multiple files with --name argument no --skip-prefix no -o",
-			opts: CreateOptions{
-				Path:        testDir,
-				Name:        "customname",
-				TrackerURLs: []string{tracker},
-				SkipPrefix:  false,
-				Quiet:       true,
-			},
-			expectedName:     "customname",
-			expectedFilename: "customtracker_customname.torrent",
-		},
-		{
-			name: "Multiple files with --name argument --skip-prefix present no -o",
-			opts: CreateOptions{
-				Path:        testDir,
-				Name:        "customname",
-				TrackerURLs: []string{tracker},
-				SkipPrefix:  true,
-				Quiet:       true,
-			},
-			expectedName:     "customname",
-			expectedFilename: "customname.torrent",
-		},
-		{
-			name: "Multiple files with --name argument no --skip-prefix -o supplied",
-			opts: CreateOptions{
-				Path:        testDir,
-				Name:        "customname",
-				OutputPath:  filepath.Join(testDir, "customfilename"),
-				TrackerURLs: []string{tracker},
-				SkipPrefix:  false,
-				Quiet:       true,
-			},
-			expectedName:     "customname",
-			expectedFilename: "customfilename.torrent",
-		},
-		{
-			name: "Multiple files multiple trackers with --name argument no --skip-prefix no -o",
-			opts: CreateOptions{
-				Path:        testDir,
-				Name:        "customname",
-				TrackerURLs: []string{tracker, tracker2},
-				SkipPrefix:  false,
-				Quiet:       true,
-			},
-			expectedName:     "customname",
-			expectedFilename: "customname.torrent",
+			name:         "Multiple files with --name argument",
+			opts:         CreateOptions{Path: testDir, Name: "customname"},
+			expectedName: "customname",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create the torrent
-			result, err := Create(tt.opts)
+			tt.opts.TrackerURLs = []string{"https://unknown.customtracker.com/announce"}
+			tt.opts.Quiet = true
+
+			tor, err := CreateTorrent(tt.opts)
 			if err != nil {
-				t.Fatalf("Create() failed: %v", err)
+				t.Fatalf("CreateTorrent() failed: %v", err)
 			}
 
-			// Verify the file was actually created
-			if _, err := os.Stat(result.Path); err != nil {
-				t.Fatalf("Created torrent file does not exist: %v", err)
+			if got := tor.GetInfo().Name; got != tt.expectedName {
+				t.Fatalf("Expected torrent name %q, got %q", tt.expectedName, got)
 			}
-
-			// Load the created torrent file
-			mi, err := metainfo.LoadFromFile(result.Path)
-			if err != nil {
-				t.Fatalf("Failed to load created torrent file: %v", err)
-			}
-
-			info, err := mi.UnmarshalInfo()
-			if err != nil {
-				t.Fatalf("Failed to unmarshal info from created torrent: %v", err)
-			}
-
-			// Check the name
-			if info.Name != tt.expectedName {
-				t.Fatalf("Expected torrent name %q, got %q", tt.expectedName, info.Name)
-			}
-
-			// Check the output filename
-			createdFilename := filepath.Base(result.Path)
-			if createdFilename != tt.expectedFilename {
-				t.Fatalf("Expected output filename %q, got %q", tt.expectedFilename, createdFilename)
-			}
-
-			t.Logf("Torrent created with name %q and filename %q as expected.", info.Name, createdFilename)
-			os.Remove(result.Path) // best-effort cleanup; defer handles the rest
 		})
 	}
 }
@@ -1407,6 +1109,7 @@ func TestCreateResultReportsSizeFilesPiecesAndSeasonPack(t *testing.T) {
 		info, err := Create(CreateOptions{
 			Path:           path,
 			OutputDir:      filepath.Join(dir, "out"),
+			TrackerURLs:    []string{"https://tracker1.example.invalid/announce", "https://tracker2.example.invalid/announce"},
 			PieceLengthExp: new(uint(16)), // 64 KiB pieces
 			NoCreator:      true,
 			NoDate:         true,
@@ -1416,6 +1119,7 @@ func TestCreateResultReportsSizeFilesPiecesAndSeasonPack(t *testing.T) {
 		require.Equal(t, int64(150*1024), info.Size)
 		require.Equal(t, 1, info.Files)
 		require.Equal(t, 3, info.PieceCount)
+		require.Equal(t, "https://tracker1.example.invalid/announce", info.Announce)
 		require.False(t, info.SeasonPack.IsSeasonPack)
 	})
 
@@ -1440,6 +1144,7 @@ func TestCreateResultReportsSizeFilesPiecesAndSeasonPack(t *testing.T) {
 		require.Equal(t, int64(200*1024), info.Size)
 		require.Equal(t, 2, info.Files)
 		require.Equal(t, 4, info.PieceCount)
+		require.Empty(t, info.Announce)
 		// the excluded E05 is not in the torrent, so only E02 is missing
 		require.Equal(t, &SeasonPackInfo{
 			Episodes:        []int{1, 3},
