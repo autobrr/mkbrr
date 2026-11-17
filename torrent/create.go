@@ -5,6 +5,7 @@ package torrent
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -739,14 +740,8 @@ func createRun(ctx context.Context, opts CreateOptions) (*Torrent, *TorrentInfo,
 		return nil, nil, err
 	}
 
-	f, err := os.Create(outputPath)
-	if err != nil {
-		return nil, nil, fmt.Errorf("error creating output file: %w", err)
-	}
-	defer f.Close()
-
-	if err := t.Write(f); err != nil {
-		return nil, nil, fmt.Errorf("error writing torrent file: %w", err)
+	if err := writeTorrentFile(t, outputPath); err != nil {
+		return nil, nil, err
 	}
 
 	torrentInfo := newTorrentInfo(t, outputPath, seasonInfo)
@@ -754,6 +749,53 @@ func createRun(ctx context.Context, opts CreateOptions) (*Torrent, *TorrentInfo,
 		torrentInfo.Announce = opts.TrackerURLs[0]
 	}
 	return t, torrentInfo, nil
+}
+
+var (
+	publishCreatedTorrent = publishTorrentFile
+	openTempTorrentFile   = os.OpenFile
+)
+
+func writeTorrentFile(t *Torrent, outputPath string) error {
+	perm := os.FileMode(0o666)
+	old, err := os.Lstat(outputPath)
+	replacing := err == nil && old.Mode().IsRegular()
+	if replacing {
+		// Renaming does not require opening the old file for reading and writing.
+		probe, err := os.OpenFile(outputPath, os.O_RDWR, 0)
+		if err != nil {
+			return fmt.Errorf("error creating output file: %w", err)
+		}
+		_ = probe.Close()
+		// Another user who opens a wider temporary file keeps that handle after a chmod.
+		perm = old.Mode().Perm()
+	}
+	f, err := createTempTorrentFile(outputPath, perm)
+	if err != nil {
+		return fmt.Errorf("error creating output file: %w", err)
+	}
+	if replacing {
+		err = f.Chmod(perm)
+	}
+	if err == nil {
+		err = t.Write(f)
+	}
+	if err == nil {
+		err = f.Sync()
+	}
+	if err = cmp.Or(err, f.Close()); err == nil {
+		err = publishCreatedTorrent(f.Name(), outputPath, true)
+	}
+	if err != nil {
+		return errors.Join(fmt.Errorf("error writing torrent file %q: %w", outputPath, err), os.Remove(f.Name()))
+	}
+	return nil
+}
+
+// createTempTorrentFile keeps the parent as given, because a cleaned "link/.." can name another filesystem.
+func createTempTorrentFile(outputPath string, perm os.FileMode) (*os.File, error) {
+	dir, _ := filepath.Split(outputPath)
+	return openTempTorrentFile(dir+".mkbrr-"+rand.Text()+".tmp", os.O_RDWR|os.O_CREATE|os.O_EXCL, perm)
 }
 
 // createOutputPath must not read the disk, so that a plan can give the path without a create.
