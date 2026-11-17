@@ -142,7 +142,7 @@ jobs:
   <Card title="Required Fields" icon="asterisk">
     - **version**: Must be `1`
     - **jobs**: List of torrent creation tasks
-    - **output**: Path and filename for the `.torrent` file
+    - **output**: Path and filename for the `.torrent` file. If the filename does not end in `.torrent`, mkbrr adds `.torrent` to it
     - **path**: Source file/directory path
   </Card>
   <Card title="Optional Settings" icon="question">
@@ -165,7 +165,7 @@ In mkbrr v1.26.0 and earlier, a job without `private` made a public torrent. Now
 - **entropy**: Set `true` to randomize info hash for cross-seeding
 - **no_date**: Set `true` to omit creation date
 - **no_creator**: Set `true` to omit the creator string
-- **skip_prefix**: Has no effect in a batch job. Batch mode never adds a filename prefix, because `output` gives the full filename. mkbrr accepts the key, so a batch file that sets it still works.
+- **skip_prefix**: Has no effect in a batch job. Batch mode never adds a filename prefix, because `output` gives the filename. mkbrr accepts the key, so a batch file that sets it still works.
 - **fail_on_season_warning**: Set `true` to exit with error on missing episodes in season packs
 - **exclude_patterns**: Glob patterns to exclude files
 - **include_patterns**: Glob patterns to include files

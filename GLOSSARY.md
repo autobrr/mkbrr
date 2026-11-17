@@ -45,5 +45,5 @@ _Avoid_: strip, delete
 ## Output
 
 **Filename prefix**:
-The text that mkbrr puts before the output .torrent filename, followed by `_`. In create, it is the tracker domain. In modify, it is the preset name when a preset is given. Otherwise, it is the domain of the first `--tracker` URL, or `modified` when there is no `--tracker`. `skip_prefix` removes it. Batch mode never adds it, because the `output` of a batch job gives the full filename.
+The text that mkbrr puts before the output .torrent filename, followed by `_`. In create, it is the tracker domain. In modify, it is the preset name when a preset is given. Otherwise, it is the domain of the first `--tracker` URL, or `modified` when there is no `--tracker`. `skip_prefix` removes it. Batch mode never adds it, because the `output` of a batch job gives the filename.
 _Avoid_: tracker prefix, domain prefix
