@@ -6,6 +6,7 @@
 package torrent
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -56,6 +57,37 @@ func TestCreateReplacedFileKeepsPermissionBits(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, os.FileMode(0o640), info.Mode().Perm())
 	assertOnlyOutputInFolder(t, opts)
+}
+
+func TestCreateTemporaryFileStartsNoWiderThanReplacedFile(t *testing.T) {
+	setUmask(t, 0o022)
+	opts := cancelCreateOptions(t, writeCancelContent(t, 64<<10))
+	writeOldTorrent(t, opts)
+	require.NoError(t, os.Chmod(opts.OutputPath, 0o600))
+
+	prev := openTempTorrentFile
+	t.Cleanup(func() { openTempTorrentFile = prev })
+	var createdPerm os.FileMode
+	openTempTorrentFile = func(name string, flag int, perm os.FileMode) (*os.File, error) {
+		f, err := prev(name, flag, perm)
+		if err != nil {
+			return nil, err
+		}
+		info, err := f.Stat()
+		if err != nil {
+			return nil, errors.Join(err, f.Close())
+		}
+		createdPerm = info.Mode().Perm()
+		return f, nil
+	}
+
+	_, err := CreateContext(t.Context(), opts)
+	require.NoError(t, err)
+
+	assert.Equal(t, os.FileMode(0o600), createdPerm)
+	info, err := os.Stat(opts.OutputPath)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
 }
 
 func TestCreateKeepsReadOnlyFile(t *testing.T) {

@@ -750,17 +750,24 @@ func createRun(ctx context.Context, opts CreateOptions) (*Torrent, *TorrentInfo,
 	return t, torrentInfo, nil
 }
 
-var publishCreatedTorrent = publishTorrentFile
+var (
+	publishCreatedTorrent = publishTorrentFile
+	openTempTorrentFile   = os.OpenFile
+)
 
 // writeTorrentFile replaces outputPath only with a complete file, so a stop or
 // a failed write leaves an existing file as it was.
 func writeTorrentFile(t *Torrent, outputPath string) error {
-	f, err := createTempTorrentFile(outputPath)
+	old, err := os.Lstat(outputPath)
+	if err != nil || !old.Mode().IsRegular() {
+		old = nil
+	}
+	f, err := createTempTorrentFile(outputPath, old)
 	if err != nil {
 		return fmt.Errorf("error creating output file: %w", err)
 	}
 	tempPath := f.Name()
-	if err := fillTempTorrentFile(f, t, outputPath); err != nil {
+	if err := fillTempTorrentFile(f, t, outputPath, old); err != nil {
 		return errors.Join(fmt.Errorf("error writing torrent file: %w", err), os.Remove(tempPath))
 	}
 	if err := publishCreatedTorrent(tempPath, outputPath, true); err != nil {
@@ -769,8 +776,8 @@ func writeTorrentFile(t *Torrent, outputPath string) error {
 	return nil
 }
 
-func fillTempTorrentFile(f *os.File, t *Torrent, outputPath string) error {
-	err := matchExistingFile(f, outputPath)
+func fillTempTorrentFile(f *os.File, t *Torrent, outputPath string, old os.FileInfo) error {
+	err := matchExistingFile(f, outputPath, old)
 	if err == nil {
 		err = t.Write(f)
 	}
@@ -783,9 +790,8 @@ func fillTempTorrentFile(f *os.File, t *Torrent, outputPath string) error {
 	return err
 }
 
-func matchExistingFile(f *os.File, outputPath string) error {
-	old, err := os.Lstat(outputPath)
-	if err != nil || !old.Mode().IsRegular() {
+func matchExistingFile(f *os.File, outputPath string, old os.FileInfo) error {
+	if old == nil {
 		return nil
 	}
 	if err := checkReplaceable(outputPath); err != nil {
@@ -804,10 +810,16 @@ func matchExistingFile(f *os.File, outputPath string) error {
 // createTempTorrentFile creates a file in the folder of outputPath. The name
 // keeps a torrent client that watches the folder for .torrent files from
 // loading it. The parent stays as given, because a cleaned "link/.." can name a
-// folder on another filesystem. Mode 0666 lets the umask apply.
-func createTempTorrentFile(outputPath string) (*os.File, error) {
+// folder on another filesystem. A new file gets mode 0666 so that the umask
+// applies. A replacement starts with the bits of the old file, because another
+// user who opens the file while it is wider keeps that handle.
+func createTempTorrentFile(outputPath string, old os.FileInfo) (*os.File, error) {
+	perm := os.FileMode(0o666)
+	if old != nil {
+		perm = old.Mode().Perm()
+	}
 	dir, _ := filepath.Split(outputPath)
-	return os.OpenFile(dir+".mkbrr-"+rand.Text()+".tmp", os.O_RDWR|os.O_CREATE|os.O_EXCL, 0o666)
+	return openTempTorrentFile(dir+".mkbrr-"+rand.Text()+".tmp", os.O_RDWR|os.O_CREATE|os.O_EXCL, perm)
 }
 
 // createOutputPath must not read the disk, so that a plan can give the path without a create.
