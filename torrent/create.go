@@ -696,70 +696,11 @@ func Create(opts CreateOptions) (*TorrentInfo, error) {
 // CreateContext is Create that stops when ctx is done, as CreateTorrentContext
 // describes. A stop never creates or changes the file at the output path.
 func CreateContext(ctx context.Context, opts CreateOptions) (*TorrentInfo, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	// validate input path
-	if _, err := os.Stat(opts.Path); err != nil {
-		return nil, fmt.Errorf("invalid path %q: %w", opts.Path, err)
-	}
-
-	baseName := filepath.Base(filepath.Clean(opts.Path))
-	if opts.Name == "" {
-		opts.Name = baseName
-	}
-
-	// set name if not provided
-	fileName := opts.Name
-	if len(opts.TrackerURLs) == 1 && !opts.SkipPrefix {
-		fileName = preset.GetDomainPrefix(opts.TrackerURLs[0]) + "_" + fileName
-	}
-
-	if opts.OutputDir != "" {
-		opts.OutputPath = filepath.Join(opts.OutputDir, fileName+".torrent")
-	} else if opts.OutputPath == "" {
-		opts.OutputPath = fileName + ".torrent"
-	} else if !strings.HasSuffix(opts.OutputPath, ".torrent") {
-		opts.OutputPath += ".torrent"
-	}
-
-	if opts.OutputDir != "" {
-		if err := os.MkdirAll(opts.OutputDir, 0755); err != nil {
-			return nil, fmt.Errorf("error creating output directory %q: %w", opts.OutputDir, err)
-		}
-	}
-
-	// create torrent
-	t, seasonInfo, err := createTorrent(ctx, opts, createTorrentOptions{})
+	t, torrentInfo, err := createRun(ctx, opts)
 	if err != nil {
 		return nil, err
 	}
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
 
-	// create output file
-	f, err := os.Create(opts.OutputPath)
-	if err != nil {
-		return nil, fmt.Errorf("error creating output file: %w", err)
-	}
-	defer f.Close()
-
-	// write torrent file
-	if err := t.Write(f); err != nil {
-		return nil, fmt.Errorf("error writing torrent file: %w", err)
-	}
-
-	// get info for display
-	info := t.GetInfo()
-
-	// create torrent info for return
-	torrentInfo := newTorrentInfo(t, opts.OutputPath, seasonInfo)
-	if len(opts.TrackerURLs) > 0 {
-		torrentInfo.Announce = opts.TrackerURLs[0]
-	}
-
-	// display info if verbose or info-only
 	if opts.Verbose || opts.InfoOnly {
 		if opts.InfoOnly {
 			prevNoColor := color.NoColor
@@ -767,11 +708,77 @@ func CreateContext(ctx context.Context, opts CreateOptions) (*TorrentInfo, error
 			defer func() { color.NoColor = prevNoColor }()
 		}
 
-		display := NewDisplay(NewFormatter(opts.Verbose || opts.InfoOnly))
-		display.ShowTorrentInfo(t, info)
+		display := NewDisplay(NewFormatter(true))
+		display.ShowTorrentInfo(t, t.GetInfo())
 	}
 
 	return torrentInfo, nil
+}
+
+func createRun(ctx context.Context, opts CreateOptions) (*Torrent, *TorrentInfo, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, nil, err
+	}
+	if _, err := os.Stat(opts.Path); err != nil {
+		return nil, nil, fmt.Errorf("invalid path %q: %w", opts.Path, err)
+	}
+
+	outputPath := createOutputPath(opts)
+
+	if opts.OutputDir != "" {
+		if err := os.MkdirAll(opts.OutputDir, 0755); err != nil {
+			return nil, nil, fmt.Errorf("error creating output directory %q: %w", opts.OutputDir, err)
+		}
+	}
+
+	t, seasonInfo, err := createTorrent(ctx, opts, createTorrentOptions{})
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, nil, err
+	}
+
+	f, err := os.Create(outputPath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error creating output file: %w", err)
+	}
+	defer f.Close()
+
+	if err := t.Write(f); err != nil {
+		return nil, nil, fmt.Errorf("error writing torrent file: %w", err)
+	}
+
+	torrentInfo := newTorrentInfo(t, outputPath, seasonInfo)
+	if len(opts.TrackerURLs) > 0 {
+		torrentInfo.Announce = opts.TrackerURLs[0]
+	}
+	return t, torrentInfo, nil
+}
+
+// createOutputPath must not read the disk, so that a plan can give the path without a create.
+func createOutputPath(opts CreateOptions) string {
+	switch {
+	case opts.OutputDir != "":
+		return filepath.Join(opts.OutputDir, defaultTorrentFilename(opts))
+	case opts.OutputPath == "":
+		return defaultTorrentFilename(opts)
+	case strings.HasSuffix(opts.OutputPath, ".torrent"):
+		return opts.OutputPath
+	default:
+		return opts.OutputPath + ".torrent"
+	}
+}
+
+func defaultTorrentFilename(opts CreateOptions) string {
+	name := opts.Name
+	if name == "" {
+		name = filepath.Base(filepath.Clean(opts.Path))
+	}
+	if len(opts.TrackerURLs) == 1 && !opts.SkipPrefix {
+		name = preset.GetDomainPrefix(opts.TrackerURLs[0]) + "_" + name
+	}
+	return name + ".torrent"
 }
 
 // newTorrentInfo summarizes a created torrent written to path.

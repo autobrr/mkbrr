@@ -47,9 +47,10 @@ linters:
       excludes:
         - G115
 
-    # The GUI create preview must show the create plan, so that it matches
-    # the torrent that create writes. The exclusion rule below limits this
-    # guard to gui/, because torrent/ walks folders itself.
+    # The GUI create preview must show the create plan, and the GUI must not
+    # build an output filename itself, so that it matches what create writes.
+    # The exclusion rule below limits this guard to gui/, because torrent/
+    # walks folders and decides the output path itself.
     forbidigo:
       # Without analyze-types, a rule that has pkg matches nothing.
       analyze-types: true
@@ -60,6 +61,9 @@ linters:
         - pattern: ^filepath\.(Walk|WalkDir)$
           pkg: ^path/filepath$
           msg: do not scan the content folder in the GUI; use the create plan (torrent.PlanCreate, through the GUI App.PlanCreate method)
+        - pattern: ^preset\.(GetDomainPrefix|GenerateOutputPath)$
+          pkg: ^github\.com/autobrr/mkbrr/internal/preset$
+          msg: the torrent package decides the output path; read it from the create plan or the create result
 
   exclusions:
     generated: lax

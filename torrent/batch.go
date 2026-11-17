@@ -8,12 +8,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"sync"
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/autobrr/mkbrr/internal/preset"
 	"github.com/autobrr/mkbrr/internal/trackers"
 )
 
@@ -159,57 +157,22 @@ func processJob(job BatchJob, verbose bool, quiet bool, infoOnly bool, version s
 		Trackers: job.TrackerURLs,
 	}
 
-	// convert job to CreateOptions
 	opts, err := job.ToCreateOptions(verbose, quiet, infoOnly, version)
 	if err != nil {
 		result.Error = fmt.Errorf("invalid job options: %w", err)
 		return result
 	}
 
-	var trackerURL string
-	if len(opts.TrackerURLs) > 0 {
-		trackerURL = opts.TrackerURLs[0]
-	}
+	opts.OutputPath = job.Output
 
-	output := job.Output
-	if output == "" {
-		baseName := filepath.Base(filepath.Clean(job.Path))
-
-		if trackerURL != "" && !opts.SkipPrefix {
-			prefix := preset.GetDomainPrefix(trackerURL)
-			baseName = prefix + "_" + baseName
-		}
-
-		output = baseName
-	}
-
-	// ensure output has .torrent extension
-	if filepath.Ext(output) != ".torrent" {
-		output += ".torrent"
-	}
-
-	// create the torrent
-	mi, seasonInfo, err := createTorrent(context.Background(), opts, createTorrentOptions{})
+	_, info, err := createRun(context.Background(), opts)
 	if err != nil {
 		result.Error = fmt.Errorf("failed to create torrent: %w", err)
 		return result
 	}
 
-	// write the torrent file
-	f, err := os.Create(output)
-	if err != nil {
-		result.Error = fmt.Errorf("failed to create output file: %w", err)
-		return result
-	}
-	defer f.Close()
-
-	if err := mi.Write(f); err != nil {
-		result.Error = fmt.Errorf("failed to write torrent file: %w", err)
-		return result
-	}
-
 	result.Success = true
-	result.Info = newTorrentInfo(mi, output, seasonInfo)
+	result.Info = info
 
 	return result
 }
