@@ -89,7 +89,7 @@ func TestCreateKeepsReadOnlyFile(t *testing.T) {
 func TestCreateReplacesOutputSymlinkWithoutWritingTarget(t *testing.T) {
 	opts := cancelCreateOptions(t, writeCancelContent(t, 64<<10))
 	target := filepath.Join(t.TempDir(), "target.torrent")
-	require.NoError(t, os.WriteFile(target, oldTorrentBytes, 0o644))
+	require.NoError(t, os.WriteFile(target, oldTorrentBytes, 0o444))
 	if err := os.Symlink(target, opts.OutputPath); err != nil {
 		t.Skipf("symbolic links unavailable: %v", err)
 	}

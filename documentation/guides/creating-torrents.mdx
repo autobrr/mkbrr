@@ -75,7 +75,7 @@ If the target of a link changed or moved after you created the torrent, `mkbrr c
 
 ## Existing torrent files
 
-If a file already exists at the output path, `mkbrr create` replaces it without a question. mkbrr writes the new torrent to a temporary file in the same folder first. The name of the temporary file starts with `.mkbrr-` and ends in `.tmp`. A torrent client that watches the folder for `.torrent` files does not load it. When the new file is complete, mkbrr renames it to the output path.
+If a file already exists at the output path, `mkbrr create` replaces it without a question. mkbrr writes the new torrent to a temporary file in the same folder first. The name of the temporary file starts with `.mkbrr-` and ends in `.tmp`. A torrent client that watches the folder for `.torrent` files does not load it. When the new file is complete, mkbrr renames it to the output path. Because of the temporary file, you must have write access to the output folder, also to replace a file in it.
 
 If you stop the create while it hashes the content, or if the write fails, the old file does not change, and mkbrr deletes the temporary file. A replaced file keeps its permission bits. If you cannot write to the old file, for example because it is read-only, create stops with an error and the old file does not change.
 

@@ -76,15 +76,11 @@ func TestCreateWritesTemporaryFileInFolderThatTheKernelResolves(t *testing.T) {
 
 	prev := publishCreatedTorrent
 	t.Cleanup(func() { publishCreatedTorrent = prev })
-	var tempInWantDir bool
 	publishCreatedTorrent = func(temp, out string, replace bool) error {
-		_, err := os.Stat(filepath.Join(wantDir, filepath.Base(temp)))
-		tempInWantDir = err == nil
+		assert.FileExists(t, filepath.Join(wantDir, filepath.Base(temp)))
 		return prev(temp, out, replace)
 	}
 
 	_, err := CreateContext(t.Context(), opts)
 	require.NoError(t, err)
-
-	assert.True(t, tempInWantDir, "temporary file must be in %s", wantDir)
 }

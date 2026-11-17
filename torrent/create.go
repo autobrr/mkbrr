@@ -783,8 +783,7 @@ func writeTorrentFile(t *Torrent, outputPath string) error {
 	if err == nil {
 		err = f.Sync()
 	}
-	closeErr := f.Close()
-	if err = cmp.Or(err, closeErr); err == nil {
+	if err = cmp.Or(err, f.Close()); err == nil {
 		err = publishCreatedTorrent(f.Name(), outputPath, true)
 	}
 	if err != nil {
