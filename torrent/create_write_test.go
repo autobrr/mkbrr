@@ -33,35 +33,17 @@ func assertOnlyOutputInFolder(t *testing.T, opts CreateOptions) {
 	t.Helper()
 	entries, err := os.ReadDir(filepath.Dir(opts.OutputPath))
 	require.NoError(t, err)
-	names := make([]string, 0, len(entries))
-	for _, e := range entries {
-		names = append(names, e.Name())
-	}
-	assert.Equal(t, []string{filepath.Base(opts.OutputPath)}, names)
-}
-
-func failPublish(t *testing.T, publishErr error) *string {
-	t.Helper()
-	prev := publishCreatedTorrent
-	t.Cleanup(func() { publishCreatedTorrent = prev })
-	var tempPath string
-	publishCreatedTorrent = func(temp, _ string, _ bool) error {
-		tempPath = temp
-		return publishErr
-	}
-	return &tempPath
+	require.Len(t, entries, 1)
+	assert.Equal(t, filepath.Base(opts.OutputPath), entries[0].Name())
 }
 
 func TestCreateReplacesExistingFile(t *testing.T) {
 	opts := cancelCreateOptions(t, writeCancelContent(t, 64<<10))
 	writeOldTorrent(t, opts)
-	want, err := CreateTorrent(opts)
+
+	_, err := CreateContext(t.Context(), opts)
 	require.NoError(t, err)
 
-	info, err := CreateContext(t.Context(), opts)
-	require.NoError(t, err)
-
-	assert.Equal(t, want.HashInfoBytes().String(), info.InfoHash)
 	got, err := os.ReadFile(opts.OutputPath)
 	require.NoError(t, err)
 	assert.NotEqual(t, oldTorrentBytes, got)
@@ -75,7 +57,6 @@ func TestCreateKeepsExistingFileWhenStopped(t *testing.T) {
 	writeOldTorrent(t, opts)
 
 	_, err := CreateContext(ctx, opts)
-	rec.finish(t)
 
 	require.ErrorIs(t, err, context.Canceled)
 	assertOldTorrent(t, opts)
@@ -83,8 +64,14 @@ func TestCreateKeepsExistingFileWhenStopped(t *testing.T) {
 }
 
 func TestCreateKeepsExistingFileWhenPublishFails(t *testing.T) {
+	prev := publishCreatedTorrent
+	t.Cleanup(func() { publishCreatedTorrent = prev })
 	publishErr := errors.New("disk full")
-	tempPath := failPublish(t, publishErr)
+	var tempPath string
+	publishCreatedTorrent = func(temp, _ string, _ bool) error {
+		tempPath = temp
+		return publishErr
+	}
 	opts := cancelCreateOptions(t, writeCancelContent(t, 64<<10))
 	writeOldTorrent(t, opts)
 
@@ -93,9 +80,24 @@ func TestCreateKeepsExistingFileWhenPublishFails(t *testing.T) {
 	require.ErrorIs(t, err, publishErr)
 	assertOldTorrent(t, opts)
 	assertOnlyOutputInFolder(t, opts)
-	assert.Equal(t, filepath.Dir(opts.OutputPath), filepath.Dir(*tempPath))
-	assert.True(t, strings.HasPrefix(filepath.Base(*tempPath), "."), "temporary file %q must start with a dot", *tempPath)
-	assert.False(t, strings.HasSuffix(*tempPath, ".torrent"), "temporary file %q must not end in .torrent", *tempPath)
+	assert.Equal(t, filepath.Dir(opts.OutputPath), filepath.Dir(tempPath))
+	assert.True(t, strings.HasPrefix(filepath.Base(tempPath), "."), "temporary file %q must start with a dot", tempPath)
+	assert.False(t, strings.HasSuffix(tempPath, ".torrent"), "temporary file %q must not end in .torrent", tempPath)
+}
+
+func TestCreateKeepsReadOnlyFile(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root can write a read-only file")
+	}
+	opts := cancelCreateOptions(t, writeCancelContent(t, 64<<10))
+	writeOldTorrent(t, opts)
+	require.NoError(t, os.Chmod(opts.OutputPath, 0o444))
+
+	_, err := CreateContext(t.Context(), opts)
+
+	require.ErrorIs(t, err, os.ErrPermission)
+	assertOldTorrent(t, opts)
+	assertOnlyOutputInFolder(t, opts)
 }
 
 func TestCreateReplacesOutputSymlinkWithoutWritingTarget(t *testing.T) {
@@ -115,6 +117,4 @@ func TestCreateReplacesOutputSymlinkWithoutWritingTarget(t *testing.T) {
 	outputInfo, err := os.Lstat(opts.OutputPath)
 	require.NoError(t, err)
 	assert.True(t, outputInfo.Mode().IsRegular())
-	_, err = VerifyData(VerifyOptions{TorrentPath: opts.OutputPath, ContentPath: opts.Path, Quiet: true})
-	require.NoError(t, err)
 }

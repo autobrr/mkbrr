@@ -755,29 +755,27 @@ var (
 	openTempTorrentFile   = os.OpenFile
 )
 
-// writeTorrentFile replaces outputPath only with a complete file, so a stop or
-// a failed write leaves an existing file as it was.
 func writeTorrentFile(t *Torrent, outputPath string) error {
+	perm := os.FileMode(0o666)
 	old, err := os.Lstat(outputPath)
-	if err != nil || !old.Mode().IsRegular() {
-		old = nil
+	replacing := err == nil && old.Mode().IsRegular()
+	if replacing {
+		// The rename needs write access only to the folder, so check the file itself.
+		probe, err := os.OpenFile(outputPath, os.O_RDWR, 0)
+		if err != nil {
+			return fmt.Errorf("error creating output file: %w", err)
+		}
+		_ = probe.Close()
+		// Another user who opens a wider temporary file keeps that handle after a chmod.
+		perm = old.Mode().Perm()
 	}
-	f, err := createTempTorrentFile(outputPath, old)
+	f, err := createTempTorrentFile(outputPath, perm)
 	if err != nil {
 		return fmt.Errorf("error creating output file: %w", err)
 	}
-	tempPath := f.Name()
-	if err := fillTempTorrentFile(f, t, outputPath, old); err != nil {
-		return errors.Join(fmt.Errorf("error writing torrent file: %w", err), os.Remove(tempPath))
+	if replacing {
+		err = f.Chmod(perm)
 	}
-	if err := publishCreatedTorrent(tempPath, outputPath, true); err != nil {
-		return errors.Join(fmt.Errorf("error replacing %q: %w", outputPath, err), os.Remove(tempPath))
-	}
-	return nil
-}
-
-func fillTempTorrentFile(f *os.File, t *Torrent, outputPath string, old os.FileInfo) error {
-	err := matchExistingFile(f, outputPath, old)
 	if err == nil {
 		err = t.Write(f)
 	}
@@ -787,37 +785,17 @@ func fillTempTorrentFile(f *os.File, t *Torrent, outputPath string, old os.FileI
 	if closeErr := f.Close(); err == nil {
 		err = closeErr
 	}
-	return err
-}
-
-func matchExistingFile(f *os.File, outputPath string, old os.FileInfo) error {
-	if old == nil {
-		return nil
+	if err == nil {
+		err = publishCreatedTorrent(f.Name(), outputPath, true)
 	}
-	if err := checkReplaceable(outputPath); err != nil {
-		return err
-	}
-	current, err := f.Stat()
 	if err != nil {
-		return err
+		return errors.Join(fmt.Errorf("error writing torrent file %q: %w", outputPath, err), os.Remove(f.Name()))
 	}
-	if current.Mode().Perm() == old.Mode().Perm() {
-		return nil
-	}
-	return f.Chmod(old.Mode().Perm())
+	return nil
 }
 
-// createTempTorrentFile creates a file in the folder of outputPath. The name
-// keeps a torrent client that watches the folder for .torrent files from
-// loading it. The parent stays as given, because a cleaned "link/.." can name a
-// folder on another filesystem. A new file gets mode 0666 so that the umask
-// applies. A replacement starts with the bits of the old file, because another
-// user who opens the file while it is wider keeps that handle.
-func createTempTorrentFile(outputPath string, old os.FileInfo) (*os.File, error) {
-	perm := os.FileMode(0o666)
-	if old != nil {
-		perm = old.Mode().Perm()
-	}
+// createTempTorrentFile keeps the parent as given, because a cleaned "link/.." can name another filesystem.
+func createTempTorrentFile(outputPath string, perm os.FileMode) (*os.File, error) {
 	dir, _ := filepath.Split(outputPath)
 	return openTempTorrentFile(dir+".mkbrr-"+rand.Text()+".tmp", os.O_RDWR|os.O_CREATE|os.O_EXCL, perm)
 }

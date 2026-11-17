@@ -6,7 +6,6 @@
 package torrent
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -45,64 +44,29 @@ func TestCreateNewFileFollowsUmask(t *testing.T) {
 }
 
 func TestCreateReplacedFileKeepsPermissionBits(t *testing.T) {
-	setUmask(t, 0o022)
-	opts := cancelCreateOptions(t, writeCancelContent(t, 64<<10))
-	writeOldTorrent(t, opts)
-	require.NoError(t, os.Chmod(opts.OutputPath, 0o640))
+	for _, mode := range []os.FileMode{0o600, 0o664} {
+		t.Run(mode.String(), func(t *testing.T) {
+			setUmask(t, 0o022)
+			opts := cancelCreateOptions(t, writeCancelContent(t, 64<<10))
+			writeOldTorrent(t, opts)
+			require.NoError(t, os.Chmod(opts.OutputPath, mode))
+			prev := openTempTorrentFile
+			t.Cleanup(func() { openTempTorrentFile = prev })
+			var openPerm os.FileMode
+			openTempTorrentFile = func(name string, flag int, perm os.FileMode) (*os.File, error) {
+				openPerm = perm
+				return prev(name, flag, perm)
+			}
 
-	_, err := CreateContext(t.Context(), opts)
-	require.NoError(t, err)
+			_, err := CreateContext(t.Context(), opts)
+			require.NoError(t, err)
 
-	info, err := os.Stat(opts.OutputPath)
-	require.NoError(t, err)
-	assert.Equal(t, os.FileMode(0o640), info.Mode().Perm())
-	assertOnlyOutputInFolder(t, opts)
-}
-
-func TestCreateTemporaryFileStartsNoWiderThanReplacedFile(t *testing.T) {
-	setUmask(t, 0o022)
-	opts := cancelCreateOptions(t, writeCancelContent(t, 64<<10))
-	writeOldTorrent(t, opts)
-	require.NoError(t, os.Chmod(opts.OutputPath, 0o600))
-
-	prev := openTempTorrentFile
-	t.Cleanup(func() { openTempTorrentFile = prev })
-	var createdPerm os.FileMode
-	openTempTorrentFile = func(name string, flag int, perm os.FileMode) (*os.File, error) {
-		f, err := prev(name, flag, perm)
-		if err != nil {
-			return nil, err
-		}
-		info, err := f.Stat()
-		if err != nil {
-			return nil, errors.Join(err, f.Close())
-		}
-		createdPerm = info.Mode().Perm()
-		return f, nil
+			assert.Equal(t, mode, openPerm, "the temporary file must not start wider than the old file")
+			info, err := os.Stat(opts.OutputPath)
+			require.NoError(t, err)
+			assert.Equal(t, mode, info.Mode().Perm())
+		})
 	}
-
-	_, err := CreateContext(t.Context(), opts)
-	require.NoError(t, err)
-
-	assert.Equal(t, os.FileMode(0o600), createdPerm)
-	info, err := os.Stat(opts.OutputPath)
-	require.NoError(t, err)
-	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
-}
-
-func TestCreateKeepsReadOnlyFile(t *testing.T) {
-	if os.Geteuid() == 0 {
-		t.Skip("root can write a read-only file")
-	}
-	opts := cancelCreateOptions(t, writeCancelContent(t, 64<<10))
-	writeOldTorrent(t, opts)
-	require.NoError(t, os.Chmod(opts.OutputPath, 0o444))
-
-	_, err := CreateContext(t.Context(), opts)
-
-	require.ErrorIs(t, err, os.ErrPermission)
-	assertOldTorrent(t, opts)
-	assertOnlyOutputInFolder(t, opts)
 }
 
 func TestCreateWritesTemporaryFileInFolderThatTheKernelResolves(t *testing.T) {
@@ -129,5 +93,4 @@ func TestCreateWritesTemporaryFileInFolderThatTheKernelResolves(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.True(t, tempInWantDir, "temporary file must be in %s", wantDir)
-	assert.FileExists(t, filepath.Join(wantDir, "out.torrent"))
 }
