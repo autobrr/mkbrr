@@ -4,6 +4,50 @@ description: 'Latest updates and improvements to mkbrr'
 icon: code-merge
 ---
 
+<Update label="v1.28.0" description="2026-11-22">
+### New Features
+- [50b2f6d](https://github.com/autobrr/mkbrr/commit/50b2f6debff095b493305de0997c3cf49374f294): Add the season pack check to the create plan ([#267](https://github.com/autobrr/mkbrr/pull/267)) (@s0up4200)
+- [5800bc1](https://github.com/autobrr/mkbrr/commit/5800bc1f0b2f1ccf554646f7759ccb4176b3a819): Open a torrent from the command line ([#258](https://github.com/autobrr/mkbrr/pull/258)) (@s0up4200)
+- [1179eb3](https://github.com/autobrr/mkbrr/commit/1179eb35163678f62383798e48d6d258eac4b6fa): Show the create plan in the create preview ([#268](https://github.com/autobrr/mkbrr/pull/268)) (@s0up4200)
+- [ea396a9](https://github.com/autobrr/mkbrr/commit/ea396a90ce35657b33ab9f548644ddcbbc781d54): Add every create setting to the create page ([#271](https://github.com/autobrr/mkbrr/pull/271)) (@s0up4200)
+- [999f79a](https://github.com/autobrr/mkbrr/commit/999f79a753ff0d489cfc087448104d58fe58d592): Show every preset setting in the preset editor ([#270](https://github.com/autobrr/mkbrr/pull/270)) (@s0up4200)
+- [8775b38](https://github.com/autobrr/mkbrr/commit/8775b3876498b9b714d250096e30140e7501a6b1): Expose every modify setting on the modify page ([#272](https://github.com/autobrr/mkbrr/pull/272)) (@s0up4200)
+- [eb090dc](https://github.com/autobrr/mkbrr/commit/eb090dc0de721fe1a3fd6ab2ee45da832354ec12): Add context-aware create and verify ([#277](https://github.com/autobrr/mkbrr/pull/277)) (@s0up4200)
+- [97ca704](https://github.com/autobrr/mkbrr/commit/97ca704b60ff3d09c59f5a90589778233c3a4151): Remove trackers or web seeds from a torrent ([#278](https://github.com/autobrr/mkbrr/pull/278)) (@s0up4200)
+
+### Bug fixes
+- [a716455](https://github.com/autobrr/mkbrr/commit/a7164554b92413be51d994aa5704b6a03e25486a): Harden update output safety ([#185](https://github.com/autobrr/mkbrr/pull/185)) (@Audionut)
+- [30d442c](https://github.com/autobrr/mkbrr/commit/30d442cb4e31649dd3ffe4354a4af5051b7565a0): Accept -l/-m 15 with no tracker ([#257](https://github.com/autobrr/mkbrr/pull/257)) (@cestercian)
+- [3410388](https://github.com/autobrr/mkbrr/commit/341038867c33ecba5ec2075eb843b917a57aa25f): Return the right size, file count and season check ([#266](https://github.com/autobrr/mkbrr/pull/266)) (@s0up4200)
+- [9754831](https://github.com/autobrr/mkbrr/commit/9754831f8f0f17ced80df07e8ca1fcacb74a1b25): Exit with an error when a torrent file fails ([#259](https://github.com/autobrr/mkbrr/pull/259)) (@Heliedan)
+- [56f9fe4](https://github.com/autobrr/mkbrr/commit/56f9fe4f9211be1ac8055d9aa949b172a7b7bd2c): Keep the old .torrent file when the write fails ([#291](https://github.com/autobrr/mkbrr/pull/291)) (@s0up4200)
+
+### Other work
+- [74e54f5](https://github.com/autobrr/mkbrr/commit/74e54f5c98b8781b4687baf204bfa111f677f9d1): Add v1.27.0 ([#252](https://github.com/autobrr/mkbrr/pull/252)) (@github-actions[bot])
+- [85f1a79](https://github.com/autobrr/mkbrr/commit/85f1a79bbe63ce5f871e7b1ccb1d1671bc80040f): Start the Claude step from workflow_dispatch on a tag push ([#253](https://github.com/autobrr/mkbrr/pull/253)) (@s0up4200)
+- [cc1f6df](https://github.com/autobrr/mkbrr/commit/cc1f6df86fd1f2c02cb2f4b1711820a4adfe4891): Remove duplicate guide text ([#255](https://github.com/autobrr/mkbrr/pull/255)) (@s0up4200)
+- [606ab95](https://github.com/autobrr/mkbrr/commit/606ab95ae18c218b838438d477f28bdcad62990a): Resolve piece length bounds in one place ([#254](https://github.com/autobrr/mkbrr/pull/254)) (@s0up4200)
+- [1c6504a](https://github.com/autobrr/mkbrr/commit/1c6504a5b8de3fa29f25436561c9c9b3c9c9f32a): Say the GUI installs next to the CLI (@s0up4200)
+- [e761ec5](https://github.com/autobrr/mkbrr/commit/e761ec583406eee5cf367dbbe3bb177ecd3f682b): Prefer a proven library for spec-defined logic ([#256](https://github.com/autobrr/mkbrr/pull/256)) (@s0up4200)
+- [9690f67](https://github.com/autobrr/mkbrr/commit/9690f6796d40f65af05c29f372ad733c909b3b6d): List the default piece sizes (@s0up4200)
+- [6552606](https://github.com/autobrr/mkbrr/commit/6552606b3642732a36f94d112bae5a9e5f957fcf): Add golangci-lint config and CI for both modules ([#265](https://github.com/autobrr/mkbrr/pull/265)) (@s0up4200)
+- [1ceae05](https://github.com/autobrr/mkbrr/commit/1ceae05fe8122655337606b361a84ec3c29e1b34): Run the GUI module tests ([#269](https://github.com/autobrr/mkbrr/pull/269)) (@s0up4200)
+- [6957e53](https://github.com/autobrr/mkbrr/commit/6957e53c951e5a84f43d926713713c77aef60f70): Limit code comments for agents and reviewers ([#276](https://github.com/autobrr/mkbrr/pull/276)) (@s0up4200)
+- [8b41ce0](https://github.com/autobrr/mkbrr/commit/8b41ce0a25e8481a8c8c76e20f47ab1130ea5fae): Bump the golang group across 2 directories with 6 updates ([#273](https://github.com/autobrr/mkbrr/pull/273)) (@dependabot[bot])
+- [07c83da](https://github.com/autobrr/mkbrr/commit/07c83da4e9ead6dffe7f8dc348b03ab5112f0efe): One source for the piece length bounds ([#282](https://github.com/autobrr/mkbrr/pull/282)) (@s0up4200)
+- [b9e6a5d](https://github.com/autobrr/mkbrr/commit/b9e6a5da54b03d2769d908e5d7a6b467842f41e6): One create run for the CLI, the GUI, and batch ([#289](https://github.com/autobrr/mkbrr/pull/289)) (@s0up4200)
+- [8955b76](https://github.com/autobrr/mkbrr/commit/8955b7671fc3dcb83a0463ed4f0a3822883c9bea): Say that skip_prefix has no effect in a batch job ([#290](https://github.com/autobrr/mkbrr/pull/290)) (@s0up4200)
+
+**Full Changelog**: [v1.27.0...v1.28.0](https://github.com/autobrr/mkbrr/compare/v1.27.0...v1.28.0)
+
+### Contributors
+- @github-actions[bot]
+- @s0up4200
+- @Audionut
+- @cestercian
+- @Heliedan
+- @dependabot[bot]
+</Update>
 <Update label="v1.27.0" description="2026-10-06">
 ### Breaking Changes
 - [21ba448](https://github.com/autobrr/mkbrr/commit/21ba448d1c52bcce9ead8b0acba67e3ca8ba3d05): Add exact pre-hash plan mode ([#202](https://github.com/autobrr/mkbrr/pull/202)) (@maghuro)
