@@ -19,7 +19,7 @@
         "properties": {
           "output": {
             "type": "string",
-            "description": "Output path for .torrent file"
+            "description": "Path and filename for the .torrent file. If the filename does not end in .torrent, mkbrr adds .torrent to it."
           },
           "path": {
             "type": "string",
@@ -83,7 +83,7 @@
           },
           "skip_prefix": {
             "type": "boolean",
-            "description": "Don't add tracker domain prefix to output filename",
+            "description": "Has no effect in a batch job. Batch mode never adds a filename prefix, because output gives the filename.",
             "default": false
           },
           "entropy": {
