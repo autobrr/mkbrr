@@ -543,6 +543,7 @@ export namespace torrent {
 	    tracker_size_limit: number;
 	    notices: Notice[];
 	    season_pack?: SeasonPackInfo;
+	    output_path: string;
 
 	    static createFrom(source: any = {}) {
 	        return new CreatePlan(source);
@@ -557,6 +558,7 @@ export namespace torrent {
 	        this.tracker_size_limit = source["tracker_size_limit"];
 	        this.notices = this.convertValues(source["notices"], Notice);
 	        this.season_pack = this.convertValues(source["season_pack"], SeasonPackInfo);
+	        this.output_path = source["output_path"];
 	    }
 
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

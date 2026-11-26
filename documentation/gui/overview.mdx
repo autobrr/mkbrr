@@ -121,7 +121,7 @@ The editor shows only the values that the preset sets itself. An empty field use
   </Accordion>
 
   <Accordion title="Create Plan">
-    The Create page shows the create plan under the form. The create plan is what create will do, worked out before mkbrr hashes the files. It shows the content size after the exclude and include patterns, the piece length, the notices, and the season pack check. The GUI makes a new plan after each change to the form.
+    The Create page shows the create plan under the form. The create plan is what create will do, worked out before mkbrr hashes the files. It shows the content size after the exclude and include patterns, the piece length, the output path, the notices, and the season pack check. The output path on the `Output:` line is where create will write the .torrent file. With no output folder, the file goes next to the content. The GUI makes a new plan after each change to the form.
 
     If the plan fails, for example because the path does not exist, the error shows on one line under the plan. If the first tracker has tracker rules, the plan also shows its default source, its maximum piece length, and its maximum .torrent size. The rules of the other trackers do not apply, because create applies only the rules of the first tracker.
   </Accordion>

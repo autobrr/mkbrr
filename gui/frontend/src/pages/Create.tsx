@@ -712,6 +712,11 @@ export function CreatePage() {
                       <span>Max .torrent: <span className="font-medium text-foreground">{formatBytes(trackerInfo.maxTorrentSize)}</span></span>
                     )}
                   </div>
+                  {plan?.output_path && (
+                    <p className="text-xs mt-1 text-muted-foreground">
+                      Output: <span className="font-mono text-foreground break-all">{plan.output_path}</span>
+                    </p>
+                  )}
                   {plan?.notices?.map((notice, i) => (
                     <p key={i} className={`text-xs mt-1 ${notice.warn ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}`}>
                       {notice.text}

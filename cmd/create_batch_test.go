@@ -178,8 +178,10 @@ func TestCreatePlanPrintsJSONWithoutWritingTorrent(t *testing.T) {
 		PieceLengthBytes    int64          `json:"piece_length_bytes"`
 		TrackerSizeLimit    uint64         `json:"tracker_size_limit"`
 		SeasonPack          map[string]any `json:"season_pack"`
+		OutputPath          string         `json:"output_path"`
 	}
 	require.NoError(t, json.Unmarshal([]byte(stdout), &plan))
+	assert.Equal(t, output, plan.OutputPath)
 	assert.Equal(t, int64(128*1024), plan.ContentSize)
 	assert.Equal(t, uint(14), plan.PieceLengthExponent)
 	assert.Equal(t, int64(1<<14), plan.PieceLengthBytes)

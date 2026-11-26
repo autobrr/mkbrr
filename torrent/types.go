@@ -58,6 +58,7 @@ type CreatePlan struct {
 	// SeasonPack is the season pack check of the files in the torrent,
 	// after the exclude and include patterns.
 	SeasonPack *SeasonPackInfo `json:"season_pack"`
+	OutputPath string          `json:"output_path"`
 }
 
 // Torrent represents a torrent file with additional functionality
