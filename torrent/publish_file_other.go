@@ -17,3 +17,7 @@ func publishTorrentFile(tempPath, outputPath string, replace bool) error {
 	_ = os.Remove(tempPath)
 	return nil
 }
+
+func retryWhileShared(op func() error) error {
+	return op()
+}

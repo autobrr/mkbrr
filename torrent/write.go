@@ -18,11 +18,16 @@ func writeTorrentOutput(outputPath string, newPerm os.FileMode, replace bool, wr
 	old, err := os.Lstat(outputPath)
 	replacing := replace && err == nil && old.Mode().IsRegular()
 	if replacing {
-		probe, err := os.OpenFile(outputPath, os.O_RDWR, 0)
+		err := retryWhileShared(func() error {
+			probe, err := os.OpenFile(outputPath, os.O_RDWR, 0)
+			if err == nil {
+				_ = probe.Close()
+			}
+			return err
+		})
 		if err != nil {
 			return fmt.Errorf("error creating output file: %w", err)
 		}
-		_ = probe.Close()
 		perm = old.Mode().Perm()
 	}
 	f, unregister, err := createTempTorrentFile(outputPath, perm)
