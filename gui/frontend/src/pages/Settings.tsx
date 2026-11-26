@@ -42,9 +42,10 @@ import {
   CreatePresetFile,
   SelectPath,
 } from '../../wailsjs/go/main/App';
-import { main, preset } from '../../wailsjs/go/models';
+import { main, preset, torrent } from '../../wailsjs/go/models';
 
 type PresetOptions = preset.Options;
+type PresetSwitch = 'isPrivate' | 'noDate' | 'noCreator' | 'entropy' | 'skipPrefix' | 'failOnSeasonWarning';
 
 const textareaClass =
   'border-input dark:bg-input/30 placeholder:text-muted-foreground w-full min-h-16 rounded-md border bg-transparent px-3 py-2 font-mono text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]';
@@ -209,11 +210,9 @@ function formDataToOptions(data: PresetFormData): PresetOptions {
 
 export function SettingsPage() {
   const [presetPath, setPresetPath] = useState('');
-  // presets holds the merged values for the list. ownPresets holds what each preset sets itself, for the editor.
-  const [presets, setPresets] = useState<Record<string, PresetOptions>>({});
+  const [presets, setPresets] = useState<Record<string, torrent.CreateSettings>>({});
   const [ownPresets, setOwnPresets] = useState<Record<string, PresetOptions>>({});
-  // The values that a preset gets when it sets nothing itself
-  const [presetDefaults, setPresetDefaults] = useState<Partial<PresetOptions>>({});
+  const [presetDefaults, setPresetDefaults] = useState<Partial<torrent.CreateSettings>>({});
   const [presetErrors, setPresetErrors] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -401,8 +400,8 @@ export function SettingsPage() {
   };
 
   const presetNames = Object.keys(presets).sort();
-  // A switch that the preset does not set shows the value that applies to it.
-  const inherited: Partial<PresetOptions> = (isEditing && originalName && presets[originalName]) || presetDefaults;
+  const inherited: Partial<torrent.CreateSettings> = (isEditing && originalName && presets[originalName]) || {};
+  const switchValue = (key: PresetSwitch) => !!(formData[key] ?? inherited[key] ?? presetDefaults[key]);
 
   return (
     <div className="flex flex-col h-full overflow-auto">
@@ -513,12 +512,12 @@ export function SettingsPage() {
                               </div>
                             </div>
                             <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                              {(opts.source || (opts as any).Source) && <span>Source: {opts.source || (opts as any).Source}</span>}
-                              <span>Private: {(opts.private ?? (opts as any).Private) ? 'Yes' : 'No'}</span>
-                              {((opts.trackers && opts.trackers.length > 0) || ((opts as any).Trackers && (opts as any).Trackers.length > 0)) && (
-                                <span>Trackers: {opts.trackers?.length || (opts as any).Trackers?.length}</span>
+                              {opts.source && <span>Source: {opts.source}</span>}
+                              <span>Private: {(opts.isPrivate ?? presetDefaults.isPrivate) ? 'Yes' : 'No'}</span>
+                              {opts.trackerUrls && opts.trackerUrls.length > 0 && (
+                                <span>Trackers: {opts.trackerUrls.length}</span>
                               )}
-                              <span>Workers: {(opts.workers ?? (opts as any).Workers) || `default (${defaultWorkers === 0 ? 'auto' : defaultWorkers})`}</span>
+                              <span>Workers: {opts.workers || `default (${defaultWorkers === 0 ? 'auto' : defaultWorkers})`}</span>
                             </div>
                           </div>
                         );
@@ -589,7 +588,7 @@ export function SettingsPage() {
               <div className="flex items-center gap-2">
                 <Switch
                   id="preset-private"
-                  checked={formData.isPrivate ?? inherited.private ?? true}
+                  checked={switchValue('isPrivate')}
                   onCheckedChange={(checked) => setFormData({ ...formData, isPrivate: checked })}
                 />
                 <Label htmlFor="preset-private" className="text-sm">Private</Label>
@@ -597,7 +596,7 @@ export function SettingsPage() {
               <div className="flex items-center gap-2">
                 <Switch
                   id="preset-noDate"
-                  checked={formData.noDate ?? inherited.noDate ?? false}
+                  checked={switchValue('noDate')}
                   onCheckedChange={(checked) => setFormData({ ...formData, noDate: checked })}
                 />
                 <Label htmlFor="preset-noDate" className="text-sm">No Date</Label>
@@ -605,7 +604,7 @@ export function SettingsPage() {
               <div className="flex items-center gap-2">
                 <Switch
                   id="preset-noCreator"
-                  checked={formData.noCreator ?? inherited.noCreator ?? false}
+                  checked={switchValue('noCreator')}
                   onCheckedChange={(checked) => setFormData({ ...formData, noCreator: checked })}
                 />
                 <Label htmlFor="preset-noCreator" className="text-sm">No Creator</Label>
@@ -684,7 +683,7 @@ export function SettingsPage() {
                   <div className="flex items-center gap-2">
                     <Switch
                       id="preset-entropy"
-                      checked={formData.entropy ?? inherited.entropy ?? false}
+                      checked={switchValue('entropy')}
                       onCheckedChange={(checked) => setFormData({ ...formData, entropy: checked })}
                     />
                     <Label htmlFor="preset-entropy" className="text-sm">Add Entropy</Label>
@@ -692,7 +691,7 @@ export function SettingsPage() {
                   <div className="flex items-center gap-2">
                     <Switch
                       id="preset-skipPrefix"
-                      checked={formData.skipPrefix ?? inherited.skipPrefix ?? false}
+                      checked={switchValue('skipPrefix')}
                       onCheckedChange={(checked) => setFormData({ ...formData, skipPrefix: checked })}
                     />
                     <Label htmlFor="preset-skipPrefix" className="text-sm">Skip Prefix</Label>
@@ -700,7 +699,7 @@ export function SettingsPage() {
                   <div className="flex items-center gap-2">
                     <Switch
                       id="preset-failOnSeasonWarning"
-                      checked={formData.failOnSeasonWarning ?? inherited.failOnSeasonWarning ?? false}
+                      checked={switchValue('failOnSeasonWarning')}
                       onCheckedChange={(checked) => setFormData({ ...formData, failOnSeasonWarning: checked })}
                     />
                     <Label htmlFor="preset-failOnSeasonWarning" className="text-sm">Fail on Season Warning</Label>

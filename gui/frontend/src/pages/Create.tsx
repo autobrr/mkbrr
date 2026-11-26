@@ -90,7 +90,7 @@ function overridesFromLegacy(saved: LegacyFormState): { overrides: Overrides; le
     webSeeds: nonBlank(saved.webSeeds ?? []),
     comment: saved.comment ?? '',
     source: saved.source ?? '',
-    isPrivate: saved.isPrivate ?? true,
+    isPrivate: saved.isPrivate,
     noDate: saved.noDate ?? false,
     noCreator: saved.noCreator ?? false,
     entropy: saved.entropy ?? false,
@@ -114,6 +114,7 @@ async function migrateLegacy(base: Overrides, legacy: Overrides, presetName: str
     const resolved = await ResolveCreate(main.CreateRequest.createFrom({ ...overrides, presetName }));
     for (const field of fields) {
       const value = legacy[field];
+      if (value === undefined) continue;
       const shown = resolved.settings[field] ?? (Array.isArray(value) ? [] : undefined);
       if (!sameValue(value, shown)) Object.assign(overrides, { [field]: value });
     }

@@ -162,28 +162,6 @@ func GetDefaultPresetPath() (string, error) {
 	return filepath.Join(home, ".config", "mkbrr", "presets.yaml"), nil
 }
 
-// GetPreset returns a preset by name, merged with the default section and
-// then with hardcoded defaults for the keys that neither sets.
-func (c *Config) GetPreset(name string) (*Options, error) {
-	merged, err := c.PresetValues(name)
-	if err != nil {
-		return nil, err
-	}
-	if merged.Private == nil {
-		merged.Private = new(true)
-	}
-	if merged.NoDate == nil {
-		merged.NoDate = new(false)
-	}
-	if merged.NoCreator == nil {
-		merged.NoCreator = new(false)
-	}
-	if merged.SkipPrefix == nil {
-		merged.SkipPrefix = new(false)
-	}
-	return merged, nil
-}
-
 // PresetValues returns a preset by name, merged with the default section only.
 // A key that neither sets stays nil or empty.
 func (c *Config) PresetValues(name string) (*Options, error) {
@@ -368,23 +346,6 @@ func GenerateOutputPath(originalPath, outputDir, presetName string, outputPatter
 	}
 
 	return filepath.Join(dir, prefix+"_"+name+ext)
-}
-
-// LoadPresetOptions loads and returns preset options from a file by name.
-// It handles the full process of loading the presets file and resolving the named preset,
-// including applying any default settings.
-func LoadPresetOptions(presetFilePath string, presetName string) (*Options, error) {
-	config, err := loadConfig(presetFilePath)
-	if err != nil {
-		return nil, err
-	}
-
-	presetOpts, err := config.GetPreset(presetName)
-	if err != nil {
-		return nil, fmt.Errorf("could not get preset: %w", err)
-	}
-
-	return presetOpts, nil
 }
 
 func LoadPresetValues(presetFilePath string, presetName string) (*Options, error) {

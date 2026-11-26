@@ -284,15 +284,84 @@ presets:
 	if merged == nil || !ok {
 		t.Fatalf("preset p missing: presets=%v own=%v", result.Presets, result.Own)
 	}
-	if len(merged.WebSeeds) != 1 || merged.Private == nil || *merged.Private {
+	if len(merged.WebSeeds) != 1 || merged.IsPrivate == nil || *merged.IsPrivate {
 		t.Errorf("merged preset lost the default section: %+v", merged)
 	}
 	if own.WebSeeds != nil || own.Private != nil || own.Source != "SRC" {
 		t.Errorf("own values = %+v, want only source SRC", own)
 	}
-	// A new preset shows these switch values, so they must come from the default section.
-	if d := result.Defaults; d == nil || d.Private == nil || *d.Private {
+	if d := result.Defaults; d.IsPrivate == nil || *d.IsPrivate {
 		t.Errorf("defaults = %+v, want private false from the default section", d)
+	}
+}
+
+func TestGetAllPresetsDefaultsWithoutPresetFile(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	t.Chdir(dir)
+
+	result, err := (&App{}).GetAllPresets()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d := result.Defaults; d.IsPrivate == nil || !*d.IsPrivate {
+		t.Errorf("defaults private = %v, want true", ptrString(d.IsPrivate))
+	}
+}
+
+func TestGetAllPresetsSwitchDefaults(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	t.Chdir(dir)
+
+	yaml := `version: 1
+default:
+  no_date: true
+presets:
+  p:
+    source: SRC
+`
+	if err := os.WriteFile("presets.yaml", []byte(yaml), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := (&App{}).GetAllPresets()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := map[string]*bool{
+		"private":             new(true),
+		"noDate":              new(true),
+		"noCreator":           new(false),
+		"entropy":             new(false),
+		"skipPrefix":          new(false),
+		"failOnSeasonWarning": new(false),
+	}
+	d := result.Defaults
+	got := map[string]*bool{
+		"private":             d.IsPrivate,
+		"noDate":              d.NoDate,
+		"noCreator":           d.NoCreator,
+		"entropy":             d.Entropy,
+		"skipPrefix":          d.SkipPrefix,
+		"failOnSeasonWarning": d.FailOnSeasonPackWarning,
+	}
+	for name, w := range want {
+		if !reflect.DeepEqual(got[name], w) {
+			t.Errorf("default %s = %v, want %v", name, ptrString(got[name]), ptrString(w))
+		}
+	}
+
+	p := result.Presets["p"]
+	if p == nil {
+		t.Fatalf("preset p missing: %v", result.Presets)
+	}
+	if p.IsPrivate != nil || p.NoCreator != nil {
+		t.Errorf("preset p = %+v, want no create default filled in", p)
+	}
+	if p.NoDate == nil || !*p.NoDate {
+		t.Errorf("preset p lost no_date from the default section: %+v", p)
 	}
 }
 
@@ -328,18 +397,6 @@ func TestGetPresetValuesPrivate(t *testing.T) {
 			}
 			if len(got.Trackers) != 1 {
 				t.Errorf("trackers = %v, want the preset tracker", got.Trackers)
-			}
-
-			create, err := (&App{}).GetPreset("p")
-			if err != nil {
-				t.Fatal(err)
-			}
-			wantCreate := tc.want
-			if wantCreate == nil {
-				wantCreate = new(true)
-			}
-			if !reflect.DeepEqual(create.Private, wantCreate) {
-				t.Errorf("create private = %v, want %v", ptrString(create.Private), ptrString(wantCreate))
 			}
 		})
 	}

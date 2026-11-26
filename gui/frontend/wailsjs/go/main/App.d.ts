@@ -16,8 +16,6 @@ export function GetAllPresets():Promise<main.PresetsResult>;
 
 export function GetPieceLengthRange():Promise<main.PieceLengthRange>;
 
-export function GetPreset(arg1:string):Promise<preset.Options>;
-
 export function GetPresetFilePath():Promise<string>;
 
 export function GetPresetValues(arg1:string):Promise<preset.Options>;
