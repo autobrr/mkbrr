@@ -323,3 +323,135 @@ func TestBatchJobToCreateOptionsZeroPieceSettings(t *testing.T) {
 		t.Errorf("ToCreateOptions changed the job")
 	}
 }
+
+func TestResolveCreateOrigins(t *testing.T) {
+	const ptpTracker = "https://passthepopcorn.me/announce?passkey=123"
+	const otherTracker = "https://tracker.example.invalid/announce"
+
+	tests := []struct {
+		name      string
+		overrides CreateSettings
+		preset    *CreateSettings
+		check     func(t *testing.T, opts CreateOptions, origins CreateOrigins)
+	}{
+		{
+			name: "no override and no preset",
+			check: func(t *testing.T, opts CreateOptions, origins CreateOrigins) {
+				for f, origin := range reflect.ValueOf(origins).Fields() {
+					if origin.Interface() != OriginDefault {
+						t.Errorf("%s origin = %v, want default", f.Name, origin.Interface())
+					}
+				}
+			},
+		},
+		{
+			name:      "override wins over the preset",
+			overrides: CreateSettings{Comment: new("typed"), IsPrivate: new(false), TrackerURLs: []string{otherTracker}},
+			preset:    &CreateSettings{Comment: new("preset"), IsPrivate: new(true), TrackerURLs: []string{ptpTracker}},
+			check: func(t *testing.T, opts CreateOptions, origins CreateOrigins) {
+				wantOrigin(t, "comment", origins.Comment, OriginOverride)
+				wantOrigin(t, "private", origins.IsPrivate, OriginOverride)
+				wantOrigin(t, "trackers", origins.TrackerURLs, OriginOverride)
+				wantOrigin(t, "source", origins.Source, OriginDefault)
+				if opts.Comment != "typed" || opts.IsPrivate {
+					t.Errorf("comment %q private %v, want the override", opts.Comment, opts.IsPrivate)
+				}
+			},
+		},
+		{
+			name:   "preset fills what no override sets",
+			preset: &CreateSettings{Comment: new("preset"), IsPrivate: new(false), Source: new("SRC"), TrackerURLs: []string{ptpTracker}, MaxPieceLength: new(uint(22))},
+			check: func(t *testing.T, opts CreateOptions, origins CreateOrigins) {
+				wantOrigin(t, "comment", origins.Comment, OriginPreset)
+				wantOrigin(t, "private", origins.IsPrivate, OriginPreset)
+				wantOrigin(t, "source", origins.Source, OriginPreset)
+				wantOrigin(t, "trackers", origins.TrackerURLs, OriginPreset)
+				wantOrigin(t, "max piece length", origins.MaxPieceLength, OriginPreset)
+				wantOrigin(t, "no date", origins.NoDate, OriginDefault)
+				if opts.Source != "SRC" {
+					t.Errorf("source = %q, want the preset source", opts.Source)
+				}
+			},
+		},
+		{
+			name:   "tracker default source",
+			preset: &CreateSettings{TrackerURLs: []string{ptpTracker}},
+			check: func(t *testing.T, opts CreateOptions, origins CreateOrigins) {
+				wantOrigin(t, "source", origins.Source, OriginTrackerDefault)
+				if opts.Source != "PTP" {
+					t.Errorf("source = %q, want PTP", opts.Source)
+				}
+			},
+		},
+		{
+			name:      "tracker without a default source",
+			overrides: CreateSettings{TrackerURLs: []string{otherTracker}},
+			check: func(t *testing.T, opts CreateOptions, origins CreateOrigins) {
+				wantOrigin(t, "source", origins.Source, OriginDefault)
+			},
+		},
+		{
+			name:      "an override of the target piece count hides the preset piece length",
+			overrides: CreateSettings{TargetPieceCount: new(uint(100))},
+			preset:    &CreateSettings{PieceLengthExp: new(uint(20))},
+			check: func(t *testing.T, opts CreateOptions, origins CreateOrigins) {
+				wantOrigin(t, "target piece count", origins.TargetPieceCount, OriginOverride)
+				wantOrigin(t, "piece length", origins.PieceLengthExp, OriginDefault)
+				if opts.PieceLengthExp != nil {
+					t.Errorf("piece length = %d, want none", *opts.PieceLengthExp)
+				}
+			},
+		},
+		{
+			name:      "override patterns add to the preset patterns",
+			overrides: CreateSettings{ExcludePatterns: []string{"*.jpg"}, IncludePatterns: []string{"*.mkv"}},
+			preset:    &CreateSettings{ExcludePatterns: []string{"*.nfo"}},
+			check: func(t *testing.T, opts CreateOptions, origins CreateOrigins) {
+				wantOrigin(t, "exclude patterns", origins.ExcludePatterns, OriginPreset)
+				wantOrigin(t, "include patterns", origins.IncludePatterns, OriginOverride)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts, origins, err := ResolveCreate(CreateOverrides{CreateSettings: tt.overrides}, tt.preset)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want, err := ResolveCreateOptions(CreateOverrides{CreateSettings: tt.overrides}, tt.preset)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(opts, want) {
+				t.Errorf("ResolveCreate options = %+v, ResolveCreateOptions = %+v", opts, want)
+			}
+			tt.check(t, opts, origins)
+		})
+	}
+}
+
+func wantOrigin(t *testing.T, setting string, got, want Origin) {
+	t.Helper()
+	if got != want {
+		t.Errorf("%s origin = %q, want %q", setting, got, want)
+	}
+}
+
+func TestCreateOriginsMatchCreateSettings(t *testing.T) {
+	settings := reflect.TypeFor[CreateSettings]()
+	origins := reflect.TypeFor[CreateOrigins]()
+	if settings.NumField() != origins.NumField() {
+		t.Fatalf("CreateSettings has %d fields, CreateOrigins %d", settings.NumField(), origins.NumField())
+	}
+	for f := range settings.Fields() {
+		o, ok := origins.FieldByName(f.Name)
+		if !ok {
+			t.Errorf("CreateOrigins has no field %s", f.Name)
+			continue
+		}
+		if o.Tag.Get("json") != f.Tag.Get("json") {
+			t.Errorf("%s json tag = %q, want %q", f.Name, o.Tag.Get("json"), f.Tag.Get("json"))
+		}
+	}
+}

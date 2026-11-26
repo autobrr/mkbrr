@@ -22,10 +22,6 @@ export function GetAllPresets() {
   return window['go']['main']['App']['GetAllPresets']();
 }
 
-export function GetAllowedPieceLengths(arg1, arg2) {
-  return window['go']['main']['App']['GetAllowedPieceLengths'](arg1, arg2);
-}
-
 export function GetPieceLengthRange() {
   return window['go']['main']['App']['GetPieceLengthRange']();
 }
@@ -40,10 +36,6 @@ export function GetPresetFilePath() {
 
 export function GetPresetValues(arg1) {
   return window['go']['main']['App']['GetPresetValues'](arg1);
-}
-
-export function GetTrackerInfo(arg1) {
-  return window['go']['main']['App']['GetTrackerInfo'](arg1);
 }
 
 export function GetVersion() {
@@ -68,6 +60,10 @@ export function OpenURL(arg1) {
 
 export function PlanCreate(arg1) {
   return window['go']['main']['App']['PlanCreate'](arg1);
+}
+
+export function ResolveCreate(arg1) {
+  return window['go']['main']['App']['ResolveCreate'](arg1);
 }
 
 export function SavePreset(arg1, arg2) {

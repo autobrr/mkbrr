@@ -14,8 +14,6 @@ export function FormatBytes(arg1:number):Promise<string>;
 
 export function GetAllPresets():Promise<main.PresetsResult>;
 
-export function GetAllowedPieceLengths(arg1:string,arg2:number):Promise<main.AllowedPieceLengths>;
-
 export function GetPieceLengthRange():Promise<main.PieceLengthRange>;
 
 export function GetPreset(arg1:string):Promise<preset.Options>;
@@ -23,8 +21,6 @@ export function GetPreset(arg1:string):Promise<preset.Options>;
 export function GetPresetFilePath():Promise<string>;
 
 export function GetPresetValues(arg1:string):Promise<preset.Options>;
-
-export function GetTrackerInfo(arg1:string):Promise<main.TrackerInfo>;
 
 export function GetVersion():Promise<string>;
 
@@ -37,6 +33,8 @@ export function ModifyTorrent(arg1:main.ModifyRequest):Promise<main.ModifyResult
 export function OpenURL(arg1:string):Promise<void>;
 
 export function PlanCreate(arg1:main.CreateRequest):Promise<torrent.CreatePlan>;
+
+export function ResolveCreate(arg1:main.CreateRequest):Promise<main.CreateResolution>;
 
 export function SavePreset(arg1:string,arg2:preset.Options):Promise<void>;
 

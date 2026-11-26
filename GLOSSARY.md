@@ -5,7 +5,7 @@ mkbrr creates, inspects, checks, and modifies torrent files. The CLI, the GUI, a
 ## Create settings
 
 **Override**:
-A create setting that the user gave explicitly for one run: a CLI flag, a field in the GUI create form, or a key in a batch job. An override always wins. Filter patterns are the exception: override patterns add to the preset patterns.
+A create setting that the user gave explicitly for one run: a CLI flag, a value that the user typed or picked in the GUI create form, or a key in a batch job. A value that the GUI form shows from the preset or a tracker default is not an override. An override always wins. Filter patterns are the exception: override patterns add to the preset patterns.
 _Avoid_: flag value, request value
 
 **Preset**:
@@ -19,6 +19,10 @@ _Avoid_: tracker rule (a tracker rule is a limit, such as maximum piece length)
 **Resolve**:
 To merge the overrides, the preset, and the tracker defaults into the final create settings, in that order of priority.
 _Avoid_: merge, apply preset
+
+**Origin**:
+Where a resolved create setting came from: an override, the preset, a tracker default, or the default. The GUI create form shows the origin of each value.
+_Avoid_: source (the source tag is a setting)
 
 **Piece length choice**:
 The step that picks the piece length from the resolved create settings, the content size, and the tracker rules. It comes after **Resolve**.

@@ -3,13 +3,13 @@ module github.com/autobrr/mkbrr/gui
 go 1.27.0
 
 require (
+	github.com/autobrr/go-torrent v1.1.1
 	github.com/autobrr/mkbrr v0.0.0
 	github.com/wailsapp/wails/v2 v2.17.0
 )
 
 require (
 	git.sr.ht/~jackmordaunt/go-toast/v2 v2.0.3 // indirect
-	github.com/autobrr/go-torrent v1.1.1 // indirect
 	github.com/bep/debounce v1.2.1 // indirect
 	github.com/bmatcuk/doublestar/v4 v4.10.4 // indirect
 	github.com/dustin/go-humanize v1.1.0 // indirect
