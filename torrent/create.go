@@ -354,6 +354,12 @@ func prepareCreateContext(ctx context.Context, opts CreateOptions, internalOpts 
 
 	err = filepath.Walk(walkPath, func(currentPath string, walkInfo os.FileInfo, walkErr error) error {
 		if walkErr != nil {
+			if currentPath != walkPath && errors.Is(walkErr, os.ErrNotExist) {
+				if !isTempTorrentFilename(filepath.Base(currentPath)) {
+					fmt.Fprintf(os.Stderr, "Warning: could not lstat %q: %v\n", currentPath, walkErr)
+				}
+				return nil
+			}
 			return walkErr
 		}
 		if err := ctx.Err(); err != nil {
@@ -362,7 +368,9 @@ func prepareCreateContext(ctx context.Context, opts CreateOptions, internalOpts 
 
 		lstatInfo, err := os.Lstat(currentPath)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: could not lstat %q: %v\n", currentPath, err)
+			if !errors.Is(err, os.ErrNotExist) || !isTempTorrentFilename(filepath.Base(currentPath)) {
+				fmt.Fprintf(os.Stderr, "Warning: could not lstat %q: %v\n", currentPath, err)
+			}
 			return nil
 		}
 
@@ -828,6 +836,11 @@ func registerActiveTempTorrent(base string) func() {
 			activeTempTorrents.mu.Unlock()
 		})
 	}
+}
+
+func isTempTorrentFilename(base string) bool {
+	lower := strings.ToLower(base)
+	return strings.HasPrefix(lower, tempTorrentFilePrefix) && strings.HasSuffix(lower, tempTorrentFileSuffix)
 }
 
 func isActiveTempTorrentFilename(base string) bool {
