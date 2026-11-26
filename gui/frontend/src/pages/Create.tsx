@@ -247,7 +247,7 @@ export function CreatePage() {
   const [result, setResult] = useState<TorrentResultType | null>(null);
   const [error, setError] = useState('');
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [resolution, setResolution] = useState<CreateResolutionType | null>(null);
+  const [resolved, setResolved] = useState<{ presetName: string; resolution: CreateResolutionType } | null>(null);
   const [resolveError, setResolveError] = useState('');
   const [plan, setPlan] = useState<CreatePlanType | null>(null);
   const [planError, setPlanError] = useState('');
@@ -260,9 +260,10 @@ export function CreatePage() {
     toast.success('Path set from dropped item');
   });
 
-  useEffect(() => {
+  const loadPresets = () => {
     ListPresets().then((names) => setPresets(names ?? [])).catch((e) => toast.error('Failed to load presets: ' + String(e)));
-  }, []);
+  };
+  useEffect(loadPresets, []);
 
   // Save form state to localStorage whenever values change
   useEffect(() => {
@@ -283,7 +284,10 @@ export function CreatePage() {
   }, []);
 
   useEffect(() => {
-    const reread = () => setPresetFileRead((n) => n + 1);
+    const reread = () => {
+      setPresetFileRead((n) => n + 1);
+      loadPresets();
+    };
     window.addEventListener('focus', reread);
     return () => window.removeEventListener('focus', reread);
   }, []);
@@ -333,7 +337,7 @@ export function CreatePage() {
     ResolveCreate(request)
       .then((next) => {
         if (stale) return;
-        setResolution(next);
+        setResolved({ presetName, resolution: next });
         setResolveError('');
       })
       .catch((e) => {
@@ -345,6 +349,7 @@ export function CreatePage() {
     };
   }, [resolveKey, legacy]);
 
+  const resolution = resolved?.presetName === presetName ? resolved.resolution : null;
   const settings = resolution?.settings;
   const origins = resolution?.origins;
   const allowedPieceLengths = resolution?.allowedPieceLengths;
@@ -373,6 +378,7 @@ export function CreatePage() {
   // Ask for a new create plan after each change to the request. The name, the comment,
   // the source, and the toggles change the .torrent size, so they can change the piece length.
   useEffect(() => {
+    if (legacy) return;
     if (!path) {
       setPlan(null);
       setPlanError('');
@@ -397,7 +403,7 @@ export function CreatePage() {
       stale = true;
       clearTimeout(debounce);
     };
-  }, [requestKey]);
+  }, [requestKey, legacy]);
 
   useEffect(() => {
     if (!allowedPieceLengths) return;
@@ -457,8 +463,11 @@ export function CreatePage() {
 
   const handlePresetChange = (value: string) => {
     setPresetName(value === 'none' ? '' : value);
-    setOverrides((o) => Object.fromEntries(Object.entries(o).filter(([, v]) => (
-      Array.isArray(v) ? nonBlank(v).length > 0 : v !== ''
+    const inherited = (field: string, urls: string[]) => (
+      (field === 'trackerUrls' || field === 'webSeeds') && sameValue(nonBlank(urls), settings?.[field] ?? [])
+    );
+    setOverrides((o) => Object.fromEntries(Object.entries(o).filter(([field, v]) => (
+      Array.isArray(v) ? nonBlank(v).length > 0 && !inherited(field, v) : v !== ''
     ))));
   };
 
@@ -1010,7 +1019,7 @@ export function CreatePage() {
         <Button variant="outline" onClick={handleClearFields} disabled={isCreating}>
           Reset
         </Button>
-        <Button onClick={handleCreate} disabled={isCreating || !path}>
+        <Button onClick={handleCreate} disabled={isCreating || !path || !!legacy}>
           {isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           {isCreating ? 'Creating...' : 'Create Torrent'}
         </Button>
