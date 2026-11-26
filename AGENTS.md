@@ -16,7 +16,8 @@ mkbrr creates, inspects, checks, and modifies torrent files. It has a CLI, a GUI
 - `make build` writes the binary to `build/mkbrr`.
 - `make test` runs all tests. `make test-race` runs `./torrent` with the race detector, as CI does.
 - `make test-large` runs the `large_tests` build tag. These tests hash large files and use all CPU cores.
-- `make lint` runs `golangci-lint`.
+- `make lint` runs `golangci-lint` on all code, as CI does.
+- Before each commit, run `make precommit`. It formats the Go files that changed since `origin/develop`, then lints only those changes, in the CLI module and the GUI module.
 - `make gui-dev` starts the GUI in Wails dev mode.
 
 ## Settings
