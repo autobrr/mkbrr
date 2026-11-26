@@ -441,6 +441,17 @@ func prepareCreateContext(ctx context.Context, opts CreateOptions, internalOpts 
 			return nil
 		}
 
+		// Revalidate before recording the entry: a concurrent temp probe file
+		// can be removed and unregistered between initial Lstat and append.
+		if _, err := os.Lstat(currentPath); errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		if resolvedPath != currentPath {
+			if _, err := os.Stat(resolvedPath); errors.Is(err, os.ErrNotExist) {
+				return nil
+			}
+		}
+
 		fileSize := resolvedInfo.Size()
 		updatedTotalSize, err := addTorrentFileSize(totalSize, fileSize)
 		if err != nil {
