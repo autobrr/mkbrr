@@ -17,7 +17,8 @@ tag=$1
 root=$(git rev-parse --show-toplevel)
 changelog="$root/documentation/changelog.mdx"
 
-git rev-parse -q --verify "refs/tags/$tag" >/dev/null || { echo "no local tag $tag; run git fetch --tags" >&2; exit 1; }
+git fetch --quiet --tags origin
+git rev-parse -q --verify "refs/tags/$tag" >/dev/null || { echo "origin has no tag $tag" >&2; exit 1; }
 case "$tag" in
   *-*) echo "$tag is a prerelease and gets no changelog entry" >&2; exit 1 ;;
 esac
