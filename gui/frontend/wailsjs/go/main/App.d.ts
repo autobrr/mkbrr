@@ -22,6 +22,8 @@ export function GetPreset(arg1:string):Promise<preset.Options>;
 
 export function GetPresetFilePath():Promise<string>;
 
+export function GetPresetValues(arg1:string):Promise<preset.Options>;
+
 export function GetTrackerInfo(arg1:string):Promise<main.TrackerInfo>;
 
 export function GetVersion():Promise<string>;

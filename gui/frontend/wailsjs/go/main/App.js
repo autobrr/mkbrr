@@ -38,6 +38,10 @@ export function GetPresetFilePath() {
   return window['go']['main']['App']['GetPresetFilePath']();
 }
 
+export function GetPresetValues(arg1) {
+  return window['go']['main']['App']['GetPresetValues'](arg1);
+}
+
 export function GetTrackerInfo(arg1) {
   return window['go']['main']['App']['GetTrackerInfo'](arg1);
 }

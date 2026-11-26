@@ -537,6 +537,10 @@ func (a *App) GetPreset(name string) (*preset.Options, error) {
 	return preset.LoadPresetOptions("", name)
 }
 
+func (a *App) GetPresetValues(name string) (*preset.Options, error) {
+	return preset.LoadPresetValues("", name)
+}
+
 // GetPresetFilePath returns the path to the preset file
 func (a *App) GetPresetFilePath() (string, error) {
 	return preset.FindPresetFile("")
