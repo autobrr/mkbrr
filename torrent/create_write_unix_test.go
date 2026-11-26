@@ -74,9 +74,9 @@ func TestCreateWritesTemporaryFileInFolderThatTheKernelResolves(t *testing.T) {
 	opts.OutputPath = link + "/../out.torrent"
 	wantDir := filepath.Dir(realDir)
 
-	prev := publishCreatedTorrent
-	t.Cleanup(func() { publishCreatedTorrent = prev })
-	publishCreatedTorrent = func(temp, out string, replace bool) error {
+	prev := publishTorrentOutput
+	t.Cleanup(func() { publishTorrentOutput = prev })
+	publishTorrentOutput = func(temp, out string, replace bool) error {
 		assert.FileExists(t, filepath.Join(wantDir, filepath.Base(temp)))
 		return prev(temp, out, replace)
 	}

@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"path/filepath"
@@ -205,7 +206,11 @@ func UpdateTorrent(opts UpdateOptions) (*UpdateResult, error) {
 	if err != nil {
 		return nil, fmt.Errorf("stat input torrent: %w", err)
 	}
-	if err := writeTorrentAtomically(rootMap, writeOutputPath, torrentInfo.Mode().Perm(), !defaultOutput); err != nil {
+	if err := os.MkdirAll(filepath.Dir(writeOutputPath), 0o755); err != nil {
+		return nil, fmt.Errorf("create output directory: %w", err)
+	}
+	encode := func(w io.Writer) error { return bencode.NewEncoder(w).Encode(rootMap) }
+	if err := writeTorrentOutput(writeOutputPath, torrentInfo.Mode().Perm(), !defaultOutput, encode); err != nil {
 		return nil, err
 	}
 
@@ -779,44 +784,4 @@ func normalizeTorrentPath(filePath string) string {
 		return ""
 	}
 	return cleaned
-}
-
-// writeTorrentAtomically writes through a same-directory temporary file and applies the requested replacement policy.
-func writeTorrentAtomically(rootMap map[string]bencode.Bytes, outputPath string, fallbackMode os.FileMode, replace bool) error {
-	dir := filepath.Dir(outputPath)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return fmt.Errorf("create output directory: %w", err)
-	}
-
-	tempFile, err := os.CreateTemp(dir, ".mkbrr-update-*.torrent")
-	if err != nil {
-		return fmt.Errorf("create temporary torrent: %w", err)
-	}
-	tempPath := tempFile.Name()
-	defer func() {
-		_ = os.Remove(tempPath)
-	}()
-
-	mode := fallbackMode
-	if existing, statErr := os.Lstat(outputPath); replace && statErr == nil && existing.Mode().IsRegular() {
-		mode = existing.Mode().Perm()
-	}
-	if err := tempFile.Chmod(mode); err != nil {
-		_ = tempFile.Close()
-		return fmt.Errorf("set torrent permissions: %w", err)
-	}
-	if err := bencode.NewEncoder(tempFile).Encode(rootMap); err != nil {
-		_ = tempFile.Close()
-		return fmt.Errorf("write updated torrent: %w", err)
-	}
-	if err := tempFile.Close(); err != nil {
-		return fmt.Errorf("close updated torrent: %w", err)
-	}
-	if err := publishTorrentFile(tempPath, outputPath, replace); err != nil {
-		if replace {
-			return fmt.Errorf("replace torrent %q: %w", outputPath, err)
-		}
-		return fmt.Errorf("create torrent %q: %w", outputPath, err)
-	}
-	return nil
 }

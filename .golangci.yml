@@ -49,8 +49,9 @@ linters:
 
     # The GUI create preview must show the create plan, and the GUI must not
     # build an output filename itself, so that it matches what create writes.
-    # The exclusion rule below limits this guard to gui/, because torrent/
-    # walks folders and decides the output path itself.
+    # The exclusion rules below limit these guards to gui/, because torrent/
+    # walks folders and decides the output path itself, and limit the
+    # .torrent writer guard to torrent/ code outside tests.
     forbidigo:
       # Without analyze-types, a rule that has pkg matches nothing.
       analyze-types: true
@@ -64,6 +65,9 @@ linters:
         - pattern: ^preset\.(GetDomainPrefix|GenerateOutputPath)$
           pkg: ^github\.com/autobrr/mkbrr/internal/preset$
           msg: the torrent package decides the output path; read it from the create plan or the create result
+        - pattern: ^os\.(Create|CreateTemp|WriteFile)$
+          pkg: ^os$
+          msg: write a .torrent file with writeTorrentOutput (torrent/write.go), so a failed write keeps the old file
 
   exclusions:
     generated: lax
@@ -78,6 +82,16 @@ linters:
       - path-except: ^gui/
         linters:
           - forbidigo
+        text: "create plan|output path"
+
+      - path-except: ^torrent/
+        linters:
+          - forbidigo
+        text: writeTorrentOutput
+      - path: _test\.go
+        linters:
+          - forbidigo
+        text: writeTorrentOutput
 
       # A parameter an interface forces on an implementation still documents
       # what the caller passes; renaming it to _ loses that.

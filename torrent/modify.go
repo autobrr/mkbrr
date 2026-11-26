@@ -211,16 +211,8 @@ func ModifyTorrent(path string, opts ModifyOptions) (*Result, error) {
 		}
 	}
 
-	// save modified torrent file
-	f, err := os.Create(outPath)
-	if err != nil {
-		result.Error = fmt.Errorf("could not create output file: %w", err)
-		return result, result.Error
-	}
-	defer f.Close()
-
-	if err := mi.Write(f); err != nil {
-		result.Error = fmt.Errorf("could not write output file: %w", err)
+	if err := writeTorrentOutput(outPath, 0o666, true, mi.Write); err != nil {
+		result.Error = err
 		return result, result.Error
 	}
 
