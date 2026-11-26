@@ -790,10 +790,15 @@ func writeTorrentFile(t *Torrent, outputPath string) error {
 	return nil
 }
 
+const (
+	tempTorrentFilePrefix = ".mkbrr-"
+	tempTorrentFileSuffix = ".tmp"
+)
+
 // createTempTorrentFile keeps the parent as given, because a cleaned "link/.." can name another filesystem.
 func createTempTorrentFile(outputPath string, perm os.FileMode) (*os.File, error) {
 	dir, _ := filepath.Split(outputPath)
-	return openTempTorrentFile(dir+".mkbrr-"+rand.Text()+".tmp", os.O_RDWR|os.O_CREATE|os.O_EXCL, perm)
+	return openTempTorrentFile(dir+tempTorrentFilePrefix+rand.Text()+tempTorrentFileSuffix, os.O_RDWR|os.O_CREATE|os.O_EXCL, perm)
 }
 
 func prepareOutputFolder(outputPath string) error {
@@ -849,7 +854,10 @@ func createOutputPath(opts CreateOptions) string {
 		out += ".torrent"
 	}
 	if opts.OutputDir != "" && !filepath.IsAbs(out) {
-		return filepath.Join(opts.OutputDir, out)
+		if os.IsPathSeparator(opts.OutputDir[len(opts.OutputDir)-1]) {
+			return opts.OutputDir + out
+		}
+		return opts.OutputDir + string(os.PathSeparator) + out
 	}
 	return out
 }

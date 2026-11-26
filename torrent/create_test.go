@@ -631,6 +631,75 @@ func TestCreateTorrent_IgnoresSynologyMetadataDir(t *testing.T) {
 	}
 }
 
+func TestCreateTorrent_IgnoresInternalTempFiles(t *testing.T) {
+	rootDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(rootDir, "movie.mkv"), []byte("video data"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(rootDir, "keep.tmp"), []byte("user temp data"), 0o644))
+
+	cleanTor, err := CreateTorrent(CreateOptions{
+		Path:      rootDir,
+		NoCreator: true,
+		NoDate:    true,
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, os.WriteFile(filepath.Join(rootDir, ".mkbrr-ABC123.tmp"), []byte("probe"), 0o644))
+	nestedDir := filepath.Join(rootDir, "nested")
+	require.NoError(t, os.MkdirAll(nestedDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(nestedDir, ".mkbrr-DEF456.tmp"), []byte("probe"), 0o644))
+
+	torrentFilePaths := func(tor *Torrent) []string {
+		files := tor.GetInfo().Files
+		paths := make([]string, 0, len(files))
+		for _, f := range files {
+			paths = append(paths, strings.Join(f.Path, "/"))
+		}
+		return paths
+	}
+
+	t.Run("default filters", func(t *testing.T) {
+		tor, err := CreateTorrent(CreateOptions{
+			Path:      rootDir,
+			NoCreator: true,
+			NoDate:    true,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"keep.tmp", "movie.mkv"}, torrentFilePaths(tor))
+	})
+
+	t.Run("include wildcard still ignores internal temp files", func(t *testing.T) {
+		tor, err := CreateTorrent(CreateOptions{
+			Path:            rootDir,
+			IncludePatterns: []string{"*"},
+			NoCreator:       true,
+			NoDate:          true,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"keep.tmp", "movie.mkv"}, torrentFilePaths(tor))
+	})
+
+	t.Run("include *.tmp keeps user tmp but ignores internal temp files", func(t *testing.T) {
+		tor, err := CreateTorrent(CreateOptions{
+			Path:            rootDir,
+			IncludePatterns: []string{"*.tmp"},
+			NoCreator:       true,
+			NoDate:          true,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"keep.tmp"}, torrentFilePaths(tor))
+	})
+
+	t.Run("info hash unchanged when internal temp files exist", func(t *testing.T) {
+		tor, err := CreateTorrent(CreateOptions{
+			Path:      rootDir,
+			NoCreator: true,
+			NoDate:    true,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, cleanTor.HashInfoBytes(), tor.HashInfoBytes())
+	})
+}
+
 func TestCreateTorrent_SingleFilePatterns(t *testing.T) {
 	rootDir := t.TempDir()
 	filePath := filepath.Join(rootDir, "movie.mkv")
@@ -774,6 +843,16 @@ func TestCreateOutputPath(t *testing.T) {
 			name: "relative output path without extension goes into the output folder",
 			opts: CreateOptions{Path: content, OutputDir: "out", OutputPath: filepath.Join("sub", "custom"), TrackerURLs: []string{tracker}},
 			want: filepath.Join("out", "sub", "custom.torrent"),
+		},
+		{
+			name: "output folder with trailing separator does not duplicate separator",
+			opts: CreateOptions{Path: content, OutputDir: "out" + string(os.PathSeparator), OutputPath: "custom.torrent", TrackerURLs: []string{tracker}},
+			want: filepath.Join("out", "custom.torrent"),
+		},
+		{
+			name: "relative output path preserves parent traversal segments",
+			opts: CreateOptions{Path: content, OutputDir: "link", OutputPath: filepath.Join("..", "custom"), TrackerURLs: []string{tracker}},
+			want: "link" + string(os.PathSeparator) + filepath.Join("..", "custom.torrent"),
 		},
 		{
 			name: "absolute output path wins over the output folder",

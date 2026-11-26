@@ -84,3 +84,46 @@ func TestCreateWritesTemporaryFileInFolderThatTheKernelResolves(t *testing.T) {
 	_, err := CreateContext(t.Context(), opts)
 	require.NoError(t, err)
 }
+
+func TestCreateOutputDirWithRelativeTraversalFollowsSymlink(t *testing.T) {
+	content := writeCancelContent(t, 64<<10)
+
+	t.Run("output dir is symlink with parent traversal", func(t *testing.T) {
+		realDir := filepath.Join(t.TempDir(), "real", "sub")
+		require.NoError(t, os.MkdirAll(realDir, 0o755))
+		linkParent := t.TempDir()
+		link := filepath.Join(linkParent, "link")
+		require.NoError(t, os.Symlink(realDir, link))
+
+		opts := cancelCreateOptions(t, content)
+		opts.OutputDir = link
+		opts.OutputPath = "../name"
+
+		_, err := CreateContext(t.Context(), opts)
+		require.NoError(t, err)
+
+		wantPath := filepath.Join(filepath.Dir(realDir), "name.torrent")
+		assert.FileExists(t, wantPath)
+		_, lexicalErr := os.Stat(filepath.Join(linkParent, "name.torrent"))
+		require.ErrorIs(t, lexicalErr, os.ErrNotExist)
+	})
+
+	t.Run("output dir contains symlink with parent traversal", func(t *testing.T) {
+		realDir := filepath.Join(t.TempDir(), "real", "sub")
+		require.NoError(t, os.MkdirAll(realDir, 0o755))
+		outDir := t.TempDir()
+		require.NoError(t, os.Symlink(realDir, filepath.Join(outDir, "link")))
+
+		opts := cancelCreateOptions(t, content)
+		opts.OutputDir = outDir
+		opts.OutputPath = "link/../custom"
+
+		_, err := CreateContext(t.Context(), opts)
+		require.NoError(t, err)
+
+		wantPath := filepath.Join(filepath.Dir(realDir), "custom.torrent")
+		assert.FileExists(t, wantPath)
+		_, lexicalErr := os.Stat(filepath.Join(outDir, "custom.torrent"))
+		require.ErrorIs(t, lexicalErr, os.ErrNotExist)
+	})
+}

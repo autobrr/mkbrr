@@ -451,6 +451,47 @@ func TestShouldIgnoreEntry(t *testing.T) {
 			excludePatterns: nil,
 			wantIgnore:      true,
 		},
+		{
+			name:            "hardcoded file ignore - internal temp file at root",
+			relPath:         ".mkbrr-ABC123.tmp",
+			isDir:           false,
+			excludePatterns: nil,
+			wantIgnore:      true,
+		},
+		{
+			name:            "hardcoded file ignore - internal temp file in subdir",
+			relPath:         "folder/.mkbrr-DEF456.tmp",
+			isDir:           false,
+			excludePatterns: nil,
+			wantIgnore:      true,
+		},
+		{
+			name:            "hardcoded file ignore - internal temp file ignored even with include *.tmp",
+			relPath:         ".mkbrr-ABC123.tmp",
+			isDir:           false,
+			includePatterns: []string{"*.tmp"},
+			wantIgnore:      true,
+		},
+		{
+			name:            "hardcoded file ignore - internal temp file ignored even with include *",
+			relPath:         "folder/.mkbrr-ABC123.tmp",
+			isDir:           false,
+			includePatterns: []string{"*"},
+			wantIgnore:      true,
+		},
+		{
+			name:            "regular tmp file kept with include *.tmp",
+			relPath:         "notes.tmp",
+			isDir:           false,
+			includePatterns: []string{"*.tmp"},
+			wantIgnore:      false,
+		},
+		{
+			name:       "non-prefix tmp file not treated as internal temp file",
+			relPath:    "foo.mkbrr-123.tmp",
+			isDir:      false,
+			wantIgnore: false,
+		},
 
 		// Case insensitivity
 		{
