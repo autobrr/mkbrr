@@ -55,7 +55,7 @@ type ProgressEvent struct {
 type CreateRequest struct {
 	Path       string `json:"path"`       // Required: source file/directory path
 	Name       string `json:"name"`       // Optional: override torrent name (defaults to source name)
-	OutputPath string `json:"outputPath"` // Optional: full output path (mutually exclusive with OutputDir)
+	OutputPath string `json:"outputPath"` // Optional: output path (relative goes into OutputDir; absolute wins)
 	torrent.CreateSettings
 	PresetName     string `json:"presetName"`     // Optional: preset name to apply
 	PresetFile     string `json:"presetFile"`     // Optional: path to preset file

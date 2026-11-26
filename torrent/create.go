@@ -726,10 +726,8 @@ func createRun(ctx context.Context, opts CreateOptions) (*Torrent, *TorrentInfo,
 
 	outputPath := createOutputPath(opts)
 
-	if opts.OutputDir != "" {
-		if err := os.MkdirAll(opts.OutputDir, 0755); err != nil {
-			return nil, nil, fmt.Errorf("error creating output directory %q: %w", opts.OutputDir, err)
-		}
+	if err := prepareOutputFolder(outputPath); err != nil {
+		return nil, nil, err
 	}
 
 	t, seasonInfo, err := createTorrent(ctx, opts, createTorrentOptions{})
@@ -798,18 +796,62 @@ func createTempTorrentFile(outputPath string, perm os.FileMode) (*os.File, error
 	return openTempTorrentFile(dir+".mkbrr-"+rand.Text()+".tmp", os.O_RDWR|os.O_CREATE|os.O_EXCL, perm)
 }
 
+func prepareOutputFolder(outputPath string) error {
+	dir, _ := filepath.Split(outputPath)
+	folder := outputFolderName(dir)
+	if dir != "" {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return fmt.Errorf("error creating output directory %q: %w", folder, err)
+		}
+	}
+
+	f, err := createTempTorrentFile(outputPath, 0o600)
+	if err != nil {
+		return fmt.Errorf("cannot write to output directory %q: %w", folder, err)
+	}
+	tempPath := f.Name()
+	closeErr := f.Close()
+	removeErr := os.Remove(tempPath)
+	if err := errors.Join(closeErr, removeErr); err != nil {
+		return fmt.Errorf("cannot write to output directory %q: %w", folder, err)
+	}
+	return nil
+}
+
+func outputFolderName(dir string) string {
+	if dir == "" {
+		return "."
+	}
+	vol := filepath.VolumeName(dir)
+	minLen := len(vol)
+	if len(dir) > minLen && os.IsPathSeparator(dir[minLen]) {
+		minLen++
+	}
+	end := len(dir)
+	for end > minLen && os.IsPathSeparator(dir[end-1]) {
+		end--
+	}
+	return dir[:end]
+}
+
 // createOutputPath must not read the disk, so that a plan can give the path without a create.
 func createOutputPath(opts CreateOptions) string {
-	switch {
-	case opts.OutputDir != "":
-		return filepath.Join(opts.OutputDir, defaultTorrentFilename(opts))
-	case opts.OutputPath == "":
-		return defaultTorrentFilename(opts)
-	case strings.HasSuffix(opts.OutputPath, ".torrent"):
-		return opts.OutputPath
-	default:
-		return opts.OutputPath + ".torrent"
+	if opts.OutputPath == "" {
+		name := defaultTorrentFilename(opts)
+		if opts.OutputDir != "" {
+			return filepath.Join(opts.OutputDir, name)
+		}
+		return name
 	}
+
+	out := opts.OutputPath
+	if !strings.HasSuffix(out, ".torrent") {
+		out += ".torrent"
+	}
+	if opts.OutputDir != "" && !filepath.IsAbs(out) {
+		return filepath.Join(opts.OutputDir, out)
+	}
+	return out
 }
 
 func defaultTorrentFilename(opts CreateOptions) string {

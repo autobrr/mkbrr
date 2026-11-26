@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/autobrr/mkbrr/internal/preset"
 	"github.com/autobrr/mkbrr/internal/trackers"
 )
 
@@ -690,11 +691,14 @@ func TestCreateOutputPath(t *testing.T) {
 	const tracker = "https://tracker.example.org/announce"
 	const tracker2 = "https://tracker2.example.net/announce"
 	content := filepath.Join("data", "Movie")
+	absOut := filepath.Join(t.TempDir(), "abs.torrent")
+	absOutNoExt := filepath.Join(t.TempDir(), "abs")
 
 	tests := []struct {
-		name string
-		opts CreateOptions
-		want string
+		name   string
+		opts   CreateOptions
+		preset *preset.Options
+		want   string
 	}{
 		{
 			name: "default filename is the base name of the content path",
@@ -752,20 +756,106 @@ func TestCreateOutputPath(t *testing.T) {
 			want: "custom.torrent",
 		},
 		{
+			name: "absolute output path with no output folder stays as given",
+			opts: CreateOptions{Path: content, OutputPath: absOut, TrackerURLs: []string{tracker}},
+			want: absOut,
+		},
+		{
 			name: "output folder holds the default filename",
 			opts: CreateOptions{Path: content, OutputDir: "out", TrackerURLs: []string{tracker}},
 			want: filepath.Join("out", "example_Movie.torrent"),
 		},
 		{
-			name: "output folder drops the output path",
+			name: "relative output path goes into the output folder",
 			opts: CreateOptions{Path: content, OutputDir: "out", OutputPath: "custom.torrent", TrackerURLs: []string{tracker}},
-			want: filepath.Join("out", "example_Movie.torrent"),
+			want: filepath.Join("out", "custom.torrent"),
+		},
+		{
+			name: "relative output path without extension goes into the output folder",
+			opts: CreateOptions{Path: content, OutputDir: "out", OutputPath: filepath.Join("sub", "custom"), TrackerURLs: []string{tracker}},
+			want: filepath.Join("out", "sub", "custom.torrent"),
+		},
+		{
+			name: "absolute output path wins over the output folder",
+			opts: CreateOptions{Path: content, OutputDir: "out", OutputPath: absOut, TrackerURLs: []string{tracker}},
+			want: absOut,
+		},
+		{
+			name: "absolute output path without extension wins over the output folder",
+			opts: CreateOptions{Path: content, OutputDir: "out", OutputPath: absOutNoExt, TrackerURLs: []string{tracker}},
+			want: absOutNoExt + ".torrent",
+		},
+		{
+			name:   "relative output path goes into the preset output folder",
+			opts:   CreateOptions{Path: content, OutputPath: "custom.torrent", TrackerURLs: []string{tracker}},
+			preset: &preset.Options{OutputDir: "preset-out"},
+			want:   filepath.Join("preset-out", "custom.torrent"),
+		},
+		{
+			name:   "absolute output path wins over the preset output folder",
+			opts:   CreateOptions{Path: content, OutputPath: absOut, TrackerURLs: []string{tracker}},
+			preset: &preset.Options{OutputDir: "preset-out"},
+			want:   absOut,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, createOutputPath(tt.opts))
+			opts := tt.opts
+			if tt.preset != nil {
+				var err error
+				opts, err = ResolveCreateOptions(CreateOverrides{
+					CreateSettings: CreateSettings{TrackerURLs: tt.opts.TrackerURLs},
+					Path:           tt.opts.Path,
+					Name:           tt.opts.Name,
+					OutputPath:     tt.opts.OutputPath,
+				}, tt.preset)
+				require.NoError(t, err)
+			}
+			assert.Equal(t, tt.want, createOutputPath(opts))
+		})
+	}
+}
+
+func TestPlanCreateDoesNotCreateOutputFolderOrFile(t *testing.T) {
+	dir := t.TempDir()
+	content := filepath.Join(dir, "content.bin")
+	require.NoError(t, os.WriteFile(content, make([]byte, 64*1024), 0o644))
+
+	missingDir := filepath.Join(dir, "missing-dir")
+	missingPath := filepath.Join(dir, "missing-parent", "nested", "out.torrent")
+
+	tests := []struct {
+		name        string
+		opts        CreateOptions
+		absentPaths []string
+	}{
+		{
+			name:        "missing output dir",
+			opts:        CreateOptions{Path: content, OutputDir: missingDir, NoCreator: true, NoDate: true},
+			absentPaths: []string{missingDir},
+		},
+		{
+			name:        "missing output path parent",
+			opts:        CreateOptions{Path: content, OutputPath: missingPath, NoCreator: true, NoDate: true},
+			absentPaths: []string{filepath.Join(dir, "missing-parent"), missingPath},
+		},
+		{
+			name:        "relative output path with missing output dir",
+			opts:        CreateOptions{Path: content, OutputDir: missingDir, OutputPath: filepath.Join("sub", "out.torrent"), NoCreator: true, NoDate: true},
+			absentPaths: []string{missingDir},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			plan, err := PlanCreate(tt.opts)
+			require.NoError(t, err)
+			require.Equal(t, int64(64*1024), plan.ContentSize)
+			for _, p := range tt.absentPaths {
+				_, statErr := os.Stat(p)
+				assert.ErrorIs(t, statErr, os.ErrNotExist)
+			}
 		})
 	}
 }

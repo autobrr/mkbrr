@@ -356,3 +356,34 @@ jobs:
 		t.Fatalf("job failed: %v", results[0].Error)
 	}
 }
+
+func TestProcessBatchCreatesMissingOutputFolders(t *testing.T) {
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "file.txt")
+	require.NoError(t, os.WriteFile(testFile, []byte("batch missing folder content"), 0o644))
+
+	out1 := filepath.Join(tmpDir, "missing", "nested", "job1.torrent")
+	out2Base := filepath.Join(tmpDir, "other", "sub", "job2")
+	out2 := out2Base + ".torrent"
+
+	configPath := filepath.Join(tmpDir, "batch.yaml")
+	config := fmt.Sprintf("version: 1\njobs:\n  - output: %q\n    path: %q\n  - output: %q\n    path: %q\n",
+		out1, testFile, out2Base, testFile)
+	require.NoError(t, os.WriteFile(configPath, []byte(config), 0o644))
+
+	results, err := ProcessBatch(configPath, false, true, false, "test-version")
+	require.NoError(t, err)
+	require.Len(t, results, 2)
+
+	wantPaths := []string{out1, out2}
+	for i, result := range results {
+		require.Truef(t, result.Success, "job %d failed: %v", i, result.Error)
+		require.NotNil(t, result.Info)
+		assert.Equal(t, wantPaths[i], result.Info.Path)
+		assert.FileExists(t, wantPaths[i])
+		entries, readErr := os.ReadDir(filepath.Dir(wantPaths[i]))
+		require.NoError(t, readErr)
+		require.Len(t, entries, 1)
+		assert.Equal(t, filepath.Base(wantPaths[i]), entries[0].Name())
+	}
+}

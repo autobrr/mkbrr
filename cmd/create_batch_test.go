@@ -18,7 +18,7 @@ import (
 )
 
 // writeBatchFixture writes a content file and a batch config with one job that
-// succeeds and, if withFailure is set, one whose output directory does not exist.
+// succeeds and, if withFailure is set, one whose output parent is a regular file.
 func writeBatchFixture(t *testing.T, withFailure bool) (batchFile, goodOutput, badOutput string) {
 	t.Helper()
 
@@ -29,7 +29,9 @@ func writeBatchFixture(t *testing.T, withFailure bool) (batchFile, goodOutput, b
 	goodOutput = filepath.Join(dir, "good.torrent")
 	config := fmt.Sprintf("version: 1\njobs:\n  - path: %q\n    output: %q\n", content, goodOutput)
 	if withFailure {
-		badOutput = filepath.Join(dir, "missing-dir", "bad.torrent")
+		blocker := filepath.Join(dir, "not-a-dir")
+		require.NoError(t, os.WriteFile(blocker, []byte("x"), 0o644))
+		badOutput = filepath.Join(blocker, "bad.torrent")
 		config += fmt.Sprintf("  - path: %q\n    output: %q\n", content, badOutput)
 	}
 
@@ -184,4 +186,24 @@ func TestCreatePlanPrintsJSONWithoutWritingTorrent(t *testing.T) {
 	assert.Equal(t, uint64(2<<20), plan.TrackerSizeLimit)
 	require.Contains(t, plan.SeasonPack, "missing_episodes")
 	assert.Equal(t, false, plan.SeasonPack["is_season_pack"])
+}
+
+func TestCreatePlanCreatesNoOutputFolderOrFile(t *testing.T) {
+	dir := t.TempDir()
+	content := filepath.Join(dir, "content.bin")
+	require.NoError(t, os.WriteFile(content, make([]byte, 64*1024), 0o644))
+
+	t.Run("missing output dir with relative output path", func(t *testing.T) {
+		missingOutDir := filepath.Join(dir, "missing-dir")
+		require.NoError(t, runCreateCommand(t, content, "--plan", "--output-dir", missingOutDir, "-o", filepath.Join("sub", "planned.torrent")))
+		_, err := os.Stat(missingOutDir)
+		assert.ErrorIs(t, err, os.ErrNotExist)
+	})
+
+	t.Run("missing output path parent", func(t *testing.T) {
+		missingOutPath := filepath.Join(dir, "missing-parent", "planned.torrent")
+		require.NoError(t, runCreateCommand(t, content, "--plan", "-o", missingOutPath))
+		_, err := os.Stat(filepath.Dir(missingOutPath))
+		assert.ErrorIs(t, err, os.ErrNotExist)
+	})
 }

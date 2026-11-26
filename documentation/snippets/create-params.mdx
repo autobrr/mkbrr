@@ -26,11 +26,11 @@ import CommonEntropy from '/snippets/common-entropy.mdx';
 </ParamField>
 
 <ParamField query="--output, -o" type="string">
-  Optional. Set output path (default: `<n>.torrent` or `<tracker-prefix>_<n>.torrent`).
+  Optional. Set the output path (default: `<name>.torrent` or `<tracker-prefix>_<name>.torrent`). If the path does not end in `.torrent`, mkbrr adds `.torrent` and does not add a filename prefix. A relative path goes into the output folder from `--output-dir` or a preset `output_dir`, when one is set. An absolute path wins over the output folder. Missing parent folders are created and write access is checked before hashing.
 </ParamField>
 
 <ParamField query="--output-dir" type="string">
-  Output directory for created torrent.
+  Output folder for the created torrent. Overrides a preset `output_dir`. Used for the default filename and for a relative `--output` path; an absolute `--output` path wins over `--output-dir`. Missing folders are created and write access is checked before hashing.
 </ParamField>
 
 <ParamField query="--skip-prefix" type="boolean" default={false}>
