@@ -187,7 +187,8 @@ jobs:
           node-version: '24'
 
       - name: Install Wails CLI
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
+        shell: bash
+        run: go install "github.com/wailsapp/wails/v2/cmd/wails@$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v2)"
 
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile

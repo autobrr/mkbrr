@@ -154,7 +154,7 @@ clean:
 
 # GUI targets
 WAILS=$(GOBIN)/wails
-WAILS_VERSION=v2.13.0
+WAILS_VERSION=$(shell cd gui && $(GO) list -m -f '{{.Version}}' github.com/wailsapp/wails/v2)
 
 # install wails cli
 .PHONY: install-wails
