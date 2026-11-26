@@ -733,7 +733,7 @@ func TestUpdateTorrentDefaultOutputDoesNotReplaceRacedFile(t *testing.T) {
 	})
 	require.NoError(t, writeErr)
 	require.ErrorIs(t, err, os.ErrExist)
-	require.ErrorContains(t, err, "create torrent")
+	require.ErrorContains(t, err, "error writing torrent file")
 	assert.True(t, created)
 	got, err := os.ReadFile(outputPath)
 	require.NoError(t, err)

@@ -53,11 +53,11 @@ func TestCreateReplacesExistingFile(t *testing.T) {
 }
 
 func TestCreateKeepsExistingFileWhenPublishFails(t *testing.T) {
-	prev := publishCreatedTorrent
-	t.Cleanup(func() { publishCreatedTorrent = prev })
+	prev := publishTorrentOutput
+	t.Cleanup(func() { publishTorrentOutput = prev })
 	publishErr := errors.New("disk full")
 	var tempPath string
-	publishCreatedTorrent = func(temp, _ string, _ bool) error {
+	publishTorrentOutput = func(temp, _ string, _ bool) error {
 		tempPath = temp
 		return publishErr
 	}

@@ -15,6 +15,10 @@ mkbrr modify [flags] [torrent files...]
 `modify` changes only the fields that you set. It keeps the other keys in the info dictionary, including custom keys. It drops unknown top-level keys, which are keys outside the info dictionary that mkbrr does not know. When `modify` changes something, it sets the creation date to now, unless you remove the date with `--no-date` or a preset. If no value changes, `modify` writes no file and prints "no changes needed". A value that the torrent already has is not a change. `--dry-run` uses the same rule.
 </Note>
 
+<Note>
+`modify` writes the new torrent to a temporary file in the same folder and then renames it to the output path, so a failed write leaves the old file unchanged, also when the output path is the input torrent. A replaced file keeps its permission bits, and if you cannot write to the old file, for example because it is read-only, `modify` stops with an error. If the output path is a symbolic link, the new file replaces the link, and the file that the link points to does not change. If the old file has hard links, only the output path gets the new file. The other names of the old file keep the old torrent.
+</Note>
+
 ## Arguments
 
 -   `[torrent files...]`: (Required) One or more paths to the `.torrent` files to modify.

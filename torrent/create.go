@@ -5,7 +5,6 @@ package torrent
 
 import (
 	"bytes"
-	"cmp"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -756,7 +755,7 @@ func createRun(ctx context.Context, opts CreateOptions) (*Torrent, *TorrentInfo,
 		return nil, nil, err
 	}
 
-	if err := writeTorrentFile(t, outputPath); err != nil {
+	if err := writeTorrentOutput(outputPath, 0o666, true, t.Write); err != nil {
 		return nil, nil, err
 	}
 
@@ -768,47 +767,9 @@ func createRun(ctx context.Context, opts CreateOptions) (*Torrent, *TorrentInfo,
 }
 
 var (
-	publishCreatedTorrent = publishTorrentFile
-	openTempTorrentFile   = os.OpenFile
-	lstatWalkEntry        = os.Lstat
+	openTempTorrentFile = os.OpenFile
+	lstatWalkEntry      = os.Lstat
 )
-
-func writeTorrentFile(t *Torrent, outputPath string) error {
-	perm := os.FileMode(0o666)
-	old, err := os.Lstat(outputPath)
-	replacing := err == nil && old.Mode().IsRegular()
-	if replacing {
-		// Renaming does not require opening the old file for reading and writing.
-		probe, err := os.OpenFile(outputPath, os.O_RDWR, 0)
-		if err != nil {
-			return fmt.Errorf("error creating output file: %w", err)
-		}
-		_ = probe.Close()
-		// Another user who opens a wider temporary file keeps that handle after a chmod.
-		perm = old.Mode().Perm()
-	}
-	f, unregister, err := createTempTorrentFile(outputPath, perm)
-	if err != nil {
-		return fmt.Errorf("error creating output file: %w", err)
-	}
-	defer unregister()
-	if replacing {
-		err = f.Chmod(perm)
-	}
-	if err == nil {
-		err = t.Write(f)
-	}
-	if err == nil {
-		err = f.Sync()
-	}
-	if err = cmp.Or(err, f.Close()); err == nil {
-		err = publishCreatedTorrent(f.Name(), outputPath, true)
-	}
-	if err != nil {
-		return errors.Join(fmt.Errorf("error writing torrent file %q: %w", outputPath, err), os.Remove(f.Name()))
-	}
-	return nil
-}
 
 const (
 	tempTorrentFilePrefix = ".mkbrr-"
