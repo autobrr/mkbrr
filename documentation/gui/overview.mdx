@@ -43,6 +43,8 @@ The Create page has a control for each create setting of the CLI. The controls i
 | Include Patterns | `--include` | Adds only the files that match the patterns. |
 | Skip filename prefix | `--skip-prefix` | Does not add the tracker domain to the start of the output filename. |
 
+When you select a preset, it fills the trackers, web seeds, source, comment, Private, and the switches. When you switch to another preset or to None, each value that the old preset filled changes to the new preset's value, or to the default if the new preset does not set it, and each value that you typed or changed stays.
+
 Write the patterns as a comma-separated list, for example `*.nfo,*.jpg`. If you select a preset, the patterns of the preset also apply. See the [filtering guide](/features/filtering) for the pattern rules.
 
 Tracker rules still apply. The piece length lists show only the sizes that mkbrr accepts with the first tracker and the target piece count. If a change to the tracker or the target piece count removes the selected size from a list, the field goes back to Auto or No limit. A target piece count also cannot select a larger piece length than the tracker maximum.
