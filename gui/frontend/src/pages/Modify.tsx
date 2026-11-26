@@ -166,7 +166,8 @@ export function ModifyPage() {
     savedState.webSeedMode ?? (savedState.webSeeds?.some((w) => w.trim()) ? 'replace' : 'keep'));
   const [name, setName] = useState(savedState.name ?? '');
   const [privateMode, setPrivateMode] = useState<PrivateMode>(savedState.privateMode ?? 'unchanged');
-  const [privateFromPreset, setPrivateFromPreset] = useState(savedState.privateFromPreset ?? false);
+  const [privateFromPreset, setPrivateFromPreset] = useState(savedState.privateFromPreset ??
+    (Boolean(savedState.presetName) && (savedState.privateMode === 'private' || savedState.privateMode === 'public')));
   const [entropyMode, setEntropyMode] = useState<EntropyMode>(savedState.entropyMode ?? 'keep');
   const [source, setSource] = useState(savedState.source ?? '');
   const [comment, setComment] = useState(savedState.comment ?? '');
