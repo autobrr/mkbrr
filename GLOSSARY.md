@@ -37,7 +37,7 @@ A limit that mkbrr enforces for a tracker: a piece length table, a maximum piece
 _Avoid_: tracker config, tracker default
 
 **Create plan**:
-What create will do, worked out before hashing: the content size after filters, the piece length, the predicted .torrent size, the season pack check, and the notices. The GUI preview shows the create plan.
+What create will do, worked out before hashing: the content size after filters, the piece length, the predicted .torrent size, the season pack check, the **output path**, and the notices. The GUI preview shows the create plan.
 _Avoid_: preview, estimate
 
 ## Modify settings

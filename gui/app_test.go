@@ -149,6 +149,12 @@ func TestPlanCreateMatchesCreateTorrent(t *testing.T) {
 			if res.Size != plan.ContentSize {
 				t.Errorf("written size = %d, planned %d", res.Size, plan.ContentSize)
 			}
+			if res.Path != plan.OutputPath {
+				t.Errorf("written path = %q, planned %q", res.Path, plan.OutputPath)
+			}
+			if got, want := filepath.Dir(plan.OutputPath), filepath.Dir(req.Path); got != want {
+				t.Errorf("planned output folder = %q, want the source folder %q", got, want)
+			}
 		})
 	}
 }

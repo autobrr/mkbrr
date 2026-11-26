@@ -609,6 +609,7 @@ func PlanCreate(opts CreateOptions) (*CreatePlan, error) {
 		return nil, err
 	}
 	plan := prepared.plan
+	plan.OutputPath = createOutputPath(opts)
 	return &plan, nil
 }
 

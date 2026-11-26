@@ -769,19 +769,22 @@ func TestCreateTorrent_SingleFilePatterns(t *testing.T) {
 	}
 }
 
-func TestCreateOutputPath(t *testing.T) {
+type outputPathCase struct {
+	name   string
+	opts   CreateOptions
+	preset *preset.Options
+	want   string
+}
+
+func outputPathCases(t *testing.T) []outputPathCase {
+	t.Helper()
 	const tracker = "https://tracker.example.org/announce"
 	const tracker2 = "https://tracker2.example.net/announce"
 	content := filepath.Join("data", "Movie")
 	absOut := filepath.Join(t.TempDir(), "abs.torrent")
 	absOutNoExt := filepath.Join(t.TempDir(), "abs")
 
-	tests := []struct {
-		name   string
-		opts   CreateOptions
-		preset *preset.Options
-		want   string
-	}{
+	return []outputPathCase{
 		{
 			name: "default filename is the base name of the content path",
 			opts: CreateOptions{Path: content},
@@ -890,21 +893,48 @@ func TestCreateOutputPath(t *testing.T) {
 			want:   absOut,
 		},
 	}
+}
 
-	for _, tt := range tests {
+func (tt outputPathCase) resolve(t *testing.T) CreateOptions {
+	t.Helper()
+	if tt.preset == nil {
+		return tt.opts
+	}
+	opts, err := ResolveCreateOptions(CreateOverrides{
+		CreateSettings: CreateSettings{TrackerURLs: tt.opts.TrackerURLs},
+		Path:           tt.opts.Path,
+		Name:           tt.opts.Name,
+		OutputPath:     tt.opts.OutputPath,
+	}, tt.preset)
+	require.NoError(t, err)
+	return opts
+}
+
+func TestCreateOutputPath(t *testing.T) {
+	for _, tt := range outputPathCases(t) {
 		t.Run(tt.name, func(t *testing.T) {
-			opts := tt.opts
-			if tt.preset != nil {
-				var err error
-				opts, err = ResolveCreateOptions(CreateOverrides{
-					CreateSettings: CreateSettings{TrackerURLs: tt.opts.TrackerURLs},
-					Path:           tt.opts.Path,
-					Name:           tt.opts.Name,
-					OutputPath:     tt.opts.OutputPath,
-				}, tt.preset)
-				require.NoError(t, err)
-			}
-			assert.Equal(t, tt.want, createOutputPath(opts))
+			assert.Equal(t, tt.want, createOutputPath(tt.resolve(t)))
+		})
+	}
+}
+
+func TestPlanCreateOutputPathMatchesCreate(t *testing.T) {
+	for _, tt := range outputPathCases(t) {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			require.NoError(t, os.MkdirAll(filepath.Join("data", "Movie"), 0o755))
+			require.NoError(t, os.WriteFile(filepath.Join("data", "Movie", "movie.mkv"), []byte("movie"), 0o644))
+			require.NoError(t, os.WriteFile(filepath.Join("data", "Movie.mkv"), []byte("movie"), 0o644))
+			opts := tt.resolve(t)
+			opts.NoCreator = true
+			opts.NoDate = true
+
+			plan, err := PlanCreate(opts)
+			require.NoError(t, err)
+			info, err := Create(opts)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, plan.OutputPath)
+			assert.Equal(t, info.Path, plan.OutputPath)
 		})
 	}
 }
