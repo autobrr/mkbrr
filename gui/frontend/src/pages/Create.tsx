@@ -70,6 +70,8 @@ interface CreateFormState {
   presetName: string;
   failOnSeasonWarning: boolean;
   typedFields: TypedFields;
+  presetSource: string;
+  defaultSource: string;
 }
 
 interface PresetFormValues {
@@ -237,6 +239,7 @@ export function CreatePage() {
   );
   const typedFieldsRef = useRef(typedFields);
   typedFieldsRef.current = typedFields;
+  const mountTypedFields = useRef(typedFields);
   const markTyped = (field: PresetField, typed: boolean) => {
     typedFieldsRef.current = { ...typedFieldsRef.current, [field]: typed };
     setTypedFields(typedFieldsRef.current);
@@ -253,7 +256,8 @@ export function CreatePage() {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [trackerInfo, setTrackerInfo] = useState<TrackerInfoType | null>(null);
   const [allowedPieceLengths, setAllowedPieceLengths] = useState<AllowedPieceLengthsType | null>(null);
-  const [defaultSource, setDefaultSource] = useState('');
+  const [defaultSource, setDefaultSource] = useState(savedState.defaultSource ?? '');
+  const [presetSource, setPresetSource] = useState(savedState.presetSource ?? '');
   const [plan, setPlan] = useState<CreatePlanType | null>(null);
   const [planError, setPlanError] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -291,10 +295,12 @@ export function CreatePage() {
       presetName,
       failOnSeasonWarning,
       typedFields,
+      presetSource,
+      defaultSource,
     });
   }, [path, name, trackers, webSeeds, isPrivate, comment, source, pieceLengthExp, maxPieceLengthExp, targetPieceCount,
     excludePatterns, includePatterns, outputDir, noDate, noCreator, entropy, skipPrefix, presetName, failOnSeasonWarning,
-    typedFields]);
+    typedFields, presetSource, defaultSource]);
 
   // Check for pending result on mount (in case user navigated away during creation)
   useEffect(() => {
@@ -344,7 +350,6 @@ export function CreatePage() {
 
   const defaultSourceRef = useRef(defaultSource);
   defaultSourceRef.current = defaultSource;
-  const [presetSource, setPresetSource] = useState('');
 
   const fillFormFromPreset = (next: PresetFormValues) => {
     const typed = typedFieldsRef.current;
@@ -362,6 +367,18 @@ export function CreatePage() {
     if (!typed.failOnSeasonWarning) setFailOnSeasonWarning(next.failOnSeasonWarning);
   };
 
+  const migrateTypedFields = async (filled: PresetFormValues) => {
+    const tracker = savedState.trackers?.find(t => t.trim() !== '');
+    const info = tracker ? await GetTrackerInfo(tracker).catch(() => null) : null;
+    const migrated = typedFieldsFromValues(savedState, { ...filled, source: filled.source || (info?.defaultSource ?? '') });
+    const current = typedFieldsRef.current;
+    for (const field of Object.keys(current) as PresetField[]) {
+      if (current[field] !== mountTypedFields.current[field]) migrated[field] = current[field];
+    }
+    typedFieldsRef.current = migrated;
+    setTypedFields(migrated);
+  };
+
   const [presetTarget, setPresetTarget] = useState<{ name: string; count: number } | null>(null);
   const filledPresetName = useRef(savedState.presetName ?? '');
   useEffect(() => {
@@ -373,10 +390,7 @@ export function CreatePage() {
         setPresetTarget({ name: presetName, count: p?.targetPieceCount ?? 0 });
         if (filledPresetName.current === presetName) {
           setPresetSource(next.source);
-          if (!savedState.typedFields) {
-            typedFieldsRef.current = typedFieldsFromValues(savedState, next);
-            setTypedFields(typedFieldsRef.current);
-          }
+          if (!savedState.typedFields) migrateTypedFields(next);
           return;
         }
         filledPresetName.current = presetName;
@@ -415,11 +429,11 @@ export function CreatePage() {
   }, [firstTracker, effectiveTargetPieceCount, presetTargetLoaded]);
 
   const autoSource = presetSource || defaultSource;
-  const lastAutoSource = useRef<string | null>(null);
+  const lastAutoSource = useRef(autoSource);
   useEffect(() => {
-    const first = lastAutoSource.current === null;
+    if (lastAutoSource.current === autoSource) return;
     lastAutoSource.current = autoSource;
-    if (!first && !typedFieldsRef.current.source) setSource(autoSource);
+    if (!typedFieldsRef.current.source) setSource(autoSource);
   }, [autoSource]);
 
   // The piece length fields, the output directory, the web seeds, and the patterns are
