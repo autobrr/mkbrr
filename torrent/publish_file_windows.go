@@ -2,7 +2,17 @@
 
 package torrent
 
-import "golang.org/x/sys/windows"
+import (
+	"errors"
+	"time"
+
+	"golang.org/x/sys/windows"
+)
+
+const (
+	publishRetryBudget   = 2 * time.Second
+	publishRetryMaxSleep = 50 * time.Millisecond
+)
 
 // publishTorrentFile installs tempPath at outputPath, optionally replacing an existing entry.
 func publishTorrentFile(tempPath, outputPath string, replace bool) error {
@@ -19,5 +29,16 @@ func publishTorrentFile(tempPath, outputPath string, replace bool) error {
 	if replace {
 		flags |= windows.MOVEFILE_REPLACE_EXISTING
 	}
-	return windows.MoveFileEx(tempPathPointer, outputPathPointer, flags)
+	deadline := time.Now().Add(publishRetryBudget)
+	for sleep := time.Millisecond; ; sleep = min(2*sleep, publishRetryMaxSleep) {
+		err = windows.MoveFileEx(tempPathPointer, outputPathPointer, flags)
+		if !isTransientPublishError(err) || sleep > time.Until(deadline) {
+			return err
+		}
+		time.Sleep(sleep)
+	}
+}
+
+func isTransientPublishError(err error) bool {
+	return errors.Is(err, windows.ERROR_ACCESS_DENIED) || errors.Is(err, windows.ERROR_SHARING_VIOLATION)
 }
