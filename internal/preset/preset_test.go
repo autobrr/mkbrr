@@ -45,8 +45,7 @@ presets:
 		t.Fatalf("Failed to load test config: %v", err)
 	}
 
-	// Test 1: Preset with its own output_dir should override default
-	presetWithDir, err := config.GetPreset("with_output_dir")
+	presetWithDir, err := config.PresetValues("with_output_dir")
 	if err != nil {
 		t.Fatalf("Failed to get preset: %v", err)
 	}
@@ -55,8 +54,7 @@ presets:
 		t.Errorf("Expected preset output_dir to be '/preset/output/dir', got '%s'", presetWithDir.OutputDir)
 	}
 
-	// Test 2: Preset without output_dir should inherit from default
-	presetWithoutDir, err := config.GetPreset("without_output_dir")
+	presetWithoutDir, err := config.PresetValues("without_output_dir")
 	if err != nil {
 		t.Fatalf("Failed to get preset: %v", err)
 	}
@@ -172,9 +170,9 @@ presets:
 				t.Fatalf("Failed to load config: %v", err)
 			}
 
-			preset, err := config.GetPreset(tt.presetName)
+			preset, err := config.PresetValues(tt.presetName)
 			if err != nil {
-				t.Fatalf("GetPreset failed: %v", err)
+				t.Fatalf("PresetValues failed: %v", err)
 			}
 
 			if preset.PieceLength != tt.wantPieceLength {
@@ -278,9 +276,4 @@ func TestPresetValuesLeavesAbsentKeysUnset(t *testing.T) {
 	assert.Nil(t, values.NoDate)
 	assert.Equal(t, new(false), values.NoCreator)
 	assert.Equal(t, "SRC", values.Source)
-
-	filled, err := config.GetPreset("p")
-	require.NoError(t, err)
-	assert.Equal(t, new(true), filled.Private)
-	assert.Equal(t, new(false), filled.NoDate)
 }

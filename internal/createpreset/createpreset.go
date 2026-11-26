@@ -16,6 +16,20 @@ func Load(presetFile, name string) (*torrent.CreateSettings, error) {
 	return new(settings(*values)), nil
 }
 
+func FromConfig(c *preset.Config, name string) (*torrent.CreateSettings, error) {
+	values, err := c.PresetValues(name)
+	if err != nil {
+		return nil, err
+	}
+	return new(settings(*values)), nil
+}
+
+func DefaultSection(c *preset.Config) *torrent.CreateSettings {
+	only := preset.Config{Default: c.Default, Presets: map[string]preset.Options{"": {}}}
+	s, _ := FromConfig(&only, "")
+	return s
+}
+
 func settings(o preset.Options) torrent.CreateSettings {
 	return torrent.CreateSettings{
 		PieceLengthExp:          nonZero(o.PieceLength),

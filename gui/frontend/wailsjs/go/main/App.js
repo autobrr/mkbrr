@@ -26,10 +26,6 @@ export function GetPieceLengthRange() {
   return window['go']['main']['App']['GetPieceLengthRange']();
 }
 
-export function GetPreset(arg1) {
-  return window['go']['main']['App']['GetPreset'](arg1);
-}
-
 export function GetPresetFilePath() {
   return window['go']['main']['App']['GetPresetFilePath']();
 }

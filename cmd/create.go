@@ -52,9 +52,7 @@ type createOptions struct {
 	failOnSeasonWarning bool
 }
 
-var options = createOptions{
-	isPrivate: true,
-}
+var options createOptions
 
 var createCmd = &cobra.Command{
 	Use:   "create [path]",
@@ -86,6 +84,7 @@ When a single tracker URL is provided, the output filename will use the tracker 
 }
 
 func init() {
+	defaults, _ := torrent.ResolveCreateOptions(torrent.CreateOverrides{}, nil)
 	createCmd.Flags().SortFlags = false
 	createCmd.Flags().StringVarP(&options.batchFile, "batch", "b", "", "batch config file (YAML)")
 
@@ -93,7 +92,7 @@ func init() {
 	createCmd.Flags().StringVar(&options.presetFile, "preset-file", "", "preset config file (default ~/.config/mkbrr/presets.yaml)")
 	createCmd.Flags().StringArrayVarP(&options.trackers, "tracker", "t", nil, "tracker URLs (can be specified multiple times)")
 	createCmd.Flags().StringArrayVarP(&options.webSeeds, "web-seed", "w", nil, "add web seed URLs")
-	createCmd.Flags().BoolVarP(&options.isPrivate, "private", "p", true, "make torrent private")
+	createCmd.Flags().BoolVarP(&options.isPrivate, "private", "p", defaults.IsPrivate, "make torrent private")
 	createCmd.Flags().StringVarP(&options.comment, "comment", "c", "", "add comment")
 
 	createCmd.Flags().UintVarP(&options.pieceLengthExp, "piece-length", "l", 0, fmt.Sprintf("set piece length to 2^n bytes (%d-%d, the tracker rules can narrow it; automatic if not specified)", trackers.MinPieceExp, trackers.MaxPieceExp))

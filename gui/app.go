@@ -187,15 +187,12 @@ type PresetInfo struct {
 
 // PresetsResult represents all presets with any loading errors
 type PresetsResult struct {
-	// Presets holds each preset merged with the default section and the hardcoded defaults.
-	Presets map[string]*preset.Options `json:"presets"`
+	Presets map[string]*torrent.CreateSettings `json:"presets"`
 	// Own holds the values that each preset sets itself. The editor loads and saves these,
 	// so that a save does not copy the default section into the preset.
-	Own map[string]preset.Options `json:"own"`
-	// Defaults holds the values that a preset gets when it sets nothing itself.
-	// A new preset shows its switches with these values.
-	Defaults *preset.Options `json:"defaults,omitempty"`
-	Errors   []string        `json:"errors,omitempty"`
+	Own      map[string]preset.Options `json:"own"`
+	Defaults torrent.CreateSettings    `json:"defaults"`
+	Errors   []string                  `json:"errors,omitempty"`
 }
 
 // === File Dialogs ===
@@ -301,32 +298,36 @@ func (a *App) ResolveCreate(req CreateRequest) (*CreateResolution, error) {
 	}
 
 	return &CreateResolution{
-		Settings: torrent.CreateSettings{
-			PieceLengthExp:          opts.PieceLengthExp,
-			MaxPieceLength:          opts.MaxPieceLength,
-			TargetPieceCount:        opts.TargetPieceCount,
-			Comment:                 &opts.Comment,
-			Source:                  &opts.Source,
-			OutputDir:               &opts.OutputDir,
-			Workers:                 &opts.Workers,
-			IsPrivate:               &opts.IsPrivate,
-			NoDate:                  &opts.NoDate,
-			NoCreator:               &opts.NoCreator,
-			Entropy:                 &opts.Entropy,
-			SkipPrefix:              &opts.SkipPrefix,
-			FailOnSeasonPackWarning: &opts.FailOnSeasonPackWarning,
-			TrackerURLs:             opts.TrackerURLs,
-			WebSeeds:                opts.WebSeeds,
-			ExcludePatterns:         opts.ExcludePatterns,
-			IncludePatterns:         opts.IncludePatterns,
-		},
-		Origins: origins,
+		Settings: resolvedSettings(opts),
+		Origins:  origins,
 		AllowedPieceLengths: AllowedPieceLengths{
 			PieceLength:    PieceLengthRange{Min: pieceMin, Max: pieceMax},
 			MaxPieceLength: PieceLengthRange{Min: maxMin, Max: maxMax},
 		},
 		Tracker: tracker,
 	}, nil
+}
+
+func resolvedSettings(opts torrent.CreateOptions) torrent.CreateSettings {
+	return torrent.CreateSettings{
+		PieceLengthExp:          opts.PieceLengthExp,
+		MaxPieceLength:          opts.MaxPieceLength,
+		TargetPieceCount:        opts.TargetPieceCount,
+		Comment:                 &opts.Comment,
+		Source:                  &opts.Source,
+		OutputDir:               &opts.OutputDir,
+		Workers:                 &opts.Workers,
+		IsPrivate:               &opts.IsPrivate,
+		NoDate:                  &opts.NoDate,
+		NoCreator:               &opts.NoCreator,
+		Entropy:                 &opts.Entropy,
+		SkipPrefix:              &opts.SkipPrefix,
+		FailOnSeasonPackWarning: &opts.FailOnSeasonPackWarning,
+		TrackerURLs:             opts.TrackerURLs,
+		WebSeeds:                opts.WebSeeds,
+		ExcludePatterns:         opts.ExcludePatterns,
+		IncludePatterns:         opts.IncludePatterns,
+	}
 }
 
 // PlanCreate returns the create plan for a create request, without hashing.
@@ -590,11 +591,6 @@ func (a *App) ListPresets() ([]string, error) {
 	return names, nil
 }
 
-// GetPreset returns a specific preset's options
-func (a *App) GetPreset(name string) (*preset.Options, error) {
-	return preset.LoadPresetOptions("", name)
-}
-
 func (a *App) GetPresetValues(name string) (*preset.Options, error) {
 	return preset.LoadPresetValues("", name) //nolint:forbidigo // the Modify page reads the preset values that modify applies
 }
@@ -604,10 +600,9 @@ func (a *App) GetPresetFilePath() (string, error) {
 	return preset.FindPresetFile("")
 }
 
-// GetAllPresets returns all presets with their full options and any loading errors
 func (a *App) GetAllPresets() (*PresetsResult, error) {
 	result := &PresetsResult{
-		Presets: make(map[string]*preset.Options),
+		Presets: make(map[string]*torrent.CreateSettings),
 		Own:     make(map[string]preset.Options),
 		Errors:  []string{},
 	}
@@ -626,11 +621,15 @@ func (a *App) GetAllPresets() (*PresetsResult, error) {
 		return nil, err
 	}
 
-	empty := preset.Config{Default: config.Default, Presets: map[string]preset.Options{"": {}}}
-	result.Defaults, _ = empty.GetPreset("") // the only preset exists, so no error
+	defaults, err := torrent.ResolveCreateOptions(torrent.CreateOverrides{}, createpreset.DefaultSection(config))
+	if err != nil {
+		result.Errors = append(result.Errors, fmt.Sprintf("default section: %v", err))
+		defaults, _ = torrent.ResolveCreateOptions(torrent.CreateOverrides{}, nil)
+	}
+	result.Defaults = resolvedSettings(defaults)
 
 	for name := range config.Presets {
-		opts, err := config.GetPreset(name)
+		opts, err := createpreset.FromConfig(config, name)
 		if err != nil {
 			result.Errors = append(result.Errors, fmt.Sprintf("preset %q: %v", name, err))
 			continue
