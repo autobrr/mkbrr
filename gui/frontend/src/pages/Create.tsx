@@ -253,6 +253,7 @@ export function CreatePage() {
   const [planError, setPlanError] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [presetFileRead, setPresetFileRead] = useState(0);
+  const [blankRows, setBlankRows] = useState({ trackerUrls: 0, webSeeds: 0 });
 
   // Drag-and-drop: accept any file or folder and use it as the source path.
   const { isDragging } = useFileDrop((paths) => {
@@ -363,8 +364,20 @@ export function CreatePage() {
     )
   );
 
-  const trackers = overrides.trackerUrls ?? orBlank(settings?.trackerUrls);
-  const webSeeds = overrides.webSeeds ?? orBlank(settings?.webSeeds);
+  type UrlField = 'trackerUrls' | 'webSeeds';
+  const urlList = (field: UrlField) => (
+    overrides[field] ?? [...orBlank(settings?.[field]), ...Array<string>(blankRows[field]).fill('')]
+  );
+  const changeUrls = (field: UrlField, urls: string[]) => {
+    const shown = orBlank(settings?.[field]);
+    if (overrides[field] === undefined && sameValue(nonBlank(urls), nonBlank(shown))) {
+      setBlankRows((rows) => ({ ...rows, [field]: Math.max(0, urls.length - shown.length) }));
+      return;
+    }
+    override(field, urls);
+  };
+  const trackers = urlList('trackerUrls');
+  const webSeeds = urlList('webSeeds');
   const isPrivate = overrides.isPrivate ?? settings?.isPrivate ?? false;
   const comment = overrides.comment ?? settings?.comment ?? '';
   const source = overrides.source ?? settings?.source ?? '';
@@ -454,6 +467,7 @@ export function CreatePage() {
     setExcludePatterns('');
     setIncludePatterns('');
     setPresetName('');
+    setBlankRows({ trackerUrls: 0, webSeeds: 0 });
     setResult(null);
     setError('');
     setPlan(null);
@@ -463,11 +477,8 @@ export function CreatePage() {
 
   const handlePresetChange = (value: string) => {
     setPresetName(value === 'none' ? '' : value);
-    const inherited = (field: string, urls: string[]) => (
-      (field === 'trackerUrls' || field === 'webSeeds') && sameValue(nonBlank(urls), settings?.[field] ?? [])
-    );
-    setOverrides((o) => Object.fromEntries(Object.entries(o).filter(([field, v]) => (
-      Array.isArray(v) ? nonBlank(v).length > 0 && !inherited(field, v) : v !== ''
+    setOverrides((o) => Object.fromEntries(Object.entries(o).filter(([, v]) => (
+      Array.isArray(v) ? nonBlank(v).length > 0 : v !== ''
     ))));
   };
 
@@ -614,7 +625,7 @@ export function CreatePage() {
               <Label>Trackers</Label>
               <UrlList
                 urls={trackers}
-                onChange={(urls) => override('trackerUrls', urls)}
+                onChange={(urls) => changeUrls('trackerUrls', urls)}
                 placeholder="https://tracker.example.com/announce"
                 addLabel="Add Tracker"
               />
@@ -759,7 +770,7 @@ export function CreatePage() {
                   <Label>Web Seeds</Label>
                   <UrlList
                     urls={webSeeds}
-                    onChange={(urls) => override('webSeeds', urls)}
+                    onChange={(urls) => changeUrls('webSeeds', urls)}
                     placeholder="https://example.com/files/"
                     addLabel="Add Web Seed"
                   />
