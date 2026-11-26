@@ -4,7 +4,6 @@
 package torrent
 
 import (
-	"cmp"
 	"errors"
 	"slices"
 
@@ -50,18 +49,52 @@ type CreateOverrides struct {
 	ProgressCallback ProgressCallback
 }
 
+type Origin string
+
+const (
+	OriginOverride       Origin = "override"
+	OriginPreset         Origin = "preset"
+	OriginTrackerDefault Origin = "tracker"
+	OriginDefault        Origin = "default"
+)
+
+type CreateOrigins struct {
+	PieceLengthExp          Origin `json:"pieceLengthExp"`
+	MaxPieceLength          Origin `json:"maxPieceLength"`
+	TargetPieceCount        Origin `json:"targetPieceCount"`
+	Comment                 Origin `json:"comment"`
+	Source                  Origin `json:"source"`
+	OutputDir               Origin `json:"outputDir"`
+	Workers                 Origin `json:"workers"`
+	IsPrivate               Origin `json:"isPrivate"`
+	NoDate                  Origin `json:"noDate"`
+	NoCreator               Origin `json:"noCreator"`
+	Entropy                 Origin `json:"entropy"`
+	SkipPrefix              Origin `json:"skipPrefix"`
+	FailOnSeasonPackWarning Origin `json:"failOnSeasonWarning"`
+	TrackerURLs             Origin `json:"trackerUrls"`
+	WebSeeds                Origin `json:"webSeeds"`
+	ExcludePatterns         Origin `json:"excludePatterns"`
+	IncludePatterns         Origin `json:"includePatterns"`
+}
+
 var errPieceLengthAndTargetCount = errors.New("cannot set both piece length and target piece count; use one or the other")
 
 func ResolveCreateOptions(o CreateOverrides, p *CreateSettings) (CreateOptions, error) {
+	opts, _, err := ResolveCreate(o, p)
+	return opts, err
+}
+
+func ResolveCreate(o CreateOverrides, p *CreateSettings) (CreateOptions, CreateOrigins, error) {
 	if p == nil {
 		p = &CreateSettings{}
 	}
 
 	if o.PieceLengthExp != nil && o.TargetPieceCount != nil {
-		return CreateOptions{}, errPieceLengthAndTargetCount
+		return CreateOptions{}, CreateOrigins{}, errPieceLengthAndTargetCount
 	}
 	if p.PieceLengthExp != nil && p.TargetPieceCount != nil {
-		return CreateOptions{}, errPieceLengthAndTargetCount
+		return CreateOptions{}, CreateOrigins{}, errPieceLengthAndTargetCount
 	}
 
 	opts := CreateOptions{
@@ -73,58 +106,83 @@ func ResolveCreateOptions(o CreateOverrides, p *CreateSettings) (CreateOptions, 
 		Quiet:            o.Quiet,
 		InfoOnly:         o.InfoOnly,
 		ProgressCallback: o.ProgressCallback,
+	}
+	var origins CreateOrigins
 
-		IsPrivate:               pick(o.IsPrivate, p.IsPrivate, true),
-		NoDate:                  pick(o.NoDate, p.NoDate, false),
-		NoCreator:               pick(o.NoCreator, p.NoCreator, false),
-		Entropy:                 pick(o.Entropy, p.Entropy, false),
-		SkipPrefix:              pick(o.SkipPrefix, p.SkipPrefix, false),
-		FailOnSeasonPackWarning: pick(o.FailOnSeasonPackWarning, p.FailOnSeasonPackWarning, false),
-		Comment:                 pick(o.Comment, p.Comment, ""),
-		OutputDir:               pick(o.OutputDir, p.OutputDir, ""),
-		Workers:                 pick(o.Workers, p.Workers, 0),
-		MaxPieceLength:          cmp.Or(o.MaxPieceLength, p.MaxPieceLength),
-		TrackerURLs:             o.TrackerURLs,
-		WebSeeds:                o.WebSeeds,
-		ExcludePatterns:         slices.Concat(p.ExcludePatterns, o.ExcludePatterns),
-		IncludePatterns:         slices.Concat(p.IncludePatterns, o.IncludePatterns),
-	}
-	if opts.TrackerURLs == nil {
-		opts.TrackerURLs = slices.Clone(p.TrackerURLs)
-	}
-	if opts.WebSeeds == nil {
-		opts.WebSeeds = slices.Clone(p.WebSeeds)
-	}
+	opts.IsPrivate, origins.IsPrivate = pick(o.IsPrivate, p.IsPrivate, true)
+	opts.NoDate, origins.NoDate = pick(o.NoDate, p.NoDate, false)
+	opts.NoCreator, origins.NoCreator = pick(o.NoCreator, p.NoCreator, false)
+	opts.Entropy, origins.Entropy = pick(o.Entropy, p.Entropy, false)
+	opts.SkipPrefix, origins.SkipPrefix = pick(o.SkipPrefix, p.SkipPrefix, false)
+	opts.FailOnSeasonPackWarning, origins.FailOnSeasonPackWarning = pick(o.FailOnSeasonPackWarning, p.FailOnSeasonPackWarning, false)
+	opts.Comment, origins.Comment = pick(o.Comment, p.Comment, "")
+	opts.OutputDir, origins.OutputDir = pick(o.OutputDir, p.OutputDir, "")
+	opts.Workers, origins.Workers = pick(o.Workers, p.Workers, 0)
+	opts.MaxPieceLength, origins.MaxPieceLength = pickPointer(o.MaxPieceLength, p.MaxPieceLength)
+	opts.TrackerURLs, origins.TrackerURLs = pickList(o.TrackerURLs, p.TrackerURLs)
+	opts.WebSeeds, origins.WebSeeds = pickList(o.WebSeeds, p.WebSeeds)
+	opts.ExcludePatterns, origins.ExcludePatterns = addPatterns(o.ExcludePatterns, p.ExcludePatterns)
+	opts.IncludePatterns, origins.IncludePatterns = addPatterns(o.IncludePatterns, p.IncludePatterns)
 
 	// An override of either piece length or target piece count hides both preset values.
 	if o.PieceLengthExp != nil || o.TargetPieceCount != nil {
-		opts.PieceLengthExp = o.PieceLengthExp
-		opts.TargetPieceCount = o.TargetPieceCount
+		opts.PieceLengthExp, origins.PieceLengthExp = pickPointer(o.PieceLengthExp, nil)
+		opts.TargetPieceCount, origins.TargetPieceCount = pickPointer(o.TargetPieceCount, nil)
 	} else {
-		opts.PieceLengthExp = p.PieceLengthExp
-		opts.TargetPieceCount = p.TargetPieceCount
+		opts.PieceLengthExp, origins.PieceLengthExp = pickPointer(nil, p.PieceLengthExp)
+		opts.TargetPieceCount, origins.TargetPieceCount = pickPointer(nil, p.TargetPieceCount)
 	}
 
-	switch {
-	case o.Source != nil:
-		opts.Source = *o.Source
-	case p.Source != nil:
-		opts.Source = *p.Source
-	case len(opts.TrackerURLs) > 0:
-		rules, _ := trackers.Lookup(opts.TrackerURLs[0])
-		opts.Source = rules.DefaultSource
+	opts.Source, origins.Source = pick(o.Source, p.Source, "")
+	if origins.Source == OriginDefault && len(opts.TrackerURLs) > 0 {
+		if rules, _ := trackers.Lookup(opts.TrackerURLs[0]); rules.DefaultSource != "" {
+			opts.Source, origins.Source = rules.DefaultSource, OriginTrackerDefault
+		}
 	}
 
-	return opts, nil
+	return opts, origins, nil
 }
 
-// pick returns the override if set, then the preset value if set, then def.
-func pick[T any](override, presetValue *T, def T) T {
+func pick[T any](override, presetValue *T, def T) (T, Origin) {
 	if override != nil {
-		return *override
+		return *override, OriginOverride
 	}
 	if presetValue != nil {
-		return *presetValue
+		return *presetValue, OriginPreset
 	}
-	return def
+	return def, OriginDefault
+}
+
+func pickPointer[T any](override, presetValue *T) (*T, Origin) {
+	switch {
+	case override != nil:
+		return override, OriginOverride
+	case presetValue != nil:
+		return presetValue, OriginPreset
+	default:
+		return nil, OriginDefault
+	}
+}
+
+func pickList(override, presetValue []string) ([]string, Origin) {
+	switch {
+	case override != nil:
+		return override, OriginOverride
+	case presetValue != nil:
+		return slices.Clone(presetValue), OriginPreset
+	default:
+		return nil, OriginDefault
+	}
+}
+
+func addPatterns(override, presetValue []string) ([]string, Origin) {
+	patterns := slices.Concat(presetValue, override)
+	switch {
+	case len(presetValue) > 0:
+		return patterns, OriginPreset
+	case len(override) > 0:
+		return patterns, OriginOverride
+	default:
+		return patterns, OriginDefault
+	}
 }

@@ -153,12 +153,10 @@ type ModifyResult struct {
 	Notices     []torrent.Notice `json:"notices"`
 }
 
-// TrackerInfo represents tracker-specific information
 type TrackerInfo struct {
 	MaxPieceLength uint   `json:"maxPieceLength"`
 	MaxTorrentSize uint64 `json:"maxTorrentSize"`
 	DefaultSource  string `json:"defaultSource"`
-	HasCustomRules bool   `json:"hasCustomRules"`
 }
 
 // PieceLengthRange is an inclusive range of piece length exponents (2^n bytes).
@@ -172,6 +170,13 @@ type PieceLengthRange struct {
 type AllowedPieceLengths struct {
 	PieceLength    PieceLengthRange `json:"pieceLength"`
 	MaxPieceLength PieceLengthRange `json:"maxPieceLength"`
+}
+
+type CreateResolution struct {
+	Settings            torrent.CreateSettings `json:"settings"`
+	Origins             torrent.CreateOrigins  `json:"origins"`
+	AllowedPieceLengths AllowedPieceLengths    `json:"allowedPieceLengths"`
+	Tracker             *TrackerInfo           `json:"tracker"`
 }
 
 // PresetInfo represents a preset configuration
@@ -231,35 +236,35 @@ func (a *App) SelectMultipleTorrentFiles() ([]string, error) {
 
 // === Create Operations ===
 
-// resolveCreate resolves a create request into create options. PlanCreate
-// and CreateTorrent both use it, so the plan matches the torrent that create writes.
-func (a *App) resolveCreate(req CreateRequest) (torrent.CreateOptions, error) {
-	if req.Path == "" {
-		return torrent.CreateOptions{}, errors.New("path is required")
-	}
-
+func (a *App) resolveSettings(req CreateRequest) (torrent.CreateOptions, torrent.CreateOrigins, error) {
 	var presetSettings *torrent.CreateSettings
 	if req.PresetName != "" {
 		var err error
 		presetSettings, err = createpreset.Load(req.PresetFile, req.PresetName)
 		if err != nil {
-			return torrent.CreateOptions{}, fmt.Errorf("failed to load preset: %w", err)
+			return torrent.CreateOptions{}, torrent.CreateOrigins{}, fmt.Errorf("failed to load preset: %w", err)
 		}
 	}
 
-	// The frontend copies the preset into the form, so each visible form field is an override.
-	// The frontend leaves out piece length and output directory when they are not set,
-	// so the preset can fill them.
 	overrides := torrent.CreateOverrides{
 		CreateSettings: req.CreateSettings,
 		Path:           req.Path,
 		Name:           req.Name,
 		OutputPath:     req.OutputPath,
 		Version:        a.version,
-		Quiet:          true, // Suppress CLI output
+		Quiet:          true,
+	}
+	return torrent.ResolveCreate(overrides, presetSettings)
+}
+
+// createOptions resolves a create request into create options. PlanCreate
+// and CreateTorrent both use it, so the plan matches the torrent that create writes.
+func (a *App) createOptions(req CreateRequest) (torrent.CreateOptions, error) {
+	if req.Path == "" {
+		return torrent.CreateOptions{}, errors.New("path is required")
 	}
 
-	opts, err := torrent.ResolveCreateOptions(overrides, presetSettings)
+	opts, _, err := a.resolveSettings(req)
 	if err != nil {
 		return torrent.CreateOptions{}, err
 	}
@@ -272,10 +277,62 @@ func (a *App) resolveCreate(req CreateRequest) (torrent.CreateOptions, error) {
 	return opts, nil
 }
 
+func (a *App) ResolveCreate(req CreateRequest) (*CreateResolution, error) {
+	opts, origins, err := a.resolveSettings(req)
+	if err != nil {
+		return nil, err
+	}
+
+	var firstTracker string
+	if len(opts.TrackerURLs) > 0 {
+		firstTracker = opts.TrackerURLs[0]
+	}
+	rules, _ := trackers.Lookup(firstTracker)
+	pieceMin, pieceMax := trackers.AllowedPieceLengths(rules, false)
+	maxMin, maxMax := trackers.AllowedPieceLengths(rules, opts.TargetPieceCount != nil)
+
+	var tracker *TrackerInfo
+	if rules.MaxPieceLength > 0 || rules.MaxTorrentSize > 0 || rules.DefaultSource != "" {
+		tracker = &TrackerInfo{
+			MaxPieceLength: rules.MaxPieceLength,
+			MaxTorrentSize: rules.MaxTorrentSize,
+			DefaultSource:  rules.DefaultSource,
+		}
+	}
+
+	return &CreateResolution{
+		Settings: torrent.CreateSettings{
+			PieceLengthExp:          opts.PieceLengthExp,
+			MaxPieceLength:          opts.MaxPieceLength,
+			TargetPieceCount:        opts.TargetPieceCount,
+			Comment:                 &opts.Comment,
+			Source:                  &opts.Source,
+			OutputDir:               &opts.OutputDir,
+			Workers:                 &opts.Workers,
+			IsPrivate:               &opts.IsPrivate,
+			NoDate:                  &opts.NoDate,
+			NoCreator:               &opts.NoCreator,
+			Entropy:                 &opts.Entropy,
+			SkipPrefix:              &opts.SkipPrefix,
+			FailOnSeasonPackWarning: &opts.FailOnSeasonPackWarning,
+			TrackerURLs:             opts.TrackerURLs,
+			WebSeeds:                opts.WebSeeds,
+			ExcludePatterns:         opts.ExcludePatterns,
+			IncludePatterns:         opts.IncludePatterns,
+		},
+		Origins: origins,
+		AllowedPieceLengths: AllowedPieceLengths{
+			PieceLength:    PieceLengthRange{Min: pieceMin, Max: pieceMax},
+			MaxPieceLength: PieceLengthRange{Min: maxMin, Max: maxMax},
+		},
+		Tracker: tracker,
+	}, nil
+}
+
 // PlanCreate returns the create plan for a create request, without hashing.
 // The create preview shows it.
 func (a *App) PlanCreate(req CreateRequest) (*torrent.CreatePlan, error) {
-	opts, err := a.resolveCreate(req)
+	opts, err := a.createOptions(req)
 	if err != nil {
 		return nil, err
 	}
@@ -284,7 +341,7 @@ func (a *App) PlanCreate(req CreateRequest) (*torrent.CreatePlan, error) {
 
 // CreateTorrent creates a new torrent file
 func (a *App) CreateTorrent(req CreateRequest) (*TorrentResult, error) {
-	opts, err := a.resolveCreate(req)
+	opts, err := a.createOptions(req)
 	if err != nil {
 		return nil, err
 	}
@@ -687,30 +744,6 @@ func (a *App) CreatePresetFile() (string, error) {
 }
 
 // === Tracker Operations ===
-
-// GetTrackerInfo returns tracker-specific configuration
-func (a *App) GetTrackerInfo(url string) *TrackerInfo {
-	rules, _ := trackers.Lookup(url)
-
-	return &TrackerInfo{
-		MaxPieceLength: rules.MaxPieceLength,
-		MaxTorrentSize: rules.MaxTorrentSize,
-		DefaultSource:  rules.DefaultSource,
-		HasCustomRules: rules.MaxPieceLength > 0 || rules.MaxTorrentSize > 0 || rules.DefaultSource != "",
-	}
-}
-
-// GetAllowedPieceLengths returns the piece lengths that create accepts for the
-// first tracker. A target piece count of 0 means none is set.
-func (a *App) GetAllowedPieceLengths(trackerURL string, targetPieceCount uint) AllowedPieceLengths {
-	rules, _ := trackers.Lookup(trackerURL)
-	pieceMin, pieceMax := trackers.AllowedPieceLengths(rules, false)
-	maxMin, maxMax := trackers.AllowedPieceLengths(rules, targetPieceCount > 0)
-	return AllowedPieceLengths{
-		PieceLength:    PieceLengthRange{Min: pieceMin, Max: pieceMax},
-		MaxPieceLength: PieceLengthRange{Min: maxMin, Max: maxMax},
-	}
-}
 
 // GetPieceLengthRange returns the outer piece length range. The tracker rules
 // can narrow it.

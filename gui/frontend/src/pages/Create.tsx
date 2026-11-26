@@ -17,20 +17,18 @@ import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { FolderOpen, File, Plus, X, Loader2, ChevronDown, Sparkles, FileSearch, AlertTriangle } from 'lucide-react';
-import { SelectPath, SelectFile, CreateTorrent, ListPresets, GetPreset, GetTrackerInfo, GetAllowedPieceLengths, PlanCreate, InspectTorrent } from '../../wailsjs/go/main/App';
+import { SelectPath, SelectFile, CreateTorrent, ListPresets, ResolveCreate, PlanCreate, InspectTorrent } from '../../wailsjs/go/main/App';
 import { EventsOn } from '../../wailsjs/runtime/runtime';
 import { getEffectiveWorkers } from './Settings';
 import { useFileDrop } from '@/hooks/useFileDrop';
 import { DropOverlay } from '@/components/ui/drop-overlay';
 import { formatPieceSize, pieceLengthOptions } from '@/lib/utils';
 
-import { main, preset as presetTypes, torrent } from '../../wailsjs/go/models';
+import { main, torrent } from '../../wailsjs/go/models';
 
 // Re-export types from generated models
 type TorrentResultType = main.TorrentResult;
-type PresetOptions = presetTypes.Options;
-type TrackerInfoType = main.TrackerInfo;
-type AllowedPieceLengthsType = main.AllowedPieceLengths;
+type CreateResolutionType = main.CreateResolution;
 type PieceLengthRangeType = main.PieceLengthRange;
 type CreatePlanType = torrent.CreatePlan;
 
@@ -48,72 +46,81 @@ function formatHashRate(mibPerSec: number): string {
   return `${mibPerSec.toFixed(2)} MiB/s`;
 }
 
+type Overrides = Partial<Omit<torrent.CreateSettings, 'excludePatterns' | 'includePatterns' | 'workers'>>;
+
+const presetBacked = ['trackerUrls', 'webSeeds', 'comment', 'source', 'isPrivate', 'noDate', 'noCreator', 'entropy', 'skipPrefix', 'failOnSeasonWarning'] as const;
+
 // Form state that persists across navigation
 interface CreateFormState {
   path: string;
   name: string;
-  trackers: string[];
-  webSeeds: string[];
-  isPrivate: boolean;
-  comment: string;
-  source: string;
-  pieceLengthExp: number;
-  maxPieceLengthExp: number;
-  targetPieceCount: number;
+  presetName: string;
   excludePatterns: string;
   includePatterns: string;
-  outputDir: string;
-  noDate: boolean;
-  noCreator: boolean;
-  entropy: boolean;
-  skipPrefix: boolean;
-  presetName: string;
-  failOnSeasonWarning: boolean;
-  typedFields: TypedFields;
-  presetSource: string;
-  defaultSource: string;
+  overrides: Overrides;
+  legacy?: Overrides;
 }
 
-interface PresetFormValues {
-  trackers: string[];
-  webSeeds: string[];
-  comment: string;
-  source: string;
-  isPrivate: boolean;
-  noDate: boolean;
-  noCreator: boolean;
-  entropy: boolean;
-  skipPrefix: boolean;
-  failOnSeasonWarning: boolean;
+interface LegacyFormState {
+  trackers?: string[];
+  webSeeds?: string[];
+  isPrivate?: boolean;
+  comment?: string;
+  source?: string;
+  pieceLengthExp?: number;
+  maxPieceLengthExp?: number;
+  targetPieceCount?: number;
+  outputDir?: string;
+  noDate?: boolean;
+  noCreator?: boolean;
+  entropy?: boolean;
+  skipPrefix?: boolean;
+  failOnSeasonWarning?: boolean;
+  typedFields?: Record<string, boolean>;
 }
 
-type PresetField = keyof PresetFormValues;
-type TypedFields = Partial<Record<PresetField, boolean>>;
-
-function presetFormValues(p: PresetOptions | null): PresetFormValues {
-  return {
-    trackers: p?.trackers ?? [],
-    webSeeds: p?.webSeeds ?? [],
-    comment: p?.comment ?? '',
-    source: p?.source ?? '',
-    isPrivate: p?.private ?? true,
-    noDate: p?.noDate ?? false,
-    noCreator: p?.noCreator ?? false,
-    entropy: p?.entropy ?? false,
-    skipPrefix: p?.skipPrefix ?? false,
-    failOnSeasonWarning: p?.failOnSeasonWarning ?? false,
+function overridesFromLegacy(saved: LegacyFormState): { overrides: Overrides; legacy?: Overrides } {
+  const overrides: Overrides = {};
+  if (saved.pieceLengthExp) overrides.pieceLengthExp = saved.pieceLengthExp;
+  if (saved.maxPieceLengthExp) overrides.maxPieceLength = saved.maxPieceLengthExp;
+  if (saved.targetPieceCount) overrides.targetPieceCount = saved.targetPieceCount;
+  if (saved.outputDir) overrides.outputDir = saved.outputDir;
+  const values: Overrides = {
+    trackerUrls: nonBlank(saved.trackers ?? []),
+    webSeeds: nonBlank(saved.webSeeds ?? []),
+    comment: saved.comment ?? '',
+    source: saved.source ?? '',
+    isPrivate: saved.isPrivate ?? true,
+    noDate: saved.noDate ?? false,
+    noCreator: saved.noCreator ?? false,
+    entropy: saved.entropy ?? false,
+    skipPrefix: saved.skipPrefix ?? false,
+    failOnSeasonWarning: saved.failOnSeasonWarning ?? false,
   };
+  const record = saved.typedFields;
+  if (!record) return { overrides, legacy: values };
+  const legacyNames: Record<string, string> = { trackerUrls: 'trackers' };
+  for (const field of presetBacked) {
+    if (record[legacyNames[field] ?? field]) Object.assign(overrides, { [field]: values[field] });
+  }
+  return { overrides, legacy: undefined };
 }
 
-function typedFieldsFromValues(saved: Partial<CreateFormState>, filled: PresetFormValues): TypedFields {
-  const typed: TypedFields = {};
-  for (const field of Object.keys(filled) as PresetField[]) {
-    const value = saved[field];
-    const base = filled[field];
-    if (Array.isArray(value) && Array.isArray(base)) typed[field] = nonBlank(value).length > 0 && !sameUrls(value, base);
-    else if (value !== undefined) typed[field] = value !== '' && value !== base;
-  }
-  return typed;
+const sameValue = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+
+async function migrateLegacy(base: Overrides, legacy: Overrides, presetName: string): Promise<Overrides> {
+  const overrides = { ...base };
+  const differs = async (fields: readonly (typeof presetBacked)[number][]) => {
+    const resolved = await ResolveCreate(main.CreateRequest.createFrom({ ...overrides, presetName }));
+    for (const field of fields) {
+      const value = legacy[field];
+      const shown = resolved.settings[field] ?? (Array.isArray(value) ? [] : undefined);
+      if (!sameValue(value, shown)) Object.assign(overrides, { [field]: value });
+    }
+  };
+  await differs(['trackerUrls', 'webSeeds']);
+  await differs(presetBacked.filter((f) => f !== 'trackerUrls' && f !== 'webSeeds'));
+  return overrides;
 }
 
 const STORAGE_KEY = 'mkbrr-create-form';
@@ -122,14 +129,22 @@ const RESULT_STORAGE_KEY = 'mkbrr-create-result';
 // Track if we've shown localStorage warnings to avoid spamming
 let localStorageWarningShown = false;
 
-function loadFormState(): Partial<CreateFormState> {
+function loadFormState(): CreateFormState {
+  let saved: Partial<CreateFormState> & LegacyFormState = {};
   try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? JSON.parse(saved) : {};
+    const raw = localStorage.getItem(STORAGE_KEY);
+    saved = raw ? JSON.parse(raw) : {};
   } catch (e) {
     console.error('Failed to load form state from localStorage:', e);
-    return {};
   }
+  return {
+    path: saved.path ?? '',
+    name: saved.name ?? '',
+    presetName: saved.presetName ?? '',
+    excludePatterns: saved.excludePatterns ?? '',
+    includePatterns: saved.includePatterns ?? '',
+    ...(saved.overrides ? { overrides: saved.overrides, legacy: saved.legacy } : overridesFromLegacy(saved)),
+  };
 }
 
 function saveFormState(state: CreateFormState) {
@@ -190,9 +205,15 @@ function UrlList({ urls, onChange, placeholder, addLabel }: {
   );
 }
 
+function OriginHint({ origin, presetName }: { origin: string | undefined; presetName: string }) {
+  if (origin === 'preset') return <p className="text-xs text-muted-foreground">From preset {presetName}</p>;
+  if (origin === 'tracker') return <p className="text-xs text-muted-foreground">Tracker default</p>;
+  return null;
+}
+
 // nonBlank drops the empty inputs of a URL list.
 const nonBlank = (urls: string[]) => urls.filter(u => u.trim() !== '');
-const sameUrls = (a: string[], b: string[]) => nonBlank(a).join('\n') === nonBlank(b).join('\n');
+const orBlank = (urls: string[] | undefined) => (urls && urls.length > 0 ? urls : ['']);
 
 // patternList sends a pattern field as one comma-separated group, as the CLI flag does.
 // An empty field sends nothing, so only the preset patterns apply.
@@ -208,45 +229,17 @@ function formatBytes(bytes: number): string {
 
 export function CreatePage() {
   const navigate = useNavigate();
-  // Load saved form state from localStorage
-  const savedState = loadFormState();
+  const [savedState] = useState(loadFormState);
 
-  const [path, setPath] = useState(savedState.path ?? '');
-  const [name, setName] = useState(savedState.name ?? '');
-  const [trackers, setTrackers] = useState<string[]>(
-    Array.isArray(savedState.trackers) && savedState.trackers.length > 0 ? savedState.trackers : ['']
-  );
-  const [webSeeds, setWebSeeds] = useState<string[]>(
-    Array.isArray(savedState.webSeeds) && savedState.webSeeds.length > 0 ? savedState.webSeeds : ['']
-  );
-  const [isPrivate, setIsPrivate] = useState(savedState.isPrivate ?? true);
-  const [comment, setComment] = useState(savedState.comment ?? '');
-  const [source, setSource] = useState(savedState.source ?? '');
-  const [pieceLengthExp, setPieceLengthExp] = useState(savedState.pieceLengthExp ?? 0);
-  const [maxPieceLengthExp, setMaxPieceLengthExp] = useState(savedState.maxPieceLengthExp ?? 0);
-  const [targetPieceCount, setTargetPieceCount] = useState(savedState.targetPieceCount ?? 0);
-  const [excludePatterns, setExcludePatterns] = useState(savedState.excludePatterns ?? '');
-  const [includePatterns, setIncludePatterns] = useState(savedState.includePatterns ?? '');
-  const [outputDir, setOutputDir] = useState(savedState.outputDir ?? '');
-  const [noDate, setNoDate] = useState(savedState.noDate ?? false);
-  const [noCreator, setNoCreator] = useState(savedState.noCreator ?? false);
-  const [entropy, setEntropy] = useState(savedState.entropy ?? false);
-  const [skipPrefix, setSkipPrefix] = useState(savedState.skipPrefix ?? false);
-  const [presetName, setPresetName] = useState(savedState.presetName ?? '');
-  const [failOnSeasonWarning, setFailOnSeasonWarning] = useState(savedState.failOnSeasonWarning ?? false);
-  const [typedFields, setTypedFields] = useState<TypedFields>(
-    savedState.typedFields ?? typedFieldsFromValues(savedState, presetFormValues(null))
-  );
-  const typedFieldsRef = useRef(typedFields);
-  typedFieldsRef.current = typedFields;
-  const mountTypedFields = useRef(typedFields);
-  const markTyped = (field: PresetField, typed: boolean) => {
-    typedFieldsRef.current = { ...typedFieldsRef.current, [field]: typed };
-    setTypedFields(typedFieldsRef.current);
-  };
-  const changeUrls = (field: 'trackers' | 'webSeeds', previous: string[], urls: string[]) => {
-    if (!sameUrls(previous, urls)) markTyped(field, nonBlank(urls).length > 0);
-  };
+  const [path, setPath] = useState(savedState.path);
+  const [name, setName] = useState(savedState.name);
+  const [presetName, setPresetName] = useState(savedState.presetName);
+  const [excludePatterns, setExcludePatterns] = useState(savedState.excludePatterns);
+  const [includePatterns, setIncludePatterns] = useState(savedState.includePatterns);
+  const [overrides, setOverrides] = useState<Overrides>(savedState.overrides);
+  const [legacy, setLegacy] = useState(savedState.legacy);
+  const override = <K extends keyof Overrides>(field: K, value: Overrides[K]) => setOverrides((o) => ({ ...o, [field]: value }));
+  const clearOverride = (field: keyof Overrides) => setOverrides(({ [field]: _, ...rest }) => rest);
 
   const [presets, setPresets] = useState<string[]>([]);
   const [isCreating, setIsCreating] = useState(false);
@@ -254,13 +247,12 @@ export function CreatePage() {
   const [result, setResult] = useState<TorrentResultType | null>(null);
   const [error, setError] = useState('');
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [trackerInfo, setTrackerInfo] = useState<TrackerInfoType | null>(null);
-  const [allowedPieceLengths, setAllowedPieceLengths] = useState<AllowedPieceLengthsType | null>(null);
-  const [defaultSource, setDefaultSource] = useState(savedState.defaultSource ?? '');
-  const [presetSource, setPresetSource] = useState(savedState.presetSource ?? '');
+  const [resolution, setResolution] = useState<CreateResolutionType | null>(null);
+  const [resolveError, setResolveError] = useState('');
   const [plan, setPlan] = useState<CreatePlanType | null>(null);
   const [planError, setPlanError] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [presetFileRead, setPresetFileRead] = useState(0);
 
   // Drag-and-drop: accept any file or folder and use it as the source path.
   const { isDragging } = useFileDrop((paths) => {
@@ -274,33 +266,22 @@ export function CreatePage() {
 
   // Save form state to localStorage whenever values change
   useEffect(() => {
-    saveFormState({
-      path,
-      name,
-      trackers,
-      webSeeds,
-      isPrivate,
-      comment,
-      source,
-      pieceLengthExp,
-      maxPieceLengthExp,
-      targetPieceCount,
-      excludePatterns,
-      includePatterns,
-      outputDir,
-      noDate,
-      noCreator,
-      entropy,
-      skipPrefix,
-      presetName,
-      failOnSeasonWarning,
-      typedFields,
-      presetSource,
-      defaultSource,
-    });
-  }, [path, name, trackers, webSeeds, isPrivate, comment, source, pieceLengthExp, maxPieceLengthExp, targetPieceCount,
-    excludePatterns, includePatterns, outputDir, noDate, noCreator, entropy, skipPrefix, presetName, failOnSeasonWarning,
-    typedFields, presetSource, defaultSource]);
+    saveFormState({ path, name, presetName, excludePatterns, includePatterns, overrides, legacy });
+  }, [path, name, presetName, excludePatterns, includePatterns, overrides, legacy]);
+
+  useEffect(() => {
+    if (!legacy) return;
+    migrateLegacy(overrides, legacy, presetName)
+      .then(setOverrides)
+      .catch((e) => console.error('Failed to migrate the saved form state:', e))
+      .finally(() => setLegacy(undefined));
+  }, []);
+
+  useEffect(() => {
+    const reread = () => setPresetFileRead((n) => n + 1);
+    window.addEventListener('focus', reread);
+    return () => window.removeEventListener('focus', reread);
+  }, []);
 
   // Check for pending result on mount (in case user navigated away during creation)
   useEffect(() => {
@@ -325,148 +306,67 @@ export function CreatePage() {
     };
   }, []);
 
-  // Look up the rules of the first tracker. Create applies only the rules of the first tracker.
-  const firstTracker = trackers.find(t => t.trim() !== '') ?? '';
-  useEffect(() => {
-    if (!firstTracker) {
-      setTrackerInfo(null);
-      setDefaultSource('');
-      return;
-    }
-
-    const debounce = setTimeout(async () => {
-      try {
-        const info = await GetTrackerInfo(firstTracker);
-        setDefaultSource(info?.defaultSource ?? '');
-        setTrackerInfo(info?.hasCustomRules ? info : null);
-      } catch (e) {
-        setDefaultSource('');
-        setTrackerInfo(null);
-        toast.error('Failed to get tracker info: ' + String(e));
-      }
-    }, 300);
-    return () => clearTimeout(debounce);
-  }, [firstTracker]);
-
-  const defaultSourceRef = useRef(defaultSource);
-  defaultSourceRef.current = defaultSource;
-
-  const fillFormFromPreset = (next: PresetFormValues) => {
-    const typed = typedFieldsRef.current;
-    const orBlank = (urls: string[]) => (urls.length > 0 ? urls : ['']);
-    setPresetSource(next.source);
-    if (!typed.trackers) setTrackers(orBlank(next.trackers));
-    if (!typed.webSeeds) setWebSeeds(orBlank(next.webSeeds));
-    if (!typed.comment) setComment(next.comment);
-    if (!typed.source) setSource(next.source || defaultSourceRef.current);
-    if (!typed.isPrivate) setIsPrivate(next.isPrivate);
-    if (!typed.noDate) setNoDate(next.noDate);
-    if (!typed.noCreator) setNoCreator(next.noCreator);
-    if (!typed.entropy) setEntropy(next.entropy);
-    if (!typed.skipPrefix) setSkipPrefix(next.skipPrefix);
-    if (!typed.failOnSeasonWarning) setFailOnSeasonWarning(next.failOnSeasonWarning);
-  };
-
-  const migrateTypedFields = async (filled: PresetFormValues) => {
-    const tracker = savedState.trackers?.find(t => t.trim() !== '');
-    const info = tracker ? await GetTrackerInfo(tracker).catch(() => null) : null;
-    const migrated = typedFieldsFromValues(savedState, { ...filled, source: filled.source || (info?.defaultSource ?? '') });
-    const current = typedFieldsRef.current;
-    for (const field of Object.keys(current) as PresetField[]) {
-      if (current[field] !== mountTypedFields.current[field]) migrated[field] = current[field];
-    }
-    typedFieldsRef.current = migrated;
-    setTypedFields(migrated);
-  };
-
-  const [presetTarget, setPresetTarget] = useState<{ name: string; count: number } | null>(null);
-  const filledPresetName = useRef(savedState.presetName ?? '');
-  useEffect(() => {
-    let stale = false;
-    (presetName ? GetPreset(presetName) : Promise.resolve(null))
-      .then((p) => {
-        if (stale) return;
-        const next = presetFormValues(p);
-        setPresetTarget({ name: presetName, count: p?.targetPieceCount ?? 0 });
-        if (filledPresetName.current === presetName) {
-          setPresetSource(next.source);
-          if (!savedState.typedFields) migrateTypedFields(next);
-          return;
-        }
-        filledPresetName.current = presetName;
-        fillFormFromPreset(next);
-      })
-      .catch((e) => {
-        if (stale) return;
-        setPresetTarget({ name: presetName, count: 0 });
-        toast.error('Failed to load preset: ' + String(e));
-      });
-    return () => {
-      stale = true;
-    };
-  }, [presetName]);
-  // Until the selected preset loads, its target piece count is unknown.
-  const presetTargetLoaded = !presetName || presetTarget?.name === presetName;
-  const presetTargetPieceCount = presetName && presetTarget?.name === presetName ? presetTarget.count : 0;
-  const effectiveTargetPieceCount = targetPieceCount || (pieceLengthExp ? 0 : presetTargetPieceCount);
-
-  // The reset below acts on this range, so wait until the tracker field stops changing.
-  useEffect(() => {
-    if (!presetTargetLoaded) return;
-    let stale = false;
-    const debounce = setTimeout(async () => {
-      try {
-        const next = await GetAllowedPieceLengths(firstTracker, effectiveTargetPieceCount);
-        if (!stale) setAllowedPieceLengths(next);
-      } catch (e) {
-        if (!stale) toast.error('Failed to get the allowed piece lengths: ' + String(e));
-      }
-    }, 300);
-    return () => {
-      stale = true;
-      clearTimeout(debounce);
-    };
-  }, [firstTracker, effectiveTargetPieceCount, presetTargetLoaded]);
-
-  const autoSource = presetSource || defaultSource;
-  const lastAutoSource = useRef(autoSource);
-  useEffect(() => {
-    if (lastAutoSource.current === autoSource) return;
-    lastAutoSource.current = autoSource;
-    if (!typedFieldsRef.current.source) setSource(autoSource);
-  }, [autoSource]);
-
-  // The piece length fields, the output directory, the web seeds, and the patterns are
-  // left out when they are not set, so the preset fills them, as with the CLI flags.
-  // The preset patterns and the form patterns both apply.
   const buildRequest = () => main.CreateRequest.createFrom({
+    ...overrides,
     path,
     name,
-    trackerUrls: nonBlank(trackers),
-    webSeeds: nonBlank(webSeeds).length > 0 ? nonBlank(webSeeds) : undefined,
-    isPrivate,
-    comment,
-    source,
-    pieceLengthExp: pieceLengthExp || undefined,
-    maxPieceLength: maxPieceLengthExp || undefined,
-    targetPieceCount: targetPieceCount || undefined,
+    trackerUrls: overrides.trackerUrls && nonBlank(overrides.trackerUrls),
+    webSeeds: overrides.webSeeds && nonBlank(overrides.webSeeds),
     excludePatterns: patternList(excludePatterns),
     includePatterns: patternList(includePatterns),
-    outputDir: outputDir || undefined,
-    noDate,
-    noCreator,
-    entropy,
-    skipPrefix,
-    failOnSeasonWarning,
     presetName,
     // Workers from settings. The backend gives a preset value priority over it.
     defaultWorkers: getEffectiveWorkers(),
   });
+  const request = buildRequest();
+  const requestKey = JSON.stringify({ request, presetFileRead });
+
+  const resolveKey = JSON.stringify({ request: { ...request, path: '', name: '' }, presetFileRead });
+  useEffect(() => {
+    if (legacy) return;
+    let stale = false;
+    ResolveCreate(request)
+      .then((next) => {
+        if (stale) return;
+        setResolution(next);
+        setResolveError('');
+      })
+      .catch((e) => {
+        if (stale) return;
+        setResolveError(e instanceof Error ? e.message : String(e));
+      });
+    return () => {
+      stale = true;
+    };
+  }, [resolveKey, legacy]);
+
+  const settings = resolution?.settings;
+  const origins = resolution?.origins;
+  const allowedPieceLengths = resolution?.allowedPieceLengths;
+  const trackerInfo = resolution?.tracker ?? null;
+  const hint = (field: keyof Overrides) => (
+    !resolveError && overrides[field] === undefined && <OriginHint origin={origins?.[field]} presetName={presetName} />
+  );
+  const patternHint = (field: 'excludePatterns' | 'includePatterns') => (
+    !resolveError && origins?.[field] === 'preset' && (
+      <p className="text-xs text-muted-foreground">With preset {presetName}: {settings?.[field]?.join(', ')}</p>
+    )
+  );
+
+  const trackers = overrides.trackerUrls ?? orBlank(settings?.trackerUrls);
+  const webSeeds = overrides.webSeeds ?? orBlank(settings?.webSeeds);
+  const isPrivate = overrides.isPrivate ?? settings?.isPrivate ?? false;
+  const comment = overrides.comment ?? settings?.comment ?? '';
+  const source = overrides.source ?? settings?.source ?? '';
+  const outputDir = overrides.outputDir ?? settings?.outputDir ?? '';
+  const pieceLengthExp = overrides.pieceLengthExp ?? settings?.pieceLengthExp ?? 0;
+  const maxPieceLengthExp = overrides.maxPieceLength ?? settings?.maxPieceLength ?? 0;
+  const targetPieceCount = overrides.targetPieceCount ?? settings?.targetPieceCount ?? 0;
+  type Toggle = 'noDate' | 'noCreator' | 'entropy' | 'skipPrefix' | 'failOnSeasonWarning';
+  const checked = (field: Toggle) => overrides[field] ?? settings?.[field] ?? false;
 
   // Ask for a new create plan after each change to the request. The name, the comment,
   // the source, and the toggles change the .torrent size, so they can change the piece length.
-  const planRequest = buildRequest();
-  const planKey = JSON.stringify(planRequest);
   useEffect(() => {
     if (!path) {
       setPlan(null);
@@ -478,7 +378,7 @@ export function CreatePage() {
     let stale = false;
     const debounce = setTimeout(async () => {
       try {
-        const next = await PlanCreate(planRequest);
+        const next = await PlanCreate(request);
         if (stale) return;
         setPlan(next);
         setPlanError('');
@@ -492,18 +392,14 @@ export function CreatePage() {
       stale = true;
       clearTimeout(debounce);
     };
-  }, [planKey]);
+  }, [requestKey]);
 
   useEffect(() => {
     if (!allowedPieceLengths) return;
-    const outside = (exp: number, range: PieceLengthRangeType) => exp !== 0 && (exp < range.min || exp > range.max);
-    if (outside(pieceLengthExp, allowedPieceLengths.pieceLength)) {
-      setPieceLengthExp(0);
-    }
-    if (outside(maxPieceLengthExp, allowedPieceLengths.maxPieceLength)) {
-      setMaxPieceLengthExp(0);
-    }
-  }, [allowedPieceLengths, pieceLengthExp, maxPieceLengthExp]);
+    const outside = (exp: number | undefined, range: PieceLengthRangeType) => !!exp && (exp < range.min || exp > range.max);
+    if (outside(overrides.pieceLengthExp, allowedPieceLengths.pieceLength)) clearOverride('pieceLengthExp');
+    if (outside(overrides.maxPieceLength, allowedPieceLengths.maxPieceLength)) clearOverride('maxPieceLength');
+  }, [allowedPieceLengths, overrides.pieceLengthExp, overrides.maxPieceLength]);
 
   const handleSelectFolder = async () => {
     try {
@@ -531,7 +427,7 @@ export function CreatePage() {
     try {
       const selected = await SelectPath();
       if (selected) {
-        setOutputDir(selected);
+        override('outputDir', selected);
       }
     } catch (e) {
       setError(String(e));
@@ -541,24 +437,14 @@ export function CreatePage() {
   const handleClearFields = () => {
     setPath('');
     setName('');
-    setTrackers(['']);
-    setWebSeeds(['']);
-    setIsPrivate(true);
-    setComment('');
-    setSource('');
-    const { noDate, noCreator, entropy, skipPrefix, failOnSeasonWarning } = typedFieldsRef.current;
-    typedFieldsRef.current = { noDate, noCreator, entropy, skipPrefix, failOnSeasonWarning };
-    setTypedFields(typedFieldsRef.current);
-    setPieceLengthExp(0);
-    setMaxPieceLengthExp(0);
-    setTargetPieceCount(0);
+    setOverrides(({ noDate, noCreator, entropy, skipPrefix, failOnSeasonWarning }) => (
+      { noDate, noCreator, entropy, skipPrefix, failOnSeasonWarning }
+    ));
     setExcludePatterns('');
     setIncludePatterns('');
-    setOutputDir('');
     setPresetName('');
     setResult(null);
     setError('');
-    setTrackerInfo(null);
     setPlan(null);
     setPlanError('');
     clearFormState(); // Also clear localStorage
@@ -566,6 +452,9 @@ export function CreatePage() {
 
   const handlePresetChange = (value: string) => {
     setPresetName(value === 'none' ? '' : value);
+    setOverrides((o) => Object.fromEntries(Object.entries(o).filter(([, v]) => (
+      Array.isArray(v) ? nonBlank(v).length > 0 : v !== ''
+    ))));
   };
 
   const handleDialogClose = () => {
@@ -699,9 +588,10 @@ export function CreatePage() {
                 <Switch
                   id="private"
                   checked={isPrivate}
-                  onCheckedChange={(v) => { setIsPrivate(v); markTyped('isPrivate', true); }}
+                  onCheckedChange={(v) => override('isPrivate', v)}
                 />
                 <Label htmlFor="private" className="text-sm">Private</Label>
+                {hint('isPrivate')}
               </div>
             </div>
 
@@ -710,10 +600,11 @@ export function CreatePage() {
               <Label>Trackers</Label>
               <UrlList
                 urls={trackers}
-                onChange={(urls) => { changeUrls('trackers', trackers, urls); setTrackers(urls); }}
+                onChange={(urls) => override('trackerUrls', urls)}
                 placeholder="https://tracker.example.com/announce"
                 addLabel="Add Tracker"
               />
+              {hint('trackerUrls')}
             </div>
 
             {/* Output Directory */}
@@ -723,14 +614,14 @@ export function CreatePage() {
                 <div className="relative flex-1">
                   <Input
                     value={outputDir}
-                    onChange={(e) => setOutputDir(e.target.value)}
+                    onChange={(e) => override('outputDir', e.target.value)}
                     placeholder="Same as source"
                     className={outputDir ? 'pr-8' : ''}
                   />
                   {outputDir && (
                     <button
                       type="button"
-                      onClick={() => setOutputDir('')}
+                      onClick={() => override('outputDir', '')}
                       className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                       aria-label="Clear"
                       title="Clear"
@@ -743,6 +634,7 @@ export function CreatePage() {
                   <FolderOpen className="h-4 w-4" />
                 </Button>
               </div>
+              {hint('outputDir')}
             </div>
 
             {/* Create preview: the create plan, and the rules of the first tracker */}
@@ -799,8 +691,8 @@ export function CreatePage() {
                 </div>
               </div>
             )}
-            {planError && (
-              <p className="text-xs text-destructive truncate" title={planError}>{planError}</p>
+            {(resolveError || planError) && (
+              <p className="text-xs text-destructive truncate" title={resolveError || planError}>{resolveError || planError}</p>
             )}
           </CardContent>
         </Card>
@@ -832,17 +724,19 @@ export function CreatePage() {
                     <Label>Source Tag</Label>
                     <Input
                       value={source}
-                      onChange={(e) => { setSource(e.target.value); markTyped('source', e.target.value !== ''); }}
+                      onChange={(e) => override('source', e.target.value)}
                       placeholder="e.g., tracker name"
                     />
+                    {hint('source')}
                   </div>
                   <div className="space-y-1.5">
                     <Label>Comment</Label>
                     <Input
                       value={comment}
-                      onChange={(e) => { setComment(e.target.value); markTyped('comment', e.target.value !== ''); }}
+                      onChange={(e) => override('comment', e.target.value)}
                       placeholder="Optional comment"
                     />
+                    {hint('comment')}
                   </div>
                 </div>
 
@@ -851,21 +745,25 @@ export function CreatePage() {
                   <Label>Web Seeds</Label>
                   <UrlList
                     urls={webSeeds}
-                    onChange={(urls) => { changeUrls('webSeeds', webSeeds, urls); setWebSeeds(urls); }}
+                    onChange={(urls) => override('webSeeds', urls)}
                     placeholder="https://example.com/files/"
                     addLabel="Add Web Seed"
                   />
+                  {hint('webSeeds')}
                 </div>
 
                 {/* Piece Length, Max Piece Length, Target Piece Count */}
                 <div className="grid gap-4 sm:grid-cols-3">
                   {[
-                    { label: 'Piece Length', value: pieceLengthExp, set: setPieceLengthExp, unset: 'Auto', range: allowedPieceLengths?.pieceLength },
-                    { label: 'Max Piece Length', value: maxPieceLengthExp, set: setMaxPieceLengthExp, unset: 'No limit', range: allowedPieceLengths?.maxPieceLength },
+                    { label: 'Piece Length', field: 'pieceLengthExp' as const, value: pieceLengthExp, unset: 'Auto', range: allowedPieceLengths?.pieceLength },
+                    { label: 'Max Piece Length', field: 'maxPieceLength' as const, value: maxPieceLengthExp, unset: 'No limit', range: allowedPieceLengths?.maxPieceLength },
                   ].map((field) => (
                     <div key={field.label} className="space-y-1.5">
                       <Label>{field.label}</Label>
-                      <Select value={field.value.toString()} onValueChange={(v) => field.set(parseInt(v))}>
+                      <Select
+                        value={field.value.toString()}
+                        onValueChange={(v) => (v === '0' ? clearOverride(field.field) : override(field.field, parseInt(v)))}
+                      >
                         <SelectTrigger className="w-full">
                           <SelectValue />
                         </SelectTrigger>
@@ -876,6 +774,7 @@ export function CreatePage() {
                           ))}
                         </SelectContent>
                       </Select>
+                      {hint(field.field)}
                     </div>
                   ))}
                   <div className="space-y-1.5">
@@ -885,9 +784,14 @@ export function CreatePage() {
                       type="number"
                       min={1}
                       value={targetPieceCount || ''}
-                      onChange={(e) => setTargetPieceCount(Math.max(0, parseInt(e.target.value) || 0))}
+                      onChange={(e) => {
+                        const count = Math.max(0, parseInt(e.target.value) || 0);
+                        if (count) override('targetPieceCount', count);
+                        else clearOverride('targetPieceCount');
+                      }}
                       placeholder="Auto"
                     />
+                    {hint('targetPieceCount')}
                   </div>
                 </div>
 
@@ -901,6 +805,7 @@ export function CreatePage() {
                       onChange={(e) => setExcludePatterns(e.target.value)}
                       placeholder="e.g., *.nfo,*.jpg"
                     />
+                    {patternHint('excludePatterns')}
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="includePatterns">Include Patterns</Label>
@@ -910,6 +815,7 @@ export function CreatePage() {
                       onChange={(e) => setIncludePatterns(e.target.value)}
                       placeholder="e.g., *.mkv,*.mp4"
                     />
+                    {patternHint('includePatterns')}
                   </div>
                 </div>
 
@@ -918,32 +824,35 @@ export function CreatePage() {
                   <div className="flex items-center gap-2">
                     <Switch
                       id="noDate"
-                      checked={noDate}
-                      onCheckedChange={(v) => { setNoDate(v); markTyped('noDate', true); }}
+                      checked={checked('noDate')}
+                      onCheckedChange={(v) => override('noDate', v)}
                     />
                     <Label htmlFor="noDate" className="text-sm">Exclude date</Label>
+                    {hint('noDate')}
                   </div>
                   <div className="flex items-center gap-2">
                     <Switch
                       id="noCreator"
-                      checked={noCreator}
-                      onCheckedChange={(v) => { setNoCreator(v); markTyped('noCreator', true); }}
+                      checked={checked('noCreator')}
+                      onCheckedChange={(v) => override('noCreator', v)}
                     />
                     <Label htmlFor="noCreator" className="text-sm">Exclude creator</Label>
+                    {hint('noCreator')}
                   </div>
                   <div className="flex items-center gap-2">
                     <Switch
                       id="entropy"
-                      checked={entropy}
-                      onCheckedChange={(v) => { setEntropy(v); markTyped('entropy', true); }}
+                      checked={checked('entropy')}
+                      onCheckedChange={(v) => override('entropy', v)}
                     />
                     <Label htmlFor="entropy" className="text-sm">Add entropy</Label>
+                    {hint('entropy')}
                   </div>
                   <div className="flex items-center gap-2">
                     <Switch
                       id="skipPrefix"
-                      checked={skipPrefix}
-                      onCheckedChange={(v) => { setSkipPrefix(v); markTyped('skipPrefix', true); }}
+                      checked={checked('skipPrefix')}
+                      onCheckedChange={(v) => override('skipPrefix', v)}
                     />
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -953,12 +862,13 @@ export function CreatePage() {
                         <p className="max-w-xs">Do not add the tracker domain to the start of the output filename</p>
                       </TooltipContent>
                     </Tooltip>
+                    {hint('skipPrefix')}
                   </div>
                   <div className="flex items-center gap-2">
                     <Switch
                       id="failOnSeasonWarning"
-                      checked={failOnSeasonWarning}
-                      onCheckedChange={(v) => { setFailOnSeasonWarning(v); markTyped('failOnSeasonWarning', true); }}
+                      checked={checked('failOnSeasonWarning')}
+                      onCheckedChange={(v) => override('failOnSeasonWarning', v)}
                     />
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -968,6 +878,7 @@ export function CreatePage() {
                         <p className="max-w-xs">Fail if an incomplete season pack is detected (missing episodes)</p>
                       </TooltipContent>
                     </Tooltip>
+                    {hint('failOnSeasonWarning')}
                   </div>
                 </div>
               </div>

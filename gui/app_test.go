@@ -4,11 +4,16 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strconv"
+	"strings"
 	"testing"
+
+	"github.com/autobrr/go-torrent/bencode"
 
 	"github.com/autobrr/mkbrr/internal/createpreset"
 	"github.com/autobrr/mkbrr/internal/preset"
@@ -240,6 +245,13 @@ func TestSavePresetLoadsInCLI(t *testing.T) {
 		if !reflect.DeepEqual(*got, tc.want) {
 			t.Errorf("preset %s: loaded %+v, want %+v", name, *got, tc.want)
 		}
+		resolved, err := (&App{}).ResolveCreate(CreateRequest{PresetName: name})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(resolved.Settings, tc.want) {
+			t.Errorf("preset %s: the Create page shows %+v, want %+v", name, resolved.Settings, tc.want)
+		}
 	}
 }
 
@@ -340,9 +352,7 @@ func ptrString(b *bool) string {
 	return strconv.FormatBool(*b)
 }
 
-// TestGetAllowedPieceLengthsMatchesCreate checks that the create page lists
-// offer exactly the piece lengths that create accepts.
-func TestGetAllowedPieceLengthsMatchesCreate(t *testing.T) {
+func TestResolveCreateAllowedPieceLengthsMatchCreate(t *testing.T) {
 	tests := []struct {
 		name          string
 		trackerURL    string
@@ -364,17 +374,24 @@ func TestGetAllowedPieceLengthsMatchesCreate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := app.GetAllowedPieceLengths(tt.trackerURL, 0)
-			gotTarget := app.GetAllowedPieceLengths(tt.trackerURL, 100)
-			if got.PieceLength != tt.wantPiece || got.MaxPieceLength != tt.wantMax || gotTarget.MaxPieceLength != tt.wantMaxTarget {
-				t.Fatalf("GetAllowedPieceLengths() = %+v, with target %+v; want piece %v, max %v, max with target %v",
-					got, gotTarget, tt.wantPiece, tt.wantMax, tt.wantMaxTarget)
-			}
-
 			var trackerURLs []string
 			if tt.trackerURL != "" {
 				trackerURLs = []string{tt.trackerURL}
 			}
+			resolved, err := app.ResolveCreate(CreateRequest{TrackerURLs: trackerURLs})
+			if err != nil {
+				t.Fatal(err)
+			}
+			resolvedTarget, err := app.ResolveCreate(CreateRequest{TrackerURLs: trackerURLs, TargetPieceCount: new(uint(100))})
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, gotTarget := resolved.AllowedPieceLengths, resolvedTarget.AllowedPieceLengths
+			if got.PieceLength != tt.wantPiece || got.MaxPieceLength != tt.wantMax || gotTarget.MaxPieceLength != tt.wantMaxTarget {
+				t.Fatalf("allowed piece lengths = %+v, with target %+v; want piece %v, max %v, max with target %v",
+					got, gotTarget, tt.wantPiece, tt.wantMax, tt.wantMaxTarget)
+			}
+
 			fields := []struct {
 				label    string
 				allowed  PieceLengthRange
@@ -466,4 +483,188 @@ func TestGUICreateOutputPathsUnchanged(t *testing.T) {
 			t.Errorf("expected torrent at %q: %v", want, err)
 		}
 	})
+}
+
+func TestResolveCreateMatchesCreateTorrent(t *testing.T) {
+	const ptpTracker = "https://passthepopcorn.me/announce?passkey=123"
+	const otherTracker = "http://tracker.invalid/announce"
+
+	tests := []struct {
+		name        string
+		presetYAML  string
+		settings    torrent.CreateSettings
+		wantOrigins map[string]torrent.Origin
+		wantFiles   int
+	}{
+		{
+			name: "typed values",
+			settings: torrent.CreateSettings{
+				TrackerURLs:    []string{otherTracker, "http://backup.invalid/announce"},
+				Comment:        new("typed comment"),
+				Source:         new("TYPED"),
+				IsPrivate:      new(false),
+				NoDate:         new(true),
+				Entropy:        new(true),
+				SkipPrefix:     new(true),
+				PieceLengthExp: new(uint(16)),
+			},
+			wantOrigins: map[string]torrent.Origin{
+				"comment": torrent.OriginOverride, "source": torrent.OriginOverride, "private": torrent.OriginOverride,
+				"trackers": torrent.OriginOverride, "piece length": torrent.OriginOverride, "no creator": torrent.OriginDefault,
+			},
+		},
+		{
+			name: "preset values",
+			presetYAML: `    trackers: [` + otherTracker + `]
+    webseeds: [http://seed.invalid/files/]
+    comment: preset comment
+    source: PRESET
+    private: false
+    no_creator: true
+    max_piece_length: 16
+    output_dir: OUTDIR
+`,
+			wantOrigins: map[string]torrent.Origin{
+				"comment": torrent.OriginPreset, "source": torrent.OriginPreset, "private": torrent.OriginPreset,
+				"trackers": torrent.OriginPreset, "no creator": torrent.OriginPreset, "output dir": torrent.OriginPreset,
+				"no date": torrent.OriginDefault, "piece length": torrent.OriginDefault,
+			},
+		},
+		{
+			name:       "tracker default source",
+			presetYAML: "    trackers: [\"" + ptpTracker + "\"]\n",
+			wantOrigins: map[string]torrent.Origin{
+				"source": torrent.OriginTrackerDefault, "trackers": torrent.OriginPreset, "private": torrent.OriginDefault,
+			},
+		},
+		{
+			name:       "typed values over the preset",
+			presetYAML: "    trackers: [\"" + ptpTracker + "\"]\n    comment: preset comment\n    target_piece_count: 4\n",
+			settings:   torrent.CreateSettings{Comment: new("typed comment"), PieceLengthExp: new(uint(15))},
+			wantOrigins: map[string]torrent.Origin{
+				"comment": torrent.OriginOverride, "source": torrent.OriginTrackerDefault, "piece length": torrent.OriginOverride,
+				"target piece count": torrent.OriginDefault,
+			},
+		},
+		{
+			name:       "typed patterns add to the preset patterns",
+			presetYAML: "    exclude_patterns: [\"*.nfo\"]\n",
+			settings:   torrent.CreateSettings{ExcludePatterns: []string{"*.jpg"}},
+			wantOrigins: map[string]torrent.Origin{
+				"exclude patterns": torrent.OriginPreset,
+			},
+			wantFiles: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			content := filepath.Join(dir, "Movie")
+			writeFile(t, filepath.Join(content, "main.mkv"), 256<<10)
+			writeFile(t, filepath.Join(content, "info.nfo"), 1<<10)
+			writeFile(t, filepath.Join(content, "cover.jpg"), 1<<10)
+			req := CreateRequest{Path: content, CreateSettings: tt.settings}
+			if tt.presetYAML != "" {
+				req.PresetName = "p"
+				req.PresetFile = filepath.Join(dir, "presets.yaml")
+				yaml := "version: 1\npresets:\n  p:\n" + strings.ReplaceAll(tt.presetYAML, "OUTDIR", filepath.Join(dir, "out"))
+				if err := os.WriteFile(req.PresetFile, []byte(yaml), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			app := NewApp("test")
+
+			resolved, err := app.ResolveCreate(req)
+			if err != nil {
+				t.Fatalf("ResolveCreate: %v", err)
+			}
+			origins := map[string]torrent.Origin{
+				"comment": resolved.Origins.Comment, "source": resolved.Origins.Source, "private": resolved.Origins.IsPrivate,
+				"trackers": resolved.Origins.TrackerURLs, "no date": resolved.Origins.NoDate, "no creator": resolved.Origins.NoCreator,
+				"piece length": resolved.Origins.PieceLengthExp, "target piece count": resolved.Origins.TargetPieceCount,
+				"output dir": resolved.Origins.OutputDir, "exclude patterns": resolved.Origins.ExcludePatterns,
+			}
+			for setting, want := range tt.wantOrigins {
+				if origins[setting] != want {
+					t.Errorf("%s origin = %q, want %q", setting, origins[setting], want)
+				}
+			}
+
+			res, err := app.CreateTorrent(req)
+			if err != nil {
+				t.Fatalf("CreateTorrent: %v", err)
+			}
+			mi, err := torrent.LoadFromFile(res.Path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var info map[string]any
+			if err := bencode.Unmarshal(mi.InfoBytes, &info); err != nil {
+				t.Fatal(err)
+			}
+			got := resolved.Settings
+			written := torrent.CreateSettings{
+				Comment:     new(mi.Comment),
+				Source:      new(stringValue(info["source"])),
+				IsPrivate:   new(info["private"] == int64(1)),
+				NoDate:      new(mi.CreationDate == 0),
+				NoCreator:   new(mi.CreatedBy == ""),
+				Entropy:     new(info["entropy"] != nil),
+				TrackerURLs: slices.Concat(mi.UpvertedAnnounceList()...),
+				WebSeeds:    mi.UrlList,
+			}
+			want := torrent.CreateSettings{
+				Comment:     got.Comment,
+				Source:      got.Source,
+				IsPrivate:   got.IsPrivate,
+				NoDate:      got.NoDate,
+				NoCreator:   got.NoCreator,
+				Entropy:     got.Entropy,
+				TrackerURLs: got.TrackerURLs,
+				WebSeeds:    got.WebSeeds,
+			}
+			if !reflect.DeepEqual(written, want) {
+				t.Errorf("written settings:\n%s\nresolved settings:\n%s", settingsString(written), settingsString(want))
+			}
+			if got.PieceLengthExp != nil && mi.GetInfo().PieceLength != 1<<*got.PieceLengthExp {
+				t.Errorf("written piece length = %d, resolved exponent %d", mi.GetInfo().PieceLength, *got.PieceLengthExp)
+			}
+			if got.MaxPieceLength != nil && mi.GetInfo().PieceLength > 1<<*got.MaxPieceLength {
+				t.Errorf("written piece length = %d, above the resolved max exponent %d", mi.GetInfo().PieceLength, *got.MaxPieceLength)
+			}
+			wantDir := *got.OutputDir
+			if wantDir == "" {
+				wantDir = dir
+			}
+			if filepath.Dir(res.Path) != wantDir {
+				t.Errorf("written to %q, want the folder %q", res.Path, wantDir)
+			}
+			var included int
+			for _, f := range []string{"main.mkv", "info.nfo", "cover.jpg"} {
+				if !slices.ContainsFunc(got.ExcludePatterns, func(p string) bool { m, _ := filepath.Match(p, f); return m }) {
+					included++
+				}
+			}
+			if res.FileCount != included {
+				t.Errorf("written %d files, the resolved exclude patterns %v leave %d", res.FileCount, got.ExcludePatterns, included)
+			}
+			if tt.wantFiles != 0 && res.FileCount != tt.wantFiles {
+				t.Errorf("written %d files, want %d", res.FileCount, tt.wantFiles)
+			}
+			if len(got.TrackerURLs) > 0 && *got.SkipPrefix != (filepath.Base(res.Path) == "Movie.torrent") {
+				t.Errorf("written file name %q, resolved skip prefix %v", filepath.Base(res.Path), *got.SkipPrefix)
+			}
+		})
+	}
+}
+
+func stringValue(v any) string {
+	s, _ := v.(string)
+	return s
+}
+
+func settingsString(s torrent.CreateSettings) string {
+	return fmt.Sprintf("comment %q source %q private %v no date %v no creator %v entropy %v trackers %v web seeds %v",
+		*s.Comment, *s.Source, *s.IsPrivate, *s.NoDate, *s.NoCreator, *s.Entropy, s.TrackerURLs, s.WebSeeds)
 }
