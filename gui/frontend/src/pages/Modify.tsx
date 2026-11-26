@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { FolderOpen, Plus, X, Loader2, ChevronDown, FileSearch } from 'lucide-react';
-import { SelectTorrentFile, SelectPath, ModifyTorrent, ListPresets, GetPreset, InspectTorrent } from '../../wailsjs/go/main/App';
+import { SelectTorrentFile, SelectPath, ModifyTorrent, ListPresets, GetPresetValues, InspectTorrent } from '../../wailsjs/go/main/App';
 import { useFileDrop } from '@/hooks/useFileDrop';
 import { DropOverlay } from '@/components/ui/drop-overlay';
 
@@ -49,6 +49,7 @@ interface ModifyFormState {
   webSeeds: string[];
   name: string;
   privateMode: PrivateMode;
+  privateFromPreset?: boolean;
   entropyMode: EntropyMode;
   source: string;
   comment: string;
@@ -165,6 +166,8 @@ export function ModifyPage() {
     savedState.webSeedMode ?? (savedState.webSeeds?.some((w) => w.trim()) ? 'replace' : 'keep'));
   const [name, setName] = useState(savedState.name ?? '');
   const [privateMode, setPrivateMode] = useState<PrivateMode>(savedState.privateMode ?? 'unchanged');
+  const [privateFromPreset, setPrivateFromPreset] = useState(savedState.privateFromPreset ??
+    (Boolean(savedState.presetName) && (savedState.privateMode === 'private' || savedState.privateMode === 'public')));
   const [entropyMode, setEntropyMode] = useState<EntropyMode>(savedState.entropyMode ?? 'keep');
   const [source, setSource] = useState(savedState.source ?? '');
   const [comment, setComment] = useState(savedState.comment ?? '');
@@ -208,6 +211,7 @@ export function ModifyPage() {
       webSeeds,
       name,
       privateMode,
+      privateFromPreset,
       entropyMode,
       source,
       comment,
@@ -216,7 +220,7 @@ export function ModifyPage() {
       skipPrefix,
       presetName,
     });
-  }, [torrentPath, outputDir, outputPattern, trackerMode, trackers, removeTrackers, webSeedMode, webSeeds, name, privateMode, entropyMode, source, comment, noDate, noCreator, skipPrefix, presetName]);
+  }, [torrentPath, outputDir, outputPattern, trackerMode, trackers, removeTrackers, webSeedMode, webSeeds, name, privateMode, privateFromPreset, entropyMode, source, comment, noDate, noCreator, skipPrefix, presetName]);
 
   const handleReset = () => {
     setTorrentPath('');
@@ -229,6 +233,7 @@ export function ModifyPage() {
     setWebSeeds(['']);
     setName('');
     setPrivateMode('unchanged');
+    setPrivateFromPreset(false);
     setEntropyMode('keep');
     setSource('');
     setComment('');
@@ -241,20 +246,36 @@ export function ModifyPage() {
     clearFormState();
   };
 
+  const applyPresetPrivate = (value: boolean | undefined) => {
+    if (privateMode !== 'unchanged' && !privateFromPreset) return;
+    if (value === undefined) {
+      setPrivateMode('unchanged');
+      setPrivateFromPreset(false);
+      return;
+    }
+    setPrivateMode(value ? 'private' : 'public');
+    setPrivateFromPreset(true);
+  };
+
+  const handlePrivateModeChange = (mode: PrivateMode) => {
+    setPrivateMode(mode);
+    setPrivateFromPreset(false);
+  };
+
   const handlePresetChange = async (value: string) => {
     if (value === 'none') {
       setPresetName('');
+      applyPresetPrivate(undefined);
       return;
     }
 
     setPresetName(value);
     try {
-      const preset = await GetPreset(value) as PresetOptions;
+      const preset = await GetPresetValues(value) as PresetOptions;
       if (preset) {
         // Support both camelCase (new) and PascalCase (legacy) field names
         const trackerList = preset.trackers || (preset as any).Trackers;
         const sourceVal = preset.source || (preset as any).Source;
-        const privateVal = preset.private ?? (preset as any).Private;
         const commentVal = preset.comment || (preset as any).Comment;
         const webSeedList = preset.webSeeds || (preset as any).WebSeeds;
 
@@ -267,7 +288,7 @@ export function ModifyPage() {
           setWebSeedMode('replace');
         }
         if (sourceVal) setSource(sourceVal);
-        if (privateVal !== undefined) setPrivateMode(privateVal ? 'private' : 'public');
+        applyPresetPrivate(preset.private);
         if (commentVal) setComment(commentVal);
         // "Keep" sends entropy false, which wins over the preset, so show the preset value
         if (preset.entropy !== undefined) setEntropyMode(preset.entropy ? 'add' : 'keep');
@@ -463,7 +484,7 @@ export function ModifyPage() {
               <RadioRow
                 name="private"
                 value={privateMode}
-                onChange={setPrivateMode}
+                onChange={handlePrivateModeChange}
                 options={[['unchanged', 'Unchanged'], ['private', 'Private'], ['public', 'Public'], ['remove', 'Remove flag']]}
               />
             </div>

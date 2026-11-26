@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"testing"
 
 	"github.com/autobrr/mkbrr/internal/preset"
@@ -249,6 +250,62 @@ presets:
 	if d := result.Defaults; d == nil || d.Private == nil || *d.Private {
 		t.Errorf("defaults = %+v, want private false from the default section", d)
 	}
+}
+
+func TestGetPresetValuesPrivate(t *testing.T) {
+	tracker := "trackers: [http://tracker.invalid/announce]"
+	cases := []struct {
+		name        string
+		defaultYAML string
+		presetYAML  string
+		want        *bool
+	}{
+		{name: "no private", presetYAML: tracker},
+		{name: "private true", presetYAML: tracker + "\n    private: true", want: new(true)},
+		{name: "private false", presetYAML: tracker + "\n    private: false", want: new(false)},
+		{name: "private false in default section", defaultYAML: "default:\n  private: false\n", presetYAML: tracker, want: new(false)},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			t.Setenv("HOME", dir)
+			t.Chdir(dir)
+			yaml := "version: 1\n" + tc.defaultYAML + "presets:\n  p:\n    " + tc.presetYAML + "\n"
+			if err := os.WriteFile("presets.yaml", []byte(yaml), 0o600); err != nil {
+				t.Fatal(err)
+			}
+
+			got, err := (&App{}).GetPresetValues("p")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(got.Private, tc.want) {
+				t.Errorf("private = %v, want %v", ptrString(got.Private), ptrString(tc.want))
+			}
+			if len(got.Trackers) != 1 {
+				t.Errorf("trackers = %v, want the preset tracker", got.Trackers)
+			}
+
+			create, err := (&App{}).GetPreset("p")
+			if err != nil {
+				t.Fatal(err)
+			}
+			wantCreate := tc.want
+			if wantCreate == nil {
+				wantCreate = new(true)
+			}
+			if !reflect.DeepEqual(create.Private, wantCreate) {
+				t.Errorf("create private = %v, want %v", ptrString(create.Private), ptrString(wantCreate))
+			}
+		})
+	}
+}
+
+func ptrString(b *bool) string {
+	if b == nil {
+		return "unset"
+	}
+	return strconv.FormatBool(*b)
 }
 
 // TestGetAllowedPieceLengthsMatchesCreate checks that the create page lists

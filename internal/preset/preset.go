@@ -374,7 +374,34 @@ func GenerateOutputPath(originalPath, outputDir, presetName string, outputPatter
 // It handles the full process of loading the presets file and resolving the named preset,
 // including applying any default settings.
 func LoadPresetOptions(presetFilePath string, presetName string) (*Options, error) {
-	// Find the preset file if not explicitly provided
+	config, err := loadConfig(presetFilePath)
+	if err != nil {
+		return nil, err
+	}
+
+	presetOpts, err := config.GetPreset(presetName)
+	if err != nil {
+		return nil, fmt.Errorf("could not get preset: %w", err)
+	}
+
+	return presetOpts, nil
+}
+
+func LoadPresetValues(presetFilePath string, presetName string) (*Options, error) {
+	config, err := loadConfig(presetFilePath)
+	if err != nil {
+		return nil, err
+	}
+
+	values, err := config.PresetValues(presetName)
+	if err != nil {
+		return nil, fmt.Errorf("could not get preset: %w", err)
+	}
+
+	return values, nil
+}
+
+func loadConfig(presetFilePath string) (*Config, error) {
 	configPath := presetFilePath
 	if configPath == "" {
 		var err error
@@ -384,19 +411,12 @@ func LoadPresetOptions(presetFilePath string, presetName string) (*Options, erro
 		}
 	}
 
-	// Load the presets from the file
 	config, err := Load(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("could not load presets: %w", err)
 	}
 
-	// Get the specific preset with default settings applied
-	presetOpts, err := config.GetPreset(presetName)
-	if err != nil {
-		return nil, fmt.Errorf("could not get preset: %w", err)
-	}
-
-	return presetOpts, nil
+	return config, nil
 }
 
 // sanitizeFilename removes characters that are invalid in filenames
