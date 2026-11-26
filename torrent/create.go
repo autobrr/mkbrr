@@ -354,6 +354,9 @@ func prepareCreateContext(ctx context.Context, opts CreateOptions, internalOpts 
 
 	err = filepath.Walk(walkPath, func(currentPath string, walkInfo os.FileInfo, walkErr error) error {
 		if walkErr != nil {
+			if currentPath != walkPath && isMissingTempTorrentFile(currentPath, walkErr) {
+				return nil
+			}
 			return walkErr
 		}
 		if err := ctx.Err(); err != nil {
@@ -362,6 +365,12 @@ func prepareCreateContext(ctx context.Context, opts CreateOptions, internalOpts 
 
 		lstatInfo, err := os.Lstat(currentPath)
 		if err != nil {
+			if isMissingTempTorrentFile(currentPath, err) {
+				return nil
+			}
+			if errors.Is(err, os.ErrNotExist) {
+				return err
+			}
 			fmt.Fprintf(os.Stderr, "Warning: could not lstat %q: %v\n", currentPath, err)
 			return nil
 		}
@@ -431,6 +440,12 @@ func prepareCreateContext(ctx context.Context, opts CreateOptions, internalOpts 
 		}
 		if shouldIgnore {
 			return nil
+		}
+
+		if isKnownTempTorrentFilename(filepath.Base(currentPath)) {
+			if _, err := os.Lstat(currentPath); errors.Is(err, os.ErrNotExist) {
+				return nil
+			}
 		}
 
 		fileSize := resolvedInfo.Size()
@@ -803,6 +818,7 @@ var activeTempTorrents = struct {
 	mu    sync.Mutex
 	count atomic.Int32
 	names map[string]int
+	known map[string]struct{}
 }{}
 
 func registerActiveTempTorrent(base string) func() {
@@ -810,8 +826,10 @@ func registerActiveTempTorrent(base string) func() {
 	activeTempTorrents.mu.Lock()
 	if activeTempTorrents.names == nil {
 		activeTempTorrents.names = make(map[string]int)
+		activeTempTorrents.known = make(map[string]struct{})
 	}
 	activeTempTorrents.names[key]++
+	activeTempTorrents.known[key] = struct{}{}
 	activeTempTorrents.count.Add(1)
 	activeTempTorrents.mu.Unlock()
 
@@ -828,6 +846,18 @@ func registerActiveTempTorrent(base string) func() {
 			activeTempTorrents.mu.Unlock()
 		})
 	}
+}
+
+func isKnownTempTorrentFilename(base string) bool {
+	key := strings.ToLower(base)
+	activeTempTorrents.mu.Lock()
+	_, ok := activeTempTorrents.known[key]
+	activeTempTorrents.mu.Unlock()
+	return ok
+}
+
+func isMissingTempTorrentFile(path string, err error) bool {
+	return errors.Is(err, os.ErrNotExist) && isKnownTempTorrentFilename(filepath.Base(path))
 }
 
 func isActiveTempTorrentFilename(base string) bool {

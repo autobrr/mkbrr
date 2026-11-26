@@ -5,6 +5,7 @@ package torrent
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha1"
 	"os"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/autobrr/go-torrent/bencode"
@@ -1417,4 +1419,56 @@ func Test_choosePieceLength_AllowedPieceLengths(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestPrepareCreateContextIgnoresDisappearedTempFile(t *testing.T) {
+	rootDir := t.TempDir()
+	outSubDir := filepath.Join(rootDir, "out")
+	require.NoError(t, os.MkdirAll(outSubDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(rootDir, "movie.bin"), []byte("payload"), 0o644))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	var wg sync.WaitGroup
+	t.Cleanup(func() {
+		cancel()
+		wg.Wait()
+	})
+
+	// Continuously run prepareOutputFolder inside outSubDir (inside rootDir) while
+	// prepareCreateContext walks rootDir, reproducing cross-job temp file removal (#297).
+	writerErr := make(chan error, 1)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		target := filepath.Join(outSubDir, "job.torrent")
+		for ctx.Err() == nil {
+			if err := prepareOutputFolder(target); err != nil {
+				writerErr <- err
+				return
+			}
+		}
+	}()
+
+	for i := range 400 {
+		select {
+		case err := <-writerErr:
+			t.Fatalf("prepareOutputFolder failed: %v", err)
+		default:
+		}
+		prepared, err := prepareCreateContext(context.Background(), CreateOptions{
+			Path:      rootDir,
+			NoCreator: true,
+			NoDate:    true,
+		}, createTorrentOptions{})
+		require.NoErrorf(t, err, "iteration %d failed while walking disappearing temp file", i)
+		require.Len(t, prepared.files, 1)
+	}
+
+	// Non-existent root path must still return an error.
+	_, err := prepareCreateContext(context.Background(), CreateOptions{
+		Path:      filepath.Join(rootDir, "missing-root"),
+		NoCreator: true,
+		NoDate:    true,
+	}, createTorrentOptions{})
+	require.Error(t, err)
 }
