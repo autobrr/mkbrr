@@ -354,10 +354,7 @@ func prepareCreateContext(ctx context.Context, opts CreateOptions, internalOpts 
 
 	err = filepath.Walk(walkPath, func(currentPath string, walkInfo os.FileInfo, walkErr error) error {
 		if walkErr != nil {
-			if currentPath != walkPath && errors.Is(walkErr, os.ErrNotExist) {
-				if !isTempTorrentFilename(filepath.Base(currentPath)) {
-					fmt.Fprintf(os.Stderr, "Warning: could not lstat %q: %v\n", currentPath, walkErr)
-				}
+			if currentPath != walkPath && isMissingTempTorrentFile(currentPath, walkErr) {
 				return nil
 			}
 			return walkErr
@@ -368,9 +365,13 @@ func prepareCreateContext(ctx context.Context, opts CreateOptions, internalOpts 
 
 		lstatInfo, err := os.Lstat(currentPath)
 		if err != nil {
-			if !errors.Is(err, os.ErrNotExist) || !isTempTorrentFilename(filepath.Base(currentPath)) {
-				fmt.Fprintf(os.Stderr, "Warning: could not lstat %q: %v\n", currentPath, err)
+			if isMissingTempTorrentFile(currentPath, err) {
+				return nil
 			}
+			if errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+			fmt.Fprintf(os.Stderr, "Warning: could not lstat %q: %v\n", currentPath, err)
 			return nil
 		}
 
@@ -441,13 +442,8 @@ func prepareCreateContext(ctx context.Context, opts CreateOptions, internalOpts 
 			return nil
 		}
 
-		// Revalidate before recording the entry: a concurrent temp probe file
-		// can be removed and unregistered between initial Lstat and append.
-		if _, err := os.Lstat(currentPath); errors.Is(err, os.ErrNotExist) {
-			return nil
-		}
-		if resolvedPath != currentPath {
-			if _, err := os.Stat(resolvedPath); errors.Is(err, os.ErrNotExist) {
+		if isTempTorrentFilename(filepath.Base(currentPath)) {
+			if _, err := os.Lstat(currentPath); errors.Is(err, os.ErrNotExist) {
 				return nil
 			}
 		}
@@ -852,6 +848,10 @@ func registerActiveTempTorrent(base string) func() {
 func isTempTorrentFilename(base string) bool {
 	lower := strings.ToLower(base)
 	return strings.HasPrefix(lower, tempTorrentFilePrefix) && strings.HasSuffix(lower, tempTorrentFileSuffix)
+}
+
+func isMissingTempTorrentFile(path string, err error) bool {
+	return errors.Is(err, os.ErrNotExist) && isTempTorrentFilename(filepath.Base(path))
 }
 
 func isActiveTempTorrentFilename(base string) bool {
