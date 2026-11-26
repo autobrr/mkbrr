@@ -451,6 +451,19 @@ func TestShouldIgnoreEntry(t *testing.T) {
 			excludePatterns: nil,
 			wantIgnore:      true,
 		},
+		{
+			name:       "unregistered user file matching temp pattern is kept",
+			relPath:    ".mkbrr-notes.tmp",
+			isDir:      false,
+			wantIgnore: false,
+		},
+		{
+			name:            "unregistered user file matching temp pattern kept with include *.tmp",
+			relPath:         "folder/.mkbrr-notes.tmp",
+			isDir:           false,
+			includePatterns: []string{"*.tmp"},
+			wantIgnore:      false,
+		},
 
 		// Case insensitivity
 		{
@@ -551,6 +564,50 @@ func TestShouldIgnoreEntry(t *testing.T) {
 					tt.relPath, tt.isDir, tt.excludePatterns, tt.includePatterns, got, tt.wantIgnore)
 			}
 		})
+	}
+}
+
+func TestShouldIgnoreEntryActiveTempTorrent(t *testing.T) {
+	const activeName = ".mkbrr-ABC123.tmp"
+	unregister := registerActiveTempTorrent(activeName)
+	t.Cleanup(unregister)
+
+	tests := []struct {
+		name            string
+		relPath         string
+		includePatterns []string
+		wantIgnore      bool
+	}{
+		{"active temp at root", activeName, nil, true},
+		{"active temp in subdir", "folder/" + activeName, nil, true},
+		{"active temp ignored with include *.tmp", activeName, []string{"*.tmp"}, true},
+		{"active temp ignored with include *", "folder/" + activeName, []string{"*"}, true},
+		{"unregistered user file with similar name kept", ".mkbrr-notes.tmp", nil, false},
+		{"unregistered user file kept with include *.tmp", ".mkbrr-notes.tmp", []string{"*.tmp"}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := shouldIgnoreEntry(tt.relPath, false, nil, tt.includePatterns)
+			if err != nil {
+				t.Fatalf("shouldIgnoreEntry() error = %v", err)
+			}
+			if got != tt.wantIgnore {
+				t.Errorf("shouldIgnoreEntry(%q, include=%v) = %v, want %v", tt.relPath, tt.includePatterns, got, tt.wantIgnore)
+			}
+		})
+	}
+
+	unregister()
+
+	for _, include := range [][]string{nil, {"*.tmp"}} {
+		got, err := shouldIgnoreEntry(activeName, false, nil, include)
+		if err != nil {
+			t.Fatalf("shouldIgnoreEntry() after cleanup error = %v", err)
+		}
+		if got {
+			t.Errorf("shouldIgnoreEntry(%q, include=%v) after cleanup = true, want false", activeName, include)
+		}
 	}
 }
 

@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/autobrr/mkbrr/internal/preset"
 	"github.com/autobrr/mkbrr/internal/trackers"
 )
 
@@ -630,6 +631,88 @@ func TestCreateTorrent_IgnoresSynologyMetadataDir(t *testing.T) {
 	}
 }
 
+func TestCreateTorrent_IgnoresActiveTempFilesOnly(t *testing.T) {
+	rootDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(rootDir, "movie.mkv"), []byte("video data"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(rootDir, ".mkbrr-notes.tmp"), []byte("user temp data"), 0o644))
+
+	torrentFilePaths := func(tor *Torrent) []string {
+		files := tor.GetInfo().Files
+		paths := make([]string, 0, len(files))
+		for _, f := range files {
+			paths = append(paths, strings.Join(f.Path, "/"))
+		}
+		return paths
+	}
+
+	cleanTor, err := CreateTorrent(CreateOptions{
+		Path:      rootDir,
+		NoCreator: true,
+		NoDate:    true,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []string{".mkbrr-notes.tmp", "movie.mkv"}, torrentFilePaths(cleanTor))
+
+	const (
+		activeRoot   = ".mkbrr-ABC123.tmp"
+		activeNested = ".mkbrr-DEF456.tmp"
+	)
+	require.NoError(t, os.WriteFile(filepath.Join(rootDir, activeRoot), []byte("probe"), 0o644))
+	nestedDir := filepath.Join(rootDir, "nested")
+	require.NoError(t, os.MkdirAll(nestedDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(nestedDir, activeNested), []byte("probe"), 0o644))
+
+	unregisterRoot := registerActiveTempTorrent(activeRoot)
+	t.Cleanup(unregisterRoot)
+	unregisterNested := registerActiveTempTorrent(activeNested)
+	t.Cleanup(unregisterNested)
+
+	t.Run("default filters keep user .mkbrr-notes.tmp and ignore active temp files", func(t *testing.T) {
+		tor, err := CreateTorrent(CreateOptions{
+			Path:      rootDir,
+			NoCreator: true,
+			NoDate:    true,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, []string{".mkbrr-notes.tmp", "movie.mkv"}, torrentFilePaths(tor))
+		assert.Equal(t, cleanTor.HashInfoBytes(), tor.HashInfoBytes())
+	})
+
+	t.Run("include wildcard still ignores active temp files", func(t *testing.T) {
+		tor, err := CreateTorrent(CreateOptions{
+			Path:            rootDir,
+			IncludePatterns: []string{"*"},
+			NoCreator:       true,
+			NoDate:          true,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, []string{".mkbrr-notes.tmp", "movie.mkv"}, torrentFilePaths(tor))
+	})
+
+	t.Run("include *.tmp keeps user .mkbrr-notes.tmp and ignores active temp files", func(t *testing.T) {
+		tor, err := CreateTorrent(CreateOptions{
+			Path:            rootDir,
+			IncludePatterns: []string{"*.tmp"},
+			NoCreator:       true,
+			NoDate:          true,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, []string{".mkbrr-notes.tmp"}, torrentFilePaths(tor))
+	})
+
+	t.Run("cleanup stops suppressing the filename", func(t *testing.T) {
+		unregisterRoot()
+		tor, err := CreateTorrent(CreateOptions{
+			Path:            rootDir,
+			IncludePatterns: []string{"*.tmp"},
+			NoCreator:       true,
+			NoDate:          true,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, []string{activeRoot, ".mkbrr-notes.tmp"}, torrentFilePaths(tor))
+	})
+}
+
 func TestCreateTorrent_SingleFilePatterns(t *testing.T) {
 	rootDir := t.TempDir()
 	filePath := filepath.Join(rootDir, "movie.mkv")
@@ -690,11 +773,14 @@ func TestCreateOutputPath(t *testing.T) {
 	const tracker = "https://tracker.example.org/announce"
 	const tracker2 = "https://tracker2.example.net/announce"
 	content := filepath.Join("data", "Movie")
+	absOut := filepath.Join(t.TempDir(), "abs.torrent")
+	absOutNoExt := filepath.Join(t.TempDir(), "abs")
 
 	tests := []struct {
-		name string
-		opts CreateOptions
-		want string
+		name   string
+		opts   CreateOptions
+		preset *preset.Options
+		want   string
 	}{
 		{
 			name: "default filename is the base name of the content path",
@@ -752,20 +838,127 @@ func TestCreateOutputPath(t *testing.T) {
 			want: "custom.torrent",
 		},
 		{
+			name: "absolute output path with no output folder stays as given",
+			opts: CreateOptions{Path: content, OutputPath: absOut, TrackerURLs: []string{tracker}},
+			want: absOut,
+		},
+		{
 			name: "output folder holds the default filename",
 			opts: CreateOptions{Path: content, OutputDir: "out", TrackerURLs: []string{tracker}},
 			want: filepath.Join("out", "example_Movie.torrent"),
 		},
 		{
-			name: "output folder drops the output path",
+			name: "relative output path goes into the output folder",
 			opts: CreateOptions{Path: content, OutputDir: "out", OutputPath: "custom.torrent", TrackerURLs: []string{tracker}},
-			want: filepath.Join("out", "example_Movie.torrent"),
+			want: filepath.Join("out", "custom.torrent"),
+		},
+		{
+			name: "relative output path without extension goes into the output folder",
+			opts: CreateOptions{Path: content, OutputDir: "out", OutputPath: filepath.Join("sub", "custom"), TrackerURLs: []string{tracker}},
+			want: filepath.Join("out", "sub", "custom.torrent"),
+		},
+		{
+			name: "output folder with trailing separator does not duplicate separator",
+			opts: CreateOptions{Path: content, OutputDir: "out" + string(os.PathSeparator), OutputPath: "custom.torrent", TrackerURLs: []string{tracker}},
+			want: filepath.Join("out", "custom.torrent"),
+		},
+		{
+			name: "relative output path preserves parent traversal segments",
+			opts: CreateOptions{Path: content, OutputDir: "link", OutputPath: filepath.Join("..", "custom"), TrackerURLs: []string{tracker}},
+			want: "link" + string(os.PathSeparator) + filepath.Join("..", "custom.torrent"),
+		},
+		{
+			name: "absolute output path wins over the output folder",
+			opts: CreateOptions{Path: content, OutputDir: "out", OutputPath: absOut, TrackerURLs: []string{tracker}},
+			want: absOut,
+		},
+		{
+			name: "absolute output path without extension wins over the output folder",
+			opts: CreateOptions{Path: content, OutputDir: "out", OutputPath: absOutNoExt, TrackerURLs: []string{tracker}},
+			want: absOutNoExt + ".torrent",
+		},
+		{
+			name:   "relative output path goes into the preset output folder",
+			opts:   CreateOptions{Path: content, OutputPath: "custom.torrent", TrackerURLs: []string{tracker}},
+			preset: &preset.Options{OutputDir: "preset-out"},
+			want:   filepath.Join("preset-out", "custom.torrent"),
+		},
+		{
+			name:   "absolute output path wins over the preset output folder",
+			opts:   CreateOptions{Path: content, OutputPath: absOut, TrackerURLs: []string{tracker}},
+			preset: &preset.Options{OutputDir: "preset-out"},
+			want:   absOut,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, createOutputPath(tt.opts))
+			opts := tt.opts
+			if tt.preset != nil {
+				var err error
+				opts, err = ResolveCreateOptions(CreateOverrides{
+					CreateSettings: CreateSettings{TrackerURLs: tt.opts.TrackerURLs},
+					Path:           tt.opts.Path,
+					Name:           tt.opts.Name,
+					OutputPath:     tt.opts.OutputPath,
+				}, tt.preset)
+				require.NoError(t, err)
+			}
+			assert.Equal(t, tt.want, createOutputPath(opts))
+		})
+	}
+}
+
+func TestCreateOutputPathWindowsDriveRelative(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("Windows drive-relative paths apply only on Windows")
+	}
+
+	content := filepath.Join("data", "Movie")
+	assert.Equal(t, `C:custom.torrent`, createOutputPath(CreateOptions{Path: content, OutputDir: `C:`, OutputPath: "custom"}))
+	assert.Equal(t, `C:\custom.torrent`, createOutputPath(CreateOptions{Path: content, OutputDir: `C:\`, OutputPath: "custom"}))
+	assert.Equal(t, `\\server\share\custom.torrent`, createOutputPath(CreateOptions{Path: content, OutputDir: `\\server\share`, OutputPath: "custom"}))
+}
+
+func TestPlanCreateDoesNotCreateOutputFolderOrFile(t *testing.T) {
+	dir := t.TempDir()
+	content := filepath.Join(dir, "content.bin")
+	require.NoError(t, os.WriteFile(content, make([]byte, 64*1024), 0o644))
+
+	missingDir := filepath.Join(dir, "missing-dir")
+	missingPath := filepath.Join(dir, "missing-parent", "nested", "out.torrent")
+
+	tests := []struct {
+		name        string
+		opts        CreateOptions
+		absentPaths []string
+	}{
+		{
+			name:        "missing output dir",
+			opts:        CreateOptions{Path: content, OutputDir: missingDir, NoCreator: true, NoDate: true},
+			absentPaths: []string{missingDir},
+		},
+		{
+			name:        "missing output path parent",
+			opts:        CreateOptions{Path: content, OutputPath: missingPath, NoCreator: true, NoDate: true},
+			absentPaths: []string{filepath.Join(dir, "missing-parent"), missingPath},
+		},
+		{
+			name:        "relative output path with missing output dir",
+			opts:        CreateOptions{Path: content, OutputDir: missingDir, OutputPath: filepath.Join("sub", "out.torrent"), NoCreator: true, NoDate: true},
+			absentPaths: []string{missingDir},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			plan, err := PlanCreate(tt.opts)
+			require.NoError(t, err)
+			require.Equal(t, int64(64*1024), plan.ContentSize)
+			for _, p := range tt.absentPaths {
+				_, statErr := os.Stat(p)
+				assert.ErrorIs(t, statErr, os.ErrNotExist)
+			}
 		})
 	}
 }

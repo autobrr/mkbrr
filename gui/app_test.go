@@ -318,3 +318,57 @@ func TestGetPieceLengthRange(t *testing.T) {
 		t.Fatalf("GetPieceLengthRange() = %v, want %v", got, want)
 	}
 }
+
+func TestGUICreateOutputPathsUnchanged(t *testing.T) {
+	const tracker = "https://tracker.example.org/announce"
+
+	t.Run("with output folder", func(t *testing.T) {
+		dir := t.TempDir()
+		content := filepath.Join(dir, "Movie")
+		writeFile(t, filepath.Join(content, "main.mkv"), 64<<10)
+		outDir := filepath.Join(dir, "torrents")
+		app := NewApp("test")
+
+		res, err := app.CreateTorrent(CreateRequest{
+			Path: content,
+			CreateSettings: torrent.CreateSettings{
+				OutputDir:   &outDir,
+				TrackerURLs: []string{tracker},
+			},
+		})
+		if err != nil {
+			t.Fatalf("CreateTorrent: %v", err)
+		}
+		want := filepath.Join(outDir, "example_Movie.torrent")
+		if res.Path != want {
+			t.Errorf("path = %q, want %q", res.Path, want)
+		}
+		if _, err := os.Stat(want); err != nil {
+			t.Errorf("expected torrent at %q: %v", want, err)
+		}
+	})
+
+	t.Run("without output folder writes next to source", func(t *testing.T) {
+		dir := t.TempDir()
+		content := filepath.Join(dir, "Movie")
+		writeFile(t, filepath.Join(content, "main.mkv"), 64<<10)
+		app := NewApp("test")
+
+		res, err := app.CreateTorrent(CreateRequest{
+			Path: content,
+			CreateSettings: torrent.CreateSettings{
+				TrackerURLs: []string{tracker},
+			},
+		})
+		if err != nil {
+			t.Fatalf("CreateTorrent: %v", err)
+		}
+		want := filepath.Join(dir, "example_Movie.torrent")
+		if res.Path != want {
+			t.Errorf("path = %q, want %q", res.Path, want)
+		}
+		if _, err := os.Stat(want); err != nil {
+			t.Errorf("expected torrent at %q: %v", want, err)
+		}
+	})
+}

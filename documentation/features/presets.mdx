@@ -153,7 +153,7 @@ The following options can be used within the `default` section or any specific p
     </ParamField>
 
     <ParamField path="output_dir" type="string">
-      Output directory for created torrents.
+      Output folder for created torrents. In `create`, a relative `--output` path goes into this folder, while an absolute `--output` path wins over it. `--output-dir` overrides `output_dir`. Missing folders are created and write access is checked before hashing.
     </ParamField>
   </Tab>
 

@@ -60,6 +60,10 @@ _Avoid_: strip, delete
 One create, from the resolved create settings to the written .torrent file and its summary. The create run decides the **output path**, hashes the content, writes the file, and returns the summary. The CLI, the GUI, and batch mode all use the same create run.
 _Avoid_: create pipeline, create flow
 
+**Output path**:
+The path where a **create run** writes the .torrent file. Without `--output`, it is the torrent name with the **filename prefix** and `.torrent`, in the output folder, or in the current folder when there is no output folder. A relative `--output` goes into the output folder. An absolute `--output` wins over the output folder. An `--output` path gets no filename prefix.
+_Avoid_: output file, destination
+
 **Filename prefix**:
 The text that mkbrr puts before the output .torrent filename, followed by `_`. In create, it is the tracker domain. In modify, it is the preset name when a preset is given. Otherwise, it is the domain of the first `--tracker` URL, or `modified` when there is no `--tracker`. `skip_prefix` removes it. Batch mode never adds it, because the `output` of a batch job gives the filename.
 _Avoid_: tracker prefix, domain prefix

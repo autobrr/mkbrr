@@ -142,7 +142,7 @@ jobs:
   <Card title="Required Fields" icon="asterisk">
     - **version**: Must be `1`
     - **jobs**: List of torrent creation tasks
-    - **output**: Path and filename for the `.torrent` file. If the filename does not end in `.torrent`, mkbrr adds `.torrent` to it
+    - **output**: Path and filename for the `.torrent` file. If the filename does not end in `.torrent`, mkbrr adds `.torrent` to it. Missing parent folders are created and write access is checked before hashing
     - **path**: Source file/directory path
   </Card>
   <Card title="Optional Settings" icon="question">

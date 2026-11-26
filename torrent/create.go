@@ -17,6 +17,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/autobrr/go-torrent/bencode"
@@ -726,10 +728,8 @@ func createRun(ctx context.Context, opts CreateOptions) (*Torrent, *TorrentInfo,
 
 	outputPath := createOutputPath(opts)
 
-	if opts.OutputDir != "" {
-		if err := os.MkdirAll(opts.OutputDir, 0755); err != nil {
-			return nil, nil, fmt.Errorf("error creating output directory %q: %w", opts.OutputDir, err)
-		}
+	if err := prepareOutputFolder(outputPath); err != nil {
+		return nil, nil, err
 	}
 
 	t, seasonInfo, err := createTorrent(ctx, opts, createTorrentOptions{})
@@ -770,10 +770,11 @@ func writeTorrentFile(t *Torrent, outputPath string) error {
 		// Another user who opens a wider temporary file keeps that handle after a chmod.
 		perm = old.Mode().Perm()
 	}
-	f, err := createTempTorrentFile(outputPath, perm)
+	f, unregister, err := createTempTorrentFile(outputPath, perm)
 	if err != nil {
 		return fmt.Errorf("error creating output file: %w", err)
 	}
+	defer unregister()
 	if replacing {
 		err = f.Chmod(perm)
 	}
@@ -792,24 +793,133 @@ func writeTorrentFile(t *Torrent, outputPath string) error {
 	return nil
 }
 
+const (
+	tempTorrentFilePrefix = ".mkbrr-"
+	tempTorrentFileSuffix = ".tmp"
+)
+
+var activeTempTorrents = struct {
+	mu    sync.Mutex
+	count atomic.Int32
+	names map[string]int
+}{}
+
+func registerActiveTempTorrent(base string) func() {
+	key := strings.ToLower(base)
+	activeTempTorrents.mu.Lock()
+	if activeTempTorrents.names == nil {
+		activeTempTorrents.names = make(map[string]int)
+	}
+	activeTempTorrents.names[key]++
+	activeTempTorrents.count.Add(1)
+	activeTempTorrents.mu.Unlock()
+
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			activeTempTorrents.mu.Lock()
+			if activeTempTorrents.names[key] <= 1 {
+				delete(activeTempTorrents.names, key)
+			} else {
+				activeTempTorrents.names[key]--
+			}
+			activeTempTorrents.count.Add(-1)
+			activeTempTorrents.mu.Unlock()
+		})
+	}
+}
+
+func isActiveTempTorrentFilename(base string) bool {
+	if activeTempTorrents.count.Load() == 0 {
+		return false
+	}
+	key := strings.ToLower(base)
+	activeTempTorrents.mu.Lock()
+	_, ok := activeTempTorrents.names[key]
+	activeTempTorrents.mu.Unlock()
+	return ok
+}
+
 // createTempTorrentFile keeps the parent as given, because a cleaned "link/.." can name another filesystem.
-func createTempTorrentFile(outputPath string, perm os.FileMode) (*os.File, error) {
+func createTempTorrentFile(outputPath string, perm os.FileMode) (*os.File, func(), error) {
 	dir, _ := filepath.Split(outputPath)
-	return openTempTorrentFile(dir+".mkbrr-"+rand.Text()+".tmp", os.O_RDWR|os.O_CREATE|os.O_EXCL, perm)
+	base := tempTorrentFilePrefix + rand.Text() + tempTorrentFileSuffix
+	unregister := registerActiveTempTorrent(base)
+	f, err := openTempTorrentFile(dir+base, os.O_RDWR|os.O_CREATE|os.O_EXCL, perm)
+	if err != nil {
+		unregister()
+		return nil, nil, err
+	}
+	return f, unregister, nil
+}
+
+func prepareOutputFolder(outputPath string) error {
+	dir, _ := filepath.Split(outputPath)
+	folder := outputFolderName(dir)
+	if dir != "" {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return fmt.Errorf("error creating output directory %q: %w", folder, err)
+		}
+	}
+
+	f, unregister, err := createTempTorrentFile(outputPath, 0o600)
+	if err != nil {
+		return fmt.Errorf("cannot write to output directory %q: %w", folder, err)
+	}
+	defer unregister()
+	tempPath := f.Name()
+	closeErr := f.Close()
+	removeErr := os.Remove(tempPath)
+	if err := errors.Join(closeErr, removeErr); err != nil {
+		return fmt.Errorf("cannot write to output directory %q: %w", folder, err)
+	}
+	return nil
+}
+
+func outputFolderName(dir string) string {
+	if dir == "" {
+		return "."
+	}
+	vol := filepath.VolumeName(dir)
+	minLen := len(vol)
+	if len(dir) > minLen && os.IsPathSeparator(dir[minLen]) {
+		minLen++
+	}
+	end := len(dir)
+	for end > minLen && os.IsPathSeparator(dir[end-1]) {
+		end--
+	}
+	return dir[:end]
+}
+
+func joinOutputDir(dir, out string) string {
+	if os.IsPathSeparator(dir[len(dir)-1]) {
+		return dir + out
+	}
+	if vol := filepath.VolumeName(dir); vol == dir && len(vol) == 2 && vol[1] == ':' {
+		return dir + out
+	}
+	return dir + string(os.PathSeparator) + out
 }
 
 // createOutputPath must not read the disk, so that a plan can give the path without a create.
 func createOutputPath(opts CreateOptions) string {
-	switch {
-	case opts.OutputDir != "":
-		return filepath.Join(opts.OutputDir, defaultTorrentFilename(opts))
-	case opts.OutputPath == "":
-		return defaultTorrentFilename(opts)
-	case strings.HasSuffix(opts.OutputPath, ".torrent"):
-		return opts.OutputPath
-	default:
-		return opts.OutputPath + ".torrent"
+	if opts.OutputPath == "" {
+		name := defaultTorrentFilename(opts)
+		if opts.OutputDir != "" {
+			return filepath.Join(opts.OutputDir, name)
+		}
+		return name
 	}
+
+	out := opts.OutputPath
+	if !strings.HasSuffix(out, ".torrent") {
+		out += ".torrent"
+	}
+	if opts.OutputDir != "" && !filepath.IsAbs(out) {
+		return joinOutputDir(opts.OutputDir, out)
+	}
+	return out
 }
 
 func defaultTorrentFilename(opts CreateOptions) string {

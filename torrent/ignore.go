@@ -172,6 +172,9 @@ func shouldIgnoreEntry(relPath string, isDir bool, excludePatterns []string, inc
 
 	// 2. Check built-in ignored patterns for files (always ignored)
 	if !isDir {
+		if isActiveTempTorrentFilename(segments[len(segments)-1]) {
+			return true, nil
+		}
 		for _, pattern := range ignoredPatterns {
 			if strings.HasSuffix(lowerRelPath, pattern) {
 				return true, nil
