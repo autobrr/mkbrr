@@ -601,10 +601,12 @@ func (a *App) GetPresetFilePath() (string, error) {
 }
 
 func (a *App) GetAllPresets() (*PresetsResult, error) {
+	defaults, _ := torrent.ResolveCreateOptions(torrent.CreateOverrides{}, nil)
 	result := &PresetsResult{
-		Presets: make(map[string]*torrent.CreateSettings),
-		Own:     make(map[string]preset.Options),
-		Errors:  []string{},
+		Presets:  make(map[string]*torrent.CreateSettings),
+		Own:      make(map[string]preset.Options),
+		Defaults: resolvedSettings(defaults),
+		Errors:   []string{},
 	}
 
 	configPath, err := preset.FindPresetFile("")
@@ -621,12 +623,11 @@ func (a *App) GetAllPresets() (*PresetsResult, error) {
 		return nil, err
 	}
 
-	defaults, err := torrent.ResolveCreateOptions(torrent.CreateOverrides{}, createpreset.DefaultSection(config))
-	if err != nil {
+	if fromFile, err := torrent.ResolveCreateOptions(torrent.CreateOverrides{}, createpreset.DefaultSection(config)); err != nil {
 		result.Errors = append(result.Errors, fmt.Sprintf("default section: %v", err))
-		defaults, _ = torrent.ResolveCreateOptions(torrent.CreateOverrides{}, nil)
+	} else {
+		result.Defaults = resolvedSettings(fromFile)
 	}
-	result.Defaults = resolvedSettings(defaults)
 
 	for name := range config.Presets {
 		opts, err := createpreset.FromConfig(config, name)

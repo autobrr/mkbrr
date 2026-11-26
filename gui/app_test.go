@@ -295,6 +295,20 @@ presets:
 	}
 }
 
+func TestGetAllPresetsDefaultsWithoutPresetFile(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	t.Chdir(dir)
+
+	result, err := (&App{}).GetAllPresets()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d := result.Defaults; d.IsPrivate == nil || !*d.IsPrivate {
+		t.Errorf("defaults private = %v, want true", ptrString(d.IsPrivate))
+	}
+}
+
 func TestGetAllPresetsSwitchDefaults(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
