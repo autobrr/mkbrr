@@ -94,6 +94,12 @@ install-pgo:
 test:
 	@echo "Running tests..."
 	$(GO) test -v ./...
+	@$(MAKE) --no-print-directory test-gui
+
+.PHONY: test-gui
+test-gui: gui-dist-placeholder
+	@echo "Running GUI tests..."
+	cd gui && $(GO) test ./...
 
 # run quick tests with race detector (for CI and quick feedback)
 .PHONY: test-race-short
@@ -137,12 +143,13 @@ test-coverage:
 	fi
 
 # run golangci-lint on the CLI module and the GUI module, at the CI version.
-# The GUI embeds frontend/dist, so lint needs a placeholder file when there is no frontend build.
-.PHONY: lint
-lint:
-	@mkdir -p gui/frontend/dist
-	@[ -n "$$(ls -A gui/frontend/dist)" ] || touch gui/frontend/dist/.gitkeep
+.PHONY: lint lint-cli lint-gui
+lint: lint-cli lint-gui
+
+lint-cli:
 	$(GOLANGCI_LINT) run
+
+lint-gui: gui-dist-placeholder
 	cd gui && $(GOLANGCI_LINT) run
 
 # clean build artifacts
@@ -155,6 +162,7 @@ clean:
 # GUI targets
 WAILS=$(GOBIN)/wails
 WAILS_VERSION=$(shell cd gui && $(GO) list -m -f '{{.Version}}' github.com/wailsapp/wails/v2)
+WAILS_TAGS=$(shell [ "$$(uname -s)" = Linux ] && ! pkg-config --exists webkit2gtk-4.0 2>/dev/null && pkg-config --exists webkit2gtk-4.1 2>/dev/null && echo "-tags webkit2_41")
 
 # install wails cli
 .PHONY: install-wails
@@ -162,23 +170,42 @@ install-wails:
 	@echo "Installing Wails CLI..."
 	$(GO) install github.com/wailsapp/wails/v2/cmd/wails@$(WAILS_VERSION)
 
+.PHONY: check-wails
+check-wails:
+	@installed="$$($(WAILS) version 2>/dev/null | grep -m1 -oE '^v[0-9][^[:space:]]*')"; \
+	if [ "$$installed" != "$(WAILS_VERSION)" ]; then \
+		echo "Wails CLI $${installed:-not found at $(WAILS)}, but gui/go.mod uses $(WAILS_VERSION). Run 'make install-wails'." >&2; \
+		exit 1; \
+	fi
+
+.PHONY: gui-dist-placeholder
+gui-dist-placeholder:
+	@mkdir -p gui/frontend/dist
+	@[ -n "$$(ls -A gui/frontend/dist)" ] || touch gui/frontend/dist/.gitkeep
+
+.PHONY: gui-bindings
+gui-bindings: check-wails gui-dist-placeholder
+	@echo "Generating GUI bindings..."
+	cd gui && $(WAILS) generate module
+	chmod 644 gui/frontend/wailsjs/runtime/*
+
 # run gui in development mode
 .PHONY: gui-dev
-gui-dev:
+gui-dev: check-wails
 	@echo "Starting GUI in development mode..."
-	cd gui && $(WAILS) dev
+	cd gui && $(WAILS) dev $(WAILS_TAGS)
 
 # build gui for current platform
 .PHONY: gui-build
-gui-build:
+gui-build: check-wails
 	@echo "Building GUI..."
-	cd gui && $(WAILS) build
+	cd gui && $(WAILS) build $(WAILS_TAGS)
 
 # build gui for all platforms
 .PHONY: gui-build-all
-gui-build-all:
+gui-build-all: check-wails
 	@echo "Building GUI for all platforms..."
-	cd gui && $(WAILS) build -platform darwin/universal,linux/amd64,windows/amd64
+	cd gui && $(WAILS) build -platform darwin/universal,linux/amd64,windows/amd64 $(WAILS_TAGS)
 
 # clean gui build artifacts
 .PHONY: gui-clean
@@ -195,7 +222,8 @@ help:
 	@echo "  build-pgo      - Build the binary with PGO optimization"
 	@echo "  install        - Install the binary in GOPATH"
 	@echo "  install-pgo    - Install the binary with PGO optimization"
-	@echo "  test           - Run tests (excluding large tests)"
+	@echo "  test           - Run tests, GUI tests included (excluding large tests)"
+	@echo "  test-gui       - Run the GUI module tests"
 	@echo "  test-race-short- Run quick tests with race detector"
 	@echo "  test-race      - Run all tests with race detector (excluding large tests)"
 	@echo "  test-large     - Run large tests (resource intensive)"
@@ -205,7 +233,9 @@ help:
 	@echo "  help           - Show this help"
 	@echo ""
 	@echo "GUI targets:"
-	@echo "  install-wails  - Install Wails CLI"
+	@echo "  install-wails  - Install the Wails CLI version from gui/go.mod"
+	@echo "  check-wails    - Check that the installed Wails CLI matches gui/go.mod"
+	@echo "  gui-bindings   - Regenerate the frontend bindings in gui/frontend/wailsjs"
 	@echo "  gui-dev        - Run GUI in development mode"
 	@echo "  gui-build      - Build GUI for current platform"
 	@echo "  gui-build-all  - Build GUI for all platforms"

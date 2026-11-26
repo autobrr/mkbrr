@@ -35,97 +35,12 @@ permissions:
 
 jobs:
   test:
-    strategy:
-      fail-fast: true
-      matrix:
-        os: [ ubuntu-latest ]
-    name: Test ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - name: Set up Go
-        uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
-          cache: true
-
-      - name: Run Tests with Race Detection
-        run: make test-race
-
-      # The GUI module has its own go.mod, so the root run skips it. The GUI
-      # embeds frontend/dist, which git ignores: a placeholder file lets it
-      # build without a frontend build. With cgo off, it needs no GTK.
-      - name: Run GUI Tests
-        env:
-          CGO_ENABLED: 0
-        working-directory: gui
-        run: |
-          mkdir -p frontend/dist
-          touch frontend/dist/.gitkeep
-          go test ./...
-
-      - name: Generate Test Summary
-        run: go run gotest.tools/gotestsum@latest --junitfile unit-tests.xml --format pkgname
-
-      - name: Test Summary
-        uses: test-summary/action@v2
-        with:
-          paths: "unit-tests.xml"
-        if: always()
-
-  testother:
-    strategy:
-      fail-fast: true
-      matrix:
-        os: [ macos-latest, windows-latest ]
-    name: Test ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    env:
-      GOPATH: ${{ startsWith(matrix.os, 'windows') && 'D:\golang\go' || '' }}
-      GOCACHE: ${{ startsWith(matrix.os, 'windows') && 'D:\golang\cache' || '' }}
-      GOMODCACHE: ${{ startsWith(matrix.os, 'windows') && 'D:\golang\modcache' || '' }}
-      USERPROFILE: ${{ startsWith(matrix.os, 'windows') && 'D:\homedir' || '' }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - name: Set up Go
-        uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
-          cache: true
-
-      - name: Run Tests (MacOS)
-        if: matrix.os == 'macos-latest'
-        env:
-          CGO_ENABLED: 0
-        run: go test ./...
-
-      - name: Run Tests (Windows)
-        if: matrix.os == 'windows-latest'
-        env:
-          CGO_ENABLED: 0
-        run: go test -short ./...
-
-      - name: Generate Test Summary
-        if: matrix.os != 'windows-latest'
-        run: go run gotest.tools/gotestsum@latest --junitfile unit-tests.xml --format pkgname
-
-      - name: Test Summary
-        uses: test-summary/action@v2
-        with:
-          paths: "unit-tests.xml"
-        if: always() && matrix.os != 'windows-latest'
+    name: Test
+    uses: ./.github/workflows/test.yml
 
   wails-build:
     name: Build GUI (${{ matrix.build.platform }})
-    needs: [test, testother]
+    needs: [test]
     strategy:
       fail-fast: false
       matrix:
@@ -188,7 +103,8 @@ jobs:
 
       - name: Install Wails CLI
         shell: bash
-        run: go install "github.com/wailsapp/wails/v2/cmd/wails@$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v2)"
+        run: make install-wails
+        working-directory: .
 
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
@@ -243,7 +159,7 @@ jobs:
   pgo:
     name: Generate PGO Profile
     runs-on: ubuntu-latest
-    needs: [ test, testother ]
+    needs: [ test ]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
