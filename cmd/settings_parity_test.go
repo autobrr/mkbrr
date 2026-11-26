@@ -81,7 +81,7 @@ var settingsParityCases = map[string]settingsParity{
 // TestSettingsParity fails when a create or modify setting is not available
 // in each place where it must be: the CLI, batch, presets, and the GUI.
 func TestSettingsParity(t *testing.T) {
-	presetKeys := yamlKeys(reflect.TypeFor[preset.Options]())
+	presetKeys := yamlKeyFields(reflect.TypeFor[preset.Options]())
 	usedPresetKeys := map[string]bool{}
 
 	for name, tc := range settingsParityCases {
@@ -109,7 +109,8 @@ func TestSettingsParity(t *testing.T) {
 				}
 
 				key := f.Tag.Get("preset")
-				check(placePreset, f.Name, slices.Contains(presetKeys, key))
+				_, ok := presetKeys[key]
+				check(placePreset, f.Name, ok)
 				if key != "" {
 					usedPresetKeys[key] = true
 				}
@@ -136,13 +137,4 @@ func TestSettingsParity(t *testing.T) {
 	for _, key := range presetEditorKeys {
 		assert.Truef(t, usedPresetKeys[key], "preset key %q is in a preset editor list, but no setting has it", key)
 	}
-}
-
-func yamlKeys(typ reflect.Type) []string {
-	var keys []string
-	for f := range typ.Fields() {
-		key, _, _ := strings.Cut(f.Tag.Get("yaml"), ",")
-		keys = append(keys, key)
-	}
-	return keys
 }

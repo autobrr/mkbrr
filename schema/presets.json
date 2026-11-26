@@ -40,6 +40,12 @@
           "minimum": 14,
           "maximum": 27
         },
+        "max_piece_length": {
+          "type": "integer",
+          "description": "Maximum piece length as 2^n bytes (14-27, the tracker rules can narrow it)",
+          "minimum": 14,
+          "maximum": 27
+        },
         "target_piece_count": {
           "type": "integer",
           "description": "Target approximate number of pieces (calculates optimal piece length). Mutually exclusive with piece_length.",
@@ -57,9 +63,30 @@
           "type": "boolean",
           "description": "Don't write creation date"
         },
+        "no_creator": {
+          "type": "boolean",
+          "description": "Don't write the creator string"
+        },
+        "entropy": {
+          "type": "boolean",
+          "description": "Randomize the info hash by adding an entropy field"
+        },
         "skip_prefix": {
           "type": "boolean",
           "description": "Leave out the filename prefix from the output filename"
+        },
+        "fail_on_season_warning": {
+          "type": "boolean",
+          "description": "Exit with error if season pack completeness check detects missing episodes"
+        },
+        "output_dir": {
+          "type": "string",
+          "description": "Output folder for the .torrent file. --output-dir overrides it."
+        },
+        "workers": {
+          "type": "integer",
+          "description": "Number of goroutines that hash pieces. 0 picks the count automatically.",
+          "minimum": 0
         },
         "exclude_patterns": {
           "type": "array",
@@ -110,6 +137,12 @@
             "minimum": 14,
             "maximum": 27
           },
+          "max_piece_length": {
+            "type": "integer",
+            "description": "Maximum piece length as 2^n bytes (14-27, the tracker rules can narrow it)",
+            "minimum": 14,
+            "maximum": 27
+          },
           "target_piece_count": {
             "type": "integer",
             "description": "Target approximate number of pieces (calculates optimal piece length). Mutually exclusive with piece_length.",
@@ -127,28 +160,43 @@
             "type": "boolean",
             "description": "Don't write creation date"
           },
+          "no_creator": {
+            "type": "boolean",
+            "description": "Don't write the creator string"
+          },
+          "entropy": {
+            "type": "boolean",
+            "description": "Randomize the info hash by adding an entropy field"
+          },
           "skip_prefix": {
             "type": "boolean",
             "description": "Leave out the filename prefix from the output filename"
           },
-          "max_piece_length": {
+          "fail_on_season_warning": {
+            "type": "boolean",
+            "description": "Exit with error if season pack completeness check detects missing episodes"
+          },
+          "output_dir": {
+            "type": "string",
+            "description": "Output folder for the .torrent file. --output-dir overrides it."
+          },
+          "workers": {
             "type": "integer",
-            "description": "Maximum piece length as 2^n bytes (14-27, the tracker rules can narrow it)",
-            "minimum": 14,
-            "maximum": 27
+            "description": "Number of goroutines that hash pieces. 0 picks the count automatically.",
+            "minimum": 0
           },
           "exclude_patterns": {
             "type": "array",
             "description": "List of glob patterns to exclude files (e.g., \"*.nfo\", \"*sample*\")",
             "items": {
-            "type": "string"
-          }
-        },
-        "include_patterns": {
-          "type": "array",
-          "description": "List of glob patterns to include files (e.g., \"*.mkv\", \"*video*\")",
-          "items": {
-            "type": "string"
+              "type": "string"
+            }
+          },
+          "include_patterns": {
+            "type": "array",
+            "description": "List of glob patterns to include files (e.g., \"*.mkv\", \"*video*\")",
+            "items": {
+              "type": "string"
             }
           }
         }
