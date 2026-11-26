@@ -12,7 +12,7 @@ The mkbrr.com docs site was in a separate repository, `s0up4200/mkbrr.com`. Each
 
 The mkbrr.com docs site lives in `documentation/`, so a feature and its docs ship in one PR. Mintlify builds the site from `main`. `main` moves only at a release, when it fast-forwards to `develop` (`git push origin origin/develop:main`). So the site always describes the released version.
 
-Feature PRs go to `develop`, which is the default branch. A fix to the live docs is a PR to `main`. Then `main` is merged back into `develop` before the next fast-forward. The changelog entry follows the same path. After each release, the changelog workflow opens a PR against `main`. This is the same model as qui.
+Feature PRs go to `develop`, which is the default branch. A fix to the live docs is a PR to `main`. Then `main` is merged back into `develop` before the next fast-forward. The changelog entry follows the same path. After each release, a PR against `main` adds the changelog entry that `scripts/changelog-entry.sh` writes. This is the same model as qui.
 
 ## Alternatives
 

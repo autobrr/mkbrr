@@ -33,7 +33,7 @@ The CLI, the GUI, and batch mode share one settings type for each operation: `to
 - A fix to the live docs goes as a PR to `main`. Then merge `main` back into `develop`.
 - A release has three steps, in this order:
   1. Fast-forward `main` to `develop` (`git push origin origin/develop:main`). Then tag that commit and push the tag.
-  2. The tag starts the changelog workflow, which opens a PR against `main`. Merge that PR.
+  2. On a branch from `main`, run `scripts/changelog-entry.sh --write <tag>`. It writes the changelog entry from the Conventional Commit titles of the release. Commit it as `docs(changelog): add <tag>`, open a PR against `main`, and merge it.
   3. Merge `main` back into `develop`. If you skip this step, the fast-forward at the next release fails.
 - See `docs/adr/0002-develop-main-and-docs-site.md`.
 
