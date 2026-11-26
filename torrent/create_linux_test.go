@@ -14,28 +14,32 @@ import (
 )
 
 func TestPrepareCreateContextFailsWhenUserFileDisappears(t *testing.T) {
-	rootDir := t.TempDir()
-	for i := range 200 {
-		require.NoError(t, os.WriteFile(filepath.Join(rootDir, fmt.Sprintf("f%03d.bin", i)), []byte("payload"), 0o644))
-	}
-	victim := filepath.Join(rootDir, "zz-victim.bin")
+	for _, name := range []string{"zz-victim.bin", ".mkbrr-notes.tmp"} {
+		t.Run(name, func(t *testing.T) {
+			rootDir := t.TempDir()
+			for i := range 200 {
+				require.NoError(t, os.WriteFile(filepath.Join(rootDir, fmt.Sprintf("-%03d.bin", i)), []byte("payload"), 0o644))
+			}
+			victim := filepath.Join(rootDir, name)
 
-	for i := range 20 {
-		require.NoError(t, os.WriteFile(victim, []byte("payload"), 0o644))
-		removed := removeAfterListing(t, rootDir, victim)
+			for i := range 20 {
+				require.NoError(t, os.WriteFile(victim, []byte("payload"), 0o644))
+				removed := removeAfterListing(t, rootDir, victim)
 
-		prepared, err := prepareCreateContext(t.Context(), CreateOptions{
-			Path:      rootDir,
-			NoCreator: true,
-			NoDate:    true,
-		}, createTorrentOptions{})
-		require.NoError(t, <-removed)
-		if err != nil {
-			require.ErrorIsf(t, err, os.ErrNotExist, "iteration %d", i)
-			continue
-		}
-		require.Truef(t, slices.ContainsFunc(prepared.files, func(f fileEntry) bool { return f.path == victim }),
-			"iteration %d left out a file that vanished after the folder was listed", i)
+				prepared, err := prepareCreateContext(t.Context(), CreateOptions{
+					Path:      rootDir,
+					NoCreator: true,
+					NoDate:    true,
+				}, createTorrentOptions{})
+				require.NoError(t, <-removed)
+				if err != nil {
+					require.ErrorIsf(t, err, os.ErrNotExist, "iteration %d", i)
+					continue
+				}
+				require.Truef(t, slices.ContainsFunc(prepared.files, func(f fileEntry) bool { return f.path == victim }),
+					"iteration %d left out a file that vanished after the folder was listed", i)
+			}
+		})
 	}
 }
 

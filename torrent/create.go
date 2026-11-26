@@ -442,7 +442,7 @@ func prepareCreateContext(ctx context.Context, opts CreateOptions, internalOpts 
 			return nil
 		}
 
-		if isTempTorrentFilename(filepath.Base(currentPath)) {
+		if isKnownTempTorrentFilename(filepath.Base(currentPath)) {
 			if _, err := os.Lstat(currentPath); errors.Is(err, os.ErrNotExist) {
 				return nil
 			}
@@ -818,6 +818,7 @@ var activeTempTorrents = struct {
 	mu    sync.Mutex
 	count atomic.Int32
 	names map[string]int
+	known map[string]struct{}
 }{}
 
 func registerActiveTempTorrent(base string) func() {
@@ -825,8 +826,10 @@ func registerActiveTempTorrent(base string) func() {
 	activeTempTorrents.mu.Lock()
 	if activeTempTorrents.names == nil {
 		activeTempTorrents.names = make(map[string]int)
+		activeTempTorrents.known = make(map[string]struct{})
 	}
 	activeTempTorrents.names[key]++
+	activeTempTorrents.known[key] = struct{}{}
 	activeTempTorrents.count.Add(1)
 	activeTempTorrents.mu.Unlock()
 
@@ -845,13 +848,16 @@ func registerActiveTempTorrent(base string) func() {
 	}
 }
 
-func isTempTorrentFilename(base string) bool {
-	lower := strings.ToLower(base)
-	return strings.HasPrefix(lower, tempTorrentFilePrefix) && strings.HasSuffix(lower, tempTorrentFileSuffix)
+func isKnownTempTorrentFilename(base string) bool {
+	key := strings.ToLower(base)
+	activeTempTorrents.mu.Lock()
+	_, ok := activeTempTorrents.known[key]
+	activeTempTorrents.mu.Unlock()
+	return ok
 }
 
 func isMissingTempTorrentFile(path string, err error) bool {
-	return errors.Is(err, os.ErrNotExist) && isTempTorrentFilename(filepath.Base(path))
+	return errors.Is(err, os.ErrNotExist) && isKnownTempTorrentFilename(filepath.Base(path))
 }
 
 func isActiveTempTorrentFilename(base string) bool {
