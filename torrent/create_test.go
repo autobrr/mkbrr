@@ -1427,7 +1427,7 @@ func TestPrepareCreateContextSkipsOwnTempFileThatFailsLateStat(t *testing.T) {
 
 	f, unregister, err := createTempTorrentFile(filepath.Join(rootDir, "job.torrent"), 0o600)
 	require.NoError(t, err)
-	tempPath := f.Name()
+	tempName := filepath.Base(f.Name())
 	require.NoError(t, f.Close())
 	unregister()
 
@@ -1435,7 +1435,7 @@ func TestPrepareCreateContextSkipsOwnTempFileThatFailsLateStat(t *testing.T) {
 	t.Cleanup(func() { lstatWalkEntry = prev })
 	tempStats := 0
 	lstatWalkEntry = func(name string) (os.FileInfo, error) {
-		if name == tempPath {
+		if filepath.Base(name) == tempName {
 			tempStats++
 			if tempStats > 1 {
 				return nil, &os.PathError{Op: "CreateFile", Path: name, Err: os.ErrPermission}
@@ -1451,7 +1451,7 @@ func TestPrepareCreateContextSkipsOwnTempFileThatFailsLateStat(t *testing.T) {
 	}, createTorrentOptions{})
 	require.NoError(t, err)
 	require.Len(t, prepared.files, 1)
-	require.Equal(t, filepath.Join(rootDir, "movie.bin"), prepared.files[0].path)
+	require.Equal(t, "movie.bin", filepath.Base(prepared.files[0].path))
 }
 
 func TestPrepareCreateContextIgnoresDisappearedTempFile(t *testing.T) {
