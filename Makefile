@@ -152,6 +152,24 @@ lint-cli:
 lint-gui: gui-dist-placeholder
 	cd gui && $(GOLANGCI_LINT) run
 
+PRECOMMIT_BASE ?= origin/develop
+
+.PHONY: precommit precommit-fmt precommit-lint-cli precommit-lint-gui
+precommit: precommit-fmt
+	@$(MAKE) --no-print-directory -k precommit-lint-cli precommit-lint-gui
+	@echo "Pre-commit checks passed."
+
+precommit-fmt:
+	@base=$$(git merge-base $(PRECOMMIT_BASE) HEAD) || exit 1; \
+	files=$$({ git diff --name-only --diff-filter=d $$base; git ls-files --others --exclude-standard; } | grep '\.go$$' | sort -u); \
+	if [ -n "$$files" ]; then echo "Formatting:" $$files; $(GOLANGCI_LINT) fmt $$files; fi
+
+precommit-lint-cli:
+	$(GOLANGCI_LINT) run --new-from-merge-base=$(PRECOMMIT_BASE)
+
+precommit-lint-gui: gui-dist-placeholder
+	cd gui && $(GOLANGCI_LINT) run --new-from-merge-base=$(PRECOMMIT_BASE)
+
 # clean build artifacts
 .PHONY: clean
 clean:
@@ -229,6 +247,7 @@ help:
 	@echo "  test-large     - Run large tests (resource intensive)"
 	@echo "  test-coverage  - Run tests with coverage report"
 	@echo "  lint           - Run golangci-lint on the CLI and GUI modules"
+	@echo "  precommit      - Format the changed Go files, then lint only the changes since $(PRECOMMIT_BASE)"
 	@echo "  clean          - Remove build artifacts"
 	@echo "  help           - Show this help"
 	@echo ""
