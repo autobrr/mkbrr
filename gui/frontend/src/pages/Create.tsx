@@ -272,9 +272,14 @@ export function CreatePage() {
   useEffect(() => {
     if (!legacy) return;
     migrateLegacy(overrides, legacy, presetName)
-      .then(setOverrides)
-      .catch((e) => console.error('Failed to migrate the saved form state:', e))
-      .finally(() => setLegacy(undefined));
+      .catch((e) => {
+        console.error('Failed to migrate the saved form state:', e);
+        return { ...overrides, ...legacy };
+      })
+      .then((migrated) => {
+        setOverrides((current) => ({ ...migrated, ...current }));
+        setLegacy(undefined);
+      });
   }, []);
 
   useEffect(() => {
