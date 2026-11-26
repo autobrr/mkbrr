@@ -354,7 +354,7 @@ func prepareCreateContext(ctx context.Context, opts CreateOptions, internalOpts 
 
 	err = filepath.Walk(walkPath, func(currentPath string, walkInfo os.FileInfo, walkErr error) error {
 		if walkErr != nil {
-			if currentPath != walkPath && isMissingTempTorrentFile(currentPath, walkErr) {
+			if currentPath != walkPath && isOwnTempTorrentFile(currentPath, walkInfo) {
 				return nil
 			}
 			return walkErr
@@ -363,9 +363,9 @@ func prepareCreateContext(ctx context.Context, opts CreateOptions, internalOpts 
 			return err
 		}
 
-		lstatInfo, err := os.Lstat(currentPath)
+		lstatInfo, err := lstatWalkEntry(currentPath)
 		if err != nil {
-			if isMissingTempTorrentFile(currentPath, err) {
+			if isOwnTempTorrentFile(currentPath, walkInfo) {
 				return nil
 			}
 			if errors.Is(err, os.ErrNotExist) {
@@ -443,7 +443,7 @@ func prepareCreateContext(ctx context.Context, opts CreateOptions, internalOpts 
 		}
 
 		if isKnownTempTorrentFilename(filepath.Base(currentPath)) {
-			if _, err := os.Lstat(currentPath); errors.Is(err, os.ErrNotExist) {
+			if _, err := lstatWalkEntry(currentPath); err != nil {
 				return nil
 			}
 		}
@@ -770,6 +770,7 @@ func createRun(ctx context.Context, opts CreateOptions) (*Torrent, *TorrentInfo,
 var (
 	publishCreatedTorrent = publishTorrentFile
 	openTempTorrentFile   = os.OpenFile
+	lstatWalkEntry        = os.Lstat
 )
 
 func writeTorrentFile(t *Torrent, outputPath string) error {
@@ -856,8 +857,8 @@ func isKnownTempTorrentFilename(base string) bool {
 	return ok
 }
 
-func isMissingTempTorrentFile(path string, err error) bool {
-	return errors.Is(err, os.ErrNotExist) && isKnownTempTorrentFilename(filepath.Base(path))
+func isOwnTempTorrentFile(path string, info os.FileInfo) bool {
+	return (info == nil || !info.IsDir()) && isKnownTempTorrentFilename(filepath.Base(path))
 }
 
 func isActiveTempTorrentFilename(base string) bool {

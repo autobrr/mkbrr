@@ -62,3 +62,50 @@ func removeAfterListing(t *testing.T, dir, path string) <-chan error {
 	}()
 	return removed
 }
+
+func TestPrepareCreateContextSkipsUnreadableOwnTempFile(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root ignores folder permissions")
+	}
+	rootDir := t.TempDir()
+	outDir := filepath.Join(rootDir, "out")
+	require.NoError(t, os.MkdirAll(outDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(rootDir, "movie.bin"), []byte("payload"), 0o644))
+
+	f, unregister, err := createTempTorrentFile(filepath.Join(outDir, "job.torrent"), 0o600)
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+	unregister()
+
+	require.NoError(t, os.Chmod(outDir, 0o400))
+	t.Cleanup(func() { _ = os.Chmod(outDir, 0o755) })
+
+	prepared, err := prepareCreateContext(t.Context(), CreateOptions{
+		Path:      rootDir,
+		NoCreator: true,
+		NoDate:    true,
+	}, createTorrentOptions{})
+	require.NoError(t, err)
+	require.Len(t, prepared.files, 1)
+}
+
+func TestPrepareCreateContextFailsOnUnreadableUserFile(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root ignores folder permissions")
+	}
+	rootDir := t.TempDir()
+	outDir := filepath.Join(rootDir, "out")
+	require.NoError(t, os.MkdirAll(outDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(rootDir, "movie.bin"), []byte("payload"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(outDir, ".mkbrr-notes.tmp"), []byte("payload"), 0o644))
+
+	require.NoError(t, os.Chmod(outDir, 0o400))
+	t.Cleanup(func() { _ = os.Chmod(outDir, 0o755) })
+
+	_, err := prepareCreateContext(t.Context(), CreateOptions{
+		Path:      rootDir,
+		NoCreator: true,
+		NoDate:    true,
+	}, createTorrentOptions{})
+	require.ErrorIs(t, err, os.ErrPermission)
+}

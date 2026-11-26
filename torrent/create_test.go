@@ -1421,6 +1421,39 @@ func Test_choosePieceLength_AllowedPieceLengths(t *testing.T) {
 	}
 }
 
+func TestPrepareCreateContextSkipsOwnTempFileThatFailsLateStat(t *testing.T) {
+	rootDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(rootDir, "movie.bin"), []byte("payload"), 0o644))
+
+	f, unregister, err := createTempTorrentFile(filepath.Join(rootDir, "job.torrent"), 0o600)
+	require.NoError(t, err)
+	tempPath := f.Name()
+	require.NoError(t, f.Close())
+	unregister()
+
+	prev := lstatWalkEntry
+	t.Cleanup(func() { lstatWalkEntry = prev })
+	tempStats := 0
+	lstatWalkEntry = func(name string) (os.FileInfo, error) {
+		if name == tempPath {
+			tempStats++
+			if tempStats > 1 {
+				return nil, &os.PathError{Op: "CreateFile", Path: name, Err: os.ErrPermission}
+			}
+		}
+		return os.Lstat(name)
+	}
+
+	prepared, err := prepareCreateContext(t.Context(), CreateOptions{
+		Path:      rootDir,
+		NoCreator: true,
+		NoDate:    true,
+	}, createTorrentOptions{})
+	require.NoError(t, err)
+	require.Len(t, prepared.files, 1)
+	require.Equal(t, filepath.Join(rootDir, "movie.bin"), prepared.files[0].path)
+}
+
 func TestPrepareCreateContextIgnoresDisappearedTempFile(t *testing.T) {
 	rootDir := t.TempDir()
 	outSubDir := filepath.Join(rootDir, "out")
