@@ -21,7 +21,7 @@ mkbrr creates, inspects, checks, and modifies torrent files. It has a CLI, a GUI
 
 ## Settings
 
-The CLI, the GUI, and batch mode share one settings type for each operation: `torrent.CreateSettings` and `torrent.ModifySettings` (see `docs/adr/0001-shared-settings-types.md`). When you add a setting, add it to the shared type, and then to each place that `cmd/settings_parity_test.go` requires. A preset key or a batch key also needs an entry in `schema/*.json`.
+The CLI, the GUI, and batch mode share one settings type for each operation: `torrent.CreateSettings` and `torrent.ModifySettings` (see `docs/adr/0001-shared-settings-types.md`). When you add a setting, add it to the shared type, and then to each place that `cmd/settings_parity_test.go` requires. A preset key or a batch key also needs an entry in `schema/*.json`, which `cmd/schema_keys_test.go` checks.
 
 ## Branches and docs site
 
