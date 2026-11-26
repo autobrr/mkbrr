@@ -69,6 +69,49 @@ interface CreateFormState {
   skipPrefix: boolean;
   presetName: string;
   failOnSeasonWarning: boolean;
+  typedFields: TypedFields;
+}
+
+interface PresetFormValues {
+  trackers: string[];
+  webSeeds: string[];
+  comment: string;
+  source: string;
+  isPrivate: boolean;
+  noDate: boolean;
+  noCreator: boolean;
+  entropy: boolean;
+  skipPrefix: boolean;
+  failOnSeasonWarning: boolean;
+}
+
+type PresetField = keyof PresetFormValues;
+type TypedFields = Partial<Record<PresetField, boolean>>;
+
+function presetFormValues(p: PresetOptions | null): PresetFormValues {
+  return {
+    trackers: p?.trackers ?? [],
+    webSeeds: p?.webSeeds ?? [],
+    comment: p?.comment ?? '',
+    source: p?.source ?? '',
+    isPrivate: p?.private ?? true,
+    noDate: p?.noDate ?? false,
+    noCreator: p?.noCreator ?? false,
+    entropy: p?.entropy ?? false,
+    skipPrefix: p?.skipPrefix ?? false,
+    failOnSeasonWarning: p?.failOnSeasonWarning ?? false,
+  };
+}
+
+function typedFieldsFromValues(saved: Partial<CreateFormState>, filled: PresetFormValues): TypedFields {
+  const typed: TypedFields = {};
+  for (const field of Object.keys(filled) as PresetField[]) {
+    const value = saved[field];
+    const base = filled[field];
+    if (Array.isArray(value) && Array.isArray(base)) typed[field] = nonBlank(value).length > 0 && !sameUrls(value, base);
+    else if (value !== undefined) typed[field] = value !== '' && value !== base;
+  }
+  return typed;
 }
 
 const STORAGE_KEY = 'mkbrr-create-form';
@@ -147,6 +190,7 @@ function UrlList({ urls, onChange, placeholder, addLabel }: {
 
 // nonBlank drops the empty inputs of a URL list.
 const nonBlank = (urls: string[]) => urls.filter(u => u.trim() !== '');
+const sameUrls = (a: string[], b: string[]) => nonBlank(a).join('\n') === nonBlank(b).join('\n');
 
 // patternList sends a pattern field as one comma-separated group, as the CLI flag does.
 // An empty field sends nothing, so only the preset patterns apply.
@@ -188,6 +232,18 @@ export function CreatePage() {
   const [skipPrefix, setSkipPrefix] = useState(savedState.skipPrefix ?? false);
   const [presetName, setPresetName] = useState(savedState.presetName ?? '');
   const [failOnSeasonWarning, setFailOnSeasonWarning] = useState(savedState.failOnSeasonWarning ?? false);
+  const [typedFields, setTypedFields] = useState<TypedFields>(
+    savedState.typedFields ?? typedFieldsFromValues(savedState, presetFormValues(null))
+  );
+  const typedFieldsRef = useRef(typedFields);
+  typedFieldsRef.current = typedFields;
+  const markTyped = (field: PresetField, typed: boolean) => {
+    typedFieldsRef.current = { ...typedFieldsRef.current, [field]: typed };
+    setTypedFields(typedFieldsRef.current);
+  };
+  const changeUrls = (field: 'trackers' | 'webSeeds', previous: string[], urls: string[]) => {
+    if (!sameUrls(previous, urls)) markTyped(field, nonBlank(urls).length > 0);
+  };
 
   const [presets, setPresets] = useState<string[]>([]);
   const [isCreating, setIsCreating] = useState(false);
@@ -234,9 +290,11 @@ export function CreatePage() {
       skipPrefix,
       presetName,
       failOnSeasonWarning,
+      typedFields,
     });
   }, [path, name, trackers, webSeeds, isPrivate, comment, source, pieceLengthExp, maxPieceLengthExp, targetPieceCount,
-    excludePatterns, includePatterns, outputDir, noDate, noCreator, entropy, skipPrefix, presetName, failOnSeasonWarning]);
+    excludePatterns, includePatterns, outputDir, noDate, noCreator, entropy, skipPrefix, presetName, failOnSeasonWarning,
+    typedFields]);
 
   // Check for pending result on mount (in case user navigated away during creation)
   useEffect(() => {
@@ -284,18 +342,50 @@ export function CreatePage() {
     return () => clearTimeout(debounce);
   }, [firstTracker]);
 
-  // The form does not copy the preset target piece count, but create uses it when the form
-  // sets neither a piece length nor a target piece count.
+  const defaultSourceRef = useRef(defaultSource);
+  defaultSourceRef.current = defaultSource;
+  const [presetSource, setPresetSource] = useState('');
+
+  const fillFormFromPreset = (next: PresetFormValues) => {
+    const typed = typedFieldsRef.current;
+    const orBlank = (urls: string[]) => (urls.length > 0 ? urls : ['']);
+    setPresetSource(next.source);
+    if (!typed.trackers) setTrackers(orBlank(next.trackers));
+    if (!typed.webSeeds) setWebSeeds(orBlank(next.webSeeds));
+    if (!typed.comment) setComment(next.comment);
+    if (!typed.source) setSource(next.source || defaultSourceRef.current);
+    if (!typed.isPrivate) setIsPrivate(next.isPrivate);
+    if (!typed.noDate) setNoDate(next.noDate);
+    if (!typed.noCreator) setNoCreator(next.noCreator);
+    if (!typed.entropy) setEntropy(next.entropy);
+    if (!typed.skipPrefix) setSkipPrefix(next.skipPrefix);
+    if (!typed.failOnSeasonWarning) setFailOnSeasonWarning(next.failOnSeasonWarning);
+  };
+
   const [presetTarget, setPresetTarget] = useState<{ name: string; count: number } | null>(null);
+  const filledPresetName = useRef(savedState.presetName ?? '');
   useEffect(() => {
-    if (!presetName) return;
     let stale = false;
-    GetPreset(presetName)
+    (presetName ? GetPreset(presetName) : Promise.resolve(null))
       .then((p) => {
-        if (!stale) setPresetTarget({ name: presetName, count: (p as PresetOptions | null)?.targetPieceCount ?? 0 });
+        if (stale) return;
+        const next = presetFormValues(p);
+        setPresetTarget({ name: presetName, count: p?.targetPieceCount ?? 0 });
+        if (filledPresetName.current === presetName) {
+          setPresetSource(next.source);
+          if (!savedState.typedFields) {
+            typedFieldsRef.current = typedFieldsFromValues(savedState, next);
+            setTypedFields(typedFieldsRef.current);
+          }
+          return;
+        }
+        filledPresetName.current = presetName;
+        fillFormFromPreset(next);
       })
-      .catch(() => {
-        if (!stale) setPresetTarget({ name: presetName, count: 0 });
+      .catch((e) => {
+        if (stale) return;
+        setPresetTarget({ name: presetName, count: 0 });
+        toast.error('Failed to load preset: ' + String(e));
       });
     return () => {
       stale = true;
@@ -324,14 +414,13 @@ export function CreatePage() {
     };
   }, [firstTracker, effectiveTargetPieceCount, presetTargetLoaded]);
 
-  // The source field is an override, so put the tracker default source into it.
-  // Replace the field only when it is empty or still holds the previous tracker default.
-  const lastDefaultSource = useRef('');
+  const autoSource = presetSource || defaultSource;
+  const lastAutoSource = useRef<string | null>(null);
   useEffect(() => {
-    const previous = lastDefaultSource.current;
-    lastDefaultSource.current = defaultSource;
-    setSource(current => (current === '' || current === previous ? defaultSource : current));
-  }, [defaultSource]);
+    const first = lastAutoSource.current === null;
+    lastAutoSource.current = autoSource;
+    if (!first && !typedFieldsRef.current.source) setSource(autoSource);
+  }, [autoSource]);
 
   // The piece length fields, the output directory, the web seeds, and the patterns are
   // left out when they are not set, so the preset fills them, as with the CLI flags.
@@ -443,13 +532,15 @@ export function CreatePage() {
     setIsPrivate(true);
     setComment('');
     setSource('');
+    const { noDate, noCreator, entropy, skipPrefix, failOnSeasonWarning } = typedFieldsRef.current;
+    typedFieldsRef.current = { noDate, noCreator, entropy, skipPrefix, failOnSeasonWarning };
+    setTypedFields(typedFieldsRef.current);
     setPieceLengthExp(0);
     setMaxPieceLengthExp(0);
     setTargetPieceCount(0);
     setExcludePatterns('');
     setIncludePatterns('');
     setOutputDir('');
-    // Don't reset noDate, noCreator, entropy, skipPrefix, failOnSeasonWarning - they're preferences, not form fields
     setPresetName('');
     setResult(null);
     setError('');
@@ -459,46 +550,8 @@ export function CreatePage() {
     clearFormState(); // Also clear localStorage
   };
 
-  const handlePresetChange = async (value: string) => {
-    if (value === 'none') {
-      // Clear preset-related fields when "None" is selected
-      setPresetName('');
-      setTrackers(['']);
-      setWebSeeds(['']);
-      setSource('');
-      setComment('');
-      setIsPrivate(true);
-      return;
-    }
-
-    setPresetName(value);
-    if (value) {
-      try {
-        const preset = await GetPreset(value) as PresetOptions;
-        if (preset) {
-          // Support both camelCase (new) and PascalCase (legacy) field names
-          const trackerList = preset.trackers || (preset as any).Trackers;
-          const sourceVal = preset.source || (preset as any).Source;
-          const privateVal = preset.private ?? (preset as any).Private;
-          const commentVal = preset.comment || (preset as any).Comment;
-
-          if (trackerList && trackerList.length > 0) setTrackers(trackerList);
-          setWebSeeds(preset.webSeeds?.length ? preset.webSeeds : ['']);
-          if (sourceVal) setSource(sourceVal);
-          if (privateVal !== undefined) setIsPrivate(privateVal);
-          if (commentVal) setComment(commentVal);
-
-          // Preset overrides preference-like options if specified
-          if (preset.noDate !== undefined) setNoDate(preset.noDate);
-          if (preset.noCreator !== undefined) setNoCreator(preset.noCreator);
-          if (preset.entropy !== undefined) setEntropy(preset.entropy);
-          if (preset.skipPrefix !== undefined) setSkipPrefix(preset.skipPrefix);
-          if (preset.failOnSeasonWarning !== undefined) setFailOnSeasonWarning(preset.failOnSeasonWarning);
-        }
-      } catch (e) {
-        toast.error('Failed to load preset: ' + String(e));
-      }
-    }
+  const handlePresetChange = (value: string) => {
+    setPresetName(value === 'none' ? '' : value);
   };
 
   const handleDialogClose = () => {
@@ -632,7 +685,7 @@ export function CreatePage() {
                 <Switch
                   id="private"
                   checked={isPrivate}
-                  onCheckedChange={setIsPrivate}
+                  onCheckedChange={(v) => { setIsPrivate(v); markTyped('isPrivate', true); }}
                 />
                 <Label htmlFor="private" className="text-sm">Private</Label>
               </div>
@@ -643,7 +696,7 @@ export function CreatePage() {
               <Label>Trackers</Label>
               <UrlList
                 urls={trackers}
-                onChange={setTrackers}
+                onChange={(urls) => { changeUrls('trackers', trackers, urls); setTrackers(urls); }}
                 placeholder="https://tracker.example.com/announce"
                 addLabel="Add Tracker"
               />
@@ -765,7 +818,7 @@ export function CreatePage() {
                     <Label>Source Tag</Label>
                     <Input
                       value={source}
-                      onChange={(e) => setSource(e.target.value)}
+                      onChange={(e) => { setSource(e.target.value); markTyped('source', e.target.value !== ''); }}
                       placeholder="e.g., tracker name"
                     />
                   </div>
@@ -773,7 +826,7 @@ export function CreatePage() {
                     <Label>Comment</Label>
                     <Input
                       value={comment}
-                      onChange={(e) => setComment(e.target.value)}
+                      onChange={(e) => { setComment(e.target.value); markTyped('comment', e.target.value !== ''); }}
                       placeholder="Optional comment"
                     />
                   </div>
@@ -784,7 +837,7 @@ export function CreatePage() {
                   <Label>Web Seeds</Label>
                   <UrlList
                     urls={webSeeds}
-                    onChange={setWebSeeds}
+                    onChange={(urls) => { changeUrls('webSeeds', webSeeds, urls); setWebSeeds(urls); }}
                     placeholder="https://example.com/files/"
                     addLabel="Add Web Seed"
                   />
@@ -852,7 +905,7 @@ export function CreatePage() {
                     <Switch
                       id="noDate"
                       checked={noDate}
-                      onCheckedChange={setNoDate}
+                      onCheckedChange={(v) => { setNoDate(v); markTyped('noDate', true); }}
                     />
                     <Label htmlFor="noDate" className="text-sm">Exclude date</Label>
                   </div>
@@ -860,7 +913,7 @@ export function CreatePage() {
                     <Switch
                       id="noCreator"
                       checked={noCreator}
-                      onCheckedChange={setNoCreator}
+                      onCheckedChange={(v) => { setNoCreator(v); markTyped('noCreator', true); }}
                     />
                     <Label htmlFor="noCreator" className="text-sm">Exclude creator</Label>
                   </div>
@@ -868,7 +921,7 @@ export function CreatePage() {
                     <Switch
                       id="entropy"
                       checked={entropy}
-                      onCheckedChange={setEntropy}
+                      onCheckedChange={(v) => { setEntropy(v); markTyped('entropy', true); }}
                     />
                     <Label htmlFor="entropy" className="text-sm">Add entropy</Label>
                   </div>
@@ -876,7 +929,7 @@ export function CreatePage() {
                     <Switch
                       id="skipPrefix"
                       checked={skipPrefix}
-                      onCheckedChange={setSkipPrefix}
+                      onCheckedChange={(v) => { setSkipPrefix(v); markTyped('skipPrefix', true); }}
                     />
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -891,7 +944,7 @@ export function CreatePage() {
                     <Switch
                       id="failOnSeasonWarning"
                       checked={failOnSeasonWarning}
-                      onCheckedChange={setFailOnSeasonWarning}
+                      onCheckedChange={(v) => { setFailOnSeasonWarning(v); markTyped('failOnSeasonWarning', true); }}
                     />
                     <Tooltip>
                       <TooltipTrigger asChild>
