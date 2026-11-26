@@ -631,22 +631,10 @@ func TestCreateTorrent_IgnoresSynologyMetadataDir(t *testing.T) {
 	}
 }
 
-func TestCreateTorrent_IgnoresInternalTempFiles(t *testing.T) {
+func TestCreateTorrent_IgnoresActiveTempFilesOnly(t *testing.T) {
 	rootDir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(rootDir, "movie.mkv"), []byte("video data"), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(rootDir, "keep.tmp"), []byte("user temp data"), 0o644))
-
-	cleanTor, err := CreateTorrent(CreateOptions{
-		Path:      rootDir,
-		NoCreator: true,
-		NoDate:    true,
-	})
-	require.NoError(t, err)
-
-	require.NoError(t, os.WriteFile(filepath.Join(rootDir, ".mkbrr-ABC123.tmp"), []byte("probe"), 0o644))
-	nestedDir := filepath.Join(rootDir, "nested")
-	require.NoError(t, os.MkdirAll(nestedDir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(nestedDir, ".mkbrr-DEF456.tmp"), []byte("probe"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(rootDir, ".mkbrr-notes.tmp"), []byte("user temp data"), 0o644))
 
 	torrentFilePaths := func(tor *Torrent) []string {
 		files := tor.GetInfo().Files
@@ -657,17 +645,40 @@ func TestCreateTorrent_IgnoresInternalTempFiles(t *testing.T) {
 		return paths
 	}
 
-	t.Run("default filters", func(t *testing.T) {
+	cleanTor, err := CreateTorrent(CreateOptions{
+		Path:      rootDir,
+		NoCreator: true,
+		NoDate:    true,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []string{".mkbrr-notes.tmp", "movie.mkv"}, torrentFilePaths(cleanTor))
+
+	const (
+		activeRoot   = ".mkbrr-ABC123.tmp"
+		activeNested = ".mkbrr-DEF456.tmp"
+	)
+	require.NoError(t, os.WriteFile(filepath.Join(rootDir, activeRoot), []byte("probe"), 0o644))
+	nestedDir := filepath.Join(rootDir, "nested")
+	require.NoError(t, os.MkdirAll(nestedDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(nestedDir, activeNested), []byte("probe"), 0o644))
+
+	unregisterRoot := registerActiveTempTorrent(activeRoot)
+	t.Cleanup(unregisterRoot)
+	unregisterNested := registerActiveTempTorrent(activeNested)
+	t.Cleanup(unregisterNested)
+
+	t.Run("default filters keep user .mkbrr-notes.tmp and ignore active temp files", func(t *testing.T) {
 		tor, err := CreateTorrent(CreateOptions{
 			Path:      rootDir,
 			NoCreator: true,
 			NoDate:    true,
 		})
 		require.NoError(t, err)
-		assert.Equal(t, []string{"keep.tmp", "movie.mkv"}, torrentFilePaths(tor))
+		assert.Equal(t, []string{".mkbrr-notes.tmp", "movie.mkv"}, torrentFilePaths(tor))
+		assert.Equal(t, cleanTor.HashInfoBytes(), tor.HashInfoBytes())
 	})
 
-	t.Run("include wildcard still ignores internal temp files", func(t *testing.T) {
+	t.Run("include wildcard still ignores active temp files", func(t *testing.T) {
 		tor, err := CreateTorrent(CreateOptions{
 			Path:            rootDir,
 			IncludePatterns: []string{"*"},
@@ -675,10 +686,10 @@ func TestCreateTorrent_IgnoresInternalTempFiles(t *testing.T) {
 			NoDate:          true,
 		})
 		require.NoError(t, err)
-		assert.Equal(t, []string{"keep.tmp", "movie.mkv"}, torrentFilePaths(tor))
+		assert.Equal(t, []string{".mkbrr-notes.tmp", "movie.mkv"}, torrentFilePaths(tor))
 	})
 
-	t.Run("include *.tmp keeps user tmp but ignores internal temp files", func(t *testing.T) {
+	t.Run("include *.tmp keeps user .mkbrr-notes.tmp and ignores active temp files", func(t *testing.T) {
 		tor, err := CreateTorrent(CreateOptions{
 			Path:            rootDir,
 			IncludePatterns: []string{"*.tmp"},
@@ -686,17 +697,19 @@ func TestCreateTorrent_IgnoresInternalTempFiles(t *testing.T) {
 			NoDate:          true,
 		})
 		require.NoError(t, err)
-		assert.Equal(t, []string{"keep.tmp"}, torrentFilePaths(tor))
+		assert.Equal(t, []string{".mkbrr-notes.tmp"}, torrentFilePaths(tor))
 	})
 
-	t.Run("info hash unchanged when internal temp files exist", func(t *testing.T) {
+	t.Run("cleanup stops suppressing the filename", func(t *testing.T) {
+		unregisterRoot()
 		tor, err := CreateTorrent(CreateOptions{
-			Path:      rootDir,
-			NoCreator: true,
-			NoDate:    true,
+			Path:            rootDir,
+			IncludePatterns: []string{"*.tmp"},
+			NoCreator:       true,
+			NoDate:          true,
 		})
 		require.NoError(t, err)
-		assert.Equal(t, cleanTor.HashInfoBytes(), tor.HashInfoBytes())
+		assert.Equal(t, []string{activeRoot, ".mkbrr-notes.tmp"}, torrentFilePaths(tor))
 	})
 }
 
@@ -894,6 +907,17 @@ func TestCreateOutputPath(t *testing.T) {
 			assert.Equal(t, tt.want, createOutputPath(opts))
 		})
 	}
+}
+
+func TestCreateOutputPathWindowsDriveRelative(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("Windows drive-relative paths apply only on Windows")
+	}
+
+	content := filepath.Join("data", "Movie")
+	assert.Equal(t, `C:custom.torrent`, createOutputPath(CreateOptions{Path: content, OutputDir: `C:`, OutputPath: "custom"}))
+	assert.Equal(t, `C:\custom.torrent`, createOutputPath(CreateOptions{Path: content, OutputDir: `C:\`, OutputPath: "custom"}))
+	assert.Equal(t, `\\server\share\custom.torrent`, createOutputPath(CreateOptions{Path: content, OutputDir: `\\server\share`, OutputPath: "custom"}))
 }
 
 func TestPlanCreateDoesNotCreateOutputFolderOrFile(t *testing.T) {

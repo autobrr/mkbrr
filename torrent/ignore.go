@@ -135,10 +135,6 @@ func matchPattern(pattern, relPath string, isDir bool) (bool, error) {
 	return false, nil
 }
 
-func isTempTorrentFilename(name string) bool {
-	return strings.HasPrefix(name, tempTorrentFilePrefix) && strings.HasSuffix(name, tempTorrentFileSuffix)
-}
-
 // shouldIgnoreEntry checks if a file or directory should be ignored based on
 // predefined patterns, user-defined include patterns, and user-defined exclude patterns.
 // It uses doublestar for full glob support including ** recursive matching.
@@ -176,7 +172,7 @@ func shouldIgnoreEntry(relPath string, isDir bool, excludePatterns []string, inc
 
 	// 2. Check built-in ignored patterns for files (always ignored)
 	if !isDir {
-		if isTempTorrentFilename(segments[len(segments)-1]) {
+		if isActiveTempTorrentFilename(segments[len(segments)-1]) {
 			return true, nil
 		}
 		for _, pattern := range ignoredPatterns {
