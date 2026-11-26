@@ -15,6 +15,7 @@ import (
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
+	"github.com/autobrr/mkbrr/internal/createpreset"
 	"github.com/autobrr/mkbrr/internal/preset"
 	"github.com/autobrr/mkbrr/internal/trackers"
 	"github.com/autobrr/mkbrr/torrent"
@@ -237,10 +238,10 @@ func (a *App) resolveCreate(req CreateRequest) (torrent.CreateOptions, error) {
 		return torrent.CreateOptions{}, errors.New("path is required")
 	}
 
-	var presetOpts *preset.Options
+	var presetSettings *torrent.CreateSettings
 	if req.PresetName != "" {
 		var err error
-		presetOpts, err = preset.LoadPresetOptions(req.PresetFile, req.PresetName)
+		presetSettings, err = createpreset.Load(req.PresetFile, req.PresetName)
 		if err != nil {
 			return torrent.CreateOptions{}, fmt.Errorf("failed to load preset: %w", err)
 		}
@@ -258,7 +259,7 @@ func (a *App) resolveCreate(req CreateRequest) (torrent.CreateOptions, error) {
 		Quiet:          true, // Suppress CLI output
 	}
 
-	opts, err := torrent.ResolveCreateOptions(overrides, presetOpts)
+	opts, err := torrent.ResolveCreateOptions(overrides, presetSettings)
 	if err != nil {
 		return torrent.CreateOptions{}, err
 	}
@@ -538,7 +539,7 @@ func (a *App) GetPreset(name string) (*preset.Options, error) {
 }
 
 func (a *App) GetPresetValues(name string) (*preset.Options, error) {
-	return preset.LoadPresetValues("", name)
+	return preset.LoadPresetValues("", name) //nolint:forbidigo // the Modify page reads the preset values that modify applies
 }
 
 // GetPresetFilePath returns the path to the preset file
@@ -638,7 +639,7 @@ func (a *App) DeletePreset(name string) error {
 		return fmt.Errorf("could not find preset file: %w", err)
 	}
 
-	config, err := preset.Load(configPath)
+	config, err := preset.Load(configPath) //nolint:forbidigo // the preset editor deletes a preset from the file
 	if err != nil {
 		return fmt.Errorf("could not load preset config: %w", err)
 	}
