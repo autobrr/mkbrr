@@ -21,7 +21,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/autobrr/mkbrr/internal/preset"
 	"github.com/autobrr/mkbrr/internal/trackers"
 )
 
@@ -774,7 +773,7 @@ func TestCreateTorrent_SingleFilePatterns(t *testing.T) {
 type outputPathCase struct {
 	name   string
 	opts   CreateOptions
-	preset *preset.Options
+	preset *CreateSettings
 	want   string
 }
 
@@ -885,13 +884,13 @@ func outputPathCases(t *testing.T) []outputPathCase {
 		{
 			name:   "relative output path goes into the preset output folder",
 			opts:   CreateOptions{Path: content, OutputPath: "custom.torrent", TrackerURLs: []string{tracker}},
-			preset: &preset.Options{OutputDir: "preset-out"},
+			preset: &CreateSettings{OutputDir: new("preset-out")},
 			want:   filepath.Join("preset-out", "custom.torrent"),
 		},
 		{
 			name:   "absolute output path wins over the preset output folder",
 			opts:   CreateOptions{Path: content, OutputPath: absOut, TrackerURLs: []string{tracker}},
-			preset: &preset.Options{OutputDir: "preset-out"},
+			preset: &CreateSettings{OutputDir: new("preset-out")},
 			want:   absOut,
 		},
 	}

@@ -8,8 +8,6 @@ import (
 	"testing"
 
 	"gopkg.in/yaml.v3"
-
-	"github.com/autobrr/mkbrr/internal/preset"
 )
 
 func TestResolveCreateOptions(t *testing.T) {
@@ -19,7 +17,7 @@ func TestResolveCreateOptions(t *testing.T) {
 	tests := []struct {
 		name      string
 		overrides CreateOverrides
-		preset    *preset.Options
+		preset    *CreateSettings
 		want      CreateOptions
 		wantErr   bool
 	}{
@@ -51,23 +49,23 @@ func TestResolveCreateOptions(t *testing.T) {
 		},
 		{
 			name: "preset fills settings that no override sets",
-			preset: &preset.Options{
-				Private:             new(false),
-				NoDate:              new(true),
-				NoCreator:           new(true),
-				SkipPrefix:          new(true),
-				Entropy:             new(true),
-				FailOnSeasonWarning: new(true),
-				Comment:             "c",
-				Source:              "s",
-				OutputDir:           "/out",
-				Trackers:            []string{otherTracker},
-				WebSeeds:            []string{"https://seed.example.invalid"},
-				ExcludePatterns:     []string{"*.nfo"},
-				IncludePatterns:     []string{"*.mkv"},
-				PieceLength:         20,
-				MaxPieceLength:      22,
-				Workers:             3,
+			preset: &CreateSettings{
+				IsPrivate:               new(false),
+				NoDate:                  new(true),
+				NoCreator:               new(true),
+				SkipPrefix:              new(true),
+				Entropy:                 new(true),
+				FailOnSeasonPackWarning: new(true),
+				Comment:                 new("c"),
+				Source:                  new("s"),
+				OutputDir:               new("/out"),
+				TrackerURLs:             []string{otherTracker},
+				WebSeeds:                []string{"https://seed.example.invalid"},
+				ExcludePatterns:         []string{"*.nfo"},
+				IncludePatterns:         []string{"*.mkv"},
+				PieceLengthExp:          new(uint(20)),
+				MaxPieceLength:          new(uint(22)),
+				Workers:                 new(3),
 			},
 			want: CreateOptions{
 				IsPrivate:               false,
@@ -106,21 +104,21 @@ func TestResolveCreateOptions(t *testing.T) {
 				MaxPieceLength:          new(uint(19)),
 				Workers:                 new(1),
 			},
-			preset: &preset.Options{
-				Private:             new(false),
-				NoDate:              new(true),
-				NoCreator:           new(true),
-				SkipPrefix:          new(true),
-				Entropy:             new(true),
-				FailOnSeasonWarning: new(true),
-				Comment:             "c",
-				Source:              "s",
-				OutputDir:           "/out",
-				Trackers:            []string{antTracker},
-				WebSeeds:            []string{"https://seed.example.invalid"},
-				PieceLength:         20,
-				MaxPieceLength:      22,
-				Workers:             3,
+			preset: &CreateSettings{
+				IsPrivate:               new(false),
+				NoDate:                  new(true),
+				NoCreator:               new(true),
+				SkipPrefix:              new(true),
+				Entropy:                 new(true),
+				FailOnSeasonPackWarning: new(true),
+				Comment:                 new("c"),
+				Source:                  new("s"),
+				OutputDir:               new("/out"),
+				TrackerURLs:             []string{antTracker},
+				WebSeeds:                []string{"https://seed.example.invalid"},
+				PieceLengthExp:          new(uint(20)),
+				MaxPieceLength:          new(uint(22)),
+				Workers:                 new(3),
 			},
 			want: CreateOptions{
 				IsPrivate:      true,
@@ -138,7 +136,7 @@ func TestResolveCreateOptions(t *testing.T) {
 				ExcludePatterns: []string{"*.jpg"},
 				IncludePatterns: []string{"*.mp4"},
 			},
-			preset: &preset.Options{
+			preset: &CreateSettings{
 				ExcludePatterns: []string{"*.nfo"},
 				IncludePatterns: []string{"*.mkv"},
 			},
@@ -151,18 +149,18 @@ func TestResolveCreateOptions(t *testing.T) {
 		{
 			name:      "override target piece count suppresses preset piece length",
 			overrides: CreateOverrides{TargetPieceCount: new(uint(1000))},
-			preset:    &preset.Options{PieceLength: 20},
+			preset:    &CreateSettings{PieceLengthExp: new(uint(20))},
 			want:      CreateOptions{IsPrivate: true, TargetPieceCount: new(uint(1000))},
 		},
 		{
 			name:      "override piece length suppresses preset target piece count",
 			overrides: CreateOverrides{PieceLengthExp: new(uint(20))},
-			preset:    &preset.Options{TargetPieceCount: 1000},
+			preset:    &CreateSettings{TargetPieceCount: new(uint(1000))},
 			want:      CreateOptions{IsPrivate: true, PieceLengthExp: new(uint(20))},
 		},
 		{
 			name:   "preset target piece count applies",
-			preset: &preset.Options{TargetPieceCount: 1000},
+			preset: &CreateSettings{TargetPieceCount: new(uint(1000))},
 			want:   CreateOptions{IsPrivate: true, TargetPieceCount: new(uint(1000))},
 		},
 		{
@@ -172,7 +170,7 @@ func TestResolveCreateOptions(t *testing.T) {
 		},
 		{
 			name:    "preset with both piece length and target piece count is an error",
-			preset:  &preset.Options{PieceLength: 20, TargetPieceCount: 1000},
+			preset:  &CreateSettings{PieceLengthExp: new(uint(20)), TargetPieceCount: new(uint(1000))},
 			wantErr: true,
 		},
 		{
@@ -182,13 +180,13 @@ func TestResolveCreateOptions(t *testing.T) {
 		},
 		{
 			name:   "tracker default source uses preset trackers",
-			preset: &preset.Options{Trackers: []string{antTracker}},
+			preset: &CreateSettings{TrackerURLs: []string{antTracker}},
 			want:   CreateOptions{IsPrivate: true, TrackerURLs: []string{antTracker}, Source: "ANT"},
 		},
 		{
 			name:      "preset source wins over tracker default",
 			overrides: CreateOverrides{TrackerURLs: []string{antTracker}},
-			preset:    &preset.Options{Source: "s"},
+			preset:    &CreateSettings{Source: new("s")},
 			want:      CreateOptions{IsPrivate: true, TrackerURLs: []string{antTracker}, Source: "s"},
 		},
 		{
@@ -218,7 +216,7 @@ func TestResolveCreateOptions(t *testing.T) {
 }
 
 func TestResolveCreateOptionsDoesNotAliasPresetPatterns(t *testing.T) {
-	p := &preset.Options{ExcludePatterns: make([]string, 1, 4)}
+	p := &CreateSettings{ExcludePatterns: make([]string, 1, 4)}
 	p.ExcludePatterns[0] = "*.nfo"
 
 	got, err := ResolveCreateOptions(CreateOverrides{ExcludePatterns: []string{"*.jpg"}}, p)

@@ -16,6 +16,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
+	"github.com/autobrr/mkbrr/internal/createpreset"
 	"github.com/autobrr/mkbrr/internal/preset"
 	"github.com/autobrr/mkbrr/internal/trackers"
 	"github.com/autobrr/mkbrr/torrent"
@@ -210,14 +211,14 @@ func buildCreateOptions(cmd *cobra.Command, inputPath string, opts createOptions
 	setIfChanged("fail-on-season-warning", func() { s.FailOnSeasonPackWarning = &opts.failOnSeasonWarning })
 	setIfChanged("workers", func() { s.Workers = &opts.createWorkers })
 
-	var presetOpts *preset.Options
+	var presetSettings *torrent.CreateSettings
 	if opts.presetName != "" {
 		presetFilePath, err := preset.FindPresetFile(opts.presetFile)
 		if err != nil {
 			return torrent.CreateOptions{}, fmt.Errorf("could not find preset file: %w", err)
 		}
 
-		presetOpts, err = preset.LoadPresetOptions(presetFilePath, opts.presetName)
+		presetSettings, err = createpreset.Load(presetFilePath, opts.presetName)
 		if err != nil {
 			return torrent.CreateOptions{}, fmt.Errorf("could not load preset options: %w", err)
 		}
@@ -232,7 +233,7 @@ func buildCreateOptions(cmd *cobra.Command, inputPath string, opts createOptions
 		Verbose:        opts.verbose,
 		Quiet:          opts.quiet,
 		InfoOnly:       opts.infoOnly,
-	}, presetOpts)
+	}, presetSettings)
 }
 
 // createSingleTorrent handles creating a single torrent file

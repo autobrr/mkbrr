@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/autobrr/mkbrr/internal/createpreset"
 	"github.com/autobrr/mkbrr/internal/preset"
 	"github.com/autobrr/mkbrr/torrent"
 )
@@ -186,27 +187,58 @@ func TestSavePresetLoadsInCLI(t *testing.T) {
 		TargetPieceCount:    1000,
 		Workers:             4,
 	}
-	for f, v := range reflect.ValueOf(all).Fields() {
-		if v.IsZero() {
-			t.Fatalf("set %s in the test preset, so that the test covers it", f.Name)
+	loaded := torrent.CreateSettings{
+		IsPrivate:               new(false),
+		NoDate:                  new(true),
+		NoCreator:               new(true),
+		SkipPrefix:              new(true),
+		Entropy:                 new(true),
+		FailOnSeasonPackWarning: new(true),
+		Comment:                 new("comment"),
+		Source:                  new("SRC"),
+		OutputDir:               new("/out"),
+		TrackerURLs:             []string{"https://tracker.example.invalid/announce"},
+		WebSeeds:                []string{"https://seed.example.invalid/files/"},
+		ExcludePatterns:         []string{"*.nfo", "*sample*"},
+		IncludePatterns:         []string{"*.mkv"},
+		PieceLengthExp:          new(uint(20)),
+		MaxPieceLength:          new(uint(24)),
+		TargetPieceCount:        new(uint(1000)),
+		Workers:                 new(4),
+	}
+	for _, v := range []reflect.Value{reflect.ValueOf(all), reflect.ValueOf(loaded)} {
+		for f, fv := range v.Fields() {
+			if fv.IsZero() {
+				t.Fatalf("set %s in the test preset, so that the test covers it", f.Name)
+			}
 		}
 	}
 
 	// A preset cannot have both a piece length and a target piece count.
-	withPieceLength, withTarget := all, all
-	withPieceLength.TargetPieceCount = 0
-	withTarget.PieceLength = 0
+	saveWithPieceLength, saveWithTarget := all, all
+	saveWithPieceLength.TargetPieceCount = 0
+	saveWithTarget.PieceLength = 0
+	wantWithPieceLength, wantWithTarget := loaded, loaded
+	wantWithPieceLength.TargetPieceCount = nil
+	wantWithTarget.PieceLengthExp = nil
 
-	for name, want := range map[string]preset.Options{"piece-length": withPieceLength, "target": withTarget} {
-		if err := (&App{}).SavePreset(name, want); err != nil {
+	cases := map[string]struct {
+		save preset.Options
+		want torrent.CreateSettings
+	}{
+		"piece-length": {saveWithPieceLength, wantWithPieceLength},
+		"target":       {saveWithTarget, wantWithTarget},
+	}
+	for name, tc := range cases {
+		if err := (&App{}).SavePreset(name, tc.save); err != nil {
 			t.Fatal(err)
 		}
-		got, err := preset.LoadPresetOptions("", name)
+		got, err := createpreset.Load("", name)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !reflect.DeepEqual(*got, want) {
-			t.Errorf("preset %s: loaded %+v, want %+v", name, *got, want)
+		if !reflect.DeepEqual(*got, tc.want) {
+			t.Errorf("preset %s: loaded %+v, want %+v", name, *got, tc.want)
 		}
 	}
 }

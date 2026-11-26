@@ -51,7 +51,9 @@ linters:
     # build an output filename itself, so that it matches what create writes.
     # The exclusion rules below limit these guards to gui/, because torrent/
     # walks folders and decides the output path itself, and limit the
-    # .torrent writer guard to torrent/ code outside tests.
+    # .torrent writer guard to torrent/ code outside tests. The preset guard
+    # keeps raw preset reads in the preset package, the preset loader, and the
+    # modify code, so that the create resolver holds each preset rule.
     forbidigo:
       # Without analyze-types, a rule that has pkg matches nothing.
       analyze-types: true
@@ -68,6 +70,9 @@ linters:
         - pattern: ^os\.(Create|CreateTemp|WriteFile)$
           pkg: ^os$
           msg: write a .torrent file with writeTorrentOutput (torrent/write.go), so a failed write keeps the old file
+        - pattern: ^(preset\.(Load|LoadPresetValues)|\*?preset\.Config\.PresetValues)$
+          pkg: ^github\.com/autobrr/mkbrr/internal/preset$
+          msg: load a create preset with the preset loader (createpreset.Load), so the create resolver holds each preset rule
 
   exclusions:
     generated: lax
@@ -92,6 +97,11 @@ linters:
         linters:
           - forbidigo
         text: writeTorrentOutput
+
+      - path: ^(internal/(preset|createpreset)/|torrent/modify\.go$)
+        linters:
+          - forbidigo
+        text: preset loader
 
       # A parameter an interface forces on an implementation still documents
       # what the caller passes; renaming it to _ loses that.
