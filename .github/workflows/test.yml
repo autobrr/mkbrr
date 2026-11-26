@@ -1,0 +1,89 @@
+name: Test
+
+on:
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [ ubuntu-latest ]
+    name: Test ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run Tests with Race Detection
+        run: make test-race
+
+      - name: Run GUI Tests
+        run: make test-gui
+
+      - name: Generate Test Summary
+        run: go run gotest.tools/gotestsum@latest --junitfile unit-tests.xml --format pkgname
+
+      - name: Test Summary
+        uses: test-summary/action@v2
+        with:
+          paths: "unit-tests.xml"
+        if: always()
+
+  testother:
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [ macos-latest, windows-latest ]
+    name: Test ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    env:
+      GOPATH: ${{ startsWith(matrix.os, 'windows') && 'D:\golang\go' || '' }}
+      GOCACHE: ${{ startsWith(matrix.os, 'windows') && 'D:\golang\cache' || '' }}
+      GOMODCACHE: ${{ startsWith(matrix.os, 'windows') && 'D:\golang\modcache' || '' }}
+      USERPROFILE: ${{ startsWith(matrix.os, 'windows') && 'D:\homedir' || '' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run Tests (MacOS)
+        if: matrix.os == 'macos-latest'
+        env:
+          CGO_ENABLED: 0
+        run: go test ./...
+
+      - name: Run Tests (Windows)
+        if: matrix.os == 'windows-latest'
+        env:
+          CGO_ENABLED: 0
+        run: go test -short ./...
+
+      - name: Generate Test Summary
+        if: matrix.os != 'windows-latest'
+        run: go run gotest.tools/gotestsum@latest --junitfile unit-tests.xml --format pkgname
+
+      - name: Test Summary
+        uses: test-summary/action@v2
+        with:
+          paths: "unit-tests.xml"
+        if: always() && matrix.os != 'windows-latest'

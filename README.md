@@ -151,7 +151,7 @@ Download the GUI binary for your platform from the [releases page](https://githu
 #### Building from Source
 
 ```bash
-# Install Wails CLI (one-time requirement)
+# Install the Wails CLI. Run it again when gui/go.mod changes the Wails version.
 make install-wails
 
 # Build GUI for your current platform

@@ -110,7 +110,8 @@ Before you begin, ensure you have the following installed on your system:
 
   ### GUI Commands
   ```bash
-  make install-wails  # Install the Wails CLI (one-time requirement)
+  make install-wails  # Install the Wails CLI (again after gui/go.mod changes the Wails version)
+  make gui-bindings   # Regenerate the frontend bindings in gui/frontend/wailsjs
   make gui-dev        # Run the GUI in development mode
   make gui-build      # Build the GUI for the current platform
   make gui-build-all  # Build the GUI for all platforms
@@ -119,7 +120,8 @@ Before you begin, ensure you have the following installed on your system:
 
   ### Testing Commands
   ```bash
-  make test             # Run tests (excluding large tests)
+  make test             # Run tests, GUI tests included (excluding large tests)
+  make test-gui         # Run the GUI tests
   make test-race        # Run all tests with race detector
   make test-race-short  # Run quick tests with race detector
   make test-large       # Run large tests (resource intensive)
@@ -128,7 +130,7 @@ Before you begin, ensure you have the following installed on your system:
 
   ### Quality Tools
   ```bash
-  make lint             # Run golangci-lint
+  make lint             # Run golangci-lint on the CLI and GUI modules
   ```
 </Accordion>
 

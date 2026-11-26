@@ -1,13 +1,13 @@
 export namespace main {
-
+	
 	export class PieceLengthRange {
 	    min: number;
 	    max: number;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new PieceLengthRange(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.min = source["min"];
@@ -17,17 +17,17 @@ export namespace main {
 	export class AllowedPieceLengths {
 	    pieceLength: PieceLengthRange;
 	    maxPieceLength: PieceLengthRange;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new AllowedPieceLengths(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.pieceLength = this.convertValues(source["pieceLength"], PieceLengthRange);
 	        this.maxPieceLength = this.convertValues(source["maxPieceLength"], PieceLengthRange);
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -70,11 +70,11 @@ export namespace main {
 	    presetName: string;
 	    presetFile: string;
 	    defaultWorkers: number;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new CreateRequest(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.path = source["path"];
@@ -105,11 +105,11 @@ export namespace main {
 	export class FileInfo {
 	    path: string;
 	    size: number;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new FileInfo(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.path = source["path"];
@@ -119,11 +119,11 @@ export namespace main {
 	export class TrackerTier {
 	    tier: number;
 	    trackers: string[];
-
+	
 	    static createFrom(source: any = {}) {
 	        return new TrackerTier(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.tier = source["tier"];
@@ -146,11 +146,11 @@ export namespace main {
 	    creationDate: number;
 	    fileCount: number;
 	    files: FileInfo[];
-
+	
 	    static createFrom(source: any = {}) {
 	        return new InspectResult(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.name = source["name"];
@@ -169,7 +169,7 @@ export namespace main {
 	        this.fileCount = source["fileCount"];
 	        this.files = this.convertValues(source["files"], FileInfo);
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -191,11 +191,11 @@ export namespace main {
 	export class LaunchCommand {
 	    command: string;
 	    path: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new LaunchCommand(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.command = source["command"];
@@ -224,11 +224,11 @@ export namespace main {
 	    presetName: string;
 	    presetFile: string;
 	    dryRun: boolean;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new ModifyRequest(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.torrentPath = source["torrentPath"];
@@ -258,18 +258,18 @@ export namespace main {
 	    outputPath: string;
 	    wasModified: boolean;
 	    notices: torrent.Notice[];
-
+	
 	    static createFrom(source: any = {}) {
 	        return new ModifyResult(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.outputPath = source["outputPath"];
 	        this.wasModified = source["wasModified"];
 	        this.notices = this.convertValues(source["notices"], torrent.Notice);
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -288,16 +288,17 @@ export namespace main {
 		    return a;
 		}
 	}
+	
 	export class PresetsResult {
 	    presets: Record<string, preset.Options>;
 	    own: Record<string, preset.Options>;
 	    defaults?: preset.Options;
 	    errors?: string[];
-
+	
 	    static createFrom(source: any = {}) {
 	        return new PresetsResult(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.presets = this.convertValues(source["presets"], preset.Options, true);
@@ -305,7 +306,7 @@ export namespace main {
 	        this.defaults = this.convertValues(source["defaults"], preset.Options);
 	        this.errors = source["errors"];
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -331,11 +332,11 @@ export namespace main {
 	    maxEpisode: number;
 	    videoFileCount: number;
 	    missingEpisodes?: number[];
-
+	
 	    static createFrom(source: any = {}) {
 	        return new SeasonPackInfo(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.isSeasonPack = source["isSeasonPack"];
@@ -354,11 +355,11 @@ export namespace main {
 	    fileCount: number;
 	    warning?: string;
 	    seasonPackInfo?: SeasonPackInfo;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new TorrentResult(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.path = source["path"];
@@ -369,7 +370,7 @@ export namespace main {
 	        this.warning = source["warning"];
 	        this.seasonPackInfo = this.convertValues(source["seasonPackInfo"], SeasonPackInfo);
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -393,11 +394,11 @@ export namespace main {
 	    maxTorrentSize: number;
 	    defaultSource: string;
 	    hasCustomRules: boolean;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new TrackerInfo(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.maxPieceLength = source["maxPieceLength"];
@@ -406,15 +407,15 @@ export namespace main {
 	        this.hasCustomRules = source["hasCustomRules"];
 	    }
 	}
-
+	
 	export class VerifyRequest {
 	    torrentPath: string;
 	    contentPath: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new VerifyRequest(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.torrentPath = source["torrentPath"];
@@ -428,11 +429,11 @@ export namespace main {
 	    badPieces: number;
 	    missingPieces: number;
 	    missingFiles: string[];
-
+	
 	    static createFrom(source: any = {}) {
 	        return new VerifyResult(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.completion = source["completion"];
@@ -447,7 +448,7 @@ export namespace main {
 }
 
 export namespace preset {
-
+	
 	export class Options {
 	    private?: boolean;
 	    noDate?: boolean;
@@ -466,11 +467,11 @@ export namespace preset {
 	    maxPieceLength?: number;
 	    targetPieceCount?: number;
 	    workers?: number;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new Options(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.private = source["private"];
@@ -496,7 +497,7 @@ export namespace preset {
 }
 
 export namespace torrent {
-
+	
 	export class SeasonPackInfo {
 	    episodes: number[];
 	    missing_episodes: number[];
@@ -505,11 +506,11 @@ export namespace torrent {
 	    video_file_count: number;
 	    is_season_pack: boolean;
 	    is_suspicious: boolean;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new SeasonPackInfo(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.episodes = source["episodes"];
@@ -524,11 +525,11 @@ export namespace torrent {
 	export class Notice {
 	    warn: boolean;
 	    text: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new Notice(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.warn = source["warn"];
@@ -544,11 +545,11 @@ export namespace torrent {
 	    notices: Notice[];
 	    season_pack?: SeasonPackInfo;
 	    output_path: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new CreatePlan(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.content_size = source["content_size"];
@@ -560,7 +561,7 @@ export namespace torrent {
 	        this.season_pack = this.convertValues(source["season_pack"], SeasonPackInfo);
 	        this.output_path = source["output_path"];
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -579,6 +580,7 @@ export namespace torrent {
 		    return a;
 		}
 	}
-
+	
 
 }
+

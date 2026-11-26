@@ -5,7 +5,9 @@ repos:
       - id: detect-private-key
       - id: check-merge-conflict
       - id: trailing-whitespace
+        exclude: ^gui/frontend/wailsjs/
       - id: end-of-file-fixer
+        exclude: ^gui/frontend/wailsjs/
       - id: check-yaml
       - id: check-json
       - id: check-toml

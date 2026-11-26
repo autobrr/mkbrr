@@ -247,7 +247,7 @@ If you prefer to build the GUI yourself:
 git clone https://github.com/autobrr/mkbrr.git
 cd mkbrr
 
-# Install Wails CLI (one-time requirement)
+# Install the Wails CLI. Run it again when gui/go.mod changes the Wails version.
 make install-wails
 
 # Build GUI for your current platform
@@ -260,8 +260,10 @@ make gui-build-all
 The built application will be in `gui/build/bin/`.
 
 <Note>
-On Linux, `make gui-build` builds against WebKitGTK 4.0. If your system has only WebKitGTK 4.1, as Ubuntu 24.04 and later do, run `cd gui && wails build -tags webkit2_41` instead. The release builds use this tag.
+On Linux, `make gui-build` builds against WebKitGTK 4.1 when your system has 4.1 and not 4.0, as Ubuntu 24.04 and later do. The release builds also use WebKitGTK 4.1.
 </Note>
+
+If the Wails CLI you installed does not match the version in `gui/go.mod`, the GUI build stops and asks you to run `make install-wails`.
 
 ## GUI vs CLI
 
