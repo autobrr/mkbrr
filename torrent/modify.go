@@ -121,26 +121,10 @@ func ModifyTorrent(path string, opts ModifyOptions) (*Result, error) {
 		return result, result.Error
 	}
 
-	// load preset if specified
-	var presetOpts *preset.Options
-	if opts.PresetName != "" {
-		presetPath, err := preset.FindPresetFile(opts.PresetFile)
-		if err != nil {
-			result.Error = fmt.Errorf("could not find preset file: %w", err)
-			return result, result.Error
-		}
-
-		presets, err := preset.Load(presetPath)
-		if err != nil {
-			result.Error = fmt.Errorf("could not load presets: %w", err)
-			return result, result.Error
-		}
-
-		presetOpts, err = presets.PresetValues(opts.PresetName)
-		if err != nil {
-			result.Error = fmt.Errorf("could not get preset: %w", err)
-			return result, result.Error
-		}
+	presetOpts, err := loadModifyPreset(opts)
+	if err != nil {
+		result.Error = err
+		return result, result.Error
 	}
 
 	// read the original name before any change, for the output path
@@ -151,7 +135,8 @@ func ModifyTorrent(path string, opts ModifyOptions) (*Result, error) {
 	}
 	originalMetaInfoName := info.Name
 
-	spec := modifySpec(opts, presetOpts)
+	resolution := resolveModify(opts, presetOpts)
+	spec := resolution.spec()
 	if spec.Trackers.action == removeField {
 		for _, host := range unmatchedHosts(mi, spec.Trackers.value) {
 			result.Notices = append(result.Notices, Notice{Warn: true, Text: host + ": no matching tracker"})
@@ -162,10 +147,7 @@ func ModifyTorrent(path string, opts ModifyOptions) (*Result, error) {
 		result.Error = err
 		return result, result.Error
 	}
-	// a kept creation date becomes now when anything else changes, or when
-	// the preset asks for a date and the torrent has none
-	presetWantsDate := presetOpts != nil && presetOpts.NoDate != nil && !*presetOpts.NoDate
-	if spec.CreationDate.action == keepField && (wasModified || presetWantsDate && mi.CreationDate == 0) {
+	if spec.CreationDate.action == keepField && (wasModified || resolution.wantsDate() && mi.CreationDate == 0) {
 		mi.CreationDate = time.Now().Unix()
 		wasModified = true
 	}
@@ -186,11 +168,7 @@ func ModifyTorrent(path string, opts ModifyOptions) (*Result, error) {
 		basePath = originalMetaInfoName + ".torrent"
 	}
 
-	// determine output directory: command-line flag takes precedence over preset
-	outputDir := opts.OutputDir
-	if outputDir == "" && presetOpts != nil && presetOpts.OutputDir != "" {
-		outputDir = presetOpts.OutputDir
-	}
+	outputDir := resolution.OutputDir.Value
 
 	// generate output path using the preset generating helper
 	var trackerForOutput string
@@ -199,8 +177,7 @@ func ModifyTorrent(path string, opts ModifyOptions) (*Result, error) {
 	} else {
 		trackerForOutput = ""
 	}
-	skipPrefix := opts.SkipPrefix || presetOpts != nil && presetOpts.SkipPrefix != nil && *presetOpts.SkipPrefix
-	outPath := preset.GenerateOutputPath(basePath, outputDir, opts.PresetName, opts.OutputPattern, trackerForOutput, metaInfoName, skipPrefix)
+	outPath := preset.GenerateOutputPath(basePath, outputDir, opts.PresetName, opts.OutputPattern, trackerForOutput, metaInfoName, resolution.SkipPrefix.Value)
 	result.OutputPath = outPath
 
 	// ensure output directory exists if specified
@@ -218,90 +195,6 @@ func ModifyTorrent(path string, opts ModifyOptions) (*Result, error) {
 
 	result.WasModified = true
 	return result, nil
-}
-
-// modifySpec resolves the overrides in opts and the preset p into one
-// metadataSpec. The order is override, then preset, then keep. Only an
-// override can clear a setting.
-func modifySpec(opts ModifyOptions, p *preset.Options) metadataSpec {
-	if p == nil {
-		p = &preset.Options{}
-	}
-	var spec metadataSpec
-
-	switch {
-	case opts.NoTracker:
-		spec.Trackers = cleared[[]string]()
-	case len(opts.RemoveTrackers) > 0:
-		spec.Trackers = field[[]string]{action: removeField, value: opts.RemoveTrackers}
-	case len(opts.TrackerURLs) > 0:
-		spec.Trackers = setTo(opts.TrackerURLs)
-	case len(p.Trackers) > 0:
-		spec.Trackers = setTo(p.Trackers)
-	}
-
-	switch {
-	case opts.NoWebSeed:
-		spec.WebSeeds = cleared[[]string]()
-	case len(opts.WebSeeds) > 0:
-		spec.WebSeeds = setTo(opts.WebSeeds)
-	case len(p.WebSeeds) > 0:
-		spec.WebSeeds = setTo(p.WebSeeds)
-	}
-
-	spec.Comment = stringSetting(opts.Comment, p.Comment)
-	spec.Source = stringSetting(opts.Source, p.Source)
-
-	if opts.Name != "" {
-		spec.Name = setTo(opts.Name)
-	}
-
-	switch {
-	case opts.NoPrivate:
-		spec.Private = cleared[bool]()
-	case opts.IsPrivate != nil:
-		spec.Private = setTo(*opts.IsPrivate)
-	case p.Private != nil:
-		spec.Private = setTo(*p.Private)
-	}
-
-	switch {
-	case opts.NoCreator, p.NoCreator != nil && *p.NoCreator:
-		spec.CreatedBy = cleared[string]()
-	case p.NoCreator != nil:
-		spec.CreatedBy = setTo(createdBy(opts.Version))
-	}
-
-	if opts.NoDate || p.NoDate != nil && *p.NoDate {
-		spec.CreationDate = cleared[int64]()
-	}
-
-	switch {
-	case opts.NoEntropy:
-		spec.Entropy = clearField
-	case opts.Entropy != nil:
-		if *opts.Entropy {
-			spec.Entropy = setField
-		}
-	case p.Entropy != nil && *p.Entropy:
-		spec.Entropy = setField
-	}
-
-	return spec
-}
-
-// stringSetting resolves a string setting. An override sets the value, or
-// clears it when the value is empty. A preset cannot clear.
-func stringSetting(override *string, presetValue string) field[string] {
-	switch {
-	case override != nil && *override == "":
-		return cleared[string]()
-	case override != nil:
-		return setTo(*override)
-	case presetValue != "":
-		return setTo(presetValue)
-	}
-	return field[string]{}
 }
 
 // ProcessTorrents modifies multiple torrent files according to the given options.

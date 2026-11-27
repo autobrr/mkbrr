@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -14,49 +14,59 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { FolderOpen, Plus, X, Loader2, ChevronDown, FileSearch } from 'lucide-react';
-import { SelectTorrentFile, SelectPath, ModifyTorrent, ListPresets, GetPresetValues, InspectTorrent } from '../../wailsjs/go/main/App';
+import { SelectTorrentFile, SelectPath, ModifyTorrent, ListPresets, ResolveModify, InspectTorrent } from '../../wailsjs/go/main/App';
 import { useFileDrop } from '@/hooks/useFileDrop';
 import { DropOverlay } from '@/components/ui/drop-overlay';
+import { OriginHint } from '@/components/ui/origin-hint';
 
-import { main, preset as presetTypes } from '../../wailsjs/go/models';
+import { main, torrent } from '../../wailsjs/go/models';
 
-type ModifyRequest = main.ModifyRequest;
 type ModifyResult = main.ModifyResult;
-type PresetOptions = presetTypes.Options;
-
-// Get directory from path (works for both Unix and Windows paths)
-function getDirectory(path: string): string {
-  if (!path || typeof path !== 'string') return '';
-  // Handle both forward and backslashes
-  const lastSlash = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
-  return lastSlash > 0 ? path.substring(0, lastSlash) : path;
-}
+type ModifyResolution = torrent.ModifyResolution;
 
 type PrivateMode = 'unchanged' | 'private' | 'public' | 'remove';
 type EntropyMode = 'keep' | 'add' | 'remove';
 type TrackerMode = 'keep' | 'replace' | 'remove' | 'clear';
 type WebSeedMode = 'keep' | 'replace' | 'clear';
 
-// Form state persistence
+interface Picks {
+  trackerMode?: Exclude<TrackerMode, 'keep'>;
+  trackers?: string[];
+  removeTrackers?: string[];
+  webSeedMode?: Exclude<WebSeedMode, 'keep'>;
+  webSeeds?: string[];
+  privateMode?: Exclude<PrivateMode, 'unchanged'>;
+  entropyMode?: EntropyMode;
+  source?: string;
+  comment?: string;
+  outputDir?: string;
+  noDate?: true;
+  noCreator?: true;
+  skipPrefix?: true;
+}
+
 interface ModifyFormState {
   torrentPath: string;
-  outputDir: string;
-  outputPattern: string;
-  trackerMode: TrackerMode;
-  trackers: string[];
-  removeTrackers: string[];
-  webSeedMode: WebSeedMode;
-  webSeeds: string[];
-  name: string;
-  privateMode: PrivateMode;
-  privateFromPreset?: boolean;
-  entropyMode: EntropyMode;
-  source: string;
-  comment: string;
-  noDate: boolean;
-  noCreator: boolean;
-  skipPrefix: boolean;
   presetName: string;
+  name: string;
+  outputPattern: string;
+  picks: Picks;
+}
+
+interface LegacyFormState {
+  outputDir?: string;
+  trackerMode?: TrackerMode;
+  trackers?: string[];
+  removeTrackers?: string[];
+  webSeedMode?: WebSeedMode;
+  webSeeds?: string[];
+  privateMode?: PrivateMode;
+  entropyMode?: EntropyMode;
+  source?: string;
+  comment?: string;
+  noDate?: boolean;
+  noCreator?: boolean;
+  skipPrefix?: boolean;
 }
 
 function RadioRow<T extends string>({ name, value, options, onChange }: {
@@ -118,20 +128,111 @@ function UrlListInput({ urls, onChange, placeholder, addLabel }: {
   );
 }
 
-function nonEmptyList(list: unknown): string[] {
-  return Array.isArray(list) && list.length > 0 ? list : [''];
+const nonBlank = (urls: string[] | undefined) => (urls ?? []).filter((u) => u.trim() !== '');
+const orBlank = (urls: string[] | undefined) => (urls && urls.length > 0 ? urls : ['']);
+const sameList = (a: string[] | undefined, b: string[] | undefined) => nonBlank(a).join('\n') === nonBlank(b).join('\n');
+
+function buildRequest(form: Omit<ModifyFormState, 'picks'>, picks: Picks): main.ModifyRequest {
+  return main.ModifyRequest.createFrom({
+    torrentPath: form.torrentPath,
+    trackerUrls: picks.trackerMode === 'replace' ? nonBlank(picks.trackers) : [],
+    removeTrackers: picks.trackerMode === 'remove' ? nonBlank(picks.removeTrackers) : [],
+    noTracker: picks.trackerMode === 'clear',
+    webSeeds: picks.webSeedMode === 'replace' ? nonBlank(picks.webSeeds) : [],
+    noWebSeed: picks.webSeedMode === 'clear',
+    name: form.name,
+    isPrivate: picks.privateMode === 'private' ? true : picks.privateMode === 'public' ? false : undefined,
+    noPrivate: picks.privateMode === 'remove',
+    source: picks.source || undefined,
+    comment: picks.comment || undefined,
+    noDate: picks.noDate ?? false,
+    noCreator: picks.noCreator ?? false,
+    entropy: picks.entropyMode === 'add' ? true : picks.entropyMode === 'keep' ? false : undefined,
+    noEntropy: picks.entropyMode === 'remove',
+    skipPrefix: picks.skipPrefix ?? false,
+    outputDir: picks.outputDir ?? '',
+    outputPattern: form.outputPattern,
+    presetName: form.presetName,
+    presetFile: '',
+    dryRun: false,
+  });
 }
+
+function legacyPicks(saved: LegacyFormState): Picks {
+  const trackerMode = saved.trackerMode ?? (nonBlank(saved.trackers).length > 0 ? 'replace' : 'keep');
+  const webSeedMode = saved.webSeedMode ?? (nonBlank(saved.webSeeds).length > 0 ? 'replace' : 'keep');
+  return {
+    trackerMode: trackerMode === 'keep' ? undefined : trackerMode,
+    trackers: saved.trackers,
+    removeTrackers: saved.removeTrackers,
+    webSeedMode: webSeedMode === 'keep' ? undefined : webSeedMode,
+    webSeeds: saved.webSeeds,
+    privateMode: saved.privateMode === 'unchanged' ? undefined : saved.privateMode,
+    entropyMode: saved.entropyMode,
+    source: saved.source || undefined,
+    comment: saved.comment || undefined,
+    outputDir: saved.outputDir || undefined,
+    noDate: saved.noDate || undefined,
+    noCreator: saved.noCreator || undefined,
+    skipPrefix: saved.skipPrefix || undefined,
+  };
+}
+
+async function migrateLegacy(form: Omit<ModifyFormState, 'picks'>, legacy: Picks): Promise<Picks> {
+  const r = await ResolveModify(buildRequest(form, {}));
+  const picks: Picks = {};
+  if (legacy.outputDir && legacy.outputDir !== r.outputDir.value) picks.outputDir = legacy.outputDir;
+  if (legacy.trackerMode && !(legacy.trackerMode === 'replace' && r.trackers.action === 'set' && sameList(legacy.trackers, r.trackers.value))) {
+    Object.assign(picks, { trackerMode: legacy.trackerMode, trackers: legacy.trackers, removeTrackers: legacy.removeTrackers });
+  }
+  if (legacy.webSeedMode && !(legacy.webSeedMode === 'replace' && r.webSeeds.action === 'set' && sameList(legacy.webSeeds, r.webSeeds.value))) {
+    Object.assign(picks, { webSeedMode: legacy.webSeedMode, webSeeds: legacy.webSeeds });
+  }
+  if (legacy.privateMode && legacy.privateMode !== privateMode(r)) picks.privateMode = legacy.privateMode;
+  if (legacy.entropyMode && legacy.entropyMode !== entropyMode(r)) picks.entropyMode = legacy.entropyMode;
+  if (legacy.source && legacy.source !== r.source.value) picks.source = legacy.source;
+  if (legacy.comment && legacy.comment !== r.comment.value) picks.comment = legacy.comment;
+  if (legacy.noDate && r.creationDate.action !== 'clear') picks.noDate = true;
+  if (legacy.noCreator && r.createdBy.action !== 'clear') picks.noCreator = true;
+  if (legacy.skipPrefix && !r.skipPrefix.value) picks.skipPrefix = true;
+  return picks;
+}
+
+function privateMode(r: ModifyResolution | undefined): PrivateMode {
+  if (r?.private.action === 'clear') return 'remove';
+  if (r?.private.action === 'set') return r.private.value ? 'private' : 'public';
+  return 'unchanged';
+}
+
+function entropyMode(r: ModifyResolution | undefined): EntropyMode {
+  if (r?.entropy.action === 'set') return 'add';
+  if (r?.entropy.action === 'clear') return 'remove';
+  return 'keep';
+}
+
+const linkedPicks: (keyof Picks)[][] = [
+  ['trackerMode', 'trackers', 'removeTrackers'],
+  ['webSeedMode', 'webSeeds'],
+];
 
 const STORAGE_KEY = 'mkbrr-modify-form';
 
-function loadFormState(): Partial<ModifyFormState> {
+function loadFormState(): ModifyFormState & { legacy?: Picks } {
+  let saved: Partial<ModifyFormState> & LegacyFormState = {};
   try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? JSON.parse(saved) : {};
+    const raw = localStorage.getItem(STORAGE_KEY);
+    saved = raw ? JSON.parse(raw) : {};
   } catch (e) {
     console.error('Failed to load form state from localStorage:', e);
-    return {};
   }
+  return {
+    torrentPath: saved.torrentPath ?? '',
+    presetName: saved.presetName ?? '',
+    name: saved.name ?? '',
+    outputPattern: saved.outputPattern ?? '',
+    picks: saved.picks ?? {},
+    legacy: saved.picks || Object.keys(saved).length === 0 ? undefined : legacyPicks(saved),
+  };
 }
 
 function saveFormState(state: ModifyFormState) {
@@ -152,35 +253,40 @@ function clearFormState() {
 
 export function ModifyPage() {
   const navigate = useNavigate();
-  const savedState = loadFormState();
-  const [torrentPath, setTorrentPath] = useState(savedState.torrentPath ?? '');
-  const [outputDir, setOutputDir] = useState(savedState.outputDir ?? '');
-  const [outputPattern, setOutputPattern] = useState(savedState.outputPattern ?? '');
-  const [trackers, setTrackers] = useState(nonEmptyList(savedState.trackers));
-  const [removeTrackers, setRemoveTrackers] = useState(nonEmptyList(savedState.removeTrackers));
-  const [webSeeds, setWebSeeds] = useState(nonEmptyList(savedState.webSeeds));
-  // a form saved before the modes existed replaces the trackers and web seeds when it has any
-  const [trackerMode, setTrackerMode] = useState<TrackerMode>(
-    savedState.trackerMode ?? (savedState.trackers?.some((t) => t.trim()) ? 'replace' : 'keep'));
-  const [webSeedMode, setWebSeedMode] = useState<WebSeedMode>(
-    savedState.webSeedMode ?? (savedState.webSeeds?.some((w) => w.trim()) ? 'replace' : 'keep'));
-  const [name, setName] = useState(savedState.name ?? '');
-  const [privateMode, setPrivateMode] = useState<PrivateMode>(savedState.privateMode ?? 'unchanged');
-  const [privateFromPreset, setPrivateFromPreset] = useState(savedState.privateFromPreset ??
-    (Boolean(savedState.presetName) && (savedState.privateMode === 'private' || savedState.privateMode === 'public')));
-  const [entropyMode, setEntropyMode] = useState<EntropyMode>(savedState.entropyMode ?? 'keep');
-  const [source, setSource] = useState(savedState.source ?? '');
-  const [comment, setComment] = useState(savedState.comment ?? '');
-  const [noDate, setNoDate] = useState(savedState.noDate ?? false);
-  const [noCreator, setNoCreator] = useState(savedState.noCreator ?? false);
-  const [skipPrefix, setSkipPrefix] = useState(savedState.skipPrefix ?? false);
-  const [presetName, setPresetName] = useState(savedState.presetName ?? '');
+  const [savedState] = useState(loadFormState);
+  const [torrentPath, setTorrentPath] = useState(savedState.torrentPath);
+  const [presetName, setPresetName] = useState(savedState.presetName);
+  const [name, setName] = useState(savedState.name);
+  const [outputPattern, setOutputPattern] = useState(savedState.outputPattern);
+  const [picks, setPicks] = useState<Picks>(savedState.picks);
+  const [legacy, setLegacy] = useState(savedState.legacy);
+  const touched = useRef(new Set<keyof Picks>());
+  const touch = (fields: (keyof Picks)[]) => {
+    for (const field of fields) {
+      for (const linked of linkedPicks.find((group) => group.includes(field)) ?? [field]) touched.current.add(linked);
+    }
+  };
+  const pick = (next: Picks) => {
+    touch(Object.keys(next) as (keyof Picks)[]);
+    setPicks((p) => ({ ...p, ...next }));
+  };
+  const unpick = (...fields: (keyof Picks)[]) => {
+    touch(fields);
+    setPicks((p) => {
+      const next = { ...p };
+      for (const field of fields) delete next[field];
+      return next;
+    });
+  };
 
   const [presets, setPresets] = useState<string[]>([]);
   const [isModifying, setIsModifying] = useState(false);
   const [result, setResult] = useState<ModifyResult | null>(null);
   const [error, setError] = useState('');
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [resolved, setResolved] = useState<{ presetName: string; resolution: ModifyResolution } | null>(null);
+  const [resolveError, setResolveError] = useState('');
+  const [presetFileRead, setPresetFileRead] = useState(0);
 
   // Drag-and-drop: accept .torrent files and populate the input field.
   const { isDragging } = useFileDrop((paths) => {
@@ -193,109 +299,113 @@ export function ModifyPage() {
     toast.success('Torrent file set');
   });
 
-  // Load presets on mount
+  const loadPresets = () => {
+    ListPresets().then((names) => setPresets(names ?? [])).catch((e) => console.error('Failed to load presets:', e));
+  };
+  useEffect(loadPresets, []);
+
   useEffect(() => {
-    ListPresets().then(setPresets).catch((e) => console.error('Failed to load presets:', e));
+    const reread = () => {
+      setPresetFileRead((n) => n + 1);
+      loadPresets();
+    };
+    window.addEventListener('focus', reread);
+    return () => window.removeEventListener('focus', reread);
   }, []);
 
-  // Save form state to localStorage whenever values change
   useEffect(() => {
-    saveFormState({
-      torrentPath,
-      outputDir,
-      outputPattern,
-      trackerMode,
-      trackers,
-      removeTrackers,
-      webSeedMode,
-      webSeeds,
-      name,
-      privateMode,
-      privateFromPreset,
-      entropyMode,
-      source,
-      comment,
-      noDate,
-      noCreator,
-      skipPrefix,
-      presetName,
-    });
-  }, [torrentPath, outputDir, outputPattern, trackerMode, trackers, removeTrackers, webSeedMode, webSeeds, name, privateMode, privateFromPreset, entropyMode, source, comment, noDate, noCreator, skipPrefix, presetName]);
+    if (!legacy) return;
+    migrateLegacy({ torrentPath, presetName, name, outputPattern }, legacy)
+      .catch((e) => {
+        console.error('Failed to migrate the saved form state:', e);
+        return { ...legacy };
+      })
+      .then((migrated) => {
+        for (const field of touched.current) delete migrated[field];
+        setPicks((current) => ({ ...migrated, ...current }));
+        setLegacy(undefined);
+      });
+  }, []);
+
+  useEffect(() => {
+    if (legacy) return;
+    saveFormState({ torrentPath, presetName, name, outputPattern, picks });
+  }, [torrentPath, presetName, name, outputPattern, picks, legacy]);
+
+  const request = buildRequest({ torrentPath, presetName, name, outputPattern }, picks);
+  const resolveKey = JSON.stringify({ request, presetFileRead });
+  useEffect(() => {
+    if (legacy) return;
+    let stale = false;
+    ResolveModify(request)
+      .then((next) => {
+        if (stale) return;
+        setResolved({ presetName, resolution: next });
+        setResolveError('');
+      })
+      .catch((e) => {
+        if (stale) return;
+        setResolveError(e instanceof Error ? e.message : String(e));
+      });
+    return () => {
+      stale = true;
+    };
+  }, [resolveKey, legacy]);
+
+  const resolution = !resolveError && resolved?.presetName === presetName ? resolved.resolution : undefined;
+  const hint = (picked: unknown, change: { origin: string } | undefined) => (
+    !picked && <OriginHint origin={change?.origin} presetName={presetName} />
+  );
+
+  const trackerMode: TrackerMode = picks.trackerMode ?? (resolution?.trackers.action === 'set' ? 'replace' : 'keep');
+  const trackers = picks.trackerMode === 'replace' ? orBlank(picks.trackers) : orBlank(resolution?.trackers.value);
+  const webSeedMode: WebSeedMode = picks.webSeedMode ?? (resolution?.webSeeds.action === 'set' ? 'replace' : 'keep');
+  const webSeeds = picks.webSeedMode === 'replace' ? orBlank(picks.webSeeds) : orBlank(resolution?.webSeeds.value);
+  const shownPrivateMode = picks.privateMode ?? privateMode(resolution);
+  const shownEntropyMode = picks.entropyMode ?? entropyMode(resolution);
+  const presetValue = (change: torrent.ModifyTextChange | undefined) => (change?.origin === 'preset' ? change.value : '');
+  const presetOn = {
+    noDate: resolution?.creationDate.action === 'clear',
+    noCreator: resolution?.createdBy.action === 'clear',
+    skipPrefix: resolution?.skipPrefix.value === true,
+  };
+  const toggleOrigin = {
+    noDate: resolution?.creationDate,
+    noCreator: resolution?.createdBy,
+    skipPrefix: resolution?.skipPrefix,
+  };
+  const resolvedOutputDir = picks.outputDir ? '' : resolution?.outputDir.value ?? '';
+
+  const handleTrackerMode = (mode: TrackerMode) => {
+    if (mode === 'keep') unpick('trackerMode');
+    else pick({ trackerMode: mode });
+  };
+  const handleWebSeedMode = (mode: WebSeedMode) => {
+    if (mode === 'keep') unpick('webSeedMode');
+    else pick({ webSeedMode: mode });
+  };
+  const handlePrivateMode = (mode: PrivateMode) => {
+    if (mode === 'unchanged') unpick('privateMode');
+    else pick({ privateMode: mode });
+  };
+  const handleToggle = (field: 'noDate' | 'noCreator' | 'skipPrefix', on: boolean) => {
+    if (on) pick({ [field]: true });
+    else unpick(field);
+  };
 
   const handleReset = () => {
     setTorrentPath('');
-    setOutputDir('');
-    setOutputPattern('');
-    setTrackerMode('keep');
-    setTrackers(['']);
-    setRemoveTrackers(['']);
-    setWebSeedMode('keep');
-    setWebSeeds(['']);
-    setName('');
-    setPrivateMode('unchanged');
-    setPrivateFromPreset(false);
-    setEntropyMode('keep');
-    setSource('');
-    setComment('');
-    setNoDate(false);
-    setNoCreator(false);
-    setSkipPrefix(false);
     setPresetName('');
+    setName('');
+    setOutputPattern('');
+    setPicks({});
     setResult(null);
     setError('');
     clearFormState();
   };
 
-  const applyPresetPrivate = (value: boolean | undefined) => {
-    if (privateMode !== 'unchanged' && !privateFromPreset) return;
-    if (value === undefined) {
-      setPrivateMode('unchanged');
-      setPrivateFromPreset(false);
-      return;
-    }
-    setPrivateMode(value ? 'private' : 'public');
-    setPrivateFromPreset(true);
-  };
-
-  const handlePrivateModeChange = (mode: PrivateMode) => {
-    setPrivateMode(mode);
-    setPrivateFromPreset(false);
-  };
-
-  const handlePresetChange = async (value: string) => {
-    if (value === 'none') {
-      setPresetName('');
-      applyPresetPrivate(undefined);
-      return;
-    }
-
-    setPresetName(value);
-    try {
-      const preset = await GetPresetValues(value) as PresetOptions;
-      if (preset) {
-        // Support both camelCase (new) and PascalCase (legacy) field names
-        const trackerList = preset.trackers || (preset as any).Trackers;
-        const sourceVal = preset.source || (preset as any).Source;
-        const commentVal = preset.comment || (preset as any).Comment;
-        const webSeedList = preset.webSeeds || (preset as any).WebSeeds;
-
-        if (trackerList && trackerList.length > 0) {
-          setTrackers(trackerList);
-          setTrackerMode('replace');
-        }
-        if (webSeedList && webSeedList.length > 0) {
-          setWebSeeds(webSeedList);
-          setWebSeedMode('replace');
-        }
-        if (sourceVal) setSource(sourceVal);
-        applyPresetPrivate(preset.private);
-        if (commentVal) setComment(commentVal);
-        // "Keep" sends entropy false, which wins over the preset, so show the preset value
-        if (preset.entropy !== undefined) setEntropyMode(preset.entropy ? 'add' : 'keep');
-      }
-    } catch (e) {
-      setError('Failed to load preset: ' + String(e));
-    }
+  const handlePresetChange = (value: string) => {
+    setPresetName(value === 'none' ? '' : value);
   };
 
   const handleSelectInput = async () => {
@@ -313,7 +423,7 @@ export function ModifyPage() {
     try {
       const path = await SelectPath();
       if (path) {
-        setOutputDir(path);
+        pick({ outputDir: path });
       }
     } catch (e) {
       setError(String(e));
@@ -336,16 +446,15 @@ export function ModifyPage() {
       setError('Please select a torrent file');
       return;
     }
-    const hasValue = (list: string[]) => list.some((v) => v.trim() !== '');
-    if (trackerMode === 'replace' && !hasValue(trackers)) {
+    if (picks.trackerMode === 'replace' && nonBlank(picks.trackers).length === 0) {
       setError('Enter a tracker URL, or select Keep');
       return;
     }
-    if (trackerMode === 'remove' && !hasValue(removeTrackers)) {
+    if (picks.trackerMode === 'remove' && nonBlank(picks.removeTrackers).length === 0) {
       setError('Enter a host or tracker URL to remove, or select Keep');
       return;
     }
-    if (webSeedMode === 'replace' && !hasValue(webSeeds)) {
+    if (picks.webSeedMode === 'replace' && nonBlank(picks.webSeeds).length === 0) {
       setError('Enter a web seed URL, or select Keep');
       return;
     }
@@ -355,33 +464,7 @@ export function ModifyPage() {
     setIsModifying(true);
 
     try {
-      const req: ModifyRequest = {
-        torrentPath,
-        trackerUrls: trackerMode === 'replace' ? trackers.filter(t => t.trim() !== '') : [],
-        removeTrackers: trackerMode === 'remove' ? removeTrackers.filter(t => t.trim() !== '') : [],
-        noTracker: trackerMode === 'clear',
-        webSeeds: webSeedMode === 'replace' ? webSeeds.filter(w => w.trim() !== '') : [],
-        noWebSeed: webSeedMode === 'clear',
-        name,
-        isPrivate: privateMode === 'private' ? true : privateMode === 'public' ? false : undefined,
-        noPrivate: privateMode === 'remove',
-        // an empty string clears, so send nothing to keep
-        source: source || undefined,
-        comment: comment || undefined,
-        noDate,
-        noCreator,
-        // false keeps the entropy, also over a preset
-        entropy: entropyMode === 'add',
-        noEntropy: entropyMode === 'remove',
-        skipPrefix,
-        outputDir,
-        outputPattern,
-        presetName,
-        presetFile: '',
-        dryRun: false,
-      };
-
-      const res = await ModifyTorrent(req);
+      const res = await ModifyTorrent(request);
       setResult(res as ModifyResult);
     } catch (e) {
       setError(String(e));
@@ -457,25 +540,26 @@ export function ModifyPage() {
               <RadioRow
                 name="trackers"
                 value={trackerMode}
-                onChange={setTrackerMode}
+                onChange={handleTrackerMode}
                 options={[['keep', 'Keep'], ['replace', 'Replace'], ['remove', 'Remove matching'], ['clear', 'Remove all']]}
               />
               {trackerMode === 'replace' && (
                 <UrlListInput
                   urls={trackers}
-                  onChange={setTrackers}
+                  onChange={(urls) => pick({ trackerMode: 'replace', trackers: urls })}
                   placeholder="https://tracker.example.com/announce"
                   addLabel="Add Tracker"
                 />
               )}
               {trackerMode === 'remove' && (
                 <UrlListInput
-                  urls={removeTrackers}
-                  onChange={setRemoveTrackers}
+                  urls={orBlank(picks.removeTrackers)}
+                  onChange={(urls) => pick({ removeTrackers: urls })}
                   placeholder="Host or tracker URL, for example old.example"
                   addLabel="Add Host"
                 />
               )}
+              {hint(picks.trackerMode, resolution?.trackers)}
             </div>
 
             {/* Private Flag */}
@@ -483,10 +567,11 @@ export function ModifyPage() {
               <Label>Private Flag</Label>
               <RadioRow
                 name="private"
-                value={privateMode}
-                onChange={handlePrivateModeChange}
+                value={shownPrivateMode}
+                onChange={handlePrivateMode}
                 options={[['unchanged', 'Unchanged'], ['private', 'Private'], ['public', 'Public'], ['remove', 'Remove flag']]}
               />
+              {hint(picks.privateMode, resolution?.private)}
             </div>
 
             {/* Output Directory */}
@@ -495,15 +580,15 @@ export function ModifyPage() {
               <div className="flex gap-2">
                 <div className="relative flex-1">
                   <Input
-                    value={outputDir}
-                    onChange={(e) => setOutputDir(e.target.value)}
-                    placeholder={getDirectory(torrentPath) || 'Same as input file'}
-                    className={outputDir ? 'pr-8' : ''}
+                    value={picks.outputDir ?? ''}
+                    onChange={(e) => (e.target.value ? pick({ outputDir: e.target.value }) : unpick('outputDir'))}
+                    placeholder={resolvedOutputDir || 'Same as input file'}
+                    className={picks.outputDir ? 'pr-8' : ''}
                   />
-                  {outputDir && (
+                  {picks.outputDir && (
                     <button
                       type="button"
-                      onClick={() => setOutputDir('')}
+                      onClick={() => unpick('outputDir')}
                       className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                       aria-label="Clear"
                       title="Clear"
@@ -516,12 +601,16 @@ export function ModifyPage() {
                   <FolderOpen className="h-4 w-4" />
                 </Button>
               </div>
-              {torrentPath && !outputDir && (
+              {resolvedOutputDir && (
                 <p className="text-xs text-muted-foreground">
-                  Output: {getDirectory(torrentPath)}
+                  Output: {resolvedOutputDir}
                 </p>
               )}
+              {hint(picks.outputDir, resolution?.outputDir)}
             </div>
+            {resolveError && (
+              <p className="text-xs text-destructive truncate" title={resolveError}>{resolveError}</p>
+            )}
           </CardContent>
         </Card>
 
@@ -541,18 +630,20 @@ export function ModifyPage() {
                   <div className="space-y-1.5">
                     <Label>Source</Label>
                     <Input
-                      value={source}
-                      onChange={(e) => setSource(e.target.value)}
-                      placeholder="Leave empty to keep unchanged"
+                      value={picks.source ?? ''}
+                      onChange={(e) => (e.target.value ? pick({ source: e.target.value }) : unpick('source'))}
+                      placeholder={presetValue(resolution?.source) || 'Leave empty to keep unchanged'}
                     />
+                    {hint(picks.source, resolution?.source)}
                   </div>
                   <div className="space-y-1.5">
                     <Label>Comment</Label>
                     <Input
-                      value={comment}
-                      onChange={(e) => setComment(e.target.value)}
-                      placeholder="Leave empty to keep unchanged"
+                      value={picks.comment ?? ''}
+                      onChange={(e) => (e.target.value ? pick({ comment: e.target.value }) : unpick('comment'))}
+                      placeholder={presetValue(resolution?.comment) || 'Leave empty to keep unchanged'}
                     />
+                    {hint(picks.comment, resolution?.comment)}
                   </div>
                 </div>
 
@@ -582,17 +673,18 @@ export function ModifyPage() {
                   <RadioRow
                     name="webSeeds"
                     value={webSeedMode}
-                    onChange={setWebSeedMode}
+                    onChange={handleWebSeedMode}
                     options={[['keep', 'Keep'], ['replace', 'Replace'], ['clear', 'Remove all']]}
                   />
                   {webSeedMode === 'replace' && (
                     <UrlListInput
                       urls={webSeeds}
-                      onChange={setWebSeeds}
+                      onChange={(urls) => pick({ webSeedMode: 'replace', webSeeds: urls })}
                       placeholder="https://seed.example.com/files/"
                       addLabel="Add Web Seed"
                     />
                   )}
+                  {hint(picks.webSeedMode, resolution?.webSeeds)}
                 </div>
 
                 {/* Entropy */}
@@ -600,38 +692,33 @@ export function ModifyPage() {
                   <Label>Entropy</Label>
                   <RadioRow
                     name="entropy"
-                    value={entropyMode}
-                    onChange={setEntropyMode}
+                    value={shownEntropyMode}
+                    onChange={(mode) => pick({ entropyMode: mode })}
                     options={[['keep', 'Keep'], ['add', 'Add new'], ['remove', 'Remove']]}
                   />
+                  {hint(picks.entropyMode, resolution?.entropy)}
                 </div>
 
                 {/* Toggles */}
                 <div className="flex flex-wrap gap-6">
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      id="noDate"
-                      checked={noDate}
-                      onCheckedChange={setNoDate}
-                    />
-                    <Label htmlFor="noDate" className="text-sm">Remove creation date</Label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      id="noCreator"
-                      checked={noCreator}
-                      onCheckedChange={setNoCreator}
-                    />
-                    <Label htmlFor="noCreator" className="text-sm">Remove creator</Label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      id="skipPrefix"
-                      checked={skipPrefix}
-                      onCheckedChange={setSkipPrefix}
-                    />
-                    <Label htmlFor="skipPrefix" className="text-sm">Skip tracker prefix in filename</Label>
-                  </div>
+                  {([
+                    ['noDate', 'Remove creation date'],
+                    ['noCreator', 'Remove creator'],
+                    ['skipPrefix', 'Skip tracker prefix in filename'],
+                  ] as const).map(([field, label]) => (
+                    <div key={field} className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          id={field}
+                          checked={picks[field] ?? presetOn[field]}
+                          disabled={!picks[field] && presetOn[field]}
+                          onCheckedChange={(on) => handleToggle(field, on)}
+                        />
+                        <Label htmlFor={field} className="text-sm">{label}</Label>
+                      </div>
+                      {hint(picks[field], toggleOrigin[field])}
+                    </div>
+                  ))}
                 </div>
               </div>
             </CollapsibleContent>
@@ -673,10 +760,10 @@ export function ModifyPage() {
       </div>
 
       <div className="bg-background p-4 flex justify-end gap-2">
-        <Button variant="outline" onClick={handleReset} disabled={isModifying}>
+        <Button variant="outline" onClick={handleReset} disabled={isModifying || Boolean(legacy)}>
           Reset
         </Button>
-        <Button onClick={handleModify} disabled={isModifying || !torrentPath}>
+        <Button onClick={handleModify} disabled={isModifying || !torrentPath || Boolean(legacy)}>
           {isModifying && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           {isModifying ? 'Modifying...' : 'Modify Torrent'}
         </Button>

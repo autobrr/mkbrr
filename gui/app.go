@@ -535,12 +535,7 @@ func (a *App) VerifyTorrent(req VerifyRequest) (*VerifyResult, error) {
 
 // === Modify Operations ===
 
-// ModifyTorrent modifies an existing torrent file
-func (a *App) ModifyTorrent(req ModifyRequest) (*ModifyResult, error) {
-	if req.TorrentPath == "" {
-		return nil, errors.New("torrent path is required")
-	}
-
+func (a *App) resolveModify(req ModifyRequest) (torrent.ModifyOptions, torrent.ModifyResolution, error) {
 	opts := torrent.ModifyOptions{
 		ModifySettings: req.ModifySettings,
 		PresetName:     req.PresetName,
@@ -549,9 +544,34 @@ func (a *App) ModifyTorrent(req ModifyRequest) (*ModifyResult, error) {
 		Quiet:          true,
 		Version:        a.version,
 	}
-	// Default output directory to source directory for GUI
-	if opts.OutputDir == "" {
+	resolution, err := torrent.ResolveModify(opts)
+	if err != nil {
+		return torrent.ModifyOptions{}, torrent.ModifyResolution{}, err
+	}
+	if resolution.OutputDir.Action == torrent.ModifyKeep && req.TorrentPath != "" {
 		opts.OutputDir = filepath.Dir(req.TorrentPath)
+		resolution.OutputDir = torrent.ModifyTextChange{Action: torrent.ModifySet, Origin: torrent.OriginDefault, Value: opts.OutputDir}
+	}
+	return opts, resolution, nil
+}
+
+func (a *App) ResolveModify(req ModifyRequest) (*torrent.ModifyResolution, error) {
+	_, resolution, err := a.resolveModify(req)
+	if err != nil {
+		return nil, err
+	}
+	return &resolution, nil
+}
+
+// ModifyTorrent modifies an existing torrent file
+func (a *App) ModifyTorrent(req ModifyRequest) (*ModifyResult, error) {
+	if req.TorrentPath == "" {
+		return nil, errors.New("torrent path is required")
+	}
+
+	opts, _, err := a.resolveModify(req)
+	if err != nil {
+		return nil, err
 	}
 
 	result, err := torrent.ModifyTorrent(req.TorrentPath, opts)
@@ -589,10 +609,6 @@ func (a *App) ListPresets() ([]string, error) {
 		names = append(names, name)
 	}
 	return names, nil
-}
-
-func (a *App) GetPresetValues(name string) (*preset.Options, error) {
-	return preset.LoadPresetValues("", name) //nolint:forbidigo // the Modify page reads the preset values that modify applies
 }
 
 // GetPresetFilePath returns the path to the preset file
