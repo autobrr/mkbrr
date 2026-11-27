@@ -137,6 +137,9 @@ func TestResolveModifyErrors(t *testing.T) {
 	_, err := ResolveModify(ModifyOptions{ModifySettings: ModifySettings{NoEntropy: true, Entropy: new(true)}})
 	require.ErrorIs(t, err, errEntropyConflict)
 
+	t.Chdir(t.TempDir())
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("USERPROFILE", t.TempDir())
 	_, err = ResolveModify(ModifyOptions{PresetName: "missing", PresetFile: filepath.Join(t.TempDir(), "presets.yaml")})
 	require.ErrorContains(t, err, "could not find preset file")
 }

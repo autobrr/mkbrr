@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -179,9 +179,9 @@ function legacyPicks(saved: LegacyFormState): Picks {
 }
 
 async function migrateLegacy(form: Omit<ModifyFormState, 'picks'>, legacy: Picks): Promise<Picks> {
-  const base: Picks = { outputDir: legacy.outputDir };
-  const r = await ResolveModify(buildRequest(form, base));
-  const picks: Picks = { ...base };
+  const r = await ResolveModify(buildRequest(form, {}));
+  const picks: Picks = {};
+  if (legacy.outputDir && legacy.outputDir !== r.outputDir.value) picks.outputDir = legacy.outputDir;
   if (legacy.trackerMode && !(legacy.trackerMode === 'replace' && r.trackers.action === 'set' && sameList(legacy.trackers, r.trackers.value))) {
     Object.assign(picks, { trackerMode: legacy.trackerMode, trackers: legacy.trackers, removeTrackers: legacy.removeTrackers });
   }
@@ -209,6 +209,11 @@ function entropyMode(r: ModifyResolution | undefined): EntropyMode {
   if (r?.entropy.action === 'clear') return 'remove';
   return 'keep';
 }
+
+const linkedPicks: (keyof Picks)[][] = [
+  ['trackerMode', 'trackers', 'removeTrackers'],
+  ['webSeedMode', 'webSeeds'],
+];
 
 const STORAGE_KEY = 'mkbrr-modify-form';
 
@@ -255,12 +260,24 @@ export function ModifyPage() {
   const [outputPattern, setOutputPattern] = useState(savedState.outputPattern);
   const [picks, setPicks] = useState<Picks>(savedState.picks);
   const [legacy, setLegacy] = useState(savedState.legacy);
-  const pick = (next: Picks) => setPicks((p) => ({ ...p, ...next }));
-  const unpick = (...fields: (keyof Picks)[]) => setPicks((p) => {
-    const next = { ...p };
-    for (const field of fields) delete next[field];
-    return next;
-  });
+  const touched = useRef(new Set<keyof Picks>());
+  const touch = (fields: (keyof Picks)[]) => {
+    for (const field of fields) {
+      for (const linked of linkedPicks.find((group) => group.includes(field)) ?? [field]) touched.current.add(linked);
+    }
+  };
+  const pick = (next: Picks) => {
+    touch(Object.keys(next) as (keyof Picks)[]);
+    setPicks((p) => ({ ...p, ...next }));
+  };
+  const unpick = (...fields: (keyof Picks)[]) => {
+    touch(fields);
+    setPicks((p) => {
+      const next = { ...p };
+      for (const field of fields) delete next[field];
+      return next;
+    });
+  };
 
   const [presets, setPresets] = useState<string[]>([]);
   const [isModifying, setIsModifying] = useState(false);
@@ -301,9 +318,10 @@ export function ModifyPage() {
     migrateLegacy({ torrentPath, presetName, name, outputPattern }, legacy)
       .catch((e) => {
         console.error('Failed to migrate the saved form state:', e);
-        return legacy;
+        return { ...legacy };
       })
       .then((migrated) => {
+        for (const field of touched.current) delete migrated[field];
         setPicks((current) => ({ ...migrated, ...current }));
         setLegacy(undefined);
       });
