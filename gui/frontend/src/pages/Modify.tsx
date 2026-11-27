@@ -742,7 +742,7 @@ export function ModifyPage() {
       </div>
 
       <div className="bg-background p-4 flex justify-end gap-2">
-        <Button variant="outline" onClick={handleReset} disabled={isModifying}>
+        <Button variant="outline" onClick={handleReset} disabled={isModifying || Boolean(legacy)}>
           Reset
         </Button>
         <Button onClick={handleModify} disabled={isModifying || !torrentPath || Boolean(legacy)}>
