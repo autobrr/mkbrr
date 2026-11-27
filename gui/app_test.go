@@ -365,38 +365,216 @@ presets:
 	}
 }
 
-func TestGetPresetValuesPrivate(t *testing.T) {
-	tracker := "trackers: [http://tracker.invalid/announce]"
-	cases := []struct {
-		name        string
-		defaultYAML string
-		presetYAML  string
-		want        *bool
-	}{
-		{name: "no private", presetYAML: tracker},
-		{name: "private true", presetYAML: tracker + "\n    private: true", want: new(true)},
-		{name: "private false", presetYAML: tracker + "\n    private: false", want: new(false)},
-		{name: "private false in default section", defaultYAML: "default:\n  private: false\n", presetYAML: tracker, want: new(false)},
+type modifiedFields struct {
+	trackers, webSeeds             []string
+	name, comment, source, creator string
+	private                        any
+	entropy                        any
+	hasDate                        bool
+	outputDir                      string
+}
+
+func readModified(t *testing.T, path string) (modifiedFields, string) {
+	t.Helper()
+	mi, err := torrent.LoadFromFile(path)
+	if err != nil {
+		t.Fatal(err)
 	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
+	var info map[string]any
+	if err := bencode.Unmarshal(mi.InfoBytes, &info); err != nil {
+		t.Fatal(err)
+	}
+	return modifiedFields{
+		trackers:  slices.Concat(mi.UpvertedAnnounceList()...),
+		webSeeds:  mi.UrlList,
+		name:      stringValue(info["name"]),
+		comment:   mi.Comment,
+		source:    stringValue(info["source"]),
+		creator:   mi.CreatedBy,
+		private:   info["private"],
+		entropy:   info["entropy"],
+		hasDate:   mi.CreationDate != 0,
+		outputDir: filepath.Dir(path),
+	}, mi.HashInfoBytes().String()
+}
+
+func applyText(original string, change torrent.ModifyTextChange) string {
+	switch change.Action {
+	case torrent.ModifySet:
+		return change.Value
+	case torrent.ModifyClear:
+		return ""
+	default:
+		return original
+	}
+}
+
+func applyList(original []string, change torrent.ModifyListChange) []string {
+	switch change.Action {
+	case torrent.ModifySet:
+		return change.Value
+	case torrent.ModifyClear:
+		return nil
+	case torrent.ModifyRemove:
+		return slices.DeleteFunc(slices.Clone(original), func(url string) bool {
+			return slices.ContainsFunc(change.Value, func(host string) bool { return strings.Contains(url, host) })
+		})
+	default:
+		return original
+	}
+}
+
+func TestResolveModifyMatchesModifyTorrent(t *testing.T) {
+	const oldTracker = "http://tracker.invalid/announce"
+	const newTracker = "http://new.invalid/announce"
+
+	tests := []struct {
+		name          string
+		defaultYAML   string
+		presetYAML    string
+		settings      torrent.ModifySettings
+		wantOrigins   map[string]torrent.Origin
+		wantSameHash  bool
+		wantOutputDir string
+	}{
+		{
+			name:         "preset without private keeps the private flag",
+			presetYAML:   "{trackers: [" + newTracker + "]}",
+			wantOrigins:  map[string]torrent.Origin{"private": torrent.OriginKeep, "trackers": torrent.OriginPreset, "output dir": torrent.OriginDefault},
+			wantSameHash: true,
+		},
+		{
+			name:        "private false in the default section",
+			defaultYAML: "default:\n  private: false\n",
+			presetYAML:  "{trackers: [" + newTracker + "]}",
+			wantOrigins: map[string]torrent.Origin{"private": torrent.OriginPreset},
+		},
+		{
+			name:          "preset values",
+			presetYAML:    "{trackers: [" + newTracker + "], webseeds: [http://seed.invalid/], source: PRESET, comment: preset, private: true, entropy: true, no_creator: false, skip_prefix: true, output_dir: OUTDIR}",
+			wantOrigins:   map[string]torrent.Origin{"private": torrent.OriginPreset, "source": torrent.OriginPreset, "entropy": torrent.OriginPreset, "output dir": torrent.OriginPreset},
+			wantOutputDir: "out",
+		},
+		{
+			name:       "typed values over the preset",
+			presetYAML: "{source: PRESET, comment: preset, private: true, entropy: true, output_dir: OUTDIR}",
+			settings: torrent.ModifySettings{
+				Name: "Typed", Source: new("TYPED"), Comment: new("typed"), IsPrivate: new(false), Entropy: new(false),
+				TrackerURLs: []string{newTracker, "http://backup.invalid/announce"}, OutputDir: "TYPEDDIR",
+			},
+			wantOrigins:   map[string]torrent.Origin{"private": torrent.OriginOverride, "source": torrent.OriginOverride, "entropy": torrent.OriginOverride, "output dir": torrent.OriginOverride},
+			wantOutputDir: "typed",
+		},
+		{
+			name:       "typed clears",
+			presetYAML: "{source: PRESET, comment: preset, private: true, entropy: true}",
+			settings: torrent.ModifySettings{
+				Source: new(""), Comment: new(""), NoPrivate: true, NoEntropy: true, NoCreator: true, NoDate: true,
+				NoWebSeed: true, RemoveTrackers: []string{"tracker.invalid"},
+			},
+			wantOrigins: map[string]torrent.Origin{"private": torrent.OriginOverride, "source": torrent.OriginOverride, "trackers": torrent.OriginOverride},
+		},
+		{
+			name:        "no preset",
+			settings:    torrent.ModifySettings{Comment: new("typed")},
+			wantOrigins: map[string]torrent.Origin{"private": torrent.OriginKeep, "comment": torrent.OriginOverride, "output dir": torrent.OriginDefault},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
-			t.Setenv("HOME", dir)
-			t.Chdir(dir)
-			yaml := "version: 1\n" + tc.defaultYAML + "presets:\n  p:\n    " + tc.presetYAML + "\n"
-			if err := os.WriteFile("presets.yaml", []byte(yaml), 0o600); err != nil {
+			content := filepath.Join(dir, "Movie")
+			writeFile(t, filepath.Join(content, "main.mkv"), 64<<10)
+			torrentPath := filepath.Join(dir, "in", "original.torrent")
+			if err := os.MkdirAll(filepath.Dir(torrentPath), 0o755); err != nil {
 				t.Fatal(err)
+			}
+			if _, err := torrent.Create(torrent.CreateOptions{
+				Path: content, OutputPath: torrentPath, TrackerURLs: []string{oldTracker, "http://keep.invalid/announce"},
+				WebSeeds: []string{"http://oldseed.invalid/"}, Comment: "old", Source: "OLD", Entropy: true, Version: "0", Quiet: true,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			original, originalHash := readModified(t, torrentPath)
+
+			req := ModifyRequest{TorrentPath: torrentPath, ModifySettings: tt.settings}
+			if req.OutputDir == "TYPEDDIR" {
+				req.OutputDir = filepath.Join(dir, "typed")
+			}
+			if tt.presetYAML != "" {
+				req.PresetName = "p"
+				req.PresetFile = filepath.Join(dir, "presets.yaml")
+				yaml := "version: 1\n" + tt.defaultYAML + "presets:\n  p: " + strings.ReplaceAll(tt.presetYAML, "OUTDIR", filepath.Join(dir, "out")) + "\n"
+				if err := os.WriteFile(req.PresetFile, []byte(yaml), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			app := NewApp("test")
+
+			resolved, err := app.ResolveModify(req)
+			if err != nil {
+				t.Fatalf("ResolveModify: %v", err)
+			}
+			origins := map[string]torrent.Origin{
+				"private": resolved.Private.Origin, "source": resolved.Source.Origin, "comment": resolved.Comment.Origin,
+				"trackers": resolved.Trackers.Origin, "entropy": resolved.Entropy.Origin, "output dir": resolved.OutputDir.Origin,
+			}
+			for setting, want := range tt.wantOrigins {
+				if origins[setting] != want {
+					t.Errorf("%s origin = %q, want %q", setting, origins[setting], want)
+				}
 			}
 
-			got, err := (&App{}).GetPresetValues("p")
+			res, err := app.ModifyTorrent(req)
 			if err != nil {
-				t.Fatal(err)
+				t.Fatalf("ModifyTorrent: %v", err)
 			}
-			if !reflect.DeepEqual(got.Private, tc.want) {
-				t.Errorf("private = %v, want %v", ptrString(got.Private), ptrString(tc.want))
+			if !res.WasModified {
+				t.Fatal("ModifyTorrent wrote nothing")
 			}
-			if len(got.Trackers) != 1 {
-				t.Errorf("trackers = %v, want the preset tracker", got.Trackers)
+			written, writtenHash := readModified(t, res.OutputPath)
+
+			want := modifiedFields{
+				trackers:  applyList(original.trackers, resolved.Trackers),
+				webSeeds:  applyList(original.webSeeds, resolved.WebSeeds),
+				name:      applyText(original.name, resolved.Name),
+				comment:   applyText(original.comment, resolved.Comment),
+				source:    applyText(original.source, resolved.Source),
+				creator:   applyText(original.creator, resolved.CreatedBy),
+				private:   original.private,
+				entropy:   original.entropy,
+				hasDate:   resolved.CreationDate.Action != torrent.ModifyClear,
+				outputDir: resolved.OutputDir.Value,
+			}
+			switch resolved.Private.Action {
+			case torrent.ModifySet:
+				want.private = int64(0)
+				if resolved.Private.Value {
+					want.private = int64(1)
+				}
+			case torrent.ModifyClear:
+				want.private = nil
+			default:
+			}
+			switch resolved.Entropy.Action {
+			case torrent.ModifySet:
+				if written.entropy == nil || written.entropy == original.entropy {
+					t.Errorf("entropy = %v, want a new value", written.entropy)
+				}
+				want.entropy = written.entropy
+			case torrent.ModifyClear:
+				want.entropy = nil
+			default:
+			}
+			if !reflect.DeepEqual(written, want) {
+				t.Errorf("written torrent:\n%+v\nresolution:\n%+v", written, want)
+			}
+			if tt.wantOutputDir != "" && written.outputDir != filepath.Join(dir, tt.wantOutputDir) {
+				t.Errorf("written to %q, want the folder %q", written.outputDir, filepath.Join(dir, tt.wantOutputDir))
+			}
+			if tt.wantSameHash && writtenHash != originalHash {
+				t.Errorf("info hash = %s, want the original %s", writtenHash, originalHash)
 			}
 		})
 	}

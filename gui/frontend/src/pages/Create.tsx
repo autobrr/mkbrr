@@ -22,6 +22,7 @@ import { EventsOn } from '../../wailsjs/runtime/runtime';
 import { getEffectiveWorkers } from './Settings';
 import { useFileDrop } from '@/hooks/useFileDrop';
 import { DropOverlay } from '@/components/ui/drop-overlay';
+import { OriginHint } from '@/components/ui/origin-hint';
 import { formatPieceSize, pieceLengthOptions } from '@/lib/utils';
 
 import { main, torrent } from '../../wailsjs/go/models';
@@ -204,12 +205,6 @@ function UrlList({ urls, onChange, placeholder, addLabel }: {
       </Button>
     </div>
   );
-}
-
-function OriginHint({ origin, presetName }: { origin: string | undefined; presetName: string }) {
-  if (origin === 'preset') return <p className="text-xs text-muted-foreground">From preset {presetName}</p>;
-  if (origin === 'tracker') return <p className="text-xs text-muted-foreground">Tracker default</p>;
-  return null;
 }
 
 // nonBlank drops the empty inputs of a URL list.

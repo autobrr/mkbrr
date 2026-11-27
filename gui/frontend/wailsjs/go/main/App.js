@@ -30,10 +30,6 @@ export function GetPresetFilePath() {
   return window['go']['main']['App']['GetPresetFilePath']();
 }
 
-export function GetPresetValues(arg1) {
-  return window['go']['main']['App']['GetPresetValues'](arg1);
-}
-
 export function GetVersion() {
   return window['go']['main']['App']['GetVersion']();
 }
@@ -60,6 +56,10 @@ export function PlanCreate(arg1) {
 
 export function ResolveCreate(arg1) {
   return window['go']['main']['App']['ResolveCreate'](arg1);
+}
+
+export function ResolveModify(arg1) {
+  return window['go']['main']['App']['ResolveModify'](arg1);
 }
 
 export function SavePreset(arg1, arg2) {

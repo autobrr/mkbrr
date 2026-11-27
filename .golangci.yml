@@ -98,7 +98,7 @@ linters:
           - forbidigo
         text: writeTorrentOutput
 
-      - path: ^(internal/(preset|createpreset)/|torrent/modify\.go$)
+      - path: ^(internal/(preset|createpreset)/|torrent/modify(_resolve)?\.go$)
         linters:
           - forbidigo
         text: preset loader

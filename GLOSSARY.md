@@ -21,7 +21,7 @@ To merge the overrides, the preset, and the tracker defaults into the final crea
 _Avoid_: merge, apply preset
 
 **Origin**:
-Where a resolved create setting came from: an override, the preset, a tracker default, or the default. The GUI create form shows the origin of each value.
+Where a resolved setting came from. In create: an override, the preset, a tracker default, or the default. In modify: an override, the preset, or keep. The GUI Create and Modify pages show the origin of each value.
 _Avoid_: source (the source tag is a setting)
 
 **Piece length choice**:

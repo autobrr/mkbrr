@@ -77,9 +77,18 @@ The Modify page changes the metadata of a `.torrent` file. Each control has the 
 
 The Trackers control has four options. Keep sends no tracker option. The torrent keeps its trackers, but if the preset has trackers, the preset trackers replace them. Replace sets the trackers to the list that you give. Remove matching takes a list of hosts or tracker URLs, and removes the trackers on those hosts. Remove all removes every tracker. The Web Seeds control has the same Keep, Replace, and Remove all options. If a host matches no tracker, the result shows a warning.
 
-The Entropy control has three options. Keep does not change the entropy field, also when the preset adds entropy. Add new writes a new random value. Remove deletes the entropy field. If you select a preset that sets `entropy: true`, the page selects Add new. If you select a preset that sets `entropy: false`, the page selects Keep.
+When you select a preset, the Modify page does not copy preset values into the form. Each control shows what modify will do with the preset, and a value that comes from the preset shows a hint such as "From preset ptp" under it. Once you pick or type your own value, your choice wins and the hint goes away. When you switch to another preset or to None, the values of the old preset go away, and the page shows only the values of the new preset. Choices that you made yourself stay.
 
-If you select a preset that sets `private`, also in the `default` section of the preset file, the Private Flag control selects Private for `true` and Public for `false`, unless you picked Private, Public, or Remove flag yourself. If the preset does not set `private`, the control stays on Unchanged, and the torrent keeps its private flag, as with `mkbrr modify -P`. Unchanged sends no private option, so a `private` value in the preset still applies.
+| Control | With a preset |
+|---------|---------------|
+| Trackers and Web Seeds | A preset with trackers or web seeds shows Replace with the preset list. If you edit the list, it becomes your list. |
+| Private Flag | A preset with `private: true` shows Private, and `private: false` shows Public, also when the value is in the `default` section of the preset file. A preset without `private` shows Unchanged, and the torrent keeps its private flag, as with `mkbrr modify -P`. |
+| Entropy | A preset with `entropy: true` shows Add new, and `entropy: false` shows Keep. If you pick Keep, the torrent keeps its entropy field, also when the preset adds entropy. |
+| Source and Comment | An empty field shows the preset value in grey. Type to use your own value. An empty field never removes a source or comment: it keeps the value of the torrent, or uses the preset value. |
+| Output Directory | An empty field shows where the torrent goes: the `output_dir` of the preset, or else the folder of the input torrent. |
+| Remove creation date, Remove creator, Skip tracker prefix in filename | When the preset turns one on (`no_date`, `no_creator`, or `skip_prefix`), the switch is on and locked, with the hint, because `mkbrr modify` has no option to turn it off again. |
+
+The page reads the preset file again when the window gets focus, so a preset edited in another app shows before you modify. The GUI and `mkbrr modify -P` give the same torrent for the same preset and choices.
 
 <Warning>
 Add new, Remove, and a new Name change the info hash. A torrent with a new info hash does not cross-seed with the old torrent.
